@@ -1,0 +1,33 @@
+# Plinth — top-level repo metadata.
+# Each component (services/*, sdk/python, mock-mcp-server, examples/*) has its own
+# pyproject.toml. This file exists to mark the repo root and host shared dev tool config.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".venv", "dist", "build", "node_modules"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RET"]
+ignore = ["B008"]  # FastAPI's Depends() in defaults
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]
+"**/test_*.py" = ["B011"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+extend-exclude = '''
+/(
+    \.venv
+  | dist
+  | build
+  | node_modules
+)/
+'''
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["services", "sdk/python", "mock-mcp-server", "examples"]
+addopts = "-q --tb=short"

@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://plinth.dev/schemas/capability-token.schema.json",
+  "title": "Plinth Capability Token (claims)",
+  "description": "JWT claim set issued by the v0.2 Identity service. Capability tokens are short-lived bearer credentials that encode exactly which tools and workspaces an agent may touch. The verifier (gateway) MUST reject tokens whose claims do not match this schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sub", "iss", "exp", "iat", "agent_id", "scopes"],
+  "properties": {
+    "sub": {
+      "type": "string",
+      "description": "Subject — the agent or user the token is issued to."
+    },
+    "iss": {
+      "type": "string",
+      "format": "uri",
+      "description": "Issuer URL of the Identity service."
+    },
+    "aud": {
+      "oneOf": [
+        {"type": "string"},
+        {"type": "array", "items": {"type": "string"}, "minItems": 1}
+      ],
+      "description": "Audience — the gateway URL(s) for which this token is valid."
+    },
+    "exp": {
+      "type": "integer",
+      "description": "Expiration time (unix epoch seconds)."
+    },
+    "iat": {
+      "type": "integer",
+      "description": "Issued-at time (unix epoch seconds)."
+    },
+    "nbf": {
+      "type": "integer",
+      "description": "Not-before time (unix epoch seconds)."
+    },
+    "jti": {
+      "type": "string",
+      "description": "Unique token id (for revocation)."
+    },
+    "agent_id": {
+      "type": "string",
+      "description": "Stable identifier for the agent this token represents."
+    },
+    "workspace_id": {
+      "type": "string",
+      "pattern": "^ws_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Optional — when set, the token is locked to this workspace."
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Optional tenant identifier for multi-tenant deployments."
+    },
+    "scopes": {
+      "type": "array",
+      "minItems": 1,
+      "description": "List of capability scope strings. Each scope grants either a tool capability or a workspace capability.",
+      "items": {
+        "type": "string",
+        "pattern": "^(tool:[a-zA-Z0-9._-]+(:read|:write|:execute)?|workspace:[a-zA-Z0-9_-]+:(read|write|admin))$"
+      }
+    },
+    "rate_limit": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional per-token rate limits enforced by the gateway.",
+      "properties": {
+        "calls_per_minute": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_cost_usd_per_hour": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_concurrent": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "delegation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Set when this token was minted on behalf of another principal. Forms a delegation chain.",
+      "required": ["delegator"],
+      "properties": {
+        "delegator": {
+          "type": "string",
+          "description": "Subject of the principal that authorised this delegation."
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How deep this token sits in the delegation chain."
+        },
+        "max_depth": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "sub": "agent:research-bot",
+      "iss": "https://identity.plinth.dev",
+      "aud": "https://gateway.plinth.dev",
+      "exp": 1798761600,
+      "iat": 1798758000,
+      "jti": "cap_01HZX9V5K4M7N0Q1R2S3T4V5W6",
+      "agent_id": "research-bot",
+      "workspace_id": "ws_01HZX9V5K4M7N0Q1R2S3T4V5W6",
+      "scopes": [
+        "tool:web.fetch:execute",
+        "tool:web.search:execute",
+        "workspace:ws_01HZX9V5K4M7N0Q1R2S3T4V5W6:write"
+      ],
+      "rate_limit": {
+        "calls_per_minute": 60,
+        "max_cost_usd_per_hour": 5.0
+      }
+    }
+  ]
+}

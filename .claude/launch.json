@@ -1,0 +1,53 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "workspace",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /tmp && exec /Users/nico/Code/plinth/.venv/bin/python -m plinth_workspace"],
+      "port": 7421
+    },
+    {
+      "name": "gateway",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /tmp && exec /Users/nico/Code/plinth/.venv/bin/python -m plinth_gateway"],
+      "port": 7422
+    },
+    {
+      "name": "mock-mcp",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /tmp && exec /Users/nico/Code/plinth/.venv/bin/python -m mock_mcp"],
+      "port": 7423
+    },
+    {
+      "name": "dashboard",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /tmp && exec /Users/nico/Code/plinth/.venv/bin/python -m plinth_dashboard"],
+      "port": 7424
+    },
+    {
+      "name": "identity",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /tmp && exec /Users/nico/Code/plinth/.venv/bin/python -m plinth_identity"],
+      "port": 7425
+    },
+    {
+      "name": "github-mcp",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /tmp && exec /Users/nico/Code/plinth/.venv/bin/python -m github_mcp"],
+      "port": 7426
+    },
+    {
+      "name": "slack-mcp",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /tmp && exec /Users/nico/Code/plinth/.venv/bin/python -m slack_mcp"],
+      "port": 7427
+    },
+    {
+      "name": "linear-mcp",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /tmp && exec /Users/nico/Code/plinth/.venv/bin/python -m linear_mcp"],
+      "port": 7428
+    }
+  ]
+}

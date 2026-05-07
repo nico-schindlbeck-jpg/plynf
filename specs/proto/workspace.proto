@@ -1,0 +1,325 @@
+// SPDX-License-Identifier: Apache-2.0
+// Plinth gRPC sketch — v0.1 placeholder. Not implemented yet; see ADR 0001.
+//
+// This file sketches the gRPC surface we expect to ship in v1.0 alongside (or in
+// place of) the JSON/HTTP API documented in `specs/openapi/workspace.yaml`. It is
+// deliberately partial: types mirror the Pydantic models in `CONTRACTS.md` but
+// streaming, pagination, watch APIs and large-blob handling will be revisited
+// before v1.0 freeze.
+
+syntax = "proto3";
+
+package plinth.workspace.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/plinth/plinth/gen/go/workspace/v1;workspacev1";
+option java_package = "dev.plinth.workspace.v1";
+option java_multiple_files = true;
+option csharp_namespace = "Plinth.Workspace.V1";
+
+// ---------------------------------------------------------------------------
+// Common message types
+// ---------------------------------------------------------------------------
+
+// A workspace is the top-level isolation boundary for an agent's state.
+message Workspace {
+  string id = 1;                              // ws_<ulid>
+  string name = 2;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp updated_at = 4;
+  google.protobuf.Struct metadata = 5;        // free-form JSON
+}
+
+// A single versioned KV value.
+message KVEntry {
+  string workspace_id = 1;
+  string key = 2;
+  google.protobuf.Value value = 3;            // any JSON-serializable value
+  uint64 version = 4;                         // monotonic per (workspace, key)
+  google.protobuf.Timestamp created_at = 5;
+  bool deleted = 6;                           // tombstone marker
+  optional string branch_id = 7;              // populated for branch-scoped writes
+}
+
+// Versioned blob metadata. The bytes themselves stream out-of-band to keep
+// gRPC messages bounded.
+message FileEntry {
+  string workspace_id = 1;
+  string path = 2;
+  uint64 size = 3;
+  string sha256 = 4;
+  string content_type = 5;
+  uint64 version = 6;
+  google.protobuf.Timestamp created_at = 7;
+  bool deleted = 8;
+  optional string branch_id = 9;
+}
+
+// Immutable point-in-time view of a workspace.
+message Snapshot {
+  string id = 1;                              // snap_<ulid>
+  string workspace_id = 2;
+  string name = 3;
+  optional string message = 4;
+  google.protobuf.Timestamp created_at = 5;
+  map<string, uint64> kv_versions = 6;        // key -> version
+  map<string, uint64> file_versions = 7;      // path -> version
+  optional string parent_snapshot_id = 8;
+}
+
+// A divergent timeline rooted at a snapshot.
+message Branch {
+  string id = 1;                              // br_<ulid>
+  string workspace_id = 2;
+  string name = 3;
+  string from_snapshot_id = 4;
+  google.protobuf.Timestamp created_at = 5;
+  bool merged = 6;
+  optional google.protobuf.Timestamp merged_at = 7;
+}
+
+// Result of diffing two snapshots.
+message DiffResult {
+  repeated string kv_added = 1;
+  repeated string kv_modified = 2;
+  repeated string kv_deleted = 3;
+  repeated string files_added = 4;
+  repeated string files_modified = 5;
+  repeated string files_deleted = 6;
+}
+
+// ---------------------------------------------------------------------------
+// Workspace service
+// ---------------------------------------------------------------------------
+
+message CreateWorkspaceRequest {
+  string name = 1;
+  google.protobuf.Struct metadata = 2;
+}
+
+message ListWorkspacesRequest {
+  uint32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListWorkspacesResponse {
+  repeated Workspace workspaces = 1;
+  string next_page_token = 2;
+}
+
+message GetWorkspaceRequest {
+  string workspace_id = 1;
+}
+
+message DeleteWorkspaceRequest {
+  string workspace_id = 1;
+}
+
+service WorkspaceService {
+  rpc CreateWorkspace(CreateWorkspaceRequest) returns (Workspace);
+  rpc ListWorkspaces(ListWorkspacesRequest) returns (ListWorkspacesResponse);
+  rpc GetWorkspace(GetWorkspaceRequest) returns (Workspace);
+  rpc DeleteWorkspace(DeleteWorkspaceRequest) returns (google.protobuf.Empty);
+}
+
+// ---------------------------------------------------------------------------
+// KV service
+// ---------------------------------------------------------------------------
+
+message PutKVRequest {
+  string workspace_id = 1;
+  string key = 2;
+  google.protobuf.Value value = 3;
+  optional string branch_id = 4;
+}
+
+message GetKVRequest {
+  string workspace_id = 1;
+  string key = 2;
+  // version=0 is treated as "latest"
+  uint64 version = 3;
+  optional string branch_id = 4;
+}
+
+message DeleteKVRequest {
+  string workspace_id = 1;
+  string key = 2;
+  optional string branch_id = 3;
+}
+
+message ListKVRequest {
+  string workspace_id = 1;
+  optional string branch_id = 2;
+  string prefix = 3;
+  uint32 page_size = 4;
+  string page_token = 5;
+}
+
+message ListKVResponse {
+  repeated KVEntry entries = 1;
+  string next_page_token = 2;
+}
+
+message HistoryKVRequest {
+  string workspace_id = 1;
+  string key = 2;
+  optional string branch_id = 3;
+}
+
+message HistoryKVResponse {
+  repeated KVEntry versions = 1;             // oldest -> newest
+}
+
+service KVService {
+  rpc Put(PutKVRequest) returns (KVEntry);
+  rpc Get(GetKVRequest) returns (KVEntry);
+  rpc Delete(DeleteKVRequest) returns (google.protobuf.Empty);
+  rpc List(ListKVRequest) returns (ListKVResponse);
+  rpc History(HistoryKVRequest) returns (HistoryKVResponse);
+}
+
+// ---------------------------------------------------------------------------
+// File service
+// ---------------------------------------------------------------------------
+
+message FileChunk {
+  // The first chunk in a stream MUST set `meta`. Subsequent chunks carry
+  // bytes only. This keeps individual gRPC frames small.
+  oneof payload {
+    FileWriteHeader meta = 1;
+    bytes data = 2;
+  }
+}
+
+message FileWriteHeader {
+  string workspace_id = 1;
+  string path = 2;
+  string content_type = 3;
+  optional string branch_id = 4;
+}
+
+message GetFileRequest {
+  string workspace_id = 1;
+  string path = 2;
+  uint64 version = 3;                        // 0 = latest
+  optional string branch_id = 4;
+}
+
+message GetFileMetaRequest {
+  string workspace_id = 1;
+  string path = 2;
+  uint64 version = 3;
+  optional string branch_id = 4;
+}
+
+message DeleteFileRequest {
+  string workspace_id = 1;
+  string path = 2;
+  optional string branch_id = 3;
+}
+
+message ListFilesRequest {
+  string workspace_id = 1;
+  optional string branch_id = 2;
+  string prefix = 3;
+  uint32 page_size = 4;
+  string page_token = 5;
+}
+
+message ListFilesResponse {
+  repeated FileEntry files = 1;
+  string next_page_token = 2;
+}
+
+service FileService {
+  // Client-streamed write. Returns final FileEntry once the stream completes.
+  rpc Put(stream FileChunk) returns (FileEntry);
+  // Server-streamed read. The first chunk carries no header; raw bytes only.
+  rpc Get(GetFileRequest) returns (stream FileChunk);
+  rpc GetMeta(GetFileMetaRequest) returns (FileEntry);
+  rpc Delete(DeleteFileRequest) returns (google.protobuf.Empty);
+  rpc List(ListFilesRequest) returns (ListFilesResponse);
+}
+
+// ---------------------------------------------------------------------------
+// Snapshot service
+// ---------------------------------------------------------------------------
+
+message CreateSnapshotRequest {
+  string workspace_id = 1;
+  string name = 2;
+  optional string message = 3;
+  optional string branch_id = 4;
+}
+
+message ListSnapshotsRequest {
+  string workspace_id = 1;
+  optional string branch_id = 2;
+}
+
+message ListSnapshotsResponse {
+  repeated Snapshot snapshots = 1;
+}
+
+message GetSnapshotRequest {
+  string workspace_id = 1;
+  string snapshot_id = 2;
+}
+
+message DiffSnapshotsRequest {
+  string workspace_id = 1;
+  string snapshot_id = 2;
+  string against_snapshot_id = 3;
+}
+
+service SnapshotService {
+  rpc Create(CreateSnapshotRequest) returns (Snapshot);
+  rpc List(ListSnapshotsRequest) returns (ListSnapshotsResponse);
+  rpc Get(GetSnapshotRequest) returns (Snapshot);
+  rpc Diff(DiffSnapshotsRequest) returns (DiffResult);
+}
+
+// ---------------------------------------------------------------------------
+// Branch service
+// ---------------------------------------------------------------------------
+
+message CreateBranchRequest {
+  string workspace_id = 1;
+  string name = 2;
+  string from_snapshot_id = 3;
+}
+
+message ListBranchesRequest {
+  string workspace_id = 1;
+}
+
+message ListBranchesResponse {
+  repeated Branch branches = 1;
+}
+
+message MergeBranchRequest {
+  string workspace_id = 1;
+  string branch_id = 2;
+}
+
+message MergeBranchResponse {
+  string branch_id = 1;
+  string snapshot_id = 2;
+  google.protobuf.Timestamp merged_at = 3;
+  DiffResult diff = 4;
+}
+
+message DeleteBranchRequest {
+  string workspace_id = 1;
+  string branch_id = 2;
+}
+
+service BranchService {
+  rpc Create(CreateBranchRequest) returns (Branch);
+  rpc List(ListBranchesRequest) returns (ListBranchesResponse);
+  rpc Merge(MergeBranchRequest) returns (MergeBranchResponse);
+  rpc Delete(DeleteBranchRequest) returns (google.protobuf.Empty);
+}

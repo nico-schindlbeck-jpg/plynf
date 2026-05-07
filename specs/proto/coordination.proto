@@ -1,0 +1,150 @@
+// SPDX-License-Identifier: Apache-2.0
+// Plinth gRPC sketch — v0.1 placeholder. Not implemented yet; see ADR 0001.
+//
+// This file sketches the coordination primitives planned for v0.2: typed
+// channels for inter-agent message passing, leases / locks for mutual exclusion,
+// and durable workflows (likely Temporal-backed). It is intentionally
+// lightweight; per-RPC contracts will be re-derived from real customer flows
+// before implementation begins.
+
+syntax = "proto3";
+
+package plinth.coordination.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/plinth/plinth/gen/go/coordination/v1;coordinationv1";
+option java_package = "dev.plinth.coordination.v1";
+option java_multiple_files = true;
+option csharp_namespace = "Plinth.Coordination.V1";
+
+// ---------------------------------------------------------------------------
+// Channels — typed, persistent, replayable message passing between agents.
+// ---------------------------------------------------------------------------
+
+message Message {
+  string id = 1;                                // msg_<ulid>
+  string channel = 2;
+  string sender_agent_id = 3;
+  google.protobuf.Timestamp sent_at = 4;
+  google.protobuf.Struct payload = 5;
+  // Logical sequence within the channel; gap-free, monotonic.
+  uint64 sequence = 6;
+  // Optional schema id for typed channels.
+  optional string schema_id = 7;
+}
+
+message SendRequest {
+  string channel = 1;
+  string sender_agent_id = 2;
+  google.protobuf.Struct payload = 3;
+  optional string schema_id = 4;
+  optional string idempotency_key = 5;
+}
+
+message ReceiveRequest {
+  string channel = 1;
+  string subscriber_agent_id = 2;
+  // Resume from this sequence (exclusive). 0 = from start.
+  uint64 from_sequence = 3;
+  // If true, the server keeps the stream open and pushes new messages live.
+  bool follow = 4;
+}
+
+service ChannelService {
+  rpc Send(SendRequest) returns (Message);
+  // Server-streamed receive. Closes when caught up unless `follow` is set.
+  rpc Receive(ReceiveRequest) returns (stream Message);
+}
+
+// ---------------------------------------------------------------------------
+// Locks / leases — coarse mutual exclusion across agents.
+// ---------------------------------------------------------------------------
+
+message Lock {
+  string resource = 1;                          // free-form resource path
+  string owner_agent_id = 2;
+  string lease_id = 3;                          // lease_<ulid>
+  google.protobuf.Timestamp acquired_at = 4;
+  google.protobuf.Timestamp expires_at = 5;
+}
+
+message AcquireRequest {
+  string resource = 1;
+  string owner_agent_id = 2;
+  google.protobuf.Duration ttl = 3;
+  // If true, return immediately when contended; otherwise wait up to `ttl`.
+  bool nowait = 4;
+}
+
+message ReleaseRequest {
+  string lease_id = 1;
+}
+
+message RenewRequest {
+  string lease_id = 1;
+  google.protobuf.Duration extend_by = 2;
+}
+
+service LockService {
+  rpc Acquire(AcquireRequest) returns (Lock);
+  rpc Release(ReleaseRequest) returns (google.protobuf.Empty);
+  rpc Renew(RenewRequest) returns (Lock);
+}
+
+// ---------------------------------------------------------------------------
+// Workflows — durable, resumable units of work (Temporal underneath).
+// ---------------------------------------------------------------------------
+
+enum WorkflowState {
+  WORKFLOW_STATE_UNSPECIFIED = 0;
+  WORKFLOW_STATE_RUNNING = 1;
+  WORKFLOW_STATE_COMPLETED = 2;
+  WORKFLOW_STATE_FAILED = 3;
+  WORKFLOW_STATE_CANCELLED = 4;
+  WORKFLOW_STATE_PAUSED = 5;
+}
+
+message Workflow {
+  string id = 1;                                // wf_<ulid>
+  string name = 2;
+  WorkflowState state = 3;
+  google.protobuf.Timestamp started_at = 4;
+  optional google.protobuf.Timestamp finished_at = 5;
+  google.protobuf.Struct input = 6;
+  google.protobuf.Struct result = 7;
+  optional string error = 8;
+}
+
+message StartWorkflowRequest {
+  string name = 1;
+  google.protobuf.Struct input = 2;
+  optional string idempotency_key = 3;
+  // Optional workspace and agent attribution for audit purposes.
+  optional string workspace_id = 4;
+  optional string agent_id = 5;
+}
+
+message ResumeWorkflowRequest {
+  string workflow_id = 1;
+  google.protobuf.Struct signal_payload = 2;
+}
+
+message CancelWorkflowRequest {
+  string workflow_id = 1;
+  optional string reason = 2;
+}
+
+message GetWorkflowRequest {
+  string workflow_id = 1;
+}
+
+service WorkflowService {
+  rpc Start(StartWorkflowRequest) returns (Workflow);
+  rpc Resume(ResumeWorkflowRequest) returns (Workflow);
+  rpc Cancel(CancelWorkflowRequest) returns (Workflow);
+  rpc Get(GetWorkflowRequest) returns (Workflow);
+}

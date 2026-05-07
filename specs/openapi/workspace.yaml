@@ -1,0 +1,1072 @@
+# SPDX-License-Identifier: Apache-2.0
+# Plinth Workspace API — OpenAPI 3.1 specification
+openapi: 3.1.0
+info:
+  title: Plinth Workspace API
+  version: 0.1.0
+  description: |
+    The Workspace service is the persistent, structured memory layer for agents. It
+    provides versioned key-value storage, versioned files, immutable snapshots and
+    divergent branches that can be merged back into the main timeline.
+
+    All endpoints require a bearer token via `Authorization: Bearer <token>`. In the
+    v0.1 PoC any non-empty token is accepted. Capability tokens (see
+    `specs/schemas/capability-token.schema.json`) are scheduled for v0.2.
+
+    See `CONTRACTS.md` for the prose source of truth.
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+servers:
+  - url: http://localhost:7421
+    description: Local development server (default port)
+tags:
+  - name: workspaces
+    description: Top-level isolation boundary for an agent's state.
+  - name: kv
+    description: Versioned key-value storage scoped to a workspace.
+  - name: files
+    description: Versioned blob storage with path-based addressing.
+  - name: snapshots
+    description: Immutable point-in-time captures of workspace state.
+  - name: branches
+    description: Divergent timelines forked from a snapshot.
+  - name: meta
+    description: Service health and metadata endpoints.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /healthz:
+    get:
+      tags: [meta]
+      summary: Liveness probe
+      description: Returns service health and version. No authentication required.
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: Service is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+
+  /v1/workspaces:
+    get:
+      tags: [workspaces]
+      summary: List workspaces
+      operationId: listWorkspaces
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: A list of workspaces visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [workspaces]
+      summary: Create a workspace
+      description: |
+        Creates a new workspace. Names are not required to be unique; clients
+        looking for "get-or-create" semantics should list first then create.
+      operationId: createWorkspace
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceCreate'
+      responses:
+        '201':
+          description: Workspace created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/workspaces/{ws_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [workspaces]
+      summary: Get a workspace by id
+      operationId: getWorkspace
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Workspace found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [workspaces]
+      summary: Delete a workspace
+      description: Permanently deletes a workspace and all its contents.
+      operationId: deleteWorkspace
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Workspace deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/workspaces/{ws_id}/kv:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/BranchQuery'
+    get:
+      tags: [kv]
+      summary: List latest KV entries
+      description: Returns the latest version of every key in the workspace (or branch).
+      operationId: listKVEntries
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Latest entries for each key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KVEntryList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/workspaces/{ws_id}/kv/{key}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/KVKey'
+      - $ref: '#/components/parameters/BranchQuery'
+    get:
+      tags: [kv]
+      summary: Read a KV entry
+      description: Returns the latest version unless `?version=N` is supplied.
+      operationId: getKVEntry
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionQuery'
+      responses:
+        '200':
+          description: KV entry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KVEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [kv]
+      summary: Write a KV entry
+      description: Creates a new immutable version. The version counter is monotonic per (workspace, key).
+      operationId: putKVEntry
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KVPutBody'
+      responses:
+        '200':
+          description: Updated entry (new version).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KVEntry'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [kv]
+      summary: Delete a KV entry
+      description: Creates a tombstone version; history is preserved.
+      operationId: deleteKVEntry
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Tombstone written.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/workspaces/{ws_id}/kv/{key}/history:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/KVKey'
+      - $ref: '#/components/parameters/BranchQuery'
+    get:
+      tags: [kv]
+      summary: List all versions of a key
+      operationId: getKVHistory
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Ordered list of versions, oldest first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KVHistory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/workspaces/{ws_id}/files:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/BranchQuery'
+    get:
+      tags: [files]
+      summary: List file metadata
+      description: Returns the latest metadata for every file in the workspace (or branch).
+      operationId: listFiles
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: File metadata list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileEntryList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/workspaces/{ws_id}/files/{path}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/FilePath'
+      - $ref: '#/components/parameters/BranchQuery'
+    get:
+      tags: [files]
+      summary: Read raw file content
+      description: |
+        Streams raw bytes. Pass `?version=N` to read a specific version. The
+        response Content-Type matches the stored type.
+      operationId: getFile
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionQuery'
+      responses:
+        '200':
+          description: File content.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            text/plain: {}
+            application/json: {}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [files]
+      summary: Write a file
+      description: Creates a new immutable version. Version counter is per (workspace, path).
+      operationId: putFile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+          text/plain:
+            schema:
+              type: string
+          application/json: {}
+      responses:
+        '200':
+          description: File metadata after write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileEntry'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [files]
+      summary: Delete a file
+      description: Creates a tombstone; history is preserved.
+      operationId: deleteFile
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Tombstone written.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/workspaces/{ws_id}/files/{path}/meta:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/FilePath'
+      - $ref: '#/components/parameters/BranchQuery'
+    get:
+      tags: [files]
+      summary: Get file metadata
+      operationId: getFileMeta
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/VersionQuery'
+      responses:
+        '200':
+          description: File metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/workspaces/{ws_id}/snapshots:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/BranchQuery'
+    get:
+      tags: [snapshots]
+      summary: List snapshots
+      operationId: listSnapshots
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All snapshots in the workspace.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [snapshots]
+      summary: Create a snapshot
+      description: Captures the current latest version of every key and file in the workspace (or branch).
+      operationId: createSnapshot
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SnapshotCreate'
+      responses:
+        '201':
+          description: Snapshot created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/workspaces/{ws_id}/snapshots/{snap_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/SnapshotId'
+    get:
+      tags: [snapshots]
+      summary: Get a snapshot
+      operationId: getSnapshot
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/workspaces/{ws_id}/snapshots/{snap_id}/diff:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/SnapshotId'
+    get:
+      tags: [snapshots]
+      summary: Diff two snapshots
+      description: Computes the structural diff between this snapshot and the one supplied via `?against=`.
+      operationId: diffSnapshots
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: against
+          required: true
+          description: Other snapshot id to diff against.
+          schema:
+            $ref: '#/components/schemas/SnapshotIdValue'
+      responses:
+        '200':
+          description: Diff result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiffResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/workspaces/{ws_id}/branches:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+    get:
+      tags: [branches]
+      summary: List branches
+      operationId: listBranches
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All branches in the workspace.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [branches]
+      summary: Create a branch
+      description: Forks the workspace from the supplied snapshot.
+      operationId: createBranch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BranchCreate'
+      responses:
+        '201':
+          description: Branch created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Branch'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/workspaces/{ws_id}/branches/{branch_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/BranchId'
+    delete:
+      tags: [branches]
+      summary: Delete a branch
+      description: Discards the branch. Merged branches can still be deleted; their parent timeline is unaffected.
+      operationId: deleteBranch
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Branch deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/workspaces/{ws_id}/branches/{branch_id}/merge:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/BranchId'
+    post:
+      tags: [branches]
+      summary: Merge a branch
+      description: Applies branch writes to the parent timeline and produces a new snapshot.
+      operationId: mergeBranch
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Merge succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MergeResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Static bearer token in v0.1 (any non-empty string accepted). Capability
+        tokens are scheduled for v0.2.
+
+  parameters:
+    WorkspaceId:
+      in: path
+      name: ws_id
+      required: true
+      description: Workspace identifier (`ws_<ulid>`).
+      schema:
+        $ref: '#/components/schemas/WorkspaceIdValue'
+    KVKey:
+      in: path
+      name: key
+      required: true
+      description: KV key. Free-form string; clients should use slash-delimited namespaces (e.g. `sources/abc`).
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 1024
+    FilePath:
+      in: path
+      name: path
+      required: true
+      description: |
+        Workspace-relative file path. Slashes are allowed (FastAPI `path` converter)
+        and must be URL-encoded by the client where ambiguous.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 4096
+    SnapshotId:
+      in: path
+      name: snap_id
+      required: true
+      description: Snapshot identifier (`snap_<ulid>`).
+      schema:
+        $ref: '#/components/schemas/SnapshotIdValue'
+    BranchId:
+      in: path
+      name: branch_id
+      required: true
+      description: Branch identifier (`br_<ulid>`).
+      schema:
+        $ref: '#/components/schemas/BranchIdValue'
+    VersionQuery:
+      in: query
+      name: version
+      required: false
+      description: Specific version to read. If omitted, the latest non-tombstone version is returned.
+      schema:
+        type: integer
+        minimum: 1
+    BranchQuery:
+      in: query
+      name: branch
+      required: false
+      description: |
+        Target a specific branch instead of the workspace main timeline. When
+        present, reads see branch-specific writes first, then fall through to the
+        branch's source snapshot. Writes are scoped to the branch.
+      schema:
+        $ref: '#/components/schemas/BranchIdValue'
+
+  responses:
+    BadRequest:
+      description: Validation or argument error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    NotFound:
+      description: Resource does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    RateLimited:
+      description: Too many requests.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    InternalError:
+      description: Server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+
+  schemas:
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        version:
+          type: string
+          example: "0.1.0"
+
+    WorkspaceIdValue:
+      type: string
+      description: ULID-suffixed workspace id.
+      pattern: '^ws_[0-9A-HJKMNP-TV-Z]{26}$'
+      example: "ws_01HZX9V5K4M7N0Q1R2S3T4V5W6"
+
+    SnapshotIdValue:
+      type: string
+      description: ULID-suffixed snapshot id.
+      pattern: '^snap_[0-9A-HJKMNP-TV-Z]{26}$'
+      example: "snap_01HZX9V5K4M7N0Q1R2S3T4V5W6"
+
+    BranchIdValue:
+      type: string
+      description: ULID-suffixed branch id.
+      pattern: '^br_[0-9A-HJKMNP-TV-Z]{26}$'
+      example: "br_01HZX9V5K4M7N0Q1R2S3T4V5W6"
+
+    Workspace:
+      type: object
+      additionalProperties: false
+      required: [id, name, created_at, updated_at, metadata]
+      properties:
+        id:
+          $ref: '#/components/schemas/WorkspaceIdValue'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 256
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          description: Free-form, JSON-serializable metadata supplied by the caller.
+          additionalProperties: true
+
+    WorkspaceCreate:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 256
+        metadata:
+          type: object
+          additionalProperties: true
+
+    WorkspaceList:
+      type: object
+      additionalProperties: false
+      required: [workspaces]
+      properties:
+        workspaces:
+          type: array
+          items:
+            $ref: '#/components/schemas/Workspace'
+
+    KVEntry:
+      type: object
+      additionalProperties: false
+      required: [workspace_id, key, value, version, created_at, deleted]
+      properties:
+        workspace_id:
+          $ref: '#/components/schemas/WorkspaceIdValue'
+        key:
+          type: string
+        value:
+          description: |
+            Any JSON-serializable value. `null` is allowed and distinct from a
+            tombstone (which sets `deleted: true`).
+        version:
+          type: integer
+          minimum: 1
+          description: Monotonic per (workspace, key).
+        created_at:
+          type: string
+          format: date-time
+        deleted:
+          type: boolean
+          default: false
+        branch_id:
+          oneOf:
+            - $ref: '#/components/schemas/BranchIdValue'
+            - type: 'null'
+          description: Set when the entry was written on a branch.
+
+    KVPutBody:
+      type: object
+      additionalProperties: false
+      required: [value]
+      properties:
+        value:
+          description: Any JSON-serializable value.
+
+    KVEntryList:
+      type: object
+      additionalProperties: false
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/KVEntry'
+
+    KVHistory:
+      type: object
+      additionalProperties: false
+      required: [versions]
+      properties:
+        versions:
+          type: array
+          description: Ordered oldest → newest.
+          items:
+            $ref: '#/components/schemas/KVEntry'
+
+    FileEntry:
+      type: object
+      additionalProperties: false
+      required: [workspace_id, path, size, sha256, content_type, version, created_at, deleted]
+      properties:
+        workspace_id:
+          $ref: '#/components/schemas/WorkspaceIdValue'
+        path:
+          type: string
+        size:
+          type: integer
+          minimum: 0
+        sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        content_type:
+          type: string
+          example: text/markdown
+        version:
+          type: integer
+          minimum: 1
+        created_at:
+          type: string
+          format: date-time
+        deleted:
+          type: boolean
+          default: false
+        branch_id:
+          oneOf:
+            - $ref: '#/components/schemas/BranchIdValue'
+            - type: 'null'
+
+    FileEntryList:
+      type: object
+      additionalProperties: false
+      required: [files]
+      properties:
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileEntry'
+
+    Snapshot:
+      type: object
+      additionalProperties: false
+      required: [id, workspace_id, name, created_at, kv_versions, file_versions]
+      properties:
+        id:
+          $ref: '#/components/schemas/SnapshotIdValue'
+        workspace_id:
+          $ref: '#/components/schemas/WorkspaceIdValue'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 256
+        message:
+          oneOf:
+            - type: string
+            - type: 'null'
+        created_at:
+          type: string
+          format: date-time
+        kv_versions:
+          type: object
+          description: Map of key → captured version.
+          additionalProperties:
+            type: integer
+            minimum: 1
+        file_versions:
+          type: object
+          description: Map of path → captured version.
+          additionalProperties:
+            type: integer
+            minimum: 1
+        parent_snapshot_id:
+          oneOf:
+            - $ref: '#/components/schemas/SnapshotIdValue'
+            - type: 'null'
+
+    SnapshotCreate:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 256
+        message:
+          type: string
+          maxLength: 4096
+
+    SnapshotList:
+      type: object
+      additionalProperties: false
+      required: [snapshots]
+      properties:
+        snapshots:
+          type: array
+          items:
+            $ref: '#/components/schemas/Snapshot'
+
+    Branch:
+      type: object
+      additionalProperties: false
+      required: [id, workspace_id, name, from_snapshot_id, created_at, merged]
+      properties:
+        id:
+          $ref: '#/components/schemas/BranchIdValue'
+        workspace_id:
+          $ref: '#/components/schemas/WorkspaceIdValue'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 256
+        from_snapshot_id:
+          $ref: '#/components/schemas/SnapshotIdValue'
+        created_at:
+          type: string
+          format: date-time
+        merged:
+          type: boolean
+          default: false
+        merged_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+
+    BranchCreate:
+      type: object
+      additionalProperties: false
+      required: [name, from_snapshot]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 256
+        from_snapshot:
+          $ref: '#/components/schemas/SnapshotIdValue'
+
+    BranchList:
+      type: object
+      additionalProperties: false
+      required: [branches]
+      properties:
+        branches:
+          type: array
+          items:
+            $ref: '#/components/schemas/Branch'
+
+    DiffResult:
+      type: object
+      additionalProperties: false
+      required: [kv_added, kv_modified, kv_deleted, files_added, files_modified, files_deleted]
+      properties:
+        kv_added:
+          type: array
+          items:
+            type: string
+        kv_modified:
+          type: array
+          items:
+            type: string
+        kv_deleted:
+          type: array
+          items:
+            type: string
+        files_added:
+          type: array
+          items:
+            type: string
+        files_modified:
+          type: array
+          items:
+            type: string
+        files_deleted:
+          type: array
+          items:
+            type: string
+
+    MergeResult:
+      type: object
+      additionalProperties: false
+      required: [branch_id, snapshot_id, merged_at]
+      properties:
+        branch_id:
+          $ref: '#/components/schemas/BranchIdValue'
+        snapshot_id:
+          $ref: '#/components/schemas/SnapshotIdValue'
+          description: New snapshot produced by the merge on the parent timeline.
+        merged_at:
+          type: string
+          format: date-time
+        diff:
+          $ref: '#/components/schemas/DiffResult'
+
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code.
+          enum:
+            - WORKSPACE_NOT_FOUND
+            - KEY_NOT_FOUND
+            - FILE_NOT_FOUND
+            - SNAPSHOT_NOT_FOUND
+            - BRANCH_NOT_FOUND
+            - TOOL_NOT_FOUND
+            - TOOL_INVOCATION_FAILED
+            - INVALID_ARGUMENTS
+            - UNAUTHORIZED
+            - RATE_LIMITED
+            - INTERNAL_ERROR
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          $ref: '#/components/schemas/Error'

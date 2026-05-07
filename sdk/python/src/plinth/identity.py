@@ -1,0 +1,310 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The Plinth Authors
+"""Client for the Plinth identity service.
+
+Most apps don't need to touch the identity service directly: a long-lived
+``api_key`` is enough. This client is for ops tooling and tests that mint
+short-lived capability tokens, verify them out-of-band, or revoke them.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Dict, List, Optional  # noqa: UP035
+
+import httpx
+from pydantic import BaseModel, ConfigDict, Field
+
+from ._http import HTTPClient
+from .exceptions import (
+    InvalidToken,
+    PlinthError,
+    TokenExpired,
+    TokenRevoked,
+)
+from .models import SigningKey
+
+DEFAULT_IDENTITY_URL = "http://localhost:7425"
+
+
+class TokenClaims(BaseModel):
+    """Claims returned from ``POST /v1/tokens/verify`` (or embedded in issue)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    sub: str
+    iss: str
+    aud: str
+    iat: int
+    exp: int
+    jti: str
+    agent_id: str
+    tenant_id: str
+    workspace_id: Optional[str] = None  # noqa: UP045
+    scopes: List[str] = Field(default_factory=list)  # noqa: UP006
+    rate_limit: Optional[Dict[str, Any]] = None  # noqa: UP006, UP045
+
+
+class TokenIssueResponse(BaseModel):
+    """Response from ``POST /v1/tokens``."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    token: str
+    jti: str
+    expires_at: datetime
+    claims: TokenClaims
+
+
+class TokenInfo(BaseModel):
+    """Public introspection view from ``GET /v1/tokens/{jti}``."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    jti: str
+    agent_id: str
+    tenant_id: str
+    workspace_id: Optional[str] = None  # noqa: UP045
+    scopes: List[str] = Field(default_factory=list)  # noqa: UP006
+    issued_at: datetime
+    expires_at: datetime
+    revoked: bool = False
+    revoked_at: Optional[datetime] = None  # noqa: UP045
+    metadata: Dict[str, Any] = Field(default_factory=dict)  # noqa: UP006
+
+
+class IdentityClient:
+    """Thin wrapper around the identity service's REST endpoints.
+
+    Args:
+        base_url: Base URL of the identity service. Defaults to the local
+            dev port (``7425``).
+        api_key: Bearer token used to call the identity service. The identity
+            service itself is unauthenticated in v0.3 (it issues credentials,
+            not consumes them) but the SDK still ships a token to be ready
+            for the future.
+        timeout: Per-request timeout in seconds.
+        transport: Optional ``httpx`` transport (used by tests with ``respx``).
+    """
+
+    def __init__(
+        self,
+        base_url: str = DEFAULT_IDENTITY_URL,
+        *,
+        api_key: str | None = None,
+        timeout: float = 30.0,
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
+        self._http = HTTPClient(
+            base_url,
+            api_key or "identity-client",
+            timeout=timeout,
+            transport=transport,
+        )
+
+    def close(self) -> None:
+        self._http.close()
+
+    def __enter__(self) -> IdentityClient:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
+    # ------------------------------------------------------------------ tokens
+
+    def issue_token(
+        self,
+        agent_id: str,
+        scopes: list[str] | None = None,
+        *,
+        tenant_id: str = "default",
+        workspace_id: str | None = None,
+        ttl_seconds: int = 3600,
+        metadata: dict[str, Any] | None = None,
+        rate_limit: dict[str, Any] | None = None,
+    ) -> TokenIssueResponse:
+        """Mint a JWT capability token.
+
+        Args:
+            agent_id: Subject of the token (the agent it speaks for).
+            scopes: List of scope strings (see CONTRACTS.md scope grammar).
+            tenant_id: Tenancy partition. Defaults to ``"default"``.
+            workspace_id: Optional workspace constraint.
+            ttl_seconds: Token lifetime in seconds.
+            metadata: Free-form metadata persisted alongside the token.
+            rate_limit: Optional per-token rate-limit overrides.
+        """
+
+        body: dict[str, Any] = {
+            "agent_id": agent_id,
+            "tenant_id": tenant_id,
+            "scopes": list(scopes or []),
+            "ttl_seconds": ttl_seconds,
+        }
+        if workspace_id is not None:
+            body["workspace_id"] = workspace_id
+        if metadata:
+            body["metadata"] = metadata
+        if rate_limit is not None:
+            body["rate_limit"] = rate_limit
+
+        response = self._http.post("/v1/tokens", json=body)
+        return TokenIssueResponse.model_validate(response.json())
+
+    def verify_token(self, token: str) -> TokenClaims:
+        """Verify ``token`` and return the decoded claims.
+
+        Raises:
+            TokenExpired: when the token's ``exp`` is in the past.
+            TokenRevoked: when the JTI is in the identity service blocklist.
+            InvalidToken: when the signature/structure is invalid.
+        """
+
+        response = self._http.post("/v1/tokens/verify", json={"token": token})
+        return TokenClaims.model_validate(response.json())
+
+    def revoke_token(self, jti: str) -> None:
+        """Revoke a token by JTI. Safe to call repeatedly (idempotent)."""
+
+        self._http.post(f"/v1/tokens/{jti}/revoke")
+
+    def get_token_info(self, jti: str) -> TokenInfo:
+        """Introspect a token by JTI. Never returns the JWT itself."""
+
+        response = self._http.get(f"/v1/tokens/{jti}")
+        return TokenInfo.model_validate(response.json())
+
+    def list_tokens(
+        self,
+        *,
+        revoked: bool | None = None,
+        since: datetime | None = None,
+        agent_id: str | None = None,
+        tenant_id: str | None = None,
+        limit: int = 1000,
+    ) -> list[TokenInfo]:
+        """List issued tokens with optional filters.
+
+        Useful for revocation polling: ``revoked=True`` + ``since=<ts>``
+        returns the JTIs revoked since the last poll, which downstream
+        services cache in memory.
+        """
+
+        params: dict[str, Any] = {}
+        if revoked is not None:
+            params["revoked"] = "true" if revoked else "false"
+        if since is not None:
+            params["since"] = since.isoformat()
+        if agent_id is not None:
+            params["agent_id"] = agent_id
+        if tenant_id is not None:
+            params["tenant_id"] = tenant_id
+        params["limit"] = int(limit)
+        response = self._http.get_json("/v1/tokens", params=params)
+        return [TokenInfo.model_validate(t) for t in response.get("tokens", [])]
+
+    # ------------------------------------------------------------------ tenants
+
+    def list_tenants(self) -> list[dict[str, Any]]:
+        """List tenants known to the identity service.
+
+        Returns dicts (not the SDK :class:`plinth.models.Tenant` model) so
+        callers can use this without importing the model. The shape mirrors
+        the identity service response: ``{"id", "name", "metadata", "created_at"}``.
+        """
+
+        response = self._http.get_json("/v1/tenants")
+        return list(response.get("tenants", []))
+
+    def create_tenant(
+        self,
+        tenant_id: str,
+        name: str,
+        *,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Create a new tenant on the identity service."""
+
+        body: dict[str, Any] = {"id": tenant_id, "name": name}
+        if metadata:
+            body["metadata"] = metadata
+        response = self._http.post("/v1/tenants", json=body)
+        return response.json()
+
+    def get_tenant(self, tenant_id: str) -> dict[str, Any]:
+        """Look up a single tenant by id."""
+
+        return self._http.get_json(f"/v1/tenants/{tenant_id}")
+
+    # ---------------------------------------------------------------- keys (v0.4)
+
+    def list_keys(self, *, include_expired: bool = False) -> list[SigningKey]:
+        """List signing keys (public material only).
+
+        For an HS256 deployment the identity service returns an empty
+        list — the secret isn't published.
+
+        Args:
+            include_expired: When True, also return keys whose
+                ``expires_at`` is in the past.
+        """
+
+        params: dict[str, Any] = {}
+        if include_expired:
+            params["include_expired"] = "true"
+        response = self._http.get_json("/v1/keys", params=params)
+        return [SigningKey.model_validate(k) for k in response.get("keys", [])]
+
+    def get_key(self, kid: str) -> SigningKey:
+        """Look up a single signing key by ``kid``.
+
+        Raises:
+            PlinthError: when the key doesn't exist (404 from identity).
+        """
+
+        # Identity exposes ``GET /v1/keys`` only — list and filter client-side.
+        for key in self.list_keys(include_expired=True):
+            if key.kid == kid:
+                return key
+        raise PlinthError(
+            f"Signing key {kid!r} does not exist",
+            code="SIGNING_KEY_NOT_FOUND",
+        )
+
+    def rotate_key(self) -> SigningKey:
+        """Force a rotation. Returns the new active :class:`SigningKey`.
+
+        Raises:
+            PlinthError: when the identity service is in HS256 mode
+                (rotation isn't applicable to a shared-secret deployment).
+        """
+
+        response = self._http.post("/v1/keys/rotate")
+        return SigningKey.model_validate(response.json())
+
+    def expire_key(self, kid: str) -> None:
+        """Force-expire a signing key (incident response).
+
+        After expiry, tokens signed with this key fail signature
+        verification on the workspace + gateway as soon as their
+        cached JWKS expires (or sooner, if they hit a kid miss).
+        """
+
+        self._http.delete(f"/v1/keys/{kid}")
+
+
+# Re-export the new typed exceptions so callers can do
+# ``from plinth.identity import TokenExpired``.
+__all__ = [
+    "DEFAULT_IDENTITY_URL",
+    "IdentityClient",
+    "InvalidToken",
+    "PlinthError",
+    "SigningKey",
+    "TokenClaims",
+    "TokenExpired",
+    "TokenInfo",
+    "TokenIssueResponse",
+    "TokenRevoked",
+]

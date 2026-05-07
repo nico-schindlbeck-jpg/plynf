@@ -1,0 +1,81 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Node / TypeScript
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+.pnpm-debug.log*
+.npm
+.eslintcache
+
+# Plinth runtime data
+/tmp/plinth-data/
+plinth-data/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs
+*.log
+logs/
+
+# Demo outputs (kept under examples/*/reports — committed when meaningful)
+examples/*/reports/*.json
+examples/*/reports/*.html
+!examples/*/reports/.gitkeep
+
+# Benchmark run outputs — keep the directory but ignore run JSONs.
+# Commit a baseline JSON explicitly via `git add -f` if/when needed.
+benchmarks/results/*.json
+!benchmarks/results/.gitkeep

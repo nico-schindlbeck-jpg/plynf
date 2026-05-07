@@ -1,0 +1,17 @@
+{
+  "default_topic": "renewable energy",
+  "topics": [
+    {
+      "name": "renewable energy",
+      "expected_sources": 5
+    },
+    {
+      "name": "ai agents",
+      "expected_sources": 5
+    },
+    {
+      "name": "climate policy",
+      "expected_sources": 5
+    }
+  ]
+}

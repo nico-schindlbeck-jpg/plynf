@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plinth-bench"
+version = "0.5.0"
+description = "Stress benchmarks for the Plinth services (workspace + gateway + identity)."
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.11"
+authors = [{name = "The Plinth Authors"}]
+dependencies = [
+    # HTTP/2 brings the bench harness closer to a realistic deployment;
+    # the http2 extra pulls in the h2 wire codec.
+    "httpx[http2]>=0.27",
+    # Pydantic is already a transitive dep via plinth, but pinning it
+    # here keeps the bench package install-able stand-alone.
+    "pydantic>=2.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "respx>=0.21",
+    "fastapi>=0.110",
+    "ruff>=0.3",
+    "black>=24.1",
+]
+
+[project.scripts]
+plinth-bench = "plinth_bench.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["plinth_bench"]
+branch = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RET"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]

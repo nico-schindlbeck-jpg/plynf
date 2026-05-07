@@ -1,0 +1,195 @@
+# Plinth — local development stack
+#
+# Brings up:
+#   • workspace service     :7421
+#   • tool gateway          :7422
+#   • mock MCP server       :7423
+#
+# Usage:
+#   docker compose up --build
+#   docker compose up -d
+#   docker compose logs -f workspace
+#   docker compose down -v       # also wipes the data volume
+
+services:
+  workspace:
+    build:
+      context: ./services/workspace
+      dockerfile: Dockerfile
+    image: plinth/workspace:0.1.0
+    container_name: plinth-workspace
+    ports:
+      - "${PLINTH_WORKSPACE_PORT:-7421}:7421"
+    environment:
+      PLINTH_DATA_DIR: /data
+      PLINTH_WORKSPACE_PORT: "7421"
+      PLINTH_LOG_LEVEL: "${PLINTH_LOG_LEVEL:-INFO}"
+      PLINTH_LOG_FORMAT: "${PLINTH_LOG_FORMAT:-json}"
+    volumes:
+      - plinth_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7421/healthz\").read()'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: ./services/gateway
+      dockerfile: Dockerfile
+    image: plinth/gateway:0.1.0
+    container_name: plinth-gateway
+    ports:
+      - "${PLINTH_GATEWAY_PORT:-7422}:7422"
+    environment:
+      PLINTH_DATA_DIR: /data
+      PLINTH_GATEWAY_PORT: "7422"
+      PLINTH_LOG_LEVEL: "${PLINTH_LOG_LEVEL:-INFO}"
+      PLINTH_LOG_FORMAT: "${PLINTH_LOG_FORMAT:-json}"
+    volumes:
+      - plinth_data:/data
+    depends_on:
+      workspace:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7422/healthz\").read()'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  mock-mcp:
+    build:
+      context: ./mock-mcp-server
+      dockerfile: Dockerfile
+    image: plinth/mock-mcp:0.1.0
+    container_name: plinth-mock-mcp
+    ports:
+      - "${PLINTH_MOCK_MCP_PORT:-7423}:7423"
+    environment:
+      PLINTH_MOCK_PORT: "7423"
+      PLINTH_MOCK_FIXTURES_DIR: /tmp/plinth-mock-fixtures
+      PLINTH_MOCK_LOG_LEVEL: "${PLINTH_LOG_LEVEL:-INFO}"
+      PLINTH_MOCK_LOG_FORMAT: "${PLINTH_LOG_FORMAT:-json}"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7423/healthz\").read()'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ./services/dashboard
+      dockerfile: Dockerfile
+    image: plinth/dashboard:0.3.0
+    container_name: plinth-dashboard
+    ports:
+      - "${PLINTH_DASHBOARD_PORT:-7424}:7424"
+    environment:
+      PLINTH_DASHBOARD_PORT: "7424"
+      PLINTH_DASHBOARD_WORKSPACE_URL: "http://workspace:7421"
+      PLINTH_DASHBOARD_GATEWAY_URL: "http://gateway:7422"
+      PLINTH_DASHBOARD_MOCK_MCP_URL: "http://mock-mcp:7423"
+      PLINTH_DASHBOARD_LOG_LEVEL: "${PLINTH_LOG_LEVEL:-INFO}"
+    depends_on:
+      workspace:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7424/healthz\").read()'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  identity:
+    build:
+      context: ./services/identity
+      dockerfile: Dockerfile
+    image: plinth/identity:0.3.0
+    container_name: plinth-identity
+    ports:
+      - "${PLINTH_IDENTITY_PORT:-7425}:7425"
+    environment:
+      PLINTH_IDENTITY_PORT: "7425"
+      PLINTH_IDENTITY_DATA_DIR: /data
+      PLINTH_IDENTITY_JWT_SECRET: "${PLINTH_IDENTITY_JWT_SECRET:-}"
+      PLINTH_IDENTITY_ISSUER: "http://identity:7425"
+      PLINTH_IDENTITY_LOG_LEVEL: "${PLINTH_LOG_LEVEL:-INFO}"
+    volumes:
+      - plinth_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7425/healthz\").read()'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  github-mcp:
+    build:
+      context: ./mcp-servers/github
+      dockerfile: Dockerfile
+    image: plinth/github-mcp:0.4.0
+    container_name: plinth-github-mcp
+    ports:
+      - "${PLINTH_GITHUB_MCP_PORT:-7426}:7426"
+    environment:
+      PLINTH_GITHUB_MCP_PORT: "7426"
+      PLINTH_GITHUB_MCP_LOG_LEVEL: "${PLINTH_LOG_LEVEL:-INFO}"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7426/healthz\").read()'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  slack-mcp:
+    build:
+      context: ./mcp-servers/slack
+      dockerfile: Dockerfile
+    image: plinth/slack-mcp:0.4.0
+    container_name: plinth-slack-mcp
+    ports:
+      - "${PLINTH_SLACK_MCP_PORT:-7427}:7427"
+    environment:
+      PLINTH_SLACK_MCP_PORT: "7427"
+      PLINTH_SLACK_MCP_LOG_LEVEL: "${PLINTH_LOG_LEVEL:-INFO}"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7427/healthz\").read()'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  linear-mcp:
+    build:
+      context: ./mcp-servers/linear
+      dockerfile: Dockerfile
+    image: plinth/linear-mcp:0.4.0
+    container_name: plinth-linear-mcp
+    ports:
+      - "${PLINTH_LINEAR_MCP_PORT:-7428}:7428"
+    environment:
+      PLINTH_LINEAR_MCP_PORT: "7428"
+      PLINTH_LINEAR_MCP_LOG_LEVEL: "${PLINTH_LOG_LEVEL:-INFO}"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7428/healthz\").read()'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+volumes:
+  plinth_data:
+    name: plinth_data

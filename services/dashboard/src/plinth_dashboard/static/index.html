@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Plinth Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-left">
+        <a class="brand" href="#/" id="brand-link">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-name">Plinth</span>
+        </a>
+        <span class="crumb" id="crumb"></span>
+      </div>
+      <div class="topbar-right">
+        <span class="meta" id="last-refresh">connecting&hellip;</span>
+        <label class="toggle">
+          <input type="checkbox" id="autorefresh-toggle" checked />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          <span class="toggle-label">auto-refresh <strong>5s</strong></span>
+        </label>
+        <button class="btn" id="refresh-btn" title="Refresh now">
+          <span class="spinner" id="spinner" hidden></span>
+          <span id="refresh-label">Refresh</span>
+        </button>
+      </div>
+    </header>
+
+    <main id="view-root">
+      <!-- The active view is rendered here by app.js. -->
+    </main>
+
+    <!-- Templates ---------------------------------------------------- -->
+
+    <template id="tpl-overview">
+      <section class="tiles" id="tiles"></section>
+
+      <section class="card">
+        <div class="card-head"><h2>Services</h2></div>
+        <ul class="services" id="services"></ul>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Tenants</h2>
+          <span class="muted" id="tenants-count"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Tenant ID</th>
+                <th class="num">Workspaces</th>
+                <th class="num">Tools</th>
+                <th class="num">Audit events</th>
+              </tr>
+            </thead>
+            <tbody id="tenants-body">
+              <tr class="empty"><td colspan="4">No tenants yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Workspaces</h2>
+          <span class="muted" id="workspaces-count"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Tenant</th>
+                <th>Created</th>
+                <th class="actions-col">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="workspaces-body">
+              <tr class="empty"><td colspan="5">No workspaces yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" id="deadletters-card" hidden>
+        <div class="card-head">
+          <h2>Dead letters</h2>
+          <span class="muted" id="deadletters-count"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Workspace</th>
+                <th>Channel</th>
+                <th class="num">Count</th>
+                <th class="actions-col">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="deadletters-body">
+              <tr class="empty"><td colspan="4">No dead letters.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>OTLP status</h2>
+          <span class="muted" id="otlp-status-pill"></span>
+        </div>
+        <div id="otlp-body" class="otlp-status">
+          <p class="empty muted">loading&hellip;</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Tool calls (last 60 min)</h2>
+          <span class="muted" id="timeseries-summary"></span>
+        </div>
+        <div class="timeseries-wrap">
+          <canvas id="timeseries-canvas" width="600" height="180"
+            aria-label="Tool calls per minute over the last 60 minutes"></canvas>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Tool calls</h2>
+          <span class="muted">recent 50</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Tool</th>
+                <th>Cached</th>
+                <th class="num">Duration</th>
+                <th class="num">Cost</th>
+                <th>Audit ID</th>
+              </tr>
+            </thead>
+            <tbody id="audit-body">
+              <tr class="empty"><td colspan="6">No tool calls yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>Cost by tool</h2></div>
+        <div class="bars" id="bars">
+          <p class="empty muted">No cost data yet.</p>
+        </div>
+      </section>
+    </template>
+
+    <template id="tpl-workspace">
+      <a class="back-link" href="#/" id="back-link">&larr; Back to overview</a>
+
+      <section class="card workspace-head" id="ws-head">
+        <div>
+          <h1 id="ws-name">Workspace</h1>
+          <p class="muted mono" id="ws-id"></p>
+        </div>
+        <div class="workspace-meta" id="ws-meta"></div>
+      </section>
+
+      <div class="workspace-grid">
+        <section class="card">
+          <div class="card-head"><h2>KV entries</h2><span class="muted" id="kv-count"></span></div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Key</th><th class="num">Version</th><th>Updated</th></tr></thead>
+              <tbody id="kv-body"><tr class="empty"><td colspan="3">No keys.</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>Snapshots</h2><span class="muted" id="snap-count"></span></div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>ID</th><th>Name</th><th>Created</th></tr></thead>
+              <tbody id="snap-body"><tr class="empty"><td colspan="3">No snapshots.</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>Channels</h2><span class="muted" id="channel-count"></span></div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Name</th><th class="num">Depth</th><th>Last send</th></tr></thead>
+              <tbody id="channel-body"><tr class="empty"><td colspan="3">No channels.</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>Workflows</h2><span class="muted" id="wf-count"></span></div>
+          <div id="wf-body" class="workflows">
+            <p class="empty muted">No workflows.</p>
+          </div>
+        </section>
+      </div>
+    </template>
+
+    <!-- Dead-letter detail modal (vanilla; opened by app.js) -->
+    <div class="dlq-modal" id="dlq-modal" hidden>
+      <div class="dlq-modal-card">
+        <div class="dlq-modal-head">
+          <h2 id="dlq-modal-title">Dead letters</h2>
+          <button class="btn small" id="dlq-modal-close" type="button">close</button>
+        </div>
+        <div id="dlq-modal-body" class="dlq-modal-body">
+          <p class="empty muted">loading&hellip;</p>
+        </div>
+      </div>
+    </div>
+
+    <footer class="foot">
+      <span>plinth-dashboard v<span id="dashboard-version">&hellip;</span></span>
+      <span class="muted">read-only observability</span>
+    </footer>
+  </body>
+</html>
