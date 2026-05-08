@@ -31,6 +31,7 @@ from .channels import ChannelStore
 from .db import init_db
 from .exceptions import (
     InvalidArguments,
+    MigrationRollbackMissing,
     Unauthorized,
     install_exception_handlers,
 )
@@ -40,9 +41,12 @@ from .load_shed import LoadShedder, load_shed_middleware
 from .logging_config import configure_logging, get_logger
 from .migration_runner import (
     MigrationLockError,
+    MigrationRollbackMissing as RunnerRollbackMissing,
     MigrationRunner,
     default_migrations_dir,
 )
+from .resource_locks import ResourceLockStore
+from .revocation_cache import RevocationCache
 from .models import (
     Branch,
     BranchCreate,
@@ -68,10 +72,23 @@ from .models import (
     LeaseHeartbeatBody,
     LeaseList,
     LeaseReleaseBody,
+    Lock,
+    LockAcquireBody,
+    LockHeartbeatBody,
+    LockList,
+    LockReleaseBody,
     MergeResult,
+    PurgeDLQResult,
+    ReplayBatchBody,
+    ReplayBatchResult,
     ResumeInfo,
     RetentionPolicy,
     RetentionPolicyUpdate,
+    RollbackBody,
+    RollbackResult,
+    RolledBackMigrationModel,
+    SchemaCheckBody,
+    SchemaCheckResult,
     Snapshot,
     SnapshotCreate,
     SnapshotList,
@@ -121,10 +138,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # (which is idempotent CREATE-IF-NOT-EXISTS bootstrap) so existing
         # legacy databases get marked-as-applied without re-running SQL.
         # When ``auto_migrate=False`` we still log the pending list so
-        # operators see it in the boot logs.
+        # operators see it in the boot logs. ``database_url`` triggers the
+        # Postgres advisory-lock path; left empty for the SQLite default.
         runner = MigrationRunner(
             settings.db_path,
             default_migrations_dir(__file__),
+            database_url=settings.effective_database_url,
+            service_name="workspace",
         )
         app.state.migration_runner = runner
         try:
@@ -164,11 +184,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     interval_seconds=settings.lease_reaper_interval_seconds,
                     inactive_timeout_seconds=settings.worker_inactive_timeout_seconds,
                     stop_event=reaper_stop,
+                    resource_locks=app.state.resource_locks,
                 ),
                 name="plinth-workspace-lease-reaper",
             )
             app.state.lease_reaper_stop = reaper_stop
             app.state.lease_reaper_task = reaper_task
+
+        # v0.6 — federated revocation cache. Populated from Identity once
+        # at startup (so the first request gets a warm cache) and refreshed
+        # every ``revocation_poll_interval_seconds`` thereafter. Disabled
+        # by default (empty URL) to keep single-node setups + v0.5 demos
+        # working without configuration changes.
+        rev_cache: RevocationCache = app.state.revocation_cache
+        if (
+            settings.revocation_poll_url
+            and settings.revocation_poll_enabled
+        ):
+            try:
+                await rev_cache.start()
+                log.info(
+                    "workspace.revocation_cache.started",
+                    identity_url=rev_cache.identity_url,
+                    poll_interval=rev_cache.poll_interval,
+                    initial_size=rev_cache.stats["size"],
+                )
+            except Exception as exc:  # noqa: BLE001 - never break startup
+                log.warning(
+                    "workspace.revocation_cache.start_failed",
+                    error=str(exc),
+                )
 
         # Loud warning when we're running in legacy auth mode: every demo
         # in v0.1/v0.2 relies on this, so we don't error — but operators
@@ -219,6 +264,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     await reaper_task
                 except (asyncio.CancelledError, Exception):  # noqa: BLE001
                     pass
+
+        # Stop the revocation polling loop. Safe to call even if start()
+        # never ran (e.g. revocation_poll_url was empty).
+        try:
+            await app.state.revocation_cache.stop()
+        except Exception as exc:  # noqa: BLE001 - never break shutdown
+            log.warning(
+                "workspace.revocation_cache.stop_failed",
+                error=str(exc),
+            )
+
         log.info("workspace.shutdown")
 
     app = FastAPI(
@@ -237,11 +293,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.retention = RetentionStore(settings.db_path)
     app.state.gc_engine = GCEngine(settings.db_path, settings.blobs_dir)
     app.state.leases = LeaseStore(settings.db_path)
+    # v0.6 — generic resource locks. Independent of the workflow-step lease
+    # primitive; the same reaper task sweeps both tables (see leases.py).
+    app.state.resource_locks = ResourceLockStore(settings.db_path)
     # v0.5 — migration runner. Constructed eagerly so the admin endpoints
-    # work even in test setups that bypass the lifespan handler.
+    # work even in test setups that bypass the lifespan handler. Forwards
+    # ``database_url`` + ``service_name`` so v0.6 Postgres advisory locks
+    # take effect transparently (no-op for SQLite deployments).
     app.state.migration_runner = MigrationRunner(
         settings.db_path,
         default_migrations_dir(__file__),
+        database_url=settings.effective_database_url,
+        service_name="workspace",
     )
 
     # v0.5 — load shedding. Always constructed so the admin/stats endpoint
@@ -252,6 +315,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         max_queue=settings.load_shed_max_queue,
         retry_after_seconds=settings.load_shed_retry_after_seconds,
         enabled=settings.load_shed_enabled,
+    )
+
+    # v0.6 — federated revocation cache. Constructed eagerly so the auth
+    # middleware + admin/stats endpoint can rely on its presence, even
+    # when polling is disabled (start() is gated by settings inside the
+    # lifespan handler).
+    app.state.revocation_cache = RevocationCache(
+        identity_url=settings.revocation_poll_url,
+        poll_interval=settings.revocation_poll_interval_seconds,
     )
 
     install_exception_handlers(app)
@@ -313,6 +385,30 @@ async def _request_context_middleware(request: Request, call_next):
                     }
                 },
             )
+
+        # v0.6 — federated revocation. After a successful JWT decode, the
+        # caller's JTI may already be on the in-memory blocklist (populated
+        # from Identity's ``GET /v1/revocations``). Reject with a stable
+        # TOKEN_REVOKED envelope so SDK clients can react. The cache is
+        # only consulted in non-permissive auth modes — permissive mode
+        # has no JTI to check most of the time anyway.
+        if (
+            settings.auth_mode in ("verify_local", "verify_remote")
+            and ctx.authenticated
+            and ctx.jti is not None
+        ):
+            rev_cache = getattr(request.app.state, "revocation_cache", None)
+            if rev_cache is not None and rev_cache.is_revoked(ctx.jti):
+                return JSONResponse(
+                    status_code=401,
+                    content={
+                        "error": {
+                            "code": "TOKEN_REVOKED",
+                            "message": "token has been revoked",
+                            "details": {"jti": ctx.jti},
+                        }
+                    },
+                )
 
         request.state.tenant_id = ctx.tenant_id
         request.state.agent_id = ctx.agent_id
@@ -379,6 +475,10 @@ def _get_leases(request: Request) -> LeaseStore:
     return request.app.state.leases
 
 
+def _get_resource_locks(request: Request) -> ResourceLockStore:
+    return request.app.state.resource_locks
+
+
 StoreDep = Annotated[WorkspaceStore, Depends(_get_store)]
 SnapshotsDep = Annotated[SnapshotStore, Depends(_get_snapshots)]
 ChannelsDep = Annotated[ChannelStore, Depends(_get_channels)]
@@ -386,6 +486,7 @@ WorkflowsDep = Annotated[WorkflowStore, Depends(_get_workflows)]
 RetentionDep = Annotated[RetentionStore, Depends(_get_retention)]
 GCEngineDep = Annotated[GCEngine, Depends(_get_gc_engine)]
 LeasesDep = Annotated[LeaseStore, Depends(_get_leases)]
+ResourceLocksDep = Annotated[ResourceLockStore, Depends(_get_resource_locks)]
 # These two type aliases are evaluated at runtime; on 3.11+ ``str | None``
 # resolves to a UnionType, but on 3.9 we need ``Optional`` for the install
 # path that runs `pip install -e .` to even import the module.
@@ -969,6 +1070,137 @@ def _register_routes(app: FastAPI) -> None:
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+    # ----- v0.6: schema migration helpers (additive) -----
+    # ``schema/check`` is the dry-run preview before committing a new
+    # schema; ``deadletter/replay-all`` and ``deadletter`` (DELETE bulk)
+    # let operators clear backlogs without iterating message-by-message.
+
+    @app.post(
+        "/v1/workspaces/{ws_id}/channels/{name:path}/schema/check",
+        response_model=SchemaCheckResult,
+        tags=["channels"],
+    )
+    async def check_channel_schema(
+        ws_id: str,
+        name: str,
+        body: SchemaCheckBody,
+        channels: ChannelsDep,
+    ) -> SchemaCheckResult:
+        result = await channels.check_schema(
+            ws_id,
+            name,
+            body.schema_doc,
+            scope=body.scope,
+            limit=body.limit,
+        )
+        get_logger().info(
+            "workspace.channel.schema.checked",
+            workspace_id=ws_id,
+            channel=name,
+            scope=body.scope,
+            checked=result["checked"],
+            invalid=result["invalid"],
+        )
+        return SchemaCheckResult.model_validate(result)
+
+    @app.post(
+        "/v1/workspaces/{ws_id}/channels/{name:path}/deadletter/replay-all",
+        response_model=ReplayBatchResult,
+        tags=["channels"],
+    )
+    async def replay_all_deadletter(
+        ws_id: str,
+        name: str,
+        channels: ChannelsDep,
+        request: Request,
+        # ``max`` is a Python builtin so we accept it via Query alias and
+        # rebind to a less-shadowy local name. The 1..10_000 bound mirrors
+        # ``BULK_HARD_LIMIT`` on the store.
+        max_messages: Annotated[int | None, Query(alias="max", ge=1, le=10000)] = None,
+        dry_run: Annotated[bool | None, Query()] = None,
+    ) -> ReplayBatchResult:
+        # The endpoint supports two equivalent shapes:
+        #   * query string: ``?dry_run=true&max=50``
+        #   * JSON body:    ``{"dry_run": true, "max": 50}``
+        # The body form is documented as the "recommended" shape because
+        # replay-all is mutating; the query form stays around so curl
+        # smoke-tests don't have to construct a body. If both are present
+        # the explicit body wins (treat the query as a default).
+        body_dry_run: bool | None = None
+        body_max: int | None = None
+        # Only attempt to parse a body if the caller actually sent one —
+        # FastAPI's body parser otherwise rejects ``Content-Length: 0``.
+        try:
+            raw = await request.body()
+        except Exception:  # noqa: BLE001 — defensive
+            raw = b""
+        if raw:
+            try:
+                parsed = ReplayBatchBody.model_validate_json(raw)
+                body_dry_run = parsed.dry_run
+                body_max = parsed.max
+            except Exception as exc:  # noqa: BLE001 — surface as InvalidArguments
+                raise InvalidArguments(
+                    "invalid replay-all body",
+                    details={"reason": str(exc)},
+                )
+
+        # Resolve the effective parameters. Body wins; otherwise query;
+        # otherwise default to (False, 100) per the v0.6 spec.
+        effective_dry_run = (
+            body_dry_run
+            if body_dry_run is not None
+            else (dry_run if dry_run is not None else False)
+        )
+        effective_max = (
+            body_max if body_max is not None else (max_messages or 100)
+        )
+
+        result = await channels.replay_all_deadletter(
+            ws_id,
+            name,
+            max_messages=effective_max,
+            dry_run=effective_dry_run,
+        )
+        get_logger().info(
+            "workspace.channel.deadletter.replay_all",
+            workspace_id=ws_id,
+            channel=name,
+            attempted=result["attempted"],
+            succeeded=result["succeeded"],
+            failed=result["failed"],
+            dry_run=effective_dry_run,
+        )
+        return ReplayBatchResult.model_validate(result)
+
+    @app.delete(
+        "/v1/workspaces/{ws_id}/channels/{name:path}/deadletter",
+        response_model=PurgeDLQResult,
+        tags=["channels"],
+    )
+    async def purge_deadletter(
+        ws_id: str,
+        name: str,
+        channels: ChannelsDep,
+        older_than_seconds: Annotated[int, Query(ge=0)] = 0,
+    ) -> PurgeDLQResult:
+        # The spec mentioned a 204 + header alternative; we return 200 with
+        # a body because typed clients are easier to write that way and
+        # tests get a clean assertion target.
+        purged = await channels.purge_deadletter(
+            ws_id,
+            name,
+            older_than_seconds=older_than_seconds,
+        )
+        get_logger().info(
+            "workspace.channel.deadletter.purged",
+            workspace_id=ws_id,
+            channel=name,
+            older_than_seconds=older_than_seconds,
+            purged=purged,
+        )
+        return PurgeDLQResult(purged=purged)
+
     @app.get(
         "/v1/workspaces/{ws_id}/channels/{name}",
         response_model=Channel,
@@ -1302,6 +1534,139 @@ def _register_routes(app: FastAPI) -> None:
     ) -> WorkerList:
         return WorkerList(workers=await leases.list_workers(status=worker_status))
 
+    # ------------------------------------------------------------------ locks (v0.6)
+    #
+    # Generic distributed locks over named workspace resources. The ``name``
+    # uses ``:path`` so callers can use ``/`` as a structuring separator
+    # (e.g. ``kv:sources/index``) without manual URL-escaping. The list
+    # endpoint is registered before the ``{name:path}`` routes so FastAPI's
+    # router prefers the static segment when both could match.
+
+    @app.get(
+        "/v1/workspaces/{ws_id}/locks",
+        response_model=LockList,
+        tags=["locks"],
+    )
+    async def list_locks(
+        ws_id: str,
+        locks: ResourceLocksDep,
+        store: StoreDep,
+        request: Request,
+    ) -> LockList:
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        await store.get_workspace(ws_id, tenant_id=tenant_id)
+        return LockList(locks=await locks.list_locks(ws_id))
+
+    @app.post(
+        "/v1/workspaces/{ws_id}/locks/{name:path}/acquire",
+        response_model=Lock,
+        tags=["locks"],
+    )
+    async def acquire_lock(
+        ws_id: str,
+        name: str,
+        body: LockAcquireBody,
+        locks: ResourceLocksDep,
+        store: StoreDep,
+        request: Request,
+    ) -> Lock:
+        if not name:
+            raise InvalidArguments("lock name must be non-empty")
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        await store.get_workspace(ws_id, tenant_id=tenant_id)
+
+        lock = await locks.acquire(
+            ws_id,
+            name,
+            holder=body.holder,
+            ttl_seconds=body.ttl_seconds,
+            wait_ms=body.wait_ms,
+        )
+        get_logger().info(
+            "workspace.lock.acquired",
+            workspace_id=ws_id,
+            name=name,
+            holder=body.holder,
+            ttl=body.ttl_seconds,
+            wait_ms=body.wait_ms,
+        )
+        return lock
+
+    @app.post(
+        "/v1/workspaces/{ws_id}/locks/{name:path}/heartbeat",
+        response_model=Lock,
+        tags=["locks"],
+    )
+    async def heartbeat_lock(
+        ws_id: str,
+        name: str,
+        body: LockHeartbeatBody,
+        locks: ResourceLocksDep,
+        store: StoreDep,
+        request: Request,
+    ) -> Lock:
+        if not name:
+            raise InvalidArguments("lock name must be non-empty")
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        await store.get_workspace(ws_id, tenant_id=tenant_id)
+
+        return await locks.heartbeat(
+            ws_id,
+            name,
+            holder=body.holder,
+            ttl_seconds=body.ttl_seconds,
+        )
+
+    @app.post(
+        "/v1/workspaces/{ws_id}/locks/{name:path}/release",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["locks"],
+    )
+    async def release_lock(
+        ws_id: str,
+        name: str,
+        body: LockReleaseBody,
+        locks: ResourceLocksDep,
+        store: StoreDep,
+        request: Request,
+    ) -> Response:
+        if not name:
+            raise InvalidArguments("lock name must be non-empty")
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        await store.get_workspace(ws_id, tenant_id=tenant_id)
+
+        await locks.release(ws_id, name, holder=body.holder)
+        get_logger().info(
+            "workspace.lock.released",
+            workspace_id=ws_id,
+            name=name,
+            holder=body.holder,
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @app.get(
+        "/v1/workspaces/{ws_id}/locks/{name:path}",
+        response_model=Lock,
+        tags=["locks"],
+    )
+    async def get_lock(
+        ws_id: str,
+        name: str,
+        locks: ResourceLocksDep,
+        store: StoreDep,
+        request: Request,
+    ) -> Lock:
+        if not name:
+            raise InvalidArguments("lock name must be non-empty")
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        await store.get_workspace(ws_id, tenant_id=tenant_id)
+        lock = await locks.get(ws_id, name)
+        if lock is None:
+            from .exceptions import LockNotFound
+
+            raise LockNotFound(ws_id, name)
+        return lock
+
     # ------------------------------------------------------------------ retention / GC
 
     @app.get(
@@ -1458,6 +1823,37 @@ def _register_routes(app: FastAPI) -> None:
             )
         return request.app.state.load_shedder.stats
 
+    # ----------------------------------------------------------- revocation cache
+
+    @app.get(
+        "/v1/admin/revocations/cache/stats",
+        tags=["admin"],
+    )
+    async def revocation_cache_stats(request: Request) -> dict:
+        """Return current revocation-cache counters.
+
+        Permissive in dev (no token / no admin scope required) for the
+        same reason ``/v1/admin/load-shed/stats`` is. In strict-auth
+        deployments, callers need ``tenant:*:admin`` or ``*``.
+        """
+
+        settings: Settings = request.app.state.settings
+        permitted = (
+            settings.auth_mode == "permissive" and not settings.auth_required
+        )
+        if not permitted:
+            scopes = list(getattr(request.state, "auth_scopes", []) or [])
+            if "*" in scopes or "tenant:*:admin" in scopes:
+                permitted = True
+        if not permitted:
+            raise Unauthorized(
+                "revocation cache stats require tenant:*:admin or * scope",
+                code="UNAUTHORIZED",
+                details={"required_scope": "tenant:*:admin"},
+            )
+        rev_cache: RevocationCache = request.app.state.revocation_cache
+        return rev_cache.stats
+
     # ------------------------------------------------------------------ migrations
 
     @app.get(
@@ -1510,6 +1906,59 @@ def _register_routes(app: FastAPI) -> None:
             },
         )
 
+    @app.post(
+        "/v1/admin/migrations/rollback",
+        response_model=RollbackResult,
+        tags=["migrations"],
+    )
+    async def rollback_migrations(
+        body: RollbackBody,
+        request: Request,
+    ) -> RollbackResult:
+        _require_admin(request)
+        runner: MigrationRunner = request.app.state.migration_runner
+        try:
+            outcome = await runner.rollback_to(
+                body.to,
+                dry_run=body.dry_run,
+                blocking_lock=False,
+            )
+        except RunnerRollbackMissing as exc:
+            raise MigrationRollbackMissing(exc.missing_ids) from exc
+        except MigrationLockError as exc:
+            return JSONResponse(  # type: ignore[return-value]
+                status_code=409,
+                content={
+                    "error": {
+                        "code": "MIGRATION_LOCKED",
+                        "message": str(exc),
+                        "details": {},
+                    }
+                },
+            )
+
+        # The runner returns a successful outcome even when one of the
+        # rollbacks errored (so the caller sees how many committed). When
+        # ``failed`` is set we still return 200 with that information so
+        # the client can decide what to do — same pattern as ``apply``
+        # returns 201 with the partial list when no error, and like the
+        # transactions endpoint reports per-call status.
+        return RollbackResult(
+            target=outcome.target,
+            rolled_back=[
+                RolledBackMigrationModel(
+                    id=entry.id,
+                    rolled_back_at=entry.rolled_back_at,
+                    duration_ms=entry.duration_ms,
+                )
+                for entry in outcome.rolled_back
+            ],
+            skipped=list(outcome.skipped),
+            failed=outcome.failed,
+            error_message=outcome.error_message,
+            dry_run=outcome.dry_run,
+        )
+
 
 # Helpers for the admin/migrations endpoints. Plain ``dict`` returns avoid
 # adding pydantic models that mirror ``MigrationRunner`` dataclasses 1:1.
@@ -1521,6 +1970,8 @@ def _serialize_applied(mig) -> dict:  # noqa: ANN001
         "checksum": mig.checksum,
         "applied_at": mig.applied_at.isoformat(),
         "duration_ms": mig.duration_ms,
+        "rollback_available": getattr(mig, "rollback_available", False),
+        "rollback_checksum": getattr(mig, "rollback_checksum", None),
     }
 
 
@@ -1528,6 +1979,7 @@ def _serialize_pending(mig) -> dict:  # noqa: ANN001
     return {
         "id": mig.id,
         "checksum": mig.checksum,
+        "rollback_available": getattr(mig, "has_rollback", False),
     }
 
 

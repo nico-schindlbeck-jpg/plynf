@@ -493,3 +493,170 @@ describe("ChannelsClient — schema CRUD + DLQ", () => {
     ).rejects.toBeInstanceOf(MessageNotFoundError);
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// v0.6 — channel schema migration helpers
+// ---------------------------------------------------------------------------
+
+
+describe("ChannelsClient — v0.6 schema migration helpers", () => {
+  it("checkSchema POSTs schema/scope/limit and parses the result", async () => {
+    const server = new MockServer();
+    server.on("POST", /\/channels\/research-out\/schema\/check$/, (req) => {
+      const body = JSON.parse(req.body ?? "{}");
+      expect(body.schema).toEqual(SIMPLE_SCHEMA);
+      expect(body.scope).toBe("both");
+      expect(body.limit).toBe(500);
+      return {
+        status: 200,
+        body: {
+          channel: "research-out",
+          scope: "both",
+          checked: 7,
+          valid: 5,
+          invalid: 2,
+          sample_failures: [
+            { msg_id: "msg_d1", errors: [{ path: [], message: "boom" }] },
+          ],
+        },
+      };
+    });
+
+    const { ws } = await bootstrap(server);
+    const result = await ws.channels.checkSchema(
+      "research-out",
+      SIMPLE_SCHEMA,
+      { scope: "both", limit: 500 },
+    );
+    expect(result.checked).toBe(7);
+    expect(result.invalid).toBe(2);
+    expect(result.sample_failures).toHaveLength(1);
+    expect(result.sample_failures[0]!.msg_id).toBe("msg_d1");
+  });
+
+  it("checkSchema defaults scope='both' and limit=1000", async () => {
+    const server = new MockServer();
+    let capturedBody: Record<string, unknown> = {};
+    server.on("POST", /\/channels\/c\/schema\/check$/, (req) => {
+      capturedBody = JSON.parse(req.body ?? "{}");
+      return {
+        status: 200,
+        body: {
+          channel: "c",
+          scope: "both",
+          checked: 0,
+          valid: 0,
+          invalid: 0,
+          sample_failures: [],
+        },
+      };
+    });
+    const { ws } = await bootstrap(server);
+    await ws.channels.checkSchema("c", { type: "object" });
+    expect(capturedBody.scope).toBe("both");
+    expect(capturedBody.limit).toBe(1000);
+  });
+
+  it("replayAllDlq forwards max + dryRun=true as query params", async () => {
+    const server = new MockServer();
+    server.on(
+      "POST",
+      /\/channels\/c\/deadletter\/replay-all/,
+      (req) => {
+        const q = parseQuery(req.url);
+        expect(q.max).toBe("50");
+        expect(q.dry_run).toBe("true");
+        return {
+          status: 200,
+          body: {
+            channel: "c",
+            attempted: 3,
+            succeeded: 3,
+            failed: 0,
+            failures: [],
+            dry_run: true,
+          },
+        };
+      },
+    );
+    const { ws } = await bootstrap(server);
+    const result = await ws.channels.replayAllDlq("c", { max: 50, dryRun: true });
+    expect(result.dry_run).toBe(true);
+    expect(result.attempted).toBe(3);
+  });
+
+  it("replayAllDlq omits dry_run when false; defaults max=1000", async () => {
+    const server = new MockServer();
+    server.on(
+      "POST",
+      /\/channels\/c\/deadletter\/replay-all/,
+      (req) => {
+        const q = parseQuery(req.url);
+        expect(q.max).toBe("1000");
+        expect(q.dry_run).toBeUndefined();
+        return {
+          status: 200,
+          body: {
+            channel: "c",
+            attempted: 5,
+            succeeded: 4,
+            failed: 1,
+            failures: [{ msg_id: "msg_x", reason: "still bad" }],
+            dry_run: false,
+          },
+        };
+      },
+    );
+    const { ws } = await bootstrap(server);
+    const result = await ws.channels.replayAllDlq("c");
+    expect(result.failed).toBe(1);
+    expect(result.failures[0]!.reason).toBe("still bad");
+  });
+
+  it("purgeDlq returns the integer count from the response", async () => {
+    const server = new MockServer();
+    server.on("DELETE", /\/channels\/c\/deadletter/, (req) => {
+      const q = parseQuery(req.url);
+      expect(q.older_than_seconds).toBe("86400");
+      return { status: 200, body: { purged: 7 } };
+    });
+    const { ws } = await bootstrap(server);
+    const count = await ws.channels.purgeDlq("c", { olderThanSeconds: 86400 });
+    expect(count).toBe(7);
+  });
+
+  it("purgeDlq defaults olderThanSeconds=0 (purge-all)", async () => {
+    const server = new MockServer();
+    server.on("DELETE", /\/channels\/c\/deadletter/, (req) => {
+      const q = parseQuery(req.url);
+      expect(q.older_than_seconds).toBe("0");
+      return { status: 200, body: { purged: 3 } };
+    });
+    const { ws } = await bootstrap(server);
+    const count = await ws.channels.purgeDlq("c");
+    expect(count).toBe(3);
+  });
+
+  it("checkSchema URL-encodes the channel name", async () => {
+    const server = new MockServer();
+    let saw = false;
+    server.on("POST", /\/channels\/with%20space\/schema\/check$/, () => {
+      saw = true;
+      return {
+        status: 200,
+        body: {
+          channel: "with space",
+          scope: "both",
+          checked: 0,
+          valid: 0,
+          invalid: 0,
+          sample_failures: [],
+        },
+      };
+    });
+    const { ws } = await bootstrap(server);
+    await ws.channels.checkSchema("with space", { type: "object" });
+    expect(saw).toBe(true);
+  });
+});

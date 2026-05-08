@@ -29,7 +29,13 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
 from .exceptions import ChannelNotFound, MessageNotFound, WorkspaceNotFound
-from .models import Channel, ChannelMessage, ChannelSchema
+from .models import (
+    Channel,
+    ChannelMessage,
+    ChannelSchema,
+    ReplayBatchResult,
+    SchemaCheckResult,
+)
 
 if TYPE_CHECKING:
     from .workspace import Workspace
@@ -372,6 +378,90 @@ class ChannelsProxy:
             f"/v1/workspaces/{self._ws.id}/channels/{_ec(channel)}/deadletter/{_ec(msg_id)}",
             not_found_class=MessageNotFound,
         )
+
+    # ------------------------------------------------------------------
+    # v0.6 — channel schema migration helpers
+    # ------------------------------------------------------------------
+
+    def check_schema(
+        self,
+        channel: str,
+        schema: dict[str, Any],
+        *,
+        scope: str = "both",
+        limit: int = 1000,
+    ) -> SchemaCheckResult:
+        """Preview compatibility of a candidate schema against existing rows.
+
+        Validates up to ``limit`` messages (server hard cap: 10 000) drawn
+        from the main channel, the DLQ, or both (``scope``). The candidate
+        is not persisted — pair this with :meth:`set_schema` once you're
+        happy with the report.
+
+        Returns counts + the first 10 failure samples in canonical
+        ``{msg_id, errors}`` shape so callers can render diagnostics
+        without case-by-case parsing.
+        """
+
+        body = {"schema": schema, "scope": scope, "limit": limit}
+        response = self._ws._http.post(
+            f"/v1/workspaces/{self._ws.id}/channels/{_ec(channel)}/schema/check",
+            json=body,
+            not_found_class=WorkspaceNotFound,
+        )
+        return SchemaCheckResult.model_validate(response.json())
+
+    def replay_all_dlq(
+        self,
+        channel: str,
+        *,
+        max: int = 1000,  # noqa: A002 - mirrors API param name
+        dry_run: bool = False,
+    ) -> ReplayBatchResult:
+        """Bulk-replay DLQ messages back through the current schema.
+
+        Iterates the DLQ in seq order (up to ``max``, server hard cap
+        10 000). Each message is re-validated against the *currently
+        attached* schema; successes move to the main channel, failures
+        stay in the DLQ. With ``dry_run=True`` no rows are mutated — the
+        result still reflects what would happen.
+
+        ``failures`` is bounded server-side to 50 entries (each
+        ``{msg_id, reason}``); the totals in ``attempted`` / ``succeeded``
+        / ``failed`` are accurate even when the list is truncated.
+        """
+
+        params: dict[str, Any] = {"max": max}
+        if dry_run:
+            params["dry_run"] = "true"
+        response = self._ws._http.post(
+            f"/v1/workspaces/{self._ws.id}/channels/{_ec(channel)}/deadletter/replay-all",
+            params=params,
+            not_found_class=WorkspaceNotFound,
+        )
+        return ReplayBatchResult.model_validate(response.json())
+
+    def purge_dlq(
+        self,
+        channel: str,
+        *,
+        older_than_seconds: int = 0,
+    ) -> int:
+        """Delete DLQ rows older than ``older_than_seconds``; return count.
+
+        ``older_than_seconds=0`` clears the entire DLQ (useful after a
+        big schema relax). Channels that never had a DLQ return ``0``
+        rather than raising — same idempotency principle as
+        :meth:`delete_schema`.
+        """
+
+        response = self._ws._http.delete(
+            f"/v1/workspaces/{self._ws.id}/channels/{_ec(channel)}/deadletter",
+            params={"older_than_seconds": older_than_seconds},
+            not_found_class=WorkspaceNotFound,
+        )
+        body = response.json()
+        return int(body.get("purged", 0))
 
 
 __all__ = ["ChannelsProxy"]

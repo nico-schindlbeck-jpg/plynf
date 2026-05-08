@@ -33,6 +33,7 @@ from .load_shed import LoadShedder, load_shed_middleware
 from .logging_config import configure_logging, get_logger
 from .migration_runner import (
     MigrationLockError,
+    MigrationRollbackMissing as RunnerRollbackMissing,
     MigrationRunner,
     default_migrations_dir,
 )
@@ -49,6 +50,9 @@ from .models import (
     InvokeRequest,
     InvokeResponse,
     LimitsStatus,
+    RollbackBody,
+    RollbackResult,
+    RolledBackMigrationModel,
     Tenant,
     TenantList,
     Tool,
@@ -63,6 +67,7 @@ from .policy import check_capability
 from .pricing import estimate_cost
 from .proxy import HttpProxy
 from .registry import Registry
+from .revocation_cache import RevocationCache
 from .settings import Settings, get_settings
 from .transactions_api import create_transactions_router
 
@@ -134,10 +139,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # legacy CREATE-IF-NOT-EXISTS bootstrap (``Database.connect``) so
         # existing v0.1–v0.4 databases get marked-as-applied without
         # re-running SQL. When ``auto_migrate=False`` we still log the
-        # pending list so operators see it on boot.
+        # pending list so operators see it on boot. ``database_url``
+        # selects the v0.6 Postgres advisory-lock path; empty keeps SQLite.
         runner = MigrationRunner(
             settings.db_path,
             default_migrations_dir(__file__),
+            database_url=settings.effective_database_url,
+            service_name="gateway",
         )
         app.state.migration_runner = runner
         try:
@@ -213,6 +221,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             enabled=settings.load_shed_enabled,
         )
 
+        # v0.6 — federated revocation cache. Constructed eagerly so the
+        # auth middleware + admin/stats endpoint can rely on its presence.
+        # The polling loop is started below only when the URL is set.
+        rev_cache = RevocationCache(
+            identity_url=settings.revocation_poll_url,
+            poll_interval=settings.revocation_poll_interval_seconds,
+        )
+        app.state.revocation_cache = rev_cache
+        if (
+            settings.revocation_poll_url
+            and settings.revocation_poll_enabled
+        ):
+            try:
+                await rev_cache.start()
+                log.info(
+                    "gateway.revocation_cache.started",
+                    identity_url=rev_cache.identity_url,
+                    poll_interval=rev_cache.poll_interval,
+                    initial_size=rev_cache.stats["size"],
+                )
+            except Exception as exc:  # noqa: BLE001 - never break startup
+                log.warning(
+                    "gateway.revocation_cache.start_failed",
+                    error=str(exc),
+                )
+
         log.info(
             "gateway.startup",
             db_path=str(settings.db_path),
@@ -225,6 +259,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # before we tear down the rest of the dependency graph.
             await otlp.stop()
             await proxy.aclose()
+            try:
+                await rev_cache.stop()
+            except Exception as exc:  # noqa: BLE001 - never break shutdown
+                log.warning(
+                    "gateway.revocation_cache.stop_failed",
+                    error=str(exc),
+                )
             await db.close()
             log.info("gateway.shutdown")
 
@@ -263,6 +304,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=exc.http_status,
                 content=_error_payload(exc.code, exc.message, exc.details),
             )
+
+        # v0.6 — federated revocation. After a successful JWT decode, check
+        # the in-memory blocklist (populated by polling Identity). The cache
+        # is only consulted in non-permissive auth modes — permissive mode
+        # generally has no JTI to check anyway.
+        if (
+            gw_settings.auth_mode in ("verify_local", "verify_remote")
+            and ctx.authenticated
+            and ctx.jti is not None
+        ):
+            rev_cache: RevocationCache | None = getattr(
+                app.state, "revocation_cache", None
+            )
+            if rev_cache is not None and rev_cache.is_revoked(ctx.jti):
+                return JSONResponse(
+                    status_code=401,
+                    content=_error_payload(
+                        "TOKEN_REVOKED",
+                        "token has been revoked",
+                        {"jti": ctx.jti},
+                    ),
+                )
 
         request.state.tenant_id = ctx.tenant_id
         request.state.agent_id = ctx.agent_id
@@ -824,6 +887,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         return request.app.state.load_shedder.stats
 
+    # ---- v0.6 revocation cache admin --------------------------------------
+
+    @app.get(
+        "/v1/admin/revocations/cache/stats",
+        tags=["admin"],
+    )
+    async def revocation_cache_stats(request: Request) -> dict:
+        """Return revocation-cache counters.
+
+        Same permissioning rules as ``/v1/admin/load-shed/stats``: dev-mode
+        deployments (permissive, no inbound auth) are open; strict-auth
+        deployments need ``tenant:*:admin`` or ``*``.
+        """
+
+        gw_settings: Settings = request.app.state.settings
+        permitted = (
+            gw_settings.auth_mode == "permissive"
+            and not gw_settings.inbound_auth_required
+        )
+        if not permitted:
+            scopes = list(getattr(request.state, "auth_scopes", []) or [])
+            if "*" in scopes or "tenant:*:admin" in scopes:
+                permitted = True
+        if not permitted:
+            raise Unauthorized(
+                "revocation cache stats require tenant:*:admin or * scope",
+                details={"required_scope": "tenant:*:admin"},
+            )
+        rev_cache: RevocationCache = request.app.state.revocation_cache
+        return rev_cache.stats
+
     # ---- v0.5 schema migrations admin --------------------------------------
 
     @app.get(
@@ -872,6 +966,65 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
         )
 
+    @app.post(
+        "/v1/admin/migrations/rollback",
+        response_model=RollbackResult,
+        tags=["admin"],
+    )
+    async def rollback_migrations(
+        body: RollbackBody,
+        request: Request,
+    ) -> RollbackResult | JSONResponse:
+        """Roll back applied migrations down to (and including) ``body.to``.
+
+        Returns 200 with the :class:`RollbackResult` payload (even when one
+        of the rollback files errored mid-way — ``failed`` and
+        ``error_message`` carry the partial-state info). Lock contention
+        returns 409 with ``MIGRATION_LOCKED``. Missing rollback files
+        bubble up as ``MIGRATION_ROLLBACK_MISSING`` (400).
+        """
+
+        _require_admin(request)
+        runner: MigrationRunner = request.app.state.migration_runner
+        try:
+            outcome = await runner.rollback_to(
+                body.to,
+                dry_run=body.dry_run,
+                blocking_lock=False,
+            )
+        except RunnerRollbackMissing as exc:
+            return JSONResponse(
+                status_code=400,
+                content=_error_payload(
+                    "MIGRATION_ROLLBACK_MISSING",
+                    str(exc),
+                    {"missing_ids": exc.missing_ids},
+                ),
+            )
+        except MigrationLockError as exc:
+            return JSONResponse(
+                status_code=409,
+                content=_error_payload(
+                    "MIGRATION_LOCKED", str(exc), {}
+                ),
+            )
+
+        return RollbackResult(
+            target=outcome.target,
+            rolled_back=[
+                RolledBackMigrationModel(
+                    id=entry.id,
+                    rolled_back_at=entry.rolled_back_at,
+                    duration_ms=entry.duration_ms,
+                )
+                for entry in outcome.rolled_back
+            ],
+            skipped=list(outcome.skipped),
+            failed=outcome.failed,
+            error_message=outcome.error_message,
+            dry_run=outcome.dry_run,
+        )
+
     return app
 
 
@@ -886,6 +1039,8 @@ def _serialize_applied(mig) -> dict:  # noqa: ANN001
         "checksum": mig.checksum,
         "applied_at": mig.applied_at.isoformat(),
         "duration_ms": mig.duration_ms,
+        "rollback_available": getattr(mig, "rollback_available", False),
+        "rollback_checksum": getattr(mig, "rollback_checksum", None),
     }
 
 
@@ -893,6 +1048,7 @@ def _serialize_pending(mig) -> dict:  # noqa: ANN001
     return {
         "id": mig.id,
         "checksum": mig.checksum,
+        "rollback_available": getattr(mig, "has_rollback", False),
     }
 
 

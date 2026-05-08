@@ -123,6 +123,16 @@ class Settings(BaseSettings):
     # the service still starts but emits a WARNING per pending migration.
     auto_migrate: bool = Field(default=True)
 
+    # v0.6 — federated revocation cache. Polls the identity service's
+    # ``GET /v1/revocations`` endpoint every ``revocation_poll_interval_seconds``
+    # so a token revoked on a peer replica is rejected here within the
+    # poll window. ``revocation_poll_url=""`` (default) keeps the cache
+    # disabled — single-node deployments and v0.5 demos rely on Identity's
+    # local cache and need no extra configuration.
+    revocation_poll_url: str = Field(default="")
+    revocation_poll_interval_seconds: int = Field(default=60, ge=1)
+    revocation_poll_enabled: bool = Field(default=True)
+
     @property
     def effective_database_url(self) -> str:
         """Service-specific URL wins, then the shared one."""

@@ -9,6 +9,7 @@ short-lived capability tokens, verify them out-of-band, or revoke them.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import datetime
 from typing import Any, Dict, List, Optional  # noqa: UP035
 
@@ -22,7 +23,7 @@ from .exceptions import (
     TokenExpired,
     TokenRevoked,
 )
-from .models import SigningKey
+from .models import RevocationEntry, RevocationList, SigningKey
 
 DEFAULT_IDENTITY_URL = "http://localhost:7425"
 
@@ -175,6 +176,70 @@ class IdentityClient:
         response = self._http.get(f"/v1/tokens/{jti}")
         return TokenInfo.model_validate(response.json())
 
+    # ---------------------------------------------- v0.6 federated revocation
+
+    def list_revocations(
+        self,
+        since: int = 0,
+        limit: int = 1000,
+    ) -> RevocationList:
+        """List revoked tokens with ``revoked_at > since`` (unix seconds).
+
+        Used by Workspace + Gateway pollers to refresh their in-memory
+        revocation caches. The response carries a ``next_since`` cursor
+        suitable for the next call's ``since`` argument and a
+        ``has_more`` flag signalling an immediately-available next page.
+
+        Args:
+            since: Unix-second timestamp; only newer revocations are returned.
+            limit: Max entries per page (server caps at 2000, defaults to 1000).
+        """
+
+        params: dict[str, Any] = {
+            "since": int(since),
+            "limit": int(limit),
+        }
+        response = self._http.get_json("/v1/revocations", params=params)
+        return RevocationList.model_validate(response)
+
+    def iter_revocations(
+        self,
+        since: int = 0,
+        page_size: int = 1000,
+    ) -> "Iterator[RevocationEntry]":
+        """Yield every :class:`RevocationEntry` newer than ``since``.
+
+        Transparently follows the ``has_more`` cursor so callers don't
+        have to. Useful for one-shot bootstrap of an in-memory cache.
+        """
+
+        cursor = int(since)
+        while True:
+            page = self.list_revocations(since=cursor, limit=page_size)
+            for entry in page.revocations:
+                yield entry
+            if not page.has_more:
+                return
+            # Don't loop on a non-advancing cursor: the server returns
+            # ``next_since`` based on the last entry, but if the page is
+            # empty we'd otherwise spin. ``list_revocations`` returns
+            # the original ``since`` when no rows match, so a same-cursor
+            # response means "stop".
+            if page.next_since == cursor:
+                return
+            cursor = page.next_since
+
+    def revocation_stats(self) -> dict[str, int]:
+        """Return cheap counters about revoked tokens.
+
+        Mirrors ``GET /v1/revocations/stats``. Keys are ``total``,
+        ``since_24h``, ``since_1h`` (all integers).
+        """
+
+        return self._http.get_json("/v1/revocations/stats")
+
+    # ------------------------------------------------------------------ tokens
+
     def list_tokens(
         self,
         *,
@@ -301,6 +366,8 @@ __all__ = [
     "IdentityClient",
     "InvalidToken",
     "PlinthError",
+    "RevocationEntry",
+    "RevocationList",
     "SigningKey",
     "TokenClaims",
     "TokenExpired",

@@ -567,6 +567,260 @@ async def test_overview_deadletters_filters_dlq_subchannels(
     assert data["deadletters"] == []
 
 
+# ---------------------------------------------------------------------------
+# v0.6 — workflow aggregation
+# ---------------------------------------------------------------------------
+
+
+from plinth_dashboard.overview import (  # noqa: E402
+    _aggregate_workflows,
+    _summarise_workflow,
+)
+
+
+def _wf_doc(
+    *,
+    wf_id: str,
+    name: str,
+    status: str,
+    manifest: list[str],
+    steps: list[dict],
+    workspace_id: str = "ws_a",
+    created_at: str = "2026-05-07T16:00:00Z",
+    started_at: str | None = "2026-05-07T16:01:00Z",
+    finished_at: str | None = None,
+) -> dict:
+    return {
+        "id": wf_id,
+        "workspace_id": workspace_id,
+        "name": name,
+        "steps_manifest": manifest,
+        "steps": steps,
+        "status": status,
+        "metadata": {},
+        "created_at": created_at,
+        "started_at": started_at,
+        "finished_at": finished_at,
+    }
+
+
+def _step_doc(
+    *,
+    step_id: str,
+    workflow_id: str,
+    name: str,
+    status: str,
+    attempt: int = 1,
+) -> dict:
+    return {
+        "id": step_id,
+        "workflow_id": workflow_id,
+        "name": name,
+        "status": status,
+        "attempt": attempt,
+        "started_at": "2026-05-07T16:01:00Z",
+        "finished_at": "2026-05-07T16:01:05Z" if status == "completed" else None,
+        "input": None,
+        "output": None,
+        "error": None,
+        "snapshot_id": None,
+        "created_at": "2026-05-07T16:00:00Z",
+    }
+
+
+def test_summarise_workflow_counts_by_status():
+    """A workflow with 4 steps in mixed status produces correct counts."""
+    wf = _wf_doc(
+        wf_id="wf_1",
+        name="research",
+        status="running",
+        manifest=["search", "fetch", "extract", "synthesize"],
+        steps=[
+            _step_doc(step_id="s1", workflow_id="wf_1", name="search", status="completed"),
+            _step_doc(step_id="s2", workflow_id="wf_1", name="fetch", status="completed"),
+            _step_doc(step_id="s3", workflow_id="wf_1", name="extract", status="running"),
+        ],
+    )
+    workspace = {"id": "ws_a", "name": "alpha"}
+    out = _summarise_workflow(wf, workspace)
+    assert out["workflow_id"] == "wf_1"
+    assert out["workspace_id"] == "ws_a"
+    assert out["workspace_name"] == "alpha"
+    assert out["status"] == "running"
+    assert out["step_count"] == 4
+    assert out["completed_count"] == 2
+    assert out["running_count"] == 1
+    # synthesize is in the manifest but has no recorded attempt → pending.
+    assert out["pending_count"] == 1
+    assert out["failed_count"] == 0
+    assert out["cancelled_count"] == 0
+
+
+def test_summarise_workflow_counts_failed_and_cancelled():
+    """Failed + cancelled statuses get bucketed correctly."""
+    wf = _wf_doc(
+        wf_id="wf_2",
+        name="etl",
+        status="failed",
+        manifest=["a", "b"],
+        steps=[
+            _step_doc(step_id="s1", workflow_id="wf_2", name="a", status="failed"),
+            _step_doc(step_id="s2", workflow_id="wf_2", name="b", status="cancelled"),
+        ],
+    )
+    out = _summarise_workflow(wf, {"id": "ws_a", "name": "alpha"})
+    assert out["failed_count"] == 1
+    assert out["cancelled_count"] == 1
+    assert out["completed_count"] == 0
+    assert out["running_count"] == 0
+    assert out["pending_count"] == 0
+    assert out["step_count"] == 2
+
+
+def test_aggregate_workflows_sorts_newest_first_and_counts_by_status():
+    """The aggregator flattens all workspaces, sorts by created_at desc, and
+    builds a by_status histogram across all workflows."""
+    workspaces = [
+        {"id": "ws_a", "name": "alpha"},
+        {"id": "ws_b", "name": "beta"},
+    ]
+    older = _wf_doc(
+        wf_id="wf_old",
+        name="x",
+        status="completed",
+        manifest=["a"],
+        steps=[_step_doc(step_id="s1", workflow_id="wf_old", name="a", status="completed")],
+        workspace_id="ws_b",
+        created_at="2026-05-07T10:00:00Z",
+        finished_at="2026-05-07T10:05:00Z",
+    )
+    newer = _wf_doc(
+        wf_id="wf_new",
+        name="y",
+        status="running",
+        manifest=["a", "b"],
+        steps=[
+            _step_doc(step_id="s2", workflow_id="wf_new", name="a", status="completed"),
+            _step_doc(step_id="s3", workflow_id="wf_new", name="b", status="running"),
+        ],
+        workspace_id="ws_a",
+        created_at="2026-05-07T16:00:00Z",
+    )
+    workflow_lists = [
+        {"ok": True, "data": {"workflows": [newer]}, "error": None, "status": 200},
+        {"ok": True, "data": {"workflows": [older]}, "error": None, "status": 200},
+    ]
+
+    out = _aggregate_workflows(workspaces, workflow_lists)
+    assert out["partial"] is False
+    assert out["total"] == 2
+    assert [w["workflow_id"] for w in out["workflows"]] == ["wf_new", "wf_old"]
+    assert out["by_status"]["running"] == 1
+    assert out["by_status"]["completed"] == 1
+    # Untouched buckets remain at zero.
+    assert out["by_status"]["failed"] == 0
+    assert out["by_status"]["cancelled"] == 0
+    assert out["by_status"]["pending"] == 0
+
+
+def test_aggregate_workflows_partial_when_one_listing_fails():
+    """A failed per-workspace listing flips partial=true; others still flow."""
+    workspaces = [
+        {"id": "ws_a", "name": "alpha"},
+        {"id": "ws_b", "name": "beta"},
+    ]
+    wf = _wf_doc(
+        wf_id="wf_a",
+        name="x",
+        status="completed",
+        manifest=[],
+        steps=[],
+        workspace_id="ws_a",
+    )
+    workflow_lists = [
+        {"ok": True, "data": {"workflows": [wf]}, "error": None, "status": 200},
+        {"ok": False, "data": None, "error": "boom", "status": 502},
+    ]
+    out = _aggregate_workflows(workspaces, workflow_lists)
+    assert out["partial"] is True
+    assert out["total"] == 1
+    assert out["workflows"][0]["workflow_id"] == "wf_a"
+
+
+def test_aggregate_workflows_empty_when_no_workspaces():
+    """Aggregator returns an empty payload with stable shape when there's nothing."""
+    out = _aggregate_workflows([], [])
+    assert out["partial"] is False
+    assert out["total"] == 0
+    assert out["workflows"] == []
+    assert "by_status" in out
+    assert "fetched_at" in out
+
+
+def test_aggregate_workflows_unknown_status_extends_by_status_dict():
+    """Unknown workflow.status values still increment by_status."""
+    workspaces = [{"id": "ws_a", "name": "alpha"}]
+    wf = _wf_doc(
+        wf_id="wf_z",
+        name="weird",
+        status="paused",  # not in the canonical set
+        manifest=[],
+        steps=[],
+        workspace_id="ws_a",
+    )
+    workflow_lists = [
+        {"ok": True, "data": {"workflows": [wf]}, "error": None, "status": 200},
+    ]
+    out = _aggregate_workflows(workspaces, workflow_lists)
+    assert out["by_status"]["paused"] == 1
+
+
+async def test_overview_builder_workflows_overview_happy_path(
+    overview: OverviewBuilder, settings: Settings, workspace_factory
+):
+    """End-to-end via OverviewBuilder.build_workflows_overview."""
+    ws_a = workspace_factory(ws_id="ws_a", name="alpha")
+    wf = _wf_doc(
+        wf_id="wf_1",
+        name="research",
+        status="running",
+        manifest=["a", "b"],
+        steps=[
+            _step_doc(step_id="s1", workflow_id="wf_1", name="a", status="completed"),
+        ],
+        workspace_id="ws_a",
+    )
+    with respx.mock(assert_all_called=False) as router:
+        router.get(f"{settings.workspace_url}/v1/workspaces").mock(
+            return_value=httpx.Response(200, json={"workspaces": [ws_a]})
+        )
+        router.get(f"{settings.workspace_url}/v1/workspaces/ws_a/workflows").mock(
+            return_value=httpx.Response(200, json={"workflows": [wf]})
+        )
+        data = await overview.build_workflows_overview()
+
+    assert data["total"] == 1
+    assert data["partial"] is False
+    assert data["workflows"][0]["workflow_id"] == "wf_1"
+    assert data["workflows"][0]["workspace_name"] == "alpha"
+    assert data["workflows"][0]["completed_count"] == 1
+    assert data["workflows"][0]["pending_count"] == 1
+
+
+async def test_overview_builder_workflows_overview_workspace_listing_fails(
+    overview: OverviewBuilder, settings: Settings
+):
+    """Workspace listing failure → empty list + partial=true."""
+    with respx.mock(assert_all_called=False) as router:
+        router.get(f"{settings.workspace_url}/v1/workspaces").mock(
+            side_effect=httpx.ConnectError("workspace service down")
+        )
+        data = await overview.build_workflows_overview()
+    assert data["partial"] is True
+    assert data["total"] == 0
+    assert data["workflows"] == []
+
+
 async def test_overview_observability_status_disabled_payload(
     overview: OverviewBuilder, settings: Settings, workspace_factory, audit_stats_factory
 ):

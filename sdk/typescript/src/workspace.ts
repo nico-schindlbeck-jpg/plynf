@@ -21,8 +21,13 @@ import type {
   FileEntry,
   JsonValue,
   KVEntry,
+  Lock,
+  LockAcquireOptions,
+  LockHeartbeatOptions,
+  LockReleaseOptions,
   MergeResult,
   Snapshot,
+  WithLockOptions,
   Workspace as WorkspaceModel,
 } from "./types.js";
 import { WorkflowsClient } from "./workflows.js";
@@ -261,6 +266,150 @@ export class SnapshotProxy {
 }
 
 /**
+ * v0.6 — generic distributed locks over named workspace resources.
+ *
+ * Locks are independent of the workflow-step lease primitive. Use them
+ * to coordinate any named object (KV key, file path, external resource
+ * handle) across multiple agents.
+ *
+ * @example
+ * ```ts
+ * await ws.locks.withLock(
+ *   "kv:sources/index",
+ *   "agent-A",
+ *   { ttlSeconds: 30 },
+ *   async () => {
+ *     await ws.kv.set("sources/index", newValue);
+ *   },
+ * );
+ * ```
+ */
+export class LocksClient {
+  constructor(
+    private readonly http: HttpClient,
+    private readonly workspaceId: string,
+  ) {}
+
+  /**
+   * Acquire a lock on `name`.
+   *
+   * On contention either rejects with `LockConflictError` immediately
+   * (default) or polls the server until `waitMs` elapses.
+   */
+  async acquire(name: string, opts: LockAcquireOptions): Promise<Lock> {
+    return this.http.requestJson<Lock>({
+      method: "POST",
+      path: `${this.namedPath(name)}/acquire`,
+      json: {
+        holder: opts.holder,
+        ttl_seconds: opts.ttlSeconds ?? 60,
+        wait_ms: opts.waitMs ?? 0,
+      },
+    });
+  }
+
+  /** Extend the lock's TTL. Only the current holder may heartbeat. */
+  async heartbeat(name: string, opts: LockHeartbeatOptions): Promise<Lock> {
+    const body: Record<string, JsonValue> = { holder: opts.holder };
+    if (opts.ttlSeconds !== undefined) body.ttl_seconds = opts.ttlSeconds;
+    return this.http.requestJson<Lock>({
+      method: "POST",
+      path: `${this.namedPath(name)}/heartbeat`,
+      json: body,
+    });
+  }
+
+  /** Release a held lock. Idempotent — no error if it's already gone. */
+  async release(name: string, opts: LockReleaseOptions): Promise<void> {
+    await this.http.requestVoid({
+      method: "POST",
+      path: `${this.namedPath(name)}/release`,
+      json: { holder: opts.holder },
+    });
+  }
+
+  /** Return every lock currently persisted in this workspace. */
+  async list(): Promise<Lock[]> {
+    const res = await this.http.requestJson<{ locks: Lock[] }>({
+      method: "GET",
+      path: `/v1/workspaces/${encodeURIComponent(this.workspaceId)}/locks`,
+    });
+    return res.locks;
+  }
+
+  /** Fetch a single lock row. Throws `LockNotFoundError` on miss. */
+  async get(name: string): Promise<Lock> {
+    return this.http.requestJson<Lock>({
+      method: "GET",
+      path: this.namedPath(name),
+    });
+  }
+
+  /**
+   * Acquire `name`, run `fn`, then release — guaranteed even on rejection.
+   *
+   * While `fn` runs, an interval-driven heartbeat keeps the lock alive
+   * (default cadence `30 seconds`; pass `heartbeatIntervalMs: 0` to
+   * disable). The heartbeat stops cleanly when `fn` resolves *or*
+   * rejects, and the lock is released either way.
+   */
+  async withLock<T>(
+    name: string,
+    holder: string,
+    opts: WithLockOptions,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const ttlSeconds = opts.ttlSeconds ?? 60;
+    const waitMs = opts.waitMs ?? 0;
+    const heartbeatIntervalMs = opts.heartbeatIntervalMs ?? 30_000;
+
+    await this.acquire(name, { holder, ttlSeconds, waitMs });
+
+    let timer: ReturnType<typeof setInterval> | null = null;
+    if (heartbeatIntervalMs > 0) {
+      timer = setInterval(() => {
+        // Fire-and-forget: a transient heartbeat failure shouldn't
+        // crash the body, and a permanent one will surface on the
+        // next ``acquire`` by another holder.
+        this.heartbeat(name, { holder }).catch(() => {});
+      }, heartbeatIntervalMs);
+      // Don't keep the Node process alive just for a lock heartbeat
+      // (browsers don't expose ``unref`` so we feature-detect).
+      const handle = timer as { unref?: () => void };
+      if (typeof handle.unref === "function") handle.unref();
+    }
+
+    try {
+      return await fn();
+    } finally {
+      if (timer !== null) clearInterval(timer);
+      // Release is idempotent — never let a release failure mask the
+      // body's outcome.
+      try {
+        await this.release(name, { holder });
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  private namedPath(name: string): string {
+    // ``name`` may contain ``/`` and ``:`` (the canonical case for
+    // prefixed names like ``kv:sources/index``) — preserve them so the
+    // workspace's ``{name:path}`` route consumes the whole thing as
+    // one segment. ``:`` is a sub-delim per RFC 3986 and is safe inside
+    // a path component.
+    const stripped = name.replace(/^\/+/, "");
+    const encoded = stripped
+      .split("/")
+      .map((part) => encodeURIComponent(part).replace(/%3A/gi, ":"))
+      .join("/");
+    return `/v1/workspaces/${encodeURIComponent(this.workspaceId)}/locks/${encoded}`;
+  }
+}
+
+
+/**
  * A handle to a workspace, plus all of its sub-clients.
  *
  * Construct via {@link Plinth.workspace} — never directly. Two
@@ -276,6 +425,8 @@ export class Workspace {
   readonly channels: ChannelsClient;
   /** v0.2 — durable, resumable agent pipelines. */
   readonly workflows: WorkflowsClient;
+  /** v0.6 — generic distributed locks over named workspace resources. */
+  readonly locks: LocksClient;
 
   /** Stable workspace ID (`ws_<ulid>`). */
   readonly id: string;
@@ -305,6 +456,9 @@ export class Workspace {
     // Workflows aren't branch-scoped server-side, but we still pass the
     // shared HTTP client so they participate in the same auth context.
     this.workflows = new WorkflowsClient(http, record.id);
+    // Locks aren't branch-scoped — they're a workspace-level coordination
+    // primitive — so they share the same HTTP client without scope.
+    this.locks = new LocksClient(http, record.id);
   }
 
   /**

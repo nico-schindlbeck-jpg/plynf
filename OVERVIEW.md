@@ -25,9 +25,9 @@
 
 | | |
 |--|--|
-| **Latest milestone** | **v0.5 — Reliability & Coordination Depth** *(May 7, 2026)* |
-| **Repo size** | ~96 500 lines of source + docs |
-| **Tests passing** | **1 373** *(1 274 Python + 99 TypeScript)* |
+| **Latest milestone** | **v0.6 — Distribution & Polish** *(May 7, 2026)* |
+| **Repo size** | ~110 000 lines of source + docs |
+| **Tests passing** | **1 621** *(1 503 Python + 118 TypeScript)* |
 | **Deployable units** | 9 *(4 services, 3 real MCP tool servers, 1 mock tool server, 1 worker, 1 benchmark suite)* |
 | **End-to-end demos** | 5 *(all run from a clean clone)* |
 | **License** | Apache 2.0 |
@@ -40,8 +40,9 @@
 | v0.2 | MVP (channels + workflows + dashboard + production-safety knobs) | done |
 | v0.3 | Production-credible (real auth, multi-tenancy, real GitHub OAuth, TS-SDK parity) | done |
 | v0.4 | Scale & operability (Postgres backend, OpenTelemetry export, RS256 keys with rotation, more OAuth providers) | done |
-| **v0.5** | **Reliability & coordination depth (migrations, durable workers, transactions, typed channels, benchmarks)** | **CURRENT** |
-| v0.6 | Distribution & polish (federated revocation, migration rollback, workflow visualisation, lock primitives) | next |
+| v0.5 | Reliability & coordination depth (migrations, durable workers, transactions, typed channels, benchmarks) | done |
+| **v0.6** | **Distribution & polish (federated revocation, migration rollback, workflow visualisation, generic locks, schema-migration helpers)** | **CURRENT** |
+| v0.7 | Multi-tenant SaaS posture (TS worker harness, per-tenant quotas, tenant admin UI, schema-evolution wizard) | next |
 | v1.0 | General availability (full multi-region, compliance certifications, stable API guarantees) | future |
 
 ### Backwards compatibility

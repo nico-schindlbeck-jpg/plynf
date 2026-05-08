@@ -15,6 +15,10 @@
           <span class="brand-mark" aria-hidden="true"></span>
           <span class="brand-name">Plinth</span>
         </a>
+        <nav class="topnav" aria-label="primary">
+          <a class="topnav-link" href="#/" data-route="overview">Overview</a>
+          <a class="topnav-link" href="#/workflows" data-route="workflows">Workflows</a>
+        </nav>
         <span class="crumb" id="crumb"></span>
       </div>
       <div class="topbar-right">
@@ -216,13 +220,110 @@
       </div>
     </template>
 
+    <template id="tpl-workflows-list">
+      <section class="card">
+        <div class="card-head">
+          <h2>Workflows</h2>
+          <span class="muted" id="wf-list-count"></span>
+        </div>
+
+        <div class="wf-filters">
+          <label class="wf-filter">
+            <span class="wf-filter-label">Status</span>
+            <select id="wf-filter-status">
+              <option value="">all</option>
+              <option value="running">running</option>
+              <option value="completed">completed</option>
+              <option value="failed">failed</option>
+              <option value="cancelled">cancelled</option>
+              <option value="pending">pending</option>
+            </select>
+          </label>
+          <label class="wf-filter">
+            <span class="wf-filter-label">Workspace</span>
+            <select id="wf-filter-workspace">
+              <option value="">all</option>
+            </select>
+          </label>
+          <span class="muted" id="wf-list-summary"></span>
+        </div>
+
+        <div class="table-wrap">
+          <table class="data-table wf-list-table">
+            <thead>
+              <tr>
+                <th data-sort="status" class="sortable">Status</th>
+                <th>Workspace</th>
+                <th>Workflow</th>
+                <th class="num">Steps</th>
+                <th data-sort="started" class="sortable">Started</th>
+                <th class="actions-col">Action</th>
+              </tr>
+            </thead>
+            <tbody id="wf-list-body">
+              <tr class="empty"><td colspan="6">No workflows yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </template>
+
+    <template id="tpl-workflow-detail">
+      <a class="back-link" href="#/workflows" id="wf-back">&larr; Back to workflows</a>
+
+      <section class="card workflow-detail-head" id="wf-detail-head">
+        <div>
+          <h1 id="wf-detail-name">Workflow</h1>
+          <p class="muted mono" id="wf-detail-id"></p>
+        </div>
+        <div class="workflow-detail-meta" id="wf-detail-meta"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Steps</h2>
+          <span class="muted" id="wf-detail-progress"></span>
+        </div>
+        <div class="wf-graph-wrap">
+          <div class="wf-graph" id="wf-graph" role="list"
+               aria-label="Workflow steps in execution order">
+            <p class="empty muted">loading&hellip;</p>
+          </div>
+        </div>
+      </section>
+    </template>
+
+    <!-- Workflow step detail modal (vanilla; opened by app.js) -->
+    <div class="wf-step-modal" id="wf-step-modal" hidden>
+      <div class="wf-step-modal-card">
+        <div class="wf-step-modal-head">
+          <h2 id="wf-step-modal-title">Step</h2>
+          <button class="btn small" id="wf-step-modal-close" type="button">close</button>
+        </div>
+        <div id="wf-step-modal-body" class="wf-step-modal-body">
+          <p class="empty muted">loading&hellip;</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Dead-letter detail modal (vanilla; opened by app.js) -->
     <div class="dlq-modal" id="dlq-modal" hidden>
       <div class="dlq-modal-card">
         <div class="dlq-modal-head">
           <h2 id="dlq-modal-title">Dead letters</h2>
-          <button class="btn small" id="dlq-modal-close" type="button">close</button>
+          <div class="dlq-modal-actions">
+            <button class="btn small" id="dlq-replay-all" type="button">
+              Replay all
+            </button>
+            <button class="btn small danger" id="dlq-purge-old" type="button">
+              Purge older than 24h
+            </button>
+            <button class="btn small" id="dlq-modal-close" type="button">
+              close
+            </button>
+          </div>
         </div>
+        <div id="dlq-modal-status" class="dlq-modal-status" hidden></div>
         <div id="dlq-modal-body" class="dlq-modal-body">
           <p class="empty muted">loading&hellip;</p>
         </div>

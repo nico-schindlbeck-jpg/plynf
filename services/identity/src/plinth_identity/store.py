@@ -13,14 +13,14 @@ from __future__ import annotations
 import contextlib
 import json
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 import aiosqlite
 
 from .exceptions import TenantAlreadyExists, TenantNotFound, TokenNotFound
-from .models import Tenant, TokenInfo
+from .models import RevocationEntry, Tenant, TokenInfo
 
 UTC = timezone.utc  # noqa: UP017
 
@@ -360,6 +360,89 @@ class TokenStore:
             rows = await cur.fetchall()
             await cur.close()
         return [_row_to_info(r) for r in rows]
+
+    # ------------------------------------------------------------- v0.6 fed.
+    # Federated revocation: peer replicas poll ``GET /v1/revocations`` to
+    # learn about tokens revoked on other nodes. The query is keyed by
+    # ``revoked_at`` so the caller can use it as a forward cursor.
+
+    async def list_revocations(
+        self,
+        since_unix: int,
+        limit: int = 1000,
+    ) -> tuple[list[RevocationEntry], bool]:
+        """Return revoked-token entries newer than ``since_unix`` (exclusive).
+
+        Returns ``(entries, has_more)``. ``has_more`` is True iff there were
+        more than ``limit`` matching rows; callers paginate by re-polling
+        with ``since=last_revoked_at``.
+
+        ``limit`` is capped at 2000 to keep responses bounded; values <1
+        coerce to 1.
+        """
+
+        capped = max(1, min(int(limit), 2000))
+        cutoff = datetime.fromtimestamp(int(since_unix), tz=UTC)
+        # Fetch one extra row beyond ``capped`` so we can compute has_more
+        # without a second COUNT(*).
+        async with connect(self._db_path) as conn:
+            cur = await conn.execute(
+                "SELECT jti, agent_id, tenant_id, revoked_at "
+                "FROM issued_tokens "
+                "WHERE revoked = 1 AND revoked_at > ? "
+                "ORDER BY revoked_at ASC LIMIT ?",
+                (_iso(cutoff), capped + 1),
+            )
+            rows = await cur.fetchall()
+            await cur.close()
+        has_more = len(rows) > capped
+        rows = rows[:capped]
+        out: list[RevocationEntry] = []
+        for row in rows:
+            revoked_at = _parse_ts(row["revoked_at"])
+            assert revoked_at is not None  # noqa: S101
+            out.append(
+                RevocationEntry(
+                    jti=row["jti"],
+                    revoked_at=revoked_at,
+                    agent_id=row["agent_id"],
+                    tenant_id=row["tenant_id"],
+                )
+            )
+        return out, has_more
+
+    async def revocation_stats(self) -> tuple[int, int, int]:
+        """Return ``(total, since_24h, since_1h)`` revocation counts."""
+
+        now = datetime.now(UTC)
+        h1 = now - timedelta(hours=1)
+        h24 = now - timedelta(hours=24)
+        async with connect(self._db_path) as conn:
+            cur = await conn.execute(
+                "SELECT COUNT(*) AS c FROM issued_tokens WHERE revoked = 1"
+            )
+            row = await cur.fetchone()
+            total = int(row["c"]) if row is not None else 0
+            await cur.close()
+
+            cur = await conn.execute(
+                "SELECT COUNT(*) AS c FROM issued_tokens "
+                "WHERE revoked = 1 AND revoked_at > ?",
+                (_iso(h24),),
+            )
+            row = await cur.fetchone()
+            since_24h = int(row["c"]) if row is not None else 0
+            await cur.close()
+
+            cur = await conn.execute(
+                "SELECT COUNT(*) AS c FROM issued_tokens "
+                "WHERE revoked = 1 AND revoked_at > ?",
+                (_iso(h1),),
+            )
+            row = await cur.fetchone()
+            since_1h = int(row["c"]) if row is not None else 0
+            await cur.close()
+        return total, since_24h, since_1h
 
 
 class TenantStore:

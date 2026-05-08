@@ -34,6 +34,9 @@ from .exceptions import (
     KeyNotFound,
     LeaseConflict,
     LeaseNotHeld,
+    LockConflict,
+    LockNotFound,
+    LockNotHeld,
     MessageNotFound,
     NoHandlerError,
     NotFoundError,
@@ -74,8 +77,13 @@ from .models import (
     KVEntry,
     Lease,
     LimitsStatus,
+    Lock,
     MergeResult,
+    ReplayBatchResult,
     ResumeInfo,
+    RevocationEntry,
+    RevocationList,
+    SchemaCheckResult,
     SigningKey,
     Snapshot,
     Tenant,
@@ -96,7 +104,7 @@ from .transactions import TransactionBuilder, TransactionsClient
 from .workers import WorkersClient
 from .workflow_runtime import HandlerContext, WorkflowRuntime
 from .workflows import WorkflowHandle, WorkflowsProxy
-from .workspace import FilesProxy, KVProxy, SnapshotProxy, Workspace
+from .workspace import FilesProxy, KVProxy, LocksProxy, SnapshotProxy, Workspace
 
 __version__ = "0.3.0"
 
@@ -137,6 +145,11 @@ __all__ = [
     "LeaseConflict",
     "LeaseNotHeld",
     "LimitsStatus",
+    "Lock",
+    "LockConflict",
+    "LockNotFound",
+    "LockNotHeld",
+    "LocksProxy",
     "MergeResult",
     "MessageNotFound",
     "NoHandlerError",
@@ -145,7 +158,11 @@ __all__ = [
     "Plinth",
     "PlinthError",
     "RateLimited",
+    "ReplayBatchResult",
     "ResumeInfo",
+    "RevocationEntry",
+    "RevocationList",
+    "SchemaCheckResult",
     "SchemaViolation",
     "SigningKey",
     "Snapshot",

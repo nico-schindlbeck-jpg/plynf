@@ -266,6 +266,43 @@ class ChannelSchema(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# v0.6 — Channel schema migration helpers
+# ---------------------------------------------------------------------------
+
+
+class SchemaCheckResult(BaseModel):
+    """Outcome of ``ChannelsProxy.check_schema`` (v0.6).
+
+    Mirrors the workspace service's ``SchemaCheckResult``. ``sample_failures``
+    is bounded server-side to 10 entries; each entry has the canonical
+    shape ``{"msg_id": str, "errors": [{"path": [...], "message": str}]}``
+    so callers don't need shape-detection.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    channel: str
+    scope: str  # "main" | "deadletter" | "both"
+    checked: int = 0
+    valid: int = 0
+    invalid: int = 0
+    sample_failures: List[Dict[str, Any]] = Field(default_factory=list)  # noqa: UP006
+
+
+class ReplayBatchResult(BaseModel):
+    """Outcome of ``ChannelsProxy.replay_all_dlq`` (v0.6)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    channel: str
+    attempted: int = 0
+    succeeded: int = 0
+    failed: int = 0
+    failures: List[Dict[str, Any]] = Field(default_factory=list)  # noqa: UP006
+    dry_run: bool = False
+
+
+# ---------------------------------------------------------------------------
 # v0.2 — Workflows API models
 # ---------------------------------------------------------------------------
 
@@ -396,6 +433,42 @@ class SigningKey(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# v0.6 — Federated revocation list (cross-replica propagation)
+# ---------------------------------------------------------------------------
+
+
+class RevocationEntry(BaseModel):
+    """A single revoked token surfaced by ``GET /v1/revocations``.
+
+    Mirrors the identity service's response item. Carries only the
+    metadata downstream caches need to record + audit a revocation; the
+    JWT itself is never carried (revocation is keyed by ``jti``).
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    jti: str
+    revoked_at: datetime
+    agent_id: str
+    tenant_id: str
+
+
+class RevocationList(BaseModel):
+    """Response from ``GET /v1/revocations``.
+
+    Callers maintain a cursor (``next_since``, a unix-second timestamp)
+    and re-poll periodically. The server returns at most ``limit``
+    entries; ``has_more`` signals an immediately-available next page.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    revocations: List[RevocationEntry] = Field(default_factory=list)  # noqa: UP006
+    next_since: int = 0
+    has_more: bool = False
+
+
+# ---------------------------------------------------------------------------
 # v0.5 — Durable workflow executor: leases + workers
 # ---------------------------------------------------------------------------
 
@@ -497,6 +570,31 @@ class TransactionResult(BaseModel):
     compensations_run: int = 0
 
 
+# ---------------------------------------------------------------------------
+# v0.6 — Generic resource locks
+# ---------------------------------------------------------------------------
+
+
+class Lock(BaseModel):
+    """A generic distributed lock over a named workspace resource.
+
+    Locks are independent of the workflow-step :class:`Lease` primitive;
+    they exist so two agents can coordinate access to any named object
+    (KV key, file path, external resource handle, etc.) without having to
+    invent their own protocol.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    name: str
+    workspace_id: str
+    holder: str
+    acquired_at: datetime
+    expires_at: datetime
+    heartbeat_at: datetime
+    waiters: int = 0
+
+
 __all__ = [
     "AgentLimits",
     "AuditEvent",
@@ -513,8 +611,13 @@ __all__ = [
     "KVEntry",
     "Lease",
     "LimitsStatus",
+    "Lock",
     "MergeResult",
+    "ReplayBatchResult",
     "ResumeInfo",
+    "RevocationEntry",
+    "RevocationList",
+    "SchemaCheckResult",
     "SigningKey",
     "Snapshot",
     "Tenant",

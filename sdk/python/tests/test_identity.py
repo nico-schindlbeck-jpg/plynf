@@ -532,3 +532,149 @@ def test_signing_key_model_round_trips():
     assert key.active is True
     # Public material round-trips. Private material is never present.
     assert "private" not in key.public_key_pem.lower()
+
+
+# ---------------------------------------------------------------------------
+# v0.6 — federated revocation
+
+
+def _revocation_entry(
+    *,
+    jti: str,
+    revoked_at: datetime | None = None,
+    agent_id: str = "agt_1",
+    tenant_id: str = "default",
+) -> dict:
+    return {
+        "jti": jti,
+        "revoked_at": (revoked_at or datetime.now(UTC)).isoformat(),
+        "agent_id": agent_id,
+        "tenant_id": tenant_id,
+    }
+
+
+def test_list_revocations_empty(identity_mock: respx.MockRouter):
+    identity_mock.get("/v1/revocations").respond(
+        200,
+        json={"revocations": [], "next_since": 0, "has_more": False},
+    )
+    client = _identity_client(identity_mock)
+    page = client.list_revocations(since=0)
+    assert page.revocations == []
+    assert page.next_since == 0
+    assert page.has_more is False
+
+
+def test_list_revocations_passes_since_and_limit(identity_mock: respx.MockRouter):
+    route = identity_mock.get("/v1/revocations").respond(
+        200,
+        json={"revocations": [], "next_since": 1700, "has_more": False},
+    )
+    client = _identity_client(identity_mock)
+    client.list_revocations(since=1234, limit=42)
+    request = route.calls.last.request
+    qs = str(request.url)
+    assert "since=1234" in qs
+    assert "limit=42" in qs
+
+
+def test_list_revocations_round_trips_entries(identity_mock: respx.MockRouter):
+    rev_at = datetime.now(UTC)
+    identity_mock.get("/v1/revocations").respond(
+        200,
+        json={
+            "revocations": [
+                _revocation_entry(jti="jti_a", revoked_at=rev_at, tenant_id="acme"),
+                _revocation_entry(jti="jti_b", revoked_at=rev_at, tenant_id="acme"),
+            ],
+            "next_since": int(rev_at.timestamp()),
+            "has_more": False,
+        },
+    )
+    client = _identity_client(identity_mock)
+    page = client.list_revocations(since=0)
+    assert [e.jti for e in page.revocations] == ["jti_a", "jti_b"]
+    assert all(e.tenant_id == "acme" for e in page.revocations)
+    assert page.next_since == int(rev_at.timestamp())
+
+
+def test_iter_revocations_follows_pagination(identity_mock: respx.MockRouter):
+    """The iterator transparently follows ``has_more`` cursors."""
+
+    page_one = {
+        "revocations": [_revocation_entry(jti=f"jti_{n}") for n in range(3)],
+        "next_since": 100,
+        "has_more": True,
+    }
+    page_two = {
+        "revocations": [_revocation_entry(jti=f"jti_{n}") for n in range(3, 5)],
+        "next_since": 200,
+        "has_more": False,
+    }
+
+    # Respx route ordering: first call → page one, second → page two.
+    responses = iter([page_one, page_two])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=next(responses))
+
+    identity_mock.get("/v1/revocations").mock(side_effect=handler)
+    client = _identity_client(identity_mock)
+    seen = [e.jti for e in client.iter_revocations(since=0, page_size=3)]
+    assert seen == [f"jti_{n}" for n in range(5)]
+
+
+def test_iter_revocations_stops_on_non_advancing_cursor(
+    identity_mock: respx.MockRouter,
+):
+    """Defensive: bail out if the server keeps returning the same cursor."""
+
+    identity_mock.get("/v1/revocations").respond(
+        200,
+        json={
+            "revocations": [],
+            # Server returns the same cursor we passed in.
+            "next_since": 0,
+            "has_more": True,
+        },
+    )
+    client = _identity_client(identity_mock)
+    seen = list(client.iter_revocations(since=0))
+    assert seen == []
+
+
+def test_revocation_stats_returns_dict(identity_mock: respx.MockRouter):
+    identity_mock.get("/v1/revocations/stats").respond(
+        200,
+        json={"total": 7, "since_24h": 4, "since_1h": 2},
+    )
+    client = _identity_client(identity_mock)
+    stats = client.revocation_stats()
+    assert stats == {"total": 7, "since_24h": 4, "since_1h": 2}
+
+
+def test_revocation_models_round_trip():
+    """The ``RevocationEntry`` + ``RevocationList`` models accept identity payloads."""
+
+    from plinth import RevocationEntry, RevocationList
+
+    rev_at = datetime.now(UTC)
+    entry = RevocationEntry.model_validate(
+        _revocation_entry(jti="jti_x", revoked_at=rev_at, tenant_id="acme")
+    )
+    assert entry.jti == "jti_x"
+    assert entry.tenant_id == "acme"
+
+    page = RevocationList.model_validate(
+        {
+            "revocations": [
+                _revocation_entry(jti="jti_x", revoked_at=rev_at),
+                _revocation_entry(jti="jti_y", revoked_at=rev_at),
+            ],
+            "next_since": int(rev_at.timestamp()),
+            "has_more": True,
+        }
+    )
+    assert len(page.revocations) == 2
+    assert page.has_more is True
+    assert page.next_since == int(rev_at.timestamp())

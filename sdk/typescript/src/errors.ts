@@ -244,6 +244,57 @@ export class SigningKeyNotFoundError extends PlinthError {
 }
 
 // ---------------------------------------------------------------------------
+// v0.6 — Generic resource locks
+// ---------------------------------------------------------------------------
+
+/**
+ * The lock is currently held by a different holder (HTTP 409).
+ *
+ * Surfaces ``current_holder`` and ``retry_after_seconds`` from the
+ * server's error envelope so callers don't have to reach into
+ * {@link PlinthError.details}.
+ */
+export class LockConflictError extends PlinthError {
+  /** Holder string of whoever owns the lock right now (when reported). */
+  readonly currentHolder: string | null;
+  /** Suggested back-off in seconds (when reported). */
+  readonly retryAfterSeconds: number | null;
+
+  constructor(message: string, status?: number, details?: Record<string, unknown>) {
+    // The workspace service emits ``LOCK_HELD`` today; the SDK reports it
+    // as the spec-aligned ``LOCK_CONFLICT`` for forward compatibility with
+    // future services that surface the spec code directly.
+    super(message, "LOCK_CONFLICT", status, details);
+    this.name = "LockConflictError";
+    const ch = details?.current_holder;
+    this.currentHolder = typeof ch === "string" ? ch : null;
+    const ra = details?.retry_after_seconds;
+    this.retryAfterSeconds = typeof ra === "number" ? ra : null;
+  }
+}
+
+/**
+ * Heartbeat / release attempted on a lock the caller does not hold.
+ *
+ * Either the row exists but a different holder owns it (the most common
+ * case) or the caller's TTL elapsed and another holder stole the lock.
+ */
+export class LockNotHeldError extends PlinthError {
+  constructor(message: string, status?: number, details?: Record<string, unknown>) {
+    super(message, "LOCK_NOT_HELD", status, details);
+    this.name = "LockNotHeldError";
+  }
+}
+
+/** The requested lock does not exist (HTTP 404). */
+export class LockNotFoundError extends PlinthError {
+  constructor(message: string, status?: number, details?: Record<string, unknown>) {
+    super(message, "LOCK_NOT_FOUND", status, details);
+    this.name = "LockNotFoundError";
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 429 — rate / cost
 // ---------------------------------------------------------------------------
 
@@ -336,6 +387,16 @@ export function errorFromEnvelope(
       return new RateLimitedError(message, status, details);
     case "COST_CAP_EXCEEDED":
       return new CostCapExceededError(message, status, details);
+    // v0.6 — generic resource locks. The workspace service emits the
+    // ``LOCK_HELD`` code; we fold it into the SDK's spec-aligned
+    // ``LockConflictError`` so user code reads naturally.
+    case "LOCK_HELD":
+    case "LOCK_CONFLICT":
+      return new LockConflictError(message, status, details);
+    case "LOCK_NOT_HELD":
+      return new LockNotHeldError(message, status, details);
+    case "LOCK_NOT_FOUND":
+      return new LockNotFoundError(message, status, details);
     default:
       // Best-effort fallback: map by status if no matching code.
       if (status === 401) return new UnauthorizedError(message, status, details);

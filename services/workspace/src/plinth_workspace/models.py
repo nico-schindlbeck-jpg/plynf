@@ -296,6 +296,104 @@ class ChannelSchemaSetBody(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# v0.6 — Channel schema migration helpers
+# ---------------------------------------------------------------------------
+
+
+SchemaCheckScope = Literal["main", "deadletter", "both"]
+
+
+class SchemaCheckBody(BaseModel):
+    """Body for ``POST .../channels/{name}/schema/check`` (v0.6).
+
+    Submits a candidate JSON Schema document for compatibility validation
+    without persisting it. The wire field is named ``schema`` (alias) to
+    match the operator-facing surface; we map to ``schema_doc`` internally
+    for the same reason as :class:`ChannelSchemaSetBody`.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+        protected_namespaces=(),
+    )
+
+    schema_doc: dict[str, Any] = Field(alias="schema")
+    scope: SchemaCheckScope = "both"
+    # Bound the iteration so ``check`` can never wedge on a million-row DLQ.
+    # The hard cap of 10 000 mirrors the spec; the default of 1000 is a
+    # reasonable preview window for migration planning.
+    limit: int = Field(default=1000, ge=1, le=10000)
+
+
+class SchemaCheckResult(BaseModel):
+    """Outcome of a ``schema/check`` invocation.
+
+    ``sample_failures`` is bounded to 10 entries so a runaway ``invalid``
+    count never produces a multi-megabyte response. Each entry has the
+    consistent shape ``{"msg_id": str, "errors": [{path, message, ...}]}``
+    so SDK callers can render diagnostics without case-by-case parsing.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    channel: str
+    scope: SchemaCheckScope
+    checked: int = 0
+    valid: int = 0
+    invalid: int = 0
+    sample_failures: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ReplayBatchBody(BaseModel):
+    """Optional JSON body for ``POST .../deadletter/replay-all`` (v0.6).
+
+    The endpoint accepts either query parameters (``?dry_run=&max=``) or
+    this JSON body — the body form is the documented "recommended" shape
+    in :doc:`/CONTRACTS.md` because replay is a mutating operation. Both
+    fields are optional so an empty ``{}`` is a valid request.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    dry_run: bool = False
+    # Bounded to ``BULK_HARD_LIMIT`` on the store (10_000); the default
+    # 100 mirrors the spec's "cap per call" recommendation.
+    max: int = Field(default=100, ge=1, le=10000)  # noqa: A003
+
+
+class ReplayBatchResult(BaseModel):
+    """Outcome of a ``deadletter/replay-all`` invocation.
+
+    ``failures`` is bounded to 50 entries (each ``{"msg_id": str, "reason":
+    str}``) — enough to surface common patterns without unbounded growth.
+    ``dry_run`` is echoed so callers can distinguish "would succeed" from
+    "did succeed" results without re-checking their own request.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    channel: str
+    attempted: int = 0
+    succeeded: int = 0
+    failed: int = 0
+    failures: list[dict[str, Any]] = Field(default_factory=list)
+    dry_run: bool = False
+
+
+class PurgeDLQResult(BaseModel):
+    """Outcome of ``DELETE .../deadletter`` (purge).
+
+    Aliased as ``DLQPurgeResult`` in the SDK. The single ``purged`` int is
+    the row count actually removed; channels without a DLQ return 0.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    purged: int = 0
+
+
+# ---------------------------------------------------------------------------
 # v0.2 — Workflows
 
 
@@ -544,3 +642,117 @@ class LeaseReleaseBody(BaseModel):
     output: Any | None = None
     error: str | None = None
     snapshot_id: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# v0.6 — Generic resource locks
+# ---------------------------------------------------------------------------
+
+
+class Lock(BaseModel):
+    """A generic distributed lock over a named workspace resource.
+
+    Locks are independent of the workflow-step lease primitive; they exist
+    so two agents can coordinate access to any named object (KV key, file
+    path, external resource handle, etc.) without each one having to
+    invent its own protocol.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    workspace_id: str
+    holder: str
+    acquired_at: datetime
+    expires_at: datetime
+    heartbeat_at: datetime
+    waiters: int = 0
+
+
+class LockAcquireBody(BaseModel):
+    """Body for ``POST .../locks/{name}/acquire``.
+
+    ``wait_ms == 0`` is fail-fast: the caller gets a 409 immediately if
+    the lock is held. Any positive value polls the database every 100ms
+    until either the lock is released or the budget elapses.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    holder: str = Field(min_length=1)
+    ttl_seconds: int = Field(default=60, ge=1, le=86_400)
+    wait_ms: int = Field(default=0, ge=0, le=600_000)
+
+
+class LockHeartbeatBody(BaseModel):
+    """Body for ``POST .../locks/{name}/heartbeat``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    holder: str = Field(min_length=1)
+    ttl_seconds: int | None = Field(default=None, ge=1, le=86_400)
+
+
+class LockReleaseBody(BaseModel):
+    """Body for ``POST .../locks/{name}/release``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    holder: str = Field(min_length=1)
+
+
+class LockList(BaseModel):
+    """Wrapper for ``GET .../locks``."""
+
+    locks: list[Lock]
+
+
+# ---------------------------------------------------------------------------
+# v0.6 — Migration rollback
+# ---------------------------------------------------------------------------
+
+
+class RollbackBody(BaseModel):
+    """Body for ``POST /v1/admin/migrations/rollback``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    to: str = Field(min_length=1)
+    dry_run: bool = False
+
+
+class RolledBackMigrationModel(BaseModel):
+    """One migration that was rolled back, with timing info.
+
+    Mirrors the runner's ``RolledBackMigration`` dataclass at the API
+    boundary so HTTP clients see ``{id, rolled_back_at, duration_ms}``
+    objects in the rollback response.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    rolled_back_at: datetime
+    duration_ms: int
+
+
+class RollbackResult(BaseModel):
+    """Outcome of a rollback request.
+
+    ``rolled_back`` lists migrations in execution order (reverse of
+    application order). Each entry carries the migration ID, the
+    timestamp the rollback completed, and how long the rollback SQL took
+    to execute. ``failed`` is set to the first ID that errored
+    mid-rollback; everything before it in ``rolled_back`` is committed,
+    everything after is unprocessed. ``dry_run`` echoes the request flag
+    so clients can confirm they got what they asked for.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    target: str
+    rolled_back: list[RolledBackMigrationModel] = Field(default_factory=list)
+    skipped: list[str] = Field(default_factory=list)
+    failed: str | None = None
+    error_message: str | None = None
+    dry_run: bool = False

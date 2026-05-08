@@ -385,3 +385,44 @@ class TransactionResult(BaseModel):
 
 class TransactionListResponse(BaseModel):
     transactions: list[Transaction]
+
+
+# ---------------------------------------------------------------------------
+# v0.6 — Migration rollback
+# ---------------------------------------------------------------------------
+
+
+class RollbackBody(BaseModel):
+    """Body for ``POST /v1/admin/migrations/rollback``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    to: str = Field(min_length=1)
+    dry_run: bool = False
+
+
+class RolledBackMigrationModel(BaseModel):
+    """One migration that was rolled back, with timing info."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    rolled_back_at: datetime
+    duration_ms: int
+
+
+class RollbackResult(BaseModel):
+    """Outcome of a rollback request.
+
+    See :class:`plinth_gateway.migration_runner.RollbackResult` for the
+    runner-side counterpart.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    target: str
+    rolled_back: list[RolledBackMigrationModel] = Field(default_factory=list)
+    skipped: list[str] = Field(default_factory=list)
+    failed: str | None = None
+    error_message: str | None = None
+    dry_run: bool = False

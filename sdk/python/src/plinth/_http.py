@@ -25,6 +25,9 @@ from .exceptions import (
     KeyNotFound,
     LeaseConflict,
     LeaseNotHeld,
+    LockConflict,
+    LockNotFound,
+    LockNotHeld,
     MessageNotFound,
     PlinthError,
     RateLimited,
@@ -73,6 +76,15 @@ _CODE_TO_EXCEPTION: dict[str, type[PlinthError]] = {
     "LEASE_CONFLICT": LeaseConflict,
     "LEASE_NOT_HELD": LeaseNotHeld,
     "WORKER_NOT_FOUND": WorkerNotFound,
+    # v0.6 — generic resource locks. The workspace service emits
+    # ``LOCK_HELD`` on contention; the SDK exposes it as :class:`LockConflict`
+    # so user code reads naturally (``except LockConflict:``). The
+    # ``LOCK_CONFLICT`` alias is accepted for symmetry with future services
+    # that may surface the spec's preferred code directly.
+    "LOCK_HELD": LockConflict,
+    "LOCK_CONFLICT": LockConflict,
+    "LOCK_NOT_HELD": LockNotHeld,
+    "LOCK_NOT_FOUND": LockNotFound,
 }
 
 _STATUS_TO_EXCEPTION: dict[int, type[PlinthError]] = {
@@ -258,6 +270,29 @@ class HTTPClient:
                 reason=reason or "",
                 current=current,
                 limit=limit,
+            )
+
+        # ``LockConflict`` (v0.6) — surface ``current_holder`` and the
+        # server's back-off hint directly so callers don't have to dig
+        # through ``e.details``.
+        if issubclass(exc_class, LockConflict):
+            current_holder = (
+                details.get("current_holder")
+                if isinstance(details, dict)
+                else None
+            )
+            retry_after_seconds = (
+                details.get("retry_after_seconds")
+                if isinstance(details, dict)
+                else None
+            )
+            raise exc_class(
+                message,
+                code=code,
+                details=details,
+                response=response,
+                current_holder=current_holder,
+                retry_after_seconds=retry_after_seconds,
             )
 
         # ``SchemaViolation`` (v0.5) — surface the validator errors and the

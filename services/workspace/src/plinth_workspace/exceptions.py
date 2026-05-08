@@ -283,6 +283,133 @@ class BranchAlreadyMerged(PlinthError):
 
 
 # ---------------------------------------------------------------------------
+# v0.6 — Generic resource locks
+
+
+class LockHeld(PlinthError):
+    """Raised when a lock is currently held by a different holder."""
+
+    code = "LOCK_HELD"
+    status_code = 409
+    message = "lock is currently held"
+
+    def __init__(
+        self,
+        workspace_id: str,
+        name: str,
+        *,
+        current_holder: str | None = None,
+        retry_after_seconds: int | None = None,
+        expires_at: str | None = None,
+    ) -> None:
+        details: dict[str, Any] = {
+            "workspace_id": workspace_id,
+            "name": name,
+        }
+        if current_holder is not None:
+            details["current_holder"] = current_holder
+        if retry_after_seconds is not None:
+            details["retry_after_seconds"] = retry_after_seconds
+        if expires_at is not None:
+            details["expires_at"] = expires_at
+        super().__init__(
+            f"Lock {name!r} on workspace {workspace_id} is currently held",
+            details=details,
+        )
+
+
+class LockNotHeld(PlinthError):
+    """Raised when a heartbeat / release is attempted on a lock the
+    caller does not currently hold.
+
+    This may happen because:
+    - the lock exists but is held by a different ``holder``, or
+    - the caller's TTL elapsed and the reaper expired the row before
+      the heartbeat arrived (so the next acquire winner is now the
+      holder).
+    """
+
+    code = "LOCK_NOT_HELD"
+    status_code = 409
+    message = "lock is not held by this caller"
+
+    def __init__(
+        self,
+        workspace_id: str,
+        name: str,
+        *,
+        holder: str | None = None,
+        actual_holder: str | None = None,
+    ) -> None:
+        details: dict[str, Any] = {
+            "workspace_id": workspace_id,
+            "name": name,
+        }
+        if holder is not None:
+            details["holder"] = holder
+        if actual_holder is not None:
+            details["actual_holder"] = actual_holder
+        super().__init__(
+            f"Lock {name!r} on workspace {workspace_id} not held by caller",
+            details=details,
+        )
+
+
+class LockNotFound(PlinthError):
+    """Raised on a GET / heartbeat against a lock that doesn't exist."""
+
+    code = "LOCK_NOT_FOUND"
+    status_code = 404
+    message = "lock not found"
+
+    def __init__(self, workspace_id: str, name: str) -> None:
+        super().__init__(
+            f"Lock {name!r} not found in workspace {workspace_id}",
+            details={"workspace_id": workspace_id, "name": name},
+        )
+
+
+# ---------------------------------------------------------------------------
+# v0.6 — Migration rollback errors
+
+
+class MigrationRollbackMissing(PlinthError):
+    """Raised when a rollback file is required but absent.
+
+    Carries the list of migration IDs that lack rollback files so the
+    HTTP envelope's ``details.missing`` is structured.
+    """
+
+    code = "MIGRATION_ROLLBACK_MISSING"
+    status_code = 400
+    message = "rollback file is missing for one or more migrations"
+
+    def __init__(self, missing_ids: list[str]) -> None:
+        super().__init__(
+            f"Rollback files missing for: {', '.join(missing_ids)}",
+            details={"missing": list(missing_ids)},
+        )
+
+
+class MigrationRollbackFailed(PlinthError):
+    """Raised when executing a rollback file errors.
+
+    ``details.migration_id`` identifies which migration's rollback failed
+    and ``details.error`` carries the underlying error message.
+    """
+
+    code = "MIGRATION_ROLLBACK_FAILED"
+    status_code = 500
+    message = "rollback execution failed"
+
+    def __init__(self, migration_id: str, error: str) -> None:
+        super().__init__(
+            f"Rollback for {migration_id!r} failed: {error}",
+            details={"migration_id": migration_id, "error": error},
+        )
+
+
+# ---------------------------------------------------------------------------
 # Response helpers
 
 

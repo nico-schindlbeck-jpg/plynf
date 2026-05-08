@@ -1495,3 +1495,286 @@ plinth-workflow-worker \
 - Transactions are a NEW endpoint family — no impact on existing `/v1/invoke` callers
 - Typed channels: schema is optional. Untyped channels behave exactly as v0.2.
 - Load-shedding is opt-in (`PLINTH_LOAD_SHED_ENABLED=false` default).
+
+---
+
+# v0.6 Additions
+
+The v0.6 release focuses on **distribution** (multi-node coordination) and **polish** (rollback, visualization, generic locks, schema migration UX).
+
+## Federated Revocation (Identity service)
+
+When Identity runs as multiple replicas behind a load balancer, a `revoke` on one replica must propagate to all others. v0.6 introduces a polling-based propagation mechanism (simple, no extra infra).
+
+### New endpoints (Identity)
+
+```
+GET  /v1/revocations                 ?since=<unix_ts>&limit=<int>  → 200 RevocationList
+GET  /v1/revocations/stats                                          → 200 { total: int, since_24h: int, since_1h: int }
+```
+
+### Models
+
+```python
+class RevocationEntry(BaseModel):
+    jti: str
+    revoked_at: datetime
+    agent_id: str
+    tenant_id: str
+
+class RevocationList(BaseModel):
+    revocations: list[RevocationEntry]
+    next_since: int          # cursor — caller passes this on next poll
+    has_more: bool
+```
+
+### Behavior
+
+- `since` is a unix timestamp; only revocations with `revoked_at > since` are returned.
+- Default `limit=1000`, max `2000`.
+- Caller maintains its own cursor; idempotent re-polls return same data.
+
+### Workspace + Gateway changes
+
+Both services gain a **revocation cache** (in-memory `set[str]` of revoked JTIs) refreshed every 60s by polling Identity.
+
+```python
+class Settings(BaseSettings):
+    # ... existing ...
+    revocation_poll_url: str = ""              # Identity URL, e.g. http://identity:7425
+    revocation_poll_interval_seconds: int = 60
+    revocation_poll_enabled: bool = True
+```
+
+When verifying a JWT locally, after signature/expiry checks, the auth middleware also checks the local revocation cache. If `jti in cache` → reject with `TOKEN_REVOKED`.
+
+If polling fails (Identity unreachable): cache stays as-is; log warning. Revocations newly issued by Identity won't propagate until polling resumes — documented as known limitation.
+
+## Postgres Advisory Locks (Migration runner)
+
+Replaces the `fcntl.flock` lock with `pg_advisory_lock(<service_id_hash>)` when running on Postgres. Allows multiple replicas to start simultaneously without race.
+
+Implementation: `MigrationRunner.acquire_lock()` checks the configured DB driver; chooses `flock` for SQLite, `pg_advisory_lock` for Postgres. Lock identifier: `hashtext('plinth_migrations_' || service_name)::int`.
+
+No new endpoints. Behavior is invisible to callers but verified via concurrent-replica tests.
+
+## Migration Rollback
+
+Apply `<id>_rollback.sql` files in reverse order to roll back to a target migration.
+
+### CLI
+
+```bash
+python -m plinth_workspace migrate --rollback-to 0003_workflows
+python -m plinth_workspace migrate --rollback-to 0003_workflows --dry-run
+```
+
+### Endpoint
+
+```
+POST /v1/admin/migrations/rollback   body: { to: "0003_workflows", dry_run: false }   → 200 RollbackResult
+```
+
+### Behavior
+
+1. Identify all applied migrations with id > target → these need rollback.
+2. For each, in **reverse application order**: read `<id>_rollback.sql`. If missing → fail with `MIGRATION_ROLLBACK_MISSING` (don't continue).
+3. Execute each rollback in its own transaction. Update `schema_migrations` (delete row).
+4. Verify checksums of rollback files match recorded `rollback_checksum` if previously stored.
+5. Return list of rolled-back migrations.
+
+### Models
+
+```python
+class RollbackResult(BaseModel):
+    target: str
+    rolled_back: list[str]
+    skipped: list[str]
+    failed: str | None = None
+    error_message: str | None = None
+```
+
+### Schema additions
+
+Add to `schema_migrations`: `rollback_checksum TEXT` column (nullable; populated on apply if rollback file exists).
+
+## Generic Lock/Lease Primitives
+
+Locks for any named resource — not just workflow steps. Useful for Agent-A-vs-Agent-B race protection on KV/files/external resources.
+
+### Endpoints (Workspace)
+
+```
+POST /v1/workspaces/{ws_id}/locks/{name:path}/acquire   body: { holder, ttl_seconds, wait_ms? }  → 200 Lock | 409
+POST /v1/workspaces/{ws_id}/locks/{name:path}/heartbeat body: { holder }                          → 200 Lock
+POST /v1/workspaces/{ws_id}/locks/{name:path}/release   body: { holder }                          → 204
+GET  /v1/workspaces/{ws_id}/locks                                                                  → 200 list[Lock]
+GET  /v1/workspaces/{ws_id}/locks/{name:path}                                                      → 200 Lock | 404
+```
+
+### Models
+
+```python
+class Lock(BaseModel):
+    name: str
+    workspace_id: str
+    holder: str
+    acquired_at: datetime
+    expires_at: datetime
+    heartbeat_at: datetime
+    waiters: int = 0          # info only
+
+class LockAcquireBody(BaseModel):
+    holder: str               # caller-chosen identifier
+    ttl_seconds: int = 60
+    wait_ms: int = 0          # 0 = fail-fast; >0 = poll-wait up to wait_ms
+
+class LockHeartbeatBody(BaseModel):
+    holder: str               # must match current holder
+
+class LockReleaseBody(BaseModel):
+    holder: str
+```
+
+### Schema (Workspace)
+
+```sql
+CREATE TABLE IF NOT EXISTS resource_locks (
+  workspace_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  holder TEXT NOT NULL,
+  acquired_at TIMESTAMP NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  heartbeat_at TIMESTAMP NOT NULL,
+  PRIMARY KEY (workspace_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_locks_expiry ON resource_locks(expires_at);
+```
+
+### Behavior
+
+- **Acquire**: race-safe upsert. If lock exists and not expired → 409 Conflict (with `Retry-After` if `wait_ms=0`); if `wait_ms>0` → poll up to that duration.
+- **Heartbeat**: extends expires_at; only succeeds if `holder` matches.
+- **Release**: deletes row; only if `holder` matches; idempotent (no-error if already released).
+- **Lease reaper**: existing reaper extended to also sweep expired resource locks.
+
+### SDK
+
+```python
+# Context manager
+with ws.locks.acquire("kv:sources/index", holder="agent-A", ttl_seconds=30):
+    # critical section — no other holder can acquire this lock
+    ws.kv.set("sources/index", new_value)
+# automatic release on exit
+
+# Or low-level
+lock = ws.locks.acquire("name", holder="...", ttl_seconds=60)
+try:
+    ...
+finally:
+    ws.locks.release("name", holder="...")
+```
+
+## Workflow Visualization (Dashboard)
+
+Dashboard gains a per-workflow visual route. Reads existing API endpoints — no service changes needed.
+
+### Routes (added to existing dashboard SPA)
+
+```
+/workflows                                       → list of all workflows across all workspaces (default tenant)
+/workflows/{wf_id}?ws=<ws_id>                    → graph view of a single workflow
+```
+
+### `/api/workflows/overview` (new endpoint in dashboard)
+
+Aggregates from workspace `/v1/workspaces` → `/v1/workspaces/{ws_id}/workflows` for dashboard's tenant.
+
+### Graph rendering (frontend)
+
+- Pure SVG/HTML — no D3/cytoscape — keep dependency-free
+- Steps as nodes, in `steps_manifest` order, left-to-right
+- Each node colored by status: pending=grey, running=blue, completed=green, failed=red, cancelled=orange
+- Node shows: step name, attempt count, lease holder (if running), duration if completed
+- Auto-refresh every 5s (matches existing dashboard pattern)
+- Click node → modal with step details (input, output, error, snapshot_id)
+
+### Tests
+
+- /workflows route renders SPA shell
+- /api/workflows/overview aggregates correctly
+- Empty (no workflows) state
+- Dashboard tests for the new aggregator endpoint
+
+## Channel Schema Migration Helpers
+
+Helpers for evolving channel schemas without losing in-flight data.
+
+### Endpoints (Workspace, additive)
+
+```
+POST /v1/workspaces/{ws_id}/channels/{name:path}/schema/check   body: { schema, scope: "main"|"deadletter"|"both", limit: int = 1000 }
+                                                                 → 200 SchemaCheckResult
+POST /v1/workspaces/{ws_id}/channels/{name:path}/deadletter/replay-all
+                                                                 ?dry_run=&max=  → 200 ReplayBatchResult
+DELETE /v1/workspaces/{ws_id}/channels/{name:path}/deadletter   ?older_than_seconds=    → 204  (purge old DLQ)
+```
+
+### Models
+
+```python
+class SchemaCheckResult(BaseModel):
+    channel: str
+    scope: Literal["main", "deadletter", "both"]
+    checked: int
+    valid: int
+    invalid: int
+    sample_failures: list[dict]      # first N validation errors
+    
+class ReplayBatchResult(BaseModel):
+    channel: str
+    attempted: int
+    succeeded: int
+    failed: int
+    failures: list[dict]             # message_id + reason for each failure
+    dry_run: bool
+```
+
+### Behavior
+
+**`check`**: against either main, DLQ, or both, simulate validating each message's payload against the proposed `schema`. Return counts + sample failures. Doesn't mutate.
+
+**`replay-all`**: bulk version of single-message replay. Iterates DLQ, attempts replay (re-validates against current schema). Returns per-message outcomes. With `dry_run=true`: doesn't actually move messages.
+
+**`purge`**: delete DLQ messages older than `older_than_seconds`. Returns count.
+
+### SDK
+
+```python
+result = ws.channels.check_schema("research-out", new_schema, scope="both")
+# preview compatibility before committing
+
+batch = ws.channels.replay_all_dlq("research-out", dry_run=True)
+# see what would happen
+
+batch = ws.channels.replay_all_dlq("research-out", max=100)
+# actual replay
+
+ws.channels.purge_dlq("research-out", older_than_seconds=86400)
+# hygiene
+```
+
+## Stack additions (v0.6)
+
+- No new runtime dependencies. All v0.6 work uses existing stack.
+
+## Backwards compatibility
+
+- Federated revocation: opt-in via `PLINTH_REVOCATION_POLL_URL`. Without it, services behave exactly as v0.5.
+- Postgres advisory locks: only active when running against Postgres; SQLite path unchanged.
+- Migration rollback: only available via explicit CLI/endpoint; never auto-runs.
+- Generic locks: new endpoints, no impact on existing.
+- Channel schema migration helpers: new endpoints; existing single-message replay unchanged.
+- Workflow viz: dashboard-only; backend unchanged.
+
+All v0.1–v0.5 demos must produce unchanged output.

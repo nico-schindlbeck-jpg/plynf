@@ -18,7 +18,9 @@ exceptions by :class:`plinth._http.HTTPClient`.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, overload
+import threading
+from contextlib import contextmanager
+from typing import TYPE_CHECKING, Any, Iterator, overload
 from urllib.parse import quote
 
 from ._http import HTTPClient
@@ -26,6 +28,7 @@ from .exceptions import (
     BranchNotFound,
     FileNotFound,
     KeyNotFound,
+    LockNotFound,
     SnapshotNotFound,
     WorkspaceNotFound,
 )
@@ -34,6 +37,7 @@ from .models import (
     DiffResult,
     FileEntry,
     KVEntry,
+    Lock,
     MergeResult,
     Snapshot,
 )
@@ -54,6 +58,17 @@ def _ek(key: str) -> str:
 def _ep(path: str) -> str:
     """Percent-encode a file path, preserving slashes between segments."""
     return quote(path, safe="/")
+
+
+def _en(name: str) -> str:
+    """Percent-encode a lock name.
+
+    Lock names use the workspace service's ``{name:path}`` route so the
+    canonical ``/``-prefixed style (e.g. ``kv:sources/index``) is
+    preserved unescaped. Other delimiters are still escaped so the URL
+    parses correctly.
+    """
+    return quote(name, safe="/:")
 
 # ---------------------------------------------------------------------------
 # Sentinel for "argument not supplied" — we need to distinguish ``None``
@@ -348,6 +363,203 @@ class SnapshotProxy:
 
 
 # ---------------------------------------------------------------------------
+# Locks proxy — generic distributed lock primitive (v0.6)
+# ---------------------------------------------------------------------------
+
+
+class LocksProxy:
+    """Generic distributed locks over named workspace resources.
+
+    Locks are independent of the workflow-step lease primitive: they
+    coordinate any named object (KV key, file path, external resource
+    handle) so two agents don't step on each other.
+
+    Typical use::
+
+        # context-manager: acquire + auto-heartbeat + release
+        with ws.locks.held("kv:sources/index", holder="agent-A"):
+            ws.kv.set("sources/index", new_value)
+
+        # low-level: fully manual
+        lock = ws.locks.acquire("name", holder="A", ttl_seconds=30)
+        try:
+            ...
+        finally:
+            ws.locks.release("name", holder="A")
+    """
+
+    def __init__(self, workspace: Workspace) -> None:
+        self._ws = workspace
+
+    # -- low-level API -------------------------------------------------
+
+    def acquire(
+        self,
+        name: str,
+        *,
+        holder: str,
+        ttl_seconds: int = 60,
+        wait_ms: int = 0,
+    ) -> Lock:
+        """Acquire a lock on ``name``.
+
+        Args:
+            name: The named resource to lock. May contain ``/`` (the
+                canonical case for KV-/file-prefixed lock names like
+                ``kv:sources/index``).
+            holder: Caller-chosen holder identifier. Heartbeat and
+                release require the same string.
+            ttl_seconds: How long the lock survives without a heartbeat.
+            wait_ms: ``0`` is fail-fast (raises :class:`LockConflict`
+                immediately on contention). Positive values poll the
+                server every 100ms until the budget elapses, then raise.
+
+        Returns:
+            The persisted :class:`Lock` on success.
+
+        Raises:
+            LockConflict: The lock is held by another holder and either
+                ``wait_ms`` was zero or expired before it became free.
+        """
+        response = self._ws._http.post(
+            f"/v1/workspaces/{self._ws.id}/locks/{_en(name)}/acquire",
+            json={
+                "holder": holder,
+                "ttl_seconds": ttl_seconds,
+                "wait_ms": wait_ms,
+            },
+            not_found_class=WorkspaceNotFound,
+        )
+        return Lock.model_validate(response.json())
+
+    def heartbeat(
+        self,
+        name: str,
+        *,
+        holder: str,
+        ttl_seconds: int | None = None,
+    ) -> Lock:
+        """Extend the lock's TTL.
+
+        Only the current holder may heartbeat. ``ttl_seconds`` defaults
+        to the original TTL — pass an explicit value to grow or shrink
+        the window.
+
+        Raises:
+            LockNotFound: No row exists for ``name``.
+            LockNotHeld: The row exists but is owned by a different
+                holder.
+        """
+        body: dict[str, Any] = {"holder": holder}
+        if ttl_seconds is not None:
+            body["ttl_seconds"] = ttl_seconds
+        response = self._ws._http.post(
+            f"/v1/workspaces/{self._ws.id}/locks/{_en(name)}/heartbeat",
+            json=body,
+            not_found_class=LockNotFound,
+        )
+        return Lock.model_validate(response.json())
+
+    def release(self, name: str, *, holder: str) -> None:
+        """Release a held lock.
+
+        Idempotent: releasing a lock you don't hold (or one that was
+        already swept) is a silent no-op.
+        """
+        self._ws._http.post(
+            f"/v1/workspaces/{self._ws.id}/locks/{_en(name)}/release",
+            json={"holder": holder},
+            not_found_class=WorkspaceNotFound,
+        )
+
+    def list(self) -> list[Lock]:
+        """Return every lock currently persisted in this workspace."""
+        data = self._ws._http.get_json(
+            f"/v1/workspaces/{self._ws.id}/locks",
+            not_found_class=WorkspaceNotFound,
+        )
+        return [Lock.model_validate(lock) for lock in data.get("locks", [])]
+
+    def get(self, name: str) -> Lock:
+        """Fetch a single lock row.
+
+        Raises:
+            LockNotFound: No row exists for ``name``.
+        """
+        data = self._ws._http.get_json(
+            f"/v1/workspaces/{self._ws.id}/locks/{_en(name)}",
+            not_found_class=LockNotFound,
+        )
+        return Lock.model_validate(data)
+
+    # -- context manager ----------------------------------------------
+
+    @contextmanager
+    def held(
+        self,
+        name: str,
+        *,
+        holder: str,
+        ttl_seconds: int = 60,
+        wait_ms: int = 0,
+        auto_heartbeat: bool = True,
+        heartbeat_interval: float = 20.0,
+    ) -> Iterator[Lock]:
+        """Acquire ``name``, hold it, then release on exit.
+
+        While the body runs, a daemon thread heartbeats every
+        ``heartbeat_interval`` seconds (when ``auto_heartbeat`` is
+        ``True``). The thread exits cleanly on normal completion *and*
+        on exceptions, including :class:`KeyboardInterrupt`.
+
+        Yields:
+            The acquired :class:`Lock`.
+
+        Raises:
+            LockConflict: If the lock could not be acquired.
+        """
+        lock = self.acquire(
+            name, holder=holder, ttl_seconds=ttl_seconds, wait_ms=wait_ms
+        )
+        stop_event = threading.Event()
+        thread: threading.Thread | None = None
+
+        if auto_heartbeat:
+
+            def _heartbeat_loop() -> None:
+                # ``Event.wait`` returns True when ``set()`` is called
+                # (clean exit); False on timeout (heartbeat tick).
+                while not stop_event.wait(heartbeat_interval):
+                    try:
+                        self.heartbeat(name, holder=holder)
+                    except Exception:
+                        # Don't crash the daemon — the next acquire by
+                        # another holder will fence us out anyway.
+                        return
+
+            thread = threading.Thread(
+                target=_heartbeat_loop,
+                name=f"plinth-lock-heartbeat:{name}",
+                daemon=True,
+            )
+            thread.start()
+
+        try:
+            yield lock
+        finally:
+            # Stop the heartbeat first so we don't race the release.
+            stop_event.set()
+            if thread is not None:
+                thread.join(timeout=1.0)
+            try:
+                self.release(name, holder=holder)
+            except Exception:
+                # Release is idempotent — swallow so the original
+                # exception (if any) propagates unmolested.
+                pass
+
+
+# ---------------------------------------------------------------------------
 # Workspace facade
 # ---------------------------------------------------------------------------
 
@@ -373,6 +585,7 @@ class Workspace:
         self._branch_id = branch_id
         self.kv = KVProxy(self)
         self.files = FilesProxy(self)
+        self.locks = LocksProxy(self)
         self._snapshots = SnapshotProxy(self)
         # Lazy proxies — instantiated on first attribute access so the
         # ``channels`` / ``workflows`` modules don't get imported just
@@ -498,6 +711,7 @@ class Workspace:
 __all__ = [
     "FilesProxy",
     "KVProxy",
+    "LocksProxy",
     "SnapshotProxy",
     "Workspace",
 ]

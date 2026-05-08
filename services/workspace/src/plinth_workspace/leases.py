@@ -764,6 +764,7 @@ async def lease_reaper_loop(
     interval_seconds: float,
     inactive_timeout_seconds: int,
     stop_event: asyncio.Event,
+    resource_locks: "ResourceLockStore | None" = None,
 ) -> None:
     """Run the lease reaper until ``stop_event`` is set.
 
@@ -771,6 +772,11 @@ async def lease_reaper_loop(
     swallowed and logged so the reaper can't crash the workspace
     process; a worker re-attempting to lease a step it already lost
     will see ``LeaseConflict`` and back off.
+
+    When ``resource_locks`` is supplied (v0.6+), the same loop also
+    sweeps the ``resource_locks`` table — a single background task
+    keeps both the workflow-step lease primitive and the generic
+    resource-lock primitive tidy on the same cadence.
     """
 
     while not stop_event.is_set():
@@ -783,6 +789,13 @@ async def lease_reaper_loop(
             )
             if inactive:
                 log.info("workspace.lease_reaper.workers_gone", count=inactive)
+            if resource_locks is not None:
+                expired_locks = await resource_locks.expire_stale_locks()
+                if expired_locks:
+                    log.info(
+                        "workspace.lease_reaper.locks_expired",
+                        count=expired_locks,
+                    )
         except Exception as exc:  # noqa: BLE001
             log.warning("workspace.lease_reaper.error", error=str(exc))
 
@@ -793,6 +806,12 @@ async def lease_reaper_loop(
             return
         except asyncio.TimeoutError:
             continue
+
+
+# Late import for the type hint above; kept here to avoid a circular
+# import at module load time (resource_locks itself imports nothing
+# from leases, so this is safe).
+from .resource_locks import ResourceLockStore  # noqa: E402  pragma: no cover
 
 
 __all__ = [

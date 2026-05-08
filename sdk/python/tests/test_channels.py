@@ -801,3 +801,192 @@ def test_schema_url_encodes_channel_name(
     ).mock(return_value=httpx.Response(200, json=_make_channel_schema(channel_name="with space")))
     out = ws.channels.set_schema("with space", _schema_doc())
     assert out.channel_name == "with space"
+
+
+# ---------------------------------------------------------------------------
+# v0.6 — schema migration helpers (check / replay-all / purge)
+# ---------------------------------------------------------------------------
+
+
+from plinth import ReplayBatchResult, SchemaCheckResult  # noqa: E402
+
+
+def test_check_schema_returns_typed_result(
+    ws: Workspace, workspace_mock: respx.MockRouter
+):
+    """``check_schema`` POSTs schema/scope/limit and returns a typed result."""
+    body = {
+        "channel": "research-out",
+        "scope": "both",
+        "checked": 7,
+        "valid": 5,
+        "invalid": 2,
+        "sample_failures": [
+            {"msg_id": "msg_d1", "errors": [{"path": [], "message": "bad"}]},
+        ],
+    }
+    route = workspace_mock.post(
+        f"/v1/workspaces/{ws.id}/channels/research-out/schema/check"
+    ).mock(return_value=httpx.Response(200, json=body))
+
+    result = ws.channels.check_schema(
+        "research-out", _schema_doc(), scope="both", limit=500
+    )
+
+    assert isinstance(result, SchemaCheckResult)
+    assert result.checked == 7
+    assert result.valid == 5
+    assert result.invalid == 2
+    assert result.sample_failures[0]["msg_id"] == "msg_d1"
+
+    sent = json.loads(route.calls.last.request.read())
+    assert sent == {"schema": _schema_doc(), "scope": "both", "limit": 500}
+
+
+def test_check_schema_default_scope_and_limit(
+    ws: Workspace, workspace_mock: respx.MockRouter
+):
+    """Defaults: ``scope='both'``, ``limit=1000``."""
+    body = {
+        "channel": "out",
+        "scope": "both",
+        "checked": 0,
+        "valid": 0,
+        "invalid": 0,
+        "sample_failures": [],
+    }
+    route = workspace_mock.post(
+        f"/v1/workspaces/{ws.id}/channels/out/schema/check"
+    ).mock(return_value=httpx.Response(200, json=body))
+
+    ws.channels.check_schema("out", {"type": "object"})
+
+    sent = json.loads(route.calls.last.request.read())
+    assert sent["scope"] == "both"
+    assert sent["limit"] == 1000
+
+
+def test_replay_all_dlq_dry_run_flag(
+    ws: Workspace, workspace_mock: respx.MockRouter
+):
+    """``dry_run=True`` lands as a query param ``dry_run=true``."""
+    body = {
+        "channel": "out",
+        "attempted": 3,
+        "succeeded": 3,
+        "failed": 0,
+        "failures": [],
+        "dry_run": True,
+    }
+    route = workspace_mock.post(
+        f"/v1/workspaces/{ws.id}/channels/out/deadletter/replay-all"
+    ).mock(return_value=httpx.Response(200, json=body))
+
+    result = ws.channels.replay_all_dlq("out", dry_run=True, max=50)
+
+    assert isinstance(result, ReplayBatchResult)
+    assert result.dry_run is True
+    assert result.attempted == 3
+    assert result.succeeded == 3
+
+    params = route.calls.last.request.url.params
+    assert params["dry_run"] == "true"
+    assert params["max"] == "50"
+
+
+def test_replay_all_dlq_actual_run(
+    ws: Workspace, workspace_mock: respx.MockRouter
+):
+    """No ``dry_run`` query param when ``dry_run=False``."""
+    body = {
+        "channel": "out",
+        "attempted": 5,
+        "succeeded": 4,
+        "failed": 1,
+        "failures": [{"msg_id": "msg_x", "reason": "still bad"}],
+        "dry_run": False,
+    }
+    route = workspace_mock.post(
+        f"/v1/workspaces/{ws.id}/channels/out/deadletter/replay-all"
+    ).mock(return_value=httpx.Response(200, json=body))
+
+    result = ws.channels.replay_all_dlq("out")
+
+    assert result.failed == 1
+    assert result.failures[0]["reason"] == "still bad"
+
+    params = route.calls.last.request.url.params
+    # ``dry_run`` defaults to false → not sent.
+    assert "dry_run" not in params
+    assert params["max"] == "1000"
+
+
+def test_purge_dlq_returns_count(
+    ws: Workspace, workspace_mock: respx.MockRouter
+):
+    """``purge_dlq`` returns the integer count from the response body."""
+    route = workspace_mock.delete(
+        f"/v1/workspaces/{ws.id}/channels/out/deadletter"
+    ).mock(return_value=httpx.Response(200, json={"purged": 3}))
+
+    count = ws.channels.purge_dlq("out", older_than_seconds=0)
+
+    assert count == 3
+    params = route.calls.last.request.url.params
+    assert params["older_than_seconds"] == "0"
+
+
+def test_purge_dlq_passes_older_than(
+    ws: Workspace, workspace_mock: respx.MockRouter
+):
+    """``older_than_seconds`` is forwarded as a query param."""
+    workspace_mock.delete(
+        f"/v1/workspaces/{ws.id}/channels/out/deadletter",
+        params={"older_than_seconds": "86400"},
+    ).mock(return_value=httpx.Response(200, json={"purged": 0}))
+
+    count = ws.channels.purge_dlq("out", older_than_seconds=86400)
+    assert count == 0
+
+
+def test_check_schema_workspace_not_found_raises(
+    ws: Workspace, workspace_mock: respx.MockRouter
+):
+    """A 404 with WORKSPACE_NOT_FOUND surfaces as a typed exception."""
+    from plinth import WorkspaceNotFound
+
+    workspace_mock.post(
+        f"/v1/workspaces/{ws.id}/channels/out/schema/check"
+    ).mock(
+        return_value=httpx.Response(
+            404,
+            json=error_envelope("WORKSPACE_NOT_FOUND", "no such ws"),
+        )
+    )
+
+    with pytest.raises(WorkspaceNotFound):
+        ws.channels.check_schema("out", {"type": "object"})
+
+
+def test_replay_all_url_encodes_channel_name(
+    ws: Workspace, workspace_mock: respx.MockRouter
+):
+    """Channel names round-trip through the URL encoder."""
+    workspace_mock.post(
+        f"/v1/workspaces/{ws.id}/channels/with%20space/deadletter/replay-all"
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "channel": "with space",
+                "attempted": 0,
+                "succeeded": 0,
+                "failed": 0,
+                "failures": [],
+                "dry_run": False,
+            },
+        )
+    )
+
+    out = ws.channels.replay_all_dlq("with space")
+    assert out.channel == "with space"

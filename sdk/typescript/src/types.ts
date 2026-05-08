@@ -250,6 +250,52 @@ export interface SchemaValidationError {
   validator?: string;
 }
 
+/** v0.6 — one ``check`` failure sample: a message id + its validation errors. */
+export interface SchemaCheckFailure {
+  msg_id: string;
+  errors: SchemaValidationError[];
+}
+
+/**
+ * v0.6 — outcome of ``ChannelsClient.checkSchema``.
+ *
+ * `sample_failures` is bounded server-side to 10 entries so a runaway
+ * `invalid` count never produces a multi-megabyte response. Counts in
+ * `checked` / `valid` / `invalid` remain accurate even when the sample
+ * list is truncated.
+ */
+export interface SchemaCheckResult {
+  channel: string;
+  scope: "main" | "deadletter" | "both";
+  checked: number;
+  valid: number;
+  invalid: number;
+  sample_failures: SchemaCheckFailure[];
+}
+
+/** v0.6 — one ``replay-all`` failure: a message id + a human-readable reason. */
+export interface ReplayFailure {
+  msg_id: string;
+  reason: string;
+}
+
+/**
+ * v0.6 — outcome of ``ChannelsClient.replayAllDlq``.
+ *
+ * `failures` is bounded server-side to 50 entries; `attempted` /
+ * `succeeded` / `failed` are accurate even when the list is truncated.
+ * `dry_run` is echoed so callers can distinguish "would succeed" from
+ * "did succeed" results without re-checking their own request.
+ */
+export interface ReplayBatchResult {
+  channel: string;
+  attempted: number;
+  succeeded: number;
+  failed: number;
+  failures: ReplayFailure[];
+  dry_run: boolean;
+}
+
 // --- v0.2: Workflows ---
 
 /** One of the lifecycle states a workflow / step can be in. */
@@ -365,6 +411,53 @@ export interface TokenInfo {
   revoked: boolean;
   revoked_at: ISODateTime | null;
   metadata: Record<string, JsonValue>;
+}
+
+// --- v0.6: Generic resource locks ---
+
+/**
+ * A generic distributed lock over a named workspace resource.
+ *
+ * Locks are independent of the workflow-step lease primitive — they
+ * exist so two agents can coordinate access to any named object
+ * (KV key, file path, external resource handle) without each one having
+ * to invent its own protocol.
+ */
+export interface Lock {
+  name: string;
+  workspace_id: string;
+  holder: string;
+  acquired_at: ISODateTime;
+  expires_at: ISODateTime;
+  heartbeat_at: ISODateTime;
+  waiters: number;
+}
+
+/** Options accepted by `LocksClient.acquire`. */
+export interface LockAcquireOptions {
+  holder: string;
+  ttlSeconds?: number;
+  /** ``0`` is fail-fast; positive values poll up to this budget. */
+  waitMs?: number;
+}
+
+/** Options accepted by `LocksClient.heartbeat`. */
+export interface LockHeartbeatOptions {
+  holder: string;
+  ttlSeconds?: number;
+}
+
+/** Options accepted by `LocksClient.release`. */
+export interface LockReleaseOptions {
+  holder: string;
+}
+
+/** Options accepted by `LocksClient.withLock`. */
+export interface WithLockOptions {
+  ttlSeconds?: number;
+  waitMs?: number;
+  /** Heartbeat cadence in ms. ``0`` disables auto-heartbeats. */
+  heartbeatIntervalMs?: number;
 }
 
 // --- v0.4: Identity signing keys ---

@@ -16,6 +16,25 @@
   let autoRefresh = true;
   let currentRoute = { name: "overview", params: {} };
 
+  // ---- workflow view state ---------------------------------------------
+  // Filters + sort persist across re-renders so a 5-second auto-refresh
+  // doesn't clobber what the user picked.
+  const wfListState = {
+    rows: [],
+    filterStatus: "",
+    filterWorkspace: "",
+    sortKey: "started",
+    sortDir: "desc", // "asc" | "desc"
+  };
+  // Live cache of the most recent workflow detail payload + suppression
+  // flag so auto-refresh pauses while the step modal is open.
+  const wfDetailState = {
+    wsId: null,
+    wfId: null,
+    workflow: null,
+    modalOpen: false,
+  };
+
   // ---- formatting helpers ----------------------------------------------
 
   function fmtUSD(value) {
@@ -116,13 +135,34 @@
   // ---- router -----------------------------------------------------------
 
   function parseRoute() {
-    const hash = (location.hash || "").replace(/^#\/?/, "");
-    if (!hash || hash === "" || hash === "/") {
+    // ``location.hash`` carries both the path and any query-style suffix
+    // (``#/workflows/wf_x?ws=ws_a``). We need to split the search portion
+    // off ourselves because ``location.search`` only reflects the URL's
+    // pre-hash query string.
+    const raw = (location.hash || "").replace(/^#\/?/, "");
+    const qIdx = raw.indexOf("?");
+    const path = qIdx >= 0 ? raw.slice(0, qIdx) : raw;
+    const query = qIdx >= 0 ? raw.slice(qIdx + 1) : "";
+    const qs = new URLSearchParams(query);
+
+    if (!path || path === "" || path === "/") {
       return { name: "overview", params: {} };
     }
-    const parts = hash.split("/").filter(Boolean);
+    const parts = path.split("/").filter(Boolean);
     if (parts[0] === "workspaces" && parts[1]) {
       return { name: "workspace", params: { ws_id: parts[1] } };
+    }
+    if (parts[0] === "workflows") {
+      if (parts[1]) {
+        return {
+          name: "workflow-detail",
+          params: {
+            wf_id: parts[1],
+            ws_id: qs.get("ws") || "",
+          },
+        };
+      }
+      return { name: "workflows", params: {} };
     }
     return { name: "overview", params: {} };
   }
@@ -132,19 +172,53 @@
     if (!crumb) return;
     if (route.name === "workspace") {
       crumb.textContent = "/ workspaces / " + route.params.ws_id;
+    } else if (route.name === "workflows") {
+      crumb.textContent = "/ workflows";
+    } else if (route.name === "workflow-detail") {
+      crumb.textContent =
+        "/ workflows / " + (route.params.wf_id || "");
     } else {
       crumb.textContent = "";
     }
+  }
+
+  function renderTopnav(route) {
+    // Highlight whichever top-level area the current route belongs to.
+    const links = $$(".topnav-link");
+    const active =
+      route.name === "workflows" || route.name === "workflow-detail"
+        ? "workflows"
+        : "overview";
+    links.forEach((el) => {
+      const isActive = el.dataset.route === active;
+      el.classList.toggle("active", isActive);
+      if (isActive) {
+        el.setAttribute("aria-current", "page");
+      } else {
+        el.removeAttribute("aria-current");
+      }
+    });
   }
 
   function navigate() {
     const route = parseRoute();
     currentRoute = route;
     renderCrumb(route);
+    renderTopnav(route);
+    closeWorkflowStepModal({ silent: true });
     if (route.name === "workspace") {
       mountTemplate("tpl-workspace");
       stopPolling();
       void loadWorkspace(route.params.ws_id);
+    } else if (route.name === "workflows") {
+      mountTemplate("tpl-workflows-list");
+      wireWorkflowListControls();
+      void refreshWorkflowsList();
+      startPolling();
+    } else if (route.name === "workflow-detail") {
+      mountTemplate("tpl-workflow-detail");
+      void refreshWorkflowDetail();
+      startPolling();
     } else {
       mountTemplate("tpl-overview");
       void refresh();
@@ -392,6 +466,11 @@
       .join("");
   }
 
+  // Track which (workspace, channel) the DLQ modal is currently showing
+  // so the new "Replay all" / "Purge older than 24h" buttons know what to
+  // act on without trawling the DOM.
+  const dlqModalState = { wsId: null, channel: null };
+
   // Inspect a single channel's DLQ in a modal.
   async function openDlqModal(wsId, channel) {
     const modal = $("#dlq-modal");
@@ -401,7 +480,21 @@
     if (titleEl) {
       titleEl.textContent = `Dead letters · ${channel}`;
     }
+    dlqModalState.wsId = wsId;
+    dlqModalState.channel = channel;
+    setDlqModalStatus("");
     modal.hidden = false;
+    await refreshDlqModalContents();
+  }
+
+  // Re-fetch the DLQ list and re-render the modal body. Pulled out of
+  // ``openDlqModal`` so the "Replay all" / "Purge" buttons can invoke
+  // it after they mutate state.
+  async function refreshDlqModalContents() {
+    const bodyEl = $("#dlq-modal-body");
+    if (!bodyEl) return;
+    const { wsId, channel } = dlqModalState;
+    if (!wsId || !channel) return;
     bodyEl.innerHTML = `<p class="empty muted">loading&hellip;</p>`;
     try {
       const data = await api(
@@ -444,6 +537,103 @@
         .join("");
     } catch (err) {
       bodyEl.innerHTML = `<p class="empty err">failed: ${escapeHtml(err.message)}</p>`;
+    }
+  }
+
+  // Show or hide the inline status banner above the DLQ list.
+  function setDlqModalStatus(text, kind) {
+    const el = $("#dlq-modal-status");
+    if (!el) return;
+    if (!text) {
+      el.hidden = true;
+      el.textContent = "";
+      el.className = "dlq-modal-status";
+      return;
+    }
+    el.hidden = false;
+    el.textContent = text;
+    el.className = "dlq-modal-status" + (kind ? " " + kind : "");
+  }
+
+  // Bulk replay every DLQ message in the open channel through the
+  // currently attached schema (server caps the batch at 100). Successes
+  // move to the main channel; failures stay in the DLQ.
+  async function replayAllDeadletters() {
+    const { wsId, channel } = dlqModalState;
+    if (!wsId || !channel) return;
+    const btn = $("#dlq-replay-all");
+    if (btn) btn.disabled = true;
+    setDlqModalStatus("replaying…", "info");
+    try {
+      const r = await fetch(
+        `/api/workspaces/${encodeURIComponent(wsId)}/channels/${encodeURIComponent(
+          channel,
+        )}/deadletter/replay-all`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ max: 100 }),
+        },
+      );
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const msg = (body && body.error && body.error.message) || "HTTP " + r.status;
+        setDlqModalStatus(`replay failed: ${msg}`, "err");
+        return;
+      }
+      const succeeded = Number(body.succeeded || 0);
+      const failed = Number(body.failed || 0);
+      setDlqModalStatus(
+        `replayed ${succeeded} · ${failed} still failing`,
+        failed > 0 ? "warn" : "ok",
+      );
+      await refreshDlqModalContents();
+    } catch (err) {
+      setDlqModalStatus(`replay failed: ${err.message || err}`, "err");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  // Permanently delete DLQ rows older than 24 hours. Destructive — the
+  // operator must confirm via ``window.confirm`` before we make the call.
+  async function purgeOldDeadletters() {
+    const { wsId, channel } = dlqModalState;
+    if (!wsId || !channel) return;
+    const ok = window.confirm(
+      `Permanently delete DLQ messages older than 24h on "${channel}"?\n\n` +
+        `This cannot be undone.`,
+    );
+    if (!ok) return;
+    const btn = $("#dlq-purge-old");
+    if (btn) btn.disabled = true;
+    setDlqModalStatus("purging…", "info");
+    try {
+      const r = await fetch(
+        `/api/workspaces/${encodeURIComponent(wsId)}/channels/${encodeURIComponent(
+          channel,
+        )}/deadletter?older_than_seconds=86400`,
+        {
+          method: "DELETE",
+          headers: { Accept: "application/json" },
+        },
+      );
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const msg = (body && body.error && body.error.message) || "HTTP " + r.status;
+        setDlqModalStatus(`purge failed: ${msg}`, "err");
+        return;
+      }
+      const purged = Number(body.purged || 0);
+      setDlqModalStatus(`purged ${purged} message${purged === 1 ? "" : "s"}`, "ok");
+      await refreshDlqModalContents();
+    } catch (err) {
+      setDlqModalStatus(`purge failed: ${err.message || err}`, "err");
+    } finally {
+      if (btn) btn.disabled = false;
     }
   }
 
@@ -599,6 +789,14 @@
   // ---- main loop --------------------------------------------------------
 
   async function refresh() {
+    if (currentRoute.name === "workflows") {
+      await refreshWorkflowsList();
+      return;
+    }
+    if (currentRoute.name === "workflow-detail") {
+      await refreshWorkflowDetail();
+      return;
+    }
     if (currentRoute.name !== "overview") return;
     setSpinner(true);
     try {
@@ -810,6 +1008,580 @@
     }).join("");
   }
 
+  // ---- workflow list view ----------------------------------------------
+
+  function fmtRelative(ts) {
+    if (!ts) return "—";
+    const d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return "—";
+    const diffMs = Date.now() - d.getTime();
+    if (diffMs < 0) return "in the future";
+    const sec = Math.round(diffMs / 1000);
+    if (sec < 60) return sec + " sec ago";
+    const min = Math.round(sec / 60);
+    if (min < 60) return min + " min ago";
+    const hr = Math.round(min / 60);
+    if (hr < 24) return hr + " hr ago";
+    const day = Math.round(hr / 24);
+    return day + " d ago";
+  }
+
+  function fmtDuration(startIso, endIso) {
+    if (!startIso || !endIso) return null;
+    const start = new Date(startIso).getTime();
+    const end = new Date(endIso).getTime();
+    if (Number.isNaN(start) || Number.isNaN(end) || end < start) return null;
+    return fmtMs(end - start);
+  }
+
+  // Pre-baked sort comparators keyed by column. Falsy timestamps sink to
+  // the bottom regardless of direction so empty cells don't ping-pong.
+  const WF_STATUS_RANK = {
+    running: 0,
+    pending: 1,
+    failed: 2,
+    cancelled: 3,
+    completed: 4,
+  };
+
+  function compareWorkflows(a, b, key, dir) {
+    const sign = dir === "asc" ? 1 : -1;
+    if (key === "status") {
+      const ra = WF_STATUS_RANK[a.status] != null ? WF_STATUS_RANK[a.status] : 99;
+      const rb = WF_STATUS_RANK[b.status] != null ? WF_STATUS_RANK[b.status] : 99;
+      return (ra - rb) * sign;
+    }
+    if (key === "started") {
+      const ta = a.started_at || a.created_at || "";
+      const tb = b.started_at || b.created_at || "";
+      if (!ta && !tb) return 0;
+      if (!ta) return 1;
+      if (!tb) return -1;
+      return ta < tb ? -1 * sign : ta > tb ? 1 * sign : 0;
+    }
+    return 0;
+  }
+
+  function getFilteredSortedWorkflows() {
+    let rows = wfListState.rows.slice();
+    if (wfListState.filterStatus) {
+      rows = rows.filter((r) => r.status === wfListState.filterStatus);
+    }
+    if (wfListState.filterWorkspace) {
+      rows = rows.filter(
+        (r) => r.workspace_id === wfListState.filterWorkspace,
+      );
+    }
+    rows.sort((a, b) =>
+      compareWorkflows(a, b, wfListState.sortKey, wfListState.sortDir),
+    );
+    return rows;
+  }
+
+  async function refreshWorkflowsList() {
+    setSpinner(true);
+    try {
+      const data = await api("/api/workflows/overview");
+      wfListState.rows = data.workflows || [];
+      renderWorkflowsList(data);
+      lastFetchAt = Date.now();
+      tickRefreshLabel();
+    } catch (err) {
+      const body = $("#wf-list-body");
+      if (body) {
+        body.innerHTML = `<tr class="empty"><td colspan="6">failed: ${escapeHtml(
+          err.message,
+        )}</td></tr>`;
+      }
+      const meta = $("#last-refresh");
+      if (meta) meta.textContent = "fetch failed: " + err.message;
+    } finally {
+      setSpinner(false);
+    }
+  }
+
+  function renderWorkflowsList(data) {
+    const body = $("#wf-list-body");
+    const count = $("#wf-list-count");
+    const summary = $("#wf-list-summary");
+    if (!body) return;
+
+    populateWorkspaceFilter(wfListState.rows);
+    syncFilterSelections();
+    syncSortHeaders();
+
+    const rows = getFilteredSortedWorkflows();
+    const total = (data && data.total) != null ? data.total : wfListState.rows.length;
+    if (count) {
+      const partial = data && data.partial ? " · partial" : "";
+      count.textContent = `${intFmt.format(total)} total${partial}`;
+    }
+    if (summary) {
+      const by = (data && data.by_status) || {};
+      const parts = ["running", "completed", "failed", "cancelled", "pending"]
+        .map((s) => `${s} ${intFmt.format(Number(by[s] || 0))}`)
+        .join(" · ");
+      summary.textContent = parts;
+    }
+
+    if (!rows.length) {
+      body.innerHTML = `<tr class="empty"><td colspan="6">No workflows match the current filter.</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = rows
+      .map((r) => {
+        const status = r.status || "pending";
+        const wsName = r.workspace_name || r.workspace_id || "—";
+        const wfName = r.name || r.workflow_id || "—";
+        const completed = Number(r.completed_count || 0);
+        const total = Number(r.step_count || 0);
+        const startedTs = r.started_at || r.created_at;
+        const detailHref = `#/workflows/${encodeURIComponent(
+          r.workflow_id || "",
+        )}?ws=${encodeURIComponent(r.workspace_id || "")}`;
+        return `
+          <tr>
+            <td>
+              <span class="wf-list-status-icon wf-list-status-icon--${escapeHtml(
+                status,
+              )}" aria-hidden="true"></span>
+              <span class="wf-list-status-label">${escapeHtml(status)}</span>
+            </td>
+            <td title="${escapeHtml(r.workspace_id || "")}">${escapeHtml(wsName)}</td>
+            <td>
+              <span class="wf-list-name">${escapeHtml(wfName)}</span>
+              <span class="muted mono"> · ${escapeHtml(
+                shortId(r.workflow_id, 10),
+              )}</span>
+            </td>
+            <td class="num">${escapeHtml(
+              intFmt.format(completed) + "/" + intFmt.format(total),
+            )}</td>
+            <td class="time" title="${escapeHtml(fmtDate(startedTs))}">${escapeHtml(
+              fmtRelative(startedTs),
+            )}</td>
+            <td class="actions">
+              <a class="btn small" href="${detailHref}">view</a>
+            </td>
+          </tr>
+        `;
+      })
+      .join("");
+  }
+
+  function populateWorkspaceFilter(rows) {
+    const select = $("#wf-filter-workspace");
+    if (!select) return;
+    const seen = new Map();
+    for (const r of rows) {
+      if (!r.workspace_id) continue;
+      if (!seen.has(r.workspace_id)) {
+        seen.set(r.workspace_id, r.workspace_name || r.workspace_id);
+      }
+    }
+    const wanted = ["", ...seen.keys()].sort();
+    const existing = $$("option", select).map((o) => o.value);
+    if (
+      wanted.length === existing.length &&
+      wanted.every((v, i) => v === existing[i])
+    ) {
+      return;
+    }
+    select.innerHTML =
+      `<option value="">all</option>` +
+      Array.from(seen.entries())
+        .sort((a, b) => String(a[1]).localeCompare(String(b[1])))
+        .map(
+          ([id, label]) =>
+            `<option value="${escapeHtml(id)}">${escapeHtml(label)}</option>`,
+        )
+        .join("");
+  }
+
+  function syncFilterSelections() {
+    const status = $("#wf-filter-status");
+    if (status && status.value !== wfListState.filterStatus) {
+      status.value = wfListState.filterStatus;
+    }
+    const workspace = $("#wf-filter-workspace");
+    if (workspace && workspace.value !== wfListState.filterWorkspace) {
+      workspace.value = wfListState.filterWorkspace;
+    }
+  }
+
+  function syncSortHeaders() {
+    $$(".wf-list-table th.sortable").forEach((th) => {
+      const key = th.dataset.sort;
+      if (key === wfListState.sortKey) {
+        th.classList.add("sorted");
+        th.setAttribute(
+          "aria-sort",
+          wfListState.sortDir === "asc" ? "ascending" : "descending",
+        );
+        th.dataset.dir = wfListState.sortDir;
+      } else {
+        th.classList.remove("sorted");
+        th.removeAttribute("aria-sort");
+        delete th.dataset.dir;
+      }
+    });
+  }
+
+  function wireWorkflowListControls() {
+    const status = $("#wf-filter-status");
+    if (status) {
+      status.addEventListener("change", () => {
+        wfListState.filterStatus = status.value || "";
+        renderWorkflowsList({ workflows: wfListState.rows });
+      });
+    }
+    const workspace = $("#wf-filter-workspace");
+    if (workspace) {
+      workspace.addEventListener("change", () => {
+        wfListState.filterWorkspace = workspace.value || "";
+        renderWorkflowsList({ workflows: wfListState.rows });
+      });
+    }
+    $$(".wf-list-table th.sortable").forEach((th) => {
+      th.addEventListener("click", () => {
+        const key = th.dataset.sort;
+        if (!key) return;
+        if (wfListState.sortKey === key) {
+          wfListState.sortDir = wfListState.sortDir === "asc" ? "desc" : "asc";
+        } else {
+          wfListState.sortKey = key;
+          wfListState.sortDir = key === "started" ? "desc" : "asc";
+        }
+        renderWorkflowsList({ workflows: wfListState.rows });
+      });
+    });
+  }
+
+  // ---- workflow detail (graph) -----------------------------------------
+
+  async function refreshWorkflowDetail() {
+    const params = currentRoute.params || {};
+    const wfId = params.wf_id;
+    const wsId = params.ws_id;
+    wfDetailState.wsId = wsId;
+    wfDetailState.wfId = wfId;
+    if (!wfId || !wsId) {
+      const root = $("#wf-graph");
+      if (root) {
+        root.innerHTML = `<p class="empty muted">Missing ?ws=&lt;workspace_id&gt; in the URL.</p>`;
+      }
+      return;
+    }
+    if (wfDetailState.modalOpen) {
+      // Pause auto-refresh while the user is reading a step modal.
+      return;
+    }
+    setSpinner(true);
+    try {
+      const wf = await api(
+        `/api/workspaces/${encodeURIComponent(wsId)}/workflows/${encodeURIComponent(
+          wfId,
+        )}`,
+      );
+      wfDetailState.workflow = wf;
+      renderWorkflowDetailHead(wf);
+      renderWorkflowGraph(wf);
+      lastFetchAt = Date.now();
+      tickRefreshLabel();
+    } catch (err) {
+      const root = $("#wf-graph");
+      if (root) {
+        root.innerHTML = `<p class="empty err">failed: ${escapeHtml(
+          err.message,
+        )}</p>`;
+      }
+    } finally {
+      setSpinner(false);
+    }
+  }
+
+  function renderWorkflowDetailHead(wf) {
+    const nameEl = $("#wf-detail-name");
+    const idEl = $("#wf-detail-id");
+    const metaEl = $("#wf-detail-meta");
+    const progressEl = $("#wf-detail-progress");
+    if (!wf) return;
+    if (nameEl) nameEl.textContent = wf.name || wf.id || "Workflow";
+    if (idEl) idEl.textContent = wf.id || "";
+    const status = wf.status || "pending";
+    if (metaEl) {
+      const created = wf.created_at ? fmtDate(wf.created_at) : "—";
+      const started = wf.started_at ? fmtDate(wf.started_at) : "—";
+      const finished = wf.finished_at ? fmtDate(wf.finished_at) : "—";
+      metaEl.innerHTML = `
+        <span class="workflow-status ${escapeHtml(status)}">${escapeHtml(
+        status,
+      )}</span>
+        <span class="muted">workspace ${escapeHtml(wf.workspace_id || "")}</span>
+        <span class="muted">created ${escapeHtml(created)}</span>
+        <span class="muted">started ${escapeHtml(started)}</span>
+        <span class="muted">finished ${escapeHtml(finished)}</span>
+      `;
+    }
+    if (progressEl) {
+      const manifest = wf.steps_manifest || [];
+      const steps = wf.steps || [];
+      const total = manifest.length || steps.length;
+      const done = steps.filter((s) => s.status === "completed").length;
+      progressEl.textContent = `${intFmt.format(done)}/${intFmt.format(total)} steps`;
+    }
+  }
+
+  // Status → SVG-friendly icon + accessible label, kept distinct so colour
+  // alone never conveys meaning (WCAG).
+  const WF_STATUS_GLYPHS = {
+    pending: { icon: "·", label: "pending" },
+    running: { icon: "◐", label: "running" },
+    completed: { icon: "✓", label: "completed" },
+    failed: { icon: "✗", label: "failed" },
+    cancelled: { icon: "—", label: "cancelled" },
+  };
+
+  function nodeKey(name) {
+    return "wf-node-" + name.replace(/[^a-zA-Z0-9_-]/g, "_");
+  }
+
+  function buildNodeHtml(name, step) {
+    const status = step ? step.status || "pending" : "pending";
+    const glyph = WF_STATUS_GLYPHS[status] || WF_STATUS_GLYPHS.pending;
+    const attempt = step && step.attempt ? Number(step.attempt) : 1;
+    const duration = step
+      ? fmtDuration(step.started_at, step.finished_at)
+      : null;
+    const labelParts = [];
+    if (attempt > 1) labelParts.push(`attempt ${intFmt.format(attempt)}`);
+    if (duration) labelParts.push(duration);
+    const meta = labelParts.join(" · ");
+    return `
+      <div class="wf-node wf-node--${escapeHtml(status)}"
+           role="listitem"
+           tabindex="0"
+           data-step="${escapeHtml(name)}"
+           data-step-id="${escapeHtml(step ? step.id || "" : "")}"
+           aria-label="${escapeHtml(name)} — ${escapeHtml(glyph.label)}">
+        <span class="wf-node-name">${escapeHtml(name)}</span>
+        <span class="wf-node-status">
+          <span class="wf-node-icon" aria-hidden="true">${escapeHtml(glyph.icon)}</span>
+          <span>${escapeHtml(glyph.label)}</span>
+        </span>
+        ${meta ? `<span class="wf-node-meta">${escapeHtml(meta)}</span>` : ""}
+      </div>
+    `;
+  }
+
+  function renderWorkflowGraph(wf) {
+    const root = $("#wf-graph");
+    if (!root) return;
+    const manifest = (wf && wf.steps_manifest) || [];
+    const steps = (wf && wf.steps) || [];
+
+    // Build an ordered list of (name, latest-attempt) tuples. The manifest
+    // is the source of truth for order; steps not listed in the manifest
+    // (data drift) get appended at the end so we never lose information.
+    const latestByName = new Map();
+    for (const s of steps) {
+      // Later entries supersede earlier ones (the workspace returns newest
+      // attempt last).
+      latestByName.set(s.name, s);
+    }
+    const ordered = [];
+    for (const name of manifest) {
+      ordered.push({ name, step: latestByName.get(name) || null });
+    }
+    for (const s of steps) {
+      if (!manifest.includes(s.name)) {
+        ordered.push({ name: s.name, step: s });
+      }
+    }
+
+    if (!ordered.length) {
+      root.innerHTML = `<p class="empty muted">No steps in this workflow yet.</p>`;
+      return;
+    }
+
+    // Diff-based DOM update: re-use existing nodes when the data didn't
+    // change (avoids the full innerHTML rewrite that causes flicker on
+    // 5-second refresh).
+    const html = ordered
+      .map(({ name, step }, idx) => {
+        const nodeHtml = buildNodeHtml(name, step);
+        const edge =
+          idx < ordered.length - 1
+            ? `<div class="wf-edge" aria-hidden="true"></div>`
+            : "";
+        return `<div class="wf-graph-cell" data-key="${escapeHtml(
+          nodeKey(name),
+        )}">${nodeHtml}${edge}</div>`;
+      })
+      .join("");
+
+    // Compare new vs current children by data-key + status to skip
+    // unnecessary work when the auto-refresh tick brings no changes.
+    const current = root.firstElementChild;
+    const looksUnchanged = current && root.dataset.signature === graphSignature(ordered);
+    if (looksUnchanged) return;
+    root.dataset.signature = graphSignature(ordered);
+    root.innerHTML = html;
+  }
+
+  function graphSignature(ordered) {
+    return ordered
+      .map(({ name, step }) =>
+        [
+          name,
+          step ? step.status || "pending" : "pending",
+          step ? step.attempt || 1 : 1,
+          step ? step.finished_at || "" : "",
+          step ? step.started_at || "" : "",
+        ].join("|"),
+      )
+      .join("⇒");
+  }
+
+  async function openWorkflowStepModal(stepName) {
+    const wf = wfDetailState.workflow;
+    if (!wf || !stepName) return;
+    const steps = wf.steps || [];
+    const matches = steps.filter((s) => s.name === stepName);
+    const step = matches.length ? matches[matches.length - 1] : null;
+
+    const modal = $("#wf-step-modal");
+    const titleEl = $("#wf-step-modal-title");
+    const bodyEl = $("#wf-step-modal-body");
+    if (!modal || !bodyEl) return;
+    wfDetailState.modalOpen = true;
+    if (titleEl) {
+      titleEl.textContent = step
+        ? `${stepName} — ${step.status || "pending"}`
+        : `${stepName} — pending`;
+    }
+    modal.hidden = false;
+
+    if (!step) {
+      bodyEl.innerHTML = `<p class="empty muted">This step has not started yet.</p>`;
+      return;
+    }
+
+    const duration = fmtDuration(step.started_at, step.finished_at);
+    const lines = [
+      ["Step ID", step.id || "—"],
+      ["Status", step.status || "pending"],
+      ["Attempt", String(step.attempt != null ? step.attempt : 1)],
+      ["Started", step.started_at ? fmtDate(step.started_at) : "—"],
+      ["Finished", step.finished_at ? fmtDate(step.finished_at) : "—"],
+      ["Duration", duration || "—"],
+      ["Snapshot ID", step.snapshot_id || "—"],
+    ];
+    const meta = lines
+      .map(
+        ([k, v]) =>
+          `<div class="wf-step-row"><span class="wf-step-key">${escapeHtml(
+            k,
+          )}</span><span class="wf-step-val">${escapeHtml(String(v))}</span></div>`,
+      )
+      .join("");
+
+    const inputJson = jsonBlock("Input", step.input);
+    const outputJson = jsonBlock("Output", step.output);
+    const errorBlock = step.error
+      ? `<div class="wf-step-section">
+           <h3>Error</h3>
+           <pre class="wf-step-error">${escapeHtml(String(step.error))}</pre>
+         </div>`
+      : "";
+
+    bodyEl.innerHTML = `
+      <div class="wf-step-meta">${meta}</div>
+      ${inputJson}
+      ${outputJson}
+      ${errorBlock}
+      <div class="wf-step-section" id="wf-step-lease-section" hidden></div>
+    `;
+
+    // Best-effort lease lookup: only meaningful for running steps. We
+    // don't fail the whole modal if this errors.
+    if (step.status === "running") {
+      void renderLeaseInfo(step.id);
+    }
+  }
+
+  async function renderLeaseInfo(stepId) {
+    const root = $("#wf-step-lease-section");
+    if (!root || !stepId) return;
+    const wsId = wfDetailState.wsId;
+    const wfId = wfDetailState.wfId;
+    if (!wsId || !wfId) return;
+    try {
+      const data = await api(
+        `/api/workspaces/${encodeURIComponent(wsId)}/workflows/${encodeURIComponent(
+          wfId,
+        )}`,
+      );
+      const steps = (data && data.steps) || [];
+      const step = steps.find((s) => s.id === stepId) || null;
+      const lease = step && step.lease ? step.lease : null;
+      if (!lease) return;
+      root.hidden = false;
+      const rows = [
+        ["Worker", lease.worker_id || "—"],
+        ["Acquired", lease.acquired_at ? fmtDate(lease.acquired_at) : "—"],
+        ["Heartbeat", lease.heartbeat_at ? fmtDate(lease.heartbeat_at) : "—"],
+        ["Expires", lease.expires_at ? fmtDate(lease.expires_at) : "—"],
+      ];
+      root.innerHTML =
+        `<h3>Lease</h3>` +
+        rows
+          .map(
+            ([k, v]) =>
+              `<div class="wf-step-row"><span class="wf-step-key">${escapeHtml(
+                k,
+              )}</span><span class="wf-step-val">${escapeHtml(
+                String(v),
+              )}</span></div>`,
+          )
+          .join("");
+    } catch (_) {
+      // Silent: a missing lease isn't an error worth surfacing.
+    }
+  }
+
+  function jsonBlock(label, value) {
+    if (value == null) return "";
+    let pretty;
+    try {
+      pretty = JSON.stringify(value, null, 2);
+    } catch (_) {
+      pretty = String(value);
+    }
+    return `
+      <details class="wf-step-section" open>
+        <summary><h3>${escapeHtml(label)}</h3></summary>
+        <pre class="wf-step-json">${escapeHtml(pretty)}</pre>
+      </details>
+    `;
+  }
+
+  function closeWorkflowStepModal({ silent } = {}) {
+    const modal = $("#wf-step-modal");
+    if (modal) modal.hidden = true;
+    if (wfDetailState.modalOpen && !silent) {
+      // Resume polling immediately when the user dismisses the modal so
+      // the freshest data shows up without waiting another 5 seconds.
+      wfDetailState.modalOpen = false;
+      if (currentRoute.name === "workflow-detail") {
+        void refreshWorkflowDetail();
+      }
+    } else {
+      wfDetailState.modalOpen = false;
+    }
+  }
+
   // ---- bootstrap --------------------------------------------------------
 
   document.addEventListener("DOMContentLoaded", () => {
@@ -820,6 +1592,10 @@
     if (refreshBtn) refreshBtn.addEventListener("click", () => {
       if (currentRoute.name === "workspace") {
         void loadWorkspace(currentRoute.params.ws_id);
+      } else if (currentRoute.name === "workflows") {
+        void refreshWorkflowsList();
+      } else if (currentRoute.name === "workflow-detail") {
+        void refreshWorkflowDetail();
       } else {
         void refresh();
       }
@@ -833,7 +1609,7 @@
       });
     }
 
-    // Dead-letter modal: delegate clicks on the .dlq-inspect buttons.
+    // Dead-letter + workflow-step modals: delegate clicks across both.
     document.addEventListener("click", (event) => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
@@ -845,7 +1621,37 @@
         if (wsId && channel) void openDlqModal(wsId, channel);
         return;
       }
-      // Click outside the card or on the close button → dismiss.
+      // Workflow graph node click → step modal.
+      const node = target.closest(".wf-node");
+      if (node instanceof HTMLElement) {
+        event.preventDefault();
+        const stepName = node.dataset.step || "";
+        if (stepName) void openWorkflowStepModal(stepName);
+        return;
+      }
+      // Step modal: close button or backdrop.
+      if (
+        target.id === "wf-step-modal-close" ||
+        target.id === "wf-step-modal" ||
+        target.classList.contains("wf-step-modal")
+      ) {
+        closeWorkflowStepModal();
+        return;
+      }
+      // DLQ modal: bulk-action buttons take precedence over the
+      // close-on-backdrop check below — otherwise a stray click anywhere
+      // inside ``.dlq-modal`` would dismiss the modal mid-action.
+      if (target.id === "dlq-replay-all" || target.closest("#dlq-replay-all")) {
+        event.preventDefault();
+        void replayAllDeadletters();
+        return;
+      }
+      if (target.id === "dlq-purge-old" || target.closest("#dlq-purge-old")) {
+        event.preventDefault();
+        void purgeOldDeadletters();
+        return;
+      }
+      // DLQ modal: close button or backdrop.
       if (
         target.id === "dlq-modal-close" ||
         target.id === "dlq-modal" ||
@@ -855,7 +1661,21 @@
       }
     });
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") closeDlqModal();
+      if (event.key === "Escape") {
+        closeDlqModal();
+        closeWorkflowStepModal();
+      }
+      // Activate a focused graph node with Enter / Space.
+      if ((event.key === "Enter" || event.key === " ") && document.activeElement) {
+        const node = document.activeElement.closest
+          ? document.activeElement.closest(".wf-node")
+          : null;
+        if (node instanceof HTMLElement) {
+          event.preventDefault();
+          const stepName = node.dataset.step || "";
+          if (stepName) void openWorkflowStepModal(stepName);
+        }
+      }
     });
 
     window.addEventListener("hashchange", navigate);

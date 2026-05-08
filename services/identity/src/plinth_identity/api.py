@@ -31,12 +31,18 @@ from .keys import KeyStore
 from .logging_config import configure_logging, get_logger
 from .migration_runner import (
     MigrationLockError,
+    MigrationRollbackMissing as RunnerRollbackMissing,
     MigrationRunner,
     default_migrations_dir,
 )
 from .models import (
     HealthResponse,
     JWKSResponse,
+    RevocationList,
+    RevocationStats,
+    RollbackBody,
+    RollbackResult,
+    RolledBackMigrationModel,
     SigningKey,
     SigningKeyList,
     Tenant,
@@ -78,10 +84,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         # v0.5 — schema migrations. Apply pending migrations after init_db
         # (idempotent CREATE-IF-NOT-EXISTS bootstrap) so existing v0.3–v0.4
-        # databases get marked-as-applied without re-running SQL.
+        # databases get marked-as-applied without re-running SQL. The
+        # ``database_url`` parameter selects the v0.6 Postgres advisory-lock
+        # path; empty keeps the SQLite ``fcntl.flock`` path.
         runner = MigrationRunner(
             settings.db_path,
             default_migrations_dir(__file__),
+            database_url=settings.effective_database_url,
+            service_name="identity",
         )
         app.state.migration_runner = runner
         try:
@@ -204,10 +214,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.state.settings = settings
     # v0.5 — migration runner. Constructed eagerly so admin endpoints
-    # work even in test setups that bypass the lifespan handler.
+    # work even in test setups that bypass the lifespan handler. Forwards
+    # ``database_url`` + ``service_name`` for the v0.6 Postgres advisory-lock
+    # path; no-op for the SQLite default deployments.
     app.state.migration_runner = MigrationRunner(
         settings.db_path,
         default_migrations_dir(__file__),
+        database_url=settings.effective_database_url,
+        service_name="identity",
     )
     install_exception_handlers(app)
     app.middleware("http")(_request_context_middleware)
@@ -487,6 +501,61 @@ def _register_routes(app: FastAPI) -> None:
     ) -> TokenInfo:
         return await store.get(jti)
 
+    # ---------------------------------------------- v0.6 federated revocation
+    #
+    # Replica-friendly endpoints for cross-node revocation propagation.
+    # Other services (workspace, gateway) poll ``/v1/revocations`` every
+    # ~60s with a ``since=<unix_ts>`` cursor and replay any new entries
+    # into their in-memory blocklist. Read-only; no admin scope required.
+
+    @app.get(
+        "/v1/revocations",
+        response_model=RevocationList,
+        tags=["tokens"],
+    )
+    async def list_revocations(
+        store: StoreDep,
+        since: Annotated[int, Query(ge=0)] = 0,
+        limit: Annotated[int, Query(ge=1, le=2000)] = 1000,
+    ) -> RevocationList:
+        """List revoked tokens with ``revoked_at > since`` (unix seconds).
+
+        Acts as a forward cursor: the response's ``next_since`` is the
+        unix-second timestamp of the last entry returned, suitable to use
+        as the next call's ``since``. ``has_more`` signals there are
+        further pages immediately available.
+        """
+
+        entries, has_more = await store.list_revocations(
+            since_unix=since,
+            limit=limit,
+        )
+        if entries:
+            last = entries[-1].revoked_at
+            next_since = int(last.timestamp())
+        else:
+            next_since = since
+        return RevocationList(
+            revocations=entries,
+            next_since=next_since,
+            has_more=has_more,
+        )
+
+    @app.get(
+        "/v1/revocations/stats",
+        response_model=RevocationStats,
+        tags=["tokens"],
+    )
+    async def revocation_stats(store: StoreDep) -> RevocationStats:
+        """Return cheap counters about revoked tokens."""
+
+        total, since_24h, since_1h = await store.revocation_stats()
+        return RevocationStats(
+            total=total,
+            since_24h=since_24h,
+            since_1h=since_1h,
+        )
+
     # ------------------------------------------------------------------ tenants
 
     @app.get(
@@ -653,6 +722,72 @@ def _register_routes(app: FastAPI) -> None:
                 },
             )
         return {"applied": [_serialize_applied(m) for m in applied_migs]}
+
+    @app.post(
+        "/v1/admin/migrations/rollback",
+        response_model=RollbackResult,
+        tags=["meta"],
+    )
+    async def rollback_migrations(
+        body: RollbackBody,
+        request: Request,
+    ):
+        """Roll back applied migrations down to (and including) ``body.to``.
+
+        Returns 200 with the :class:`RollbackResult` payload (even when one
+        of the rollback files errored mid-way — ``failed`` and
+        ``error_message`` carry the partial-state info).
+        """
+
+        runner: MigrationRunner = request.app.state.migration_runner
+        try:
+            outcome = await runner.rollback_to(
+                body.to,
+                dry_run=body.dry_run,
+                blocking_lock=False,
+            )
+        except RunnerRollbackMissing as exc:
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": {
+                        "code": "MIGRATION_ROLLBACK_MISSING",
+                        "message": str(exc),
+                        "details": {"missing_ids": exc.missing_ids},
+                    }
+                },
+            )
+        except MigrationLockError as exc:
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error": {
+                        "code": "MIGRATION_LOCKED",
+                        "message": str(exc),
+                        "details": {},
+                    }
+                },
+            )
+
+        return RollbackResult(
+            target=outcome.target,
+            rolled_back=[
+                RolledBackMigrationModel(
+                    id=entry.id,
+                    rolled_back_at=entry.rolled_back_at,
+                    duration_ms=entry.duration_ms,
+                )
+                for entry in outcome.rolled_back
+            ],
+            skipped=list(outcome.skipped),
+            failed=outcome.failed,
+            error_message=outcome.error_message,
+            dry_run=outcome.dry_run,
+        )
 
 
 # Helpers for /v1/admin/migrations.

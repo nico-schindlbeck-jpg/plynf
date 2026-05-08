@@ -369,6 +369,56 @@ class NoHandlerError(PlinthError):
     code = "NO_HANDLER"
 
 
+# ---------------------------------------------------------------------------
+# v0.6 — Generic resource locks
+# ---------------------------------------------------------------------------
+
+
+class LockConflict(PlinthError):
+    """The lock is currently held by a different holder (HTTP 409).
+
+    Raised when ``acquire`` finds the named resource already held and
+    either ``wait_ms == 0`` or the wait budget elapsed before the lock
+    became free.
+
+    Attributes:
+        current_holder: The holder string of whoever owns the lock right
+            now (when the server reports it).
+        retry_after_seconds: Hint for back-off — populated from the
+            server's ``retry_after_seconds`` detail.
+    """
+
+    code = "LOCK_CONFLICT"
+
+    def __init__(
+        self,
+        *args: Any,
+        current_holder: str | None = None,
+        retry_after_seconds: int | None = None,
+        **kw: Any,
+    ) -> None:
+        super().__init__(*args, **kw)
+        self.current_holder = current_holder
+        self.retry_after_seconds = retry_after_seconds
+
+
+class LockNotHeld(PlinthError):
+    """Heartbeat / release attempted on a lock the caller does not hold.
+
+    Either the row exists but a different ``holder`` owns it (the most
+    common case) or the caller's TTL elapsed and another holder stole
+    the lock.
+    """
+
+    code = "LOCK_NOT_HELD"
+
+
+class LockNotFound(NotFoundError):
+    """The requested lock does not exist (HTTP 404)."""
+
+    code = "LOCK_NOT_FOUND"
+
+
 __all__ = [
     "BranchNotFound",
     "ChannelNotFound",
@@ -381,6 +431,9 @@ __all__ = [
     "KeyNotFound",
     "LeaseConflict",
     "LeaseNotHeld",
+    "LockConflict",
+    "LockNotFound",
+    "LockNotHeld",
     "MessageNotFound",
     "NoHandlerError",
     "NotFoundError",

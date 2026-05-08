@@ -20,6 +20,8 @@ import type {
   ChannelSchema,
   ChannelSendBody,
   JsonValue,
+  ReplayBatchResult,
+  SchemaCheckResult,
 } from "./types.js";
 
 /** Encode a channel name (or message ID) for safe URL embedding. */
@@ -319,6 +321,86 @@ export class ChannelsClient {
         `/channels/${encodeName(channel)}/deadletter/${encodeName(id)}`,
       ),
     });
+  }
+
+  // ------------------------------------------------------------------
+  // v0.6 — channel schema migration helpers
+  // ------------------------------------------------------------------
+
+  /**
+   * Preview compatibility of a candidate JSON Schema against existing rows.
+   *
+   * Validates up to `limit` messages (server hard cap: 10 000) drawn from
+   * the main channel, the DLQ, or both. The candidate is not persisted —
+   * pair this with `setSchema` once you're happy with the report. Returns
+   * counts plus up to 10 failure samples in the canonical `{msg_id, errors}`
+   * shape.
+   */
+  async checkSchema(
+    channel: string,
+    schema: object,
+    opts: { scope?: "main" | "deadletter" | "both"; limit?: number } = {},
+  ): Promise<SchemaCheckResult> {
+    const body: Record<string, JsonValue> = {
+      schema: schema as JsonValue,
+      scope: opts.scope ?? "both",
+      limit: opts.limit ?? 1000,
+    };
+    return this.http.requestJson<SchemaCheckResult>({
+      method: "POST",
+      path: this.path(`/channels/${encodeName(channel)}/schema/check`),
+      json: body as JsonValue,
+    });
+  }
+
+  /**
+   * Bulk-replay DLQ messages back through the current schema.
+   *
+   * Iterates the DLQ in seq order (up to `max`, server hard cap 10 000).
+   * Each message is re-validated against the *currently attached* schema;
+   * successes move to the main channel, failures stay in the DLQ. With
+   * `dryRun=true` no rows are mutated — the result still reflects what
+   * would happen.
+   *
+   * `failures` is bounded server-side to 50 entries; the totals
+   * (`attempted` / `succeeded` / `failed`) are accurate regardless of
+   * truncation.
+   */
+  async replayAllDlq(
+    channel: string,
+    opts: { max?: number; dryRun?: boolean } = {},
+  ): Promise<ReplayBatchResult> {
+    const query: Record<string, QueryValue> = { max: opts.max ?? 1000 };
+    if (opts.dryRun) query.dry_run = "true";
+    return this.http.requestJson<ReplayBatchResult>({
+      method: "POST",
+      path: this.path(
+        `/channels/${encodeName(channel)}/deadletter/replay-all`,
+      ),
+      query,
+    });
+  }
+
+  /**
+   * Delete DLQ rows older than `olderThanSeconds` and return the count.
+   *
+   * `olderThanSeconds=0` clears the entire DLQ — useful after a big
+   * schema relax. Channels that never had a DLQ return `0` rather than
+   * raising (same idempotency principle as `deleteSchema`).
+   */
+  async purgeDlq(
+    channel: string,
+    opts: { olderThanSeconds?: number } = {},
+  ): Promise<number> {
+    const query: Record<string, QueryValue> = {
+      older_than_seconds: opts.olderThanSeconds ?? 0,
+    };
+    const res = await this.http.requestJson<{ purged: number }>({
+      method: "DELETE",
+      path: this.path(`/channels/${encodeName(channel)}/deadletter`),
+      query,
+    });
+    return res.purged ?? 0;
   }
 
   // -- helpers ---------------------------------------------------------

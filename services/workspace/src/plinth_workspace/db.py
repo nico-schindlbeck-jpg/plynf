@@ -231,6 +231,29 @@ CREATE TABLE IF NOT EXISTS channel_schemas (
 );
 CREATE INDEX IF NOT EXISTS idx_channel_schemas_workspace
   ON channel_schemas(workspace_id);
+
+-- v0.6 ------------------------------------------------ generic resource locks
+
+-- Generic distributed locks for arbitrary named resources, scoped per
+-- workspace. Used for Agent-A-vs-Agent-B race protection on KV / file /
+-- external resource updates. The :path-style ``name`` accepts ``/`` so a
+-- caller can lock e.g. ``kv:sources/index`` without escaping.
+--
+-- The reaper sweeps rows where ``expires_at < now()`` so a crashed holder
+-- doesn't deadlock subsequent acquirers; ``acquire`` itself also steals an
+-- expired lock atomically via UPSERT (see resource_locks.py).
+CREATE TABLE IF NOT EXISTS resource_locks (
+  workspace_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  holder TEXT NOT NULL,
+  acquired_at TIMESTAMP NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  heartbeat_at TIMESTAMP NOT NULL,
+  PRIMARY KEY (workspace_id, name),
+  FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
+);
+CREATE INDEX IF NOT EXISTS idx_resource_locks_expiry
+  ON resource_locks(expires_at);
 """
 
 

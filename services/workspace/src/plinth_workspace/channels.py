@@ -696,6 +696,293 @@ class ChannelStore:
         """Pass-through to the schema store; kept here for API symmetry."""
         return await self.schema_store.delete(workspace_id, channel_name)
 
+    # ------------------------------------------------------------------ v0.6 — bulk helpers
+
+    # The hard limit on every bounded scan in this section. Mirrors the
+    # ``SchemaCheckBody`` constraint on the API surface so the helpers stay
+    # safe even if a future caller bypasses the FastAPI body validator.
+    BULK_HARD_LIMIT = 10_000
+
+    async def check_schema(
+        self,
+        workspace_id: str,
+        channel_name: str,
+        schema_doc: dict[str, Any],
+        *,
+        scope: str = "both",
+        limit: int = 1000,
+    ) -> dict[str, Any]:
+        """Validate ``limit`` messages against a candidate ``schema_doc``.
+
+        Iterates the main channel and/or its DLQ (``scope``) in seq order
+        and runs each payload through ``jsonschema.validate``. Returns
+        counters + the first 10 failure samples in the canonical
+        ``{msg_id, errors}`` shape — bounded so callers don't pay for
+        thousands of failures in one round trip.
+
+        The candidate schema is itself sanity-checked first (``validate
+        _schema_document``); a malformed schema raises ``InvalidArguments``
+        rather than blowing up message-by-message.
+        """
+
+        from .channel_schemas import validate_schema_document  # local import to avoid cycle
+
+        if scope not in {"main", "deadletter", "both"}:
+            raise InvalidArguments(
+                "scope must be one of 'main', 'deadletter', 'both'",
+                details={"scope": scope},
+            )
+        if limit < 1:
+            raise InvalidArguments("limit must be >= 1")
+        if limit > self.BULK_HARD_LIMIT:
+            limit = self.BULK_HARD_LIMIT
+
+        validate_schema_document(schema_doc)
+
+        # Resolve which channel names to scan. ``main`` picks just the user
+        # channel, ``deadletter`` just the hidden ``.deadletter`` sub-channel,
+        # ``both`` interleaves both — but we still cap the *combined* row
+        # count at ``limit`` so an operator preview can't accidentally pull
+        # in 20k rows.
+        targets: list[str] = []
+        if scope in {"main", "both"}:
+            targets.append(channel_name)
+        if scope in {"deadletter", "both"}:
+            targets.append(deadletter_channel_name(channel_name))
+
+        checked = 0
+        valid = 0
+        invalid = 0
+        sample_failures: list[dict[str, Any]] = []
+        SAMPLE_CAP = 10
+
+        async with connect(self.db_path) as conn:
+            await self._assert_workspace(conn, workspace_id)
+            for name in targets:
+                if checked >= limit:
+                    break
+                ch_row = await self._channel_row(conn, workspace_id, name)
+                if ch_row is None:
+                    continue
+
+                remaining = limit - checked
+                cur = await conn.execute(
+                    "SELECT id, payload FROM channel_messages "
+                    "WHERE workspace_id=? AND channel_name=? "
+                    "ORDER BY seq ASC LIMIT ?",
+                    (workspace_id, name, remaining),
+                )
+                rows = await cur.fetchall()
+                await cur.close()
+
+                for row in rows:
+                    checked += 1
+                    payload = json.loads(row["payload"])
+                    errors = SchemaStore.validate(payload, schema_doc)
+                    if errors is None:
+                        valid += 1
+                    else:
+                        invalid += 1
+                        if len(sample_failures) < SAMPLE_CAP:
+                            sample_failures.append(
+                                {
+                                    "msg_id": row["id"],
+                                    "errors": errors,
+                                }
+                            )
+
+        return {
+            "channel": channel_name,
+            "scope": scope,
+            "checked": checked,
+            "valid": valid,
+            "invalid": invalid,
+            "sample_failures": sample_failures,
+        }
+
+    async def replay_all_deadletter(
+        self,
+        workspace_id: str,
+        channel_name: str,
+        *,
+        max_messages: int = 1000,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        """Bulk-replay every DLQ message (up to ``max_messages``).
+
+        For each candidate, re-validate against the *current* persisted
+        schema. Successes move to the main channel and are removed from
+        the DLQ; failures are recorded with their reason and remain in the
+        DLQ untouched. With ``dry_run=True`` no rows are mutated — the
+        result mirrors what would happen.
+
+        ``failures`` is bounded to 50 entries so a 1000-message-fail
+        batch can't bloat the response. The total ``failed`` counter is
+        accurate even when ``failures`` is truncated.
+        """
+
+        if max_messages < 1:
+            raise InvalidArguments("max must be >= 1")
+        if max_messages > self.BULK_HARD_LIMIT:
+            max_messages = self.BULK_HARD_LIMIT
+
+        # Snapshot the current schema once. Replays inside the same batch
+        # share the same validation rules — we don't want a concurrent PUT
+        # to make some messages "valid" mid-batch.
+        schema = await self.schema_store.get(workspace_id, channel_name)
+        dlq_name = deadletter_channel_name(channel_name)
+
+        # Pull the candidate set. We keep this list-based rather than a
+        # paginated cursor because (a) it's bounded by ``max_messages``
+        # and (b) a fresh DB connection per replay is fine for the row
+        # counts we expect.
+        async with connect(self.db_path) as conn:
+            await self._assert_workspace(conn, workspace_id)
+            ch_row = await self._channel_row(conn, workspace_id, dlq_name)
+            if ch_row is None:
+                # Nothing to replay — return a zeroed-out envelope rather
+                # than 404 so callers can call this on a clean DLQ without
+                # special-casing.
+                return {
+                    "channel": channel_name,
+                    "attempted": 0,
+                    "succeeded": 0,
+                    "failed": 0,
+                    "failures": [],
+                    "dry_run": dry_run,
+                }
+
+            cur = await conn.execute(
+                "SELECT * FROM channel_messages "
+                "WHERE workspace_id=? AND channel_name=? "
+                "ORDER BY seq ASC LIMIT ?",
+                (workspace_id, dlq_name, max_messages),
+            )
+            rows = await cur.fetchall()
+            await cur.close()
+
+        candidates = [_row_to_message(r) for r in rows]
+
+        attempted = 0
+        succeeded = 0
+        failed = 0
+        failures: list[dict[str, Any]] = []
+        FAILURE_CAP = 50
+
+        for dlq_msg in candidates:
+            attempted += 1
+            errors = (
+                SchemaStore.validate(dlq_msg.payload, schema)
+                if schema is not None
+                else None
+            )
+            if errors is not None:
+                failed += 1
+                if len(failures) < FAILURE_CAP:
+                    # Compact human-readable reason from the first error;
+                    # full structured errors are recoverable via /check.
+                    first = errors[0] if errors else {}
+                    reason = first.get("message") or "schema violation"
+                    failures.append(
+                        {
+                            "msg_id": dlq_msg.id,
+                            "reason": reason,
+                        }
+                    )
+                continue
+
+            if dry_run:
+                # Don't mutate; we still count the success so callers can
+                # gauge how many would land on the main channel.
+                succeeded += 1
+                continue
+
+            # Strip synthetic headers (mirrors single-message replay).
+            replay_headers = {
+                k: v
+                for k, v in (dlq_msg.headers or {}).items()
+                if k
+                not in {
+                    "x-original-channel",
+                    "x-validation-errors",
+                    "x-failed-at",
+                    "x-schema-version",
+                }
+            }
+
+            try:
+                await self._send_raw(
+                    workspace_id,
+                    channel_name,
+                    payload=dlq_msg.payload,
+                    sender=dlq_msg.sender,
+                    type_=dlq_msg.type,
+                    correlation_id=dlq_msg.correlation_id,
+                    headers=replay_headers,
+                )
+            except Exception as exc:  # noqa: BLE001 -- defensive
+                failed += 1
+                if len(failures) < FAILURE_CAP:
+                    failures.append(
+                        {
+                            "msg_id": dlq_msg.id,
+                            "reason": f"send failed: {exc}",
+                        }
+                    )
+                continue
+
+            await self._delete_message_silent(workspace_id, dlq_name, dlq_msg.id)
+            succeeded += 1
+
+        return {
+            "channel": channel_name,
+            "attempted": attempted,
+            "succeeded": succeeded,
+            "failed": failed,
+            "failures": failures,
+            "dry_run": dry_run,
+        }
+
+    async def purge_deadletter(
+        self,
+        workspace_id: str,
+        channel_name: str,
+        *,
+        older_than_seconds: int = 0,
+    ) -> int:
+        """Drop DLQ rows whose ``sent_at`` is older than the threshold.
+
+        ``older_than_seconds=0`` purges every DLQ message — useful when an
+        operator wants to reset after a noisy migration. Returns the
+        number of rows removed.
+        """
+
+        if older_than_seconds < 0:
+            raise InvalidArguments("older_than_seconds must be >= 0")
+
+        dlq_name = deadletter_channel_name(channel_name)
+        # Compute the cutoff in Python rather than via SQL so we get the
+        # same UTC handling the rest of the codebase uses (``iso(now_utc())``).
+        from datetime import timedelta
+
+        cutoff = now_utc() - timedelta(seconds=older_than_seconds)
+
+        async with connect(self.db_path) as conn:
+            await self._assert_workspace(conn, workspace_id)
+            ch_row = await self._channel_row(conn, workspace_id, dlq_name)
+            if ch_row is None:
+                return 0
+
+            cur = await conn.execute(
+                "DELETE FROM channel_messages "
+                "WHERE workspace_id=? AND channel_name=? AND sent_at < ?",
+                (workspace_id, dlq_name, iso(cutoff)),
+            )
+            deleted = cur.rowcount or 0
+            await cur.close()
+            await conn.commit()
+            return int(deleted)
+
     async def get_channel(self, workspace_id: str, name: str) -> Channel:
         async with connect(self.db_path) as conn:
             await self._assert_workspace(conn, workspace_id)

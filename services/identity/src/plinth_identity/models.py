@@ -172,9 +172,105 @@ class SigningKeyList(BaseModel):
     keys: List[SigningKey] = Field(default_factory=list)  # noqa: UP006
 
 
+# ---------------------------------------------------------------------------
+# v0.6 — federated revocation list (cross-replica propagation)
+
+
+class RevocationEntry(BaseModel):
+    """A single revoked token surfaced via ``GET /v1/revocations``.
+
+    Carries just the metadata downstream caches need to record + log the
+    revocation. The JWT itself is never carried — revocation is keyed by
+    ``jti``.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    jti: str
+    revoked_at: datetime
+    agent_id: str
+    tenant_id: str
+
+
+class RevocationList(BaseModel):
+    """Response from ``GET /v1/revocations``.
+
+    Callers maintain a cursor (``next_since``) and re-poll periodically. The
+    server returns at most ``limit`` entries; ``has_more`` signals that the
+    next page is available immediately (caller should poll again before the
+    regular interval).
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    revocations: List[RevocationEntry] = Field(default_factory=list)  # noqa: UP006
+    next_since: int = 0
+    has_more: bool = False
+
+
+class RevocationStats(BaseModel):
+    """Response from ``GET /v1/revocations/stats``.
+
+    Cheap counters useful for ops dashboards + replica-health monitoring.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    total: int = 0
+    since_24h: int = 0
+    since_1h: int = 0
+
+
+# ---------------------------------------------------------------------------
+# v0.6 — Migration rollback
+# ---------------------------------------------------------------------------
+
+
+class RollbackBody(BaseModel):
+    """Body for ``POST /v1/admin/migrations/rollback``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    to: str = Field(min_length=1)
+    dry_run: bool = False
+
+
+class RolledBackMigrationModel(BaseModel):
+    """One migration that was rolled back, with timing info."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    rolled_back_at: datetime
+    duration_ms: int
+
+
+class RollbackResult(BaseModel):
+    """Outcome of a rollback request.
+
+    See :class:`plinth_identity.migration_runner.RollbackResult` for the
+    runner-side counterpart.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    target: str
+    rolled_back: list[RolledBackMigrationModel] = Field(default_factory=list)
+    skipped: list[str] = Field(default_factory=list)
+    failed: str | None = None
+    error_message: str | None = None
+    dry_run: bool = False
+
+
 __all__ = [
     "HealthResponse",
     "JWKSResponse",
+    "RevocationEntry",
+    "RevocationList",
+    "RevocationStats",
+    "RollbackBody",
+    "RollbackResult",
+    "RolledBackMigrationModel",
     "SigningKey",
     "SigningKeyList",
     "Tenant",

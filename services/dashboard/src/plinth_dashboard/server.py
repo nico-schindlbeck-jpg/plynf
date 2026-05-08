@@ -8,12 +8,14 @@ The dashboard is read-only:
 - ``GET /static/{path}``    → static SPA assets (CSS / JS / favicon)
 - ``GET /healthz``          → liveness probe
 - ``GET /api/overview``     → JSON aggregation across workspace + gateway
+- ``GET /api/workflows/overview`` → cross-workspace workflow aggregation
 - ``GET /api/workspaces``   → proxy to workspace service
 - ``GET /api/workspaces/{ws_id}`` → proxy
 - ``GET /api/workspaces/{ws_id}/kv`` → proxy
 - ``GET /api/workspaces/{ws_id}/snapshots`` → proxy
 - ``GET /api/workspaces/{ws_id}/channels`` → proxy
 - ``GET /api/workspaces/{ws_id}/workflows`` → proxy
+- ``GET /api/workspaces/{ws_id}/workflows/{wf_id}`` → proxy (single workflow)
 - ``GET /api/audit``        → proxy to gateway service
 - ``GET /api/cache-stats``  → proxy
 - ``GET /api/audit-stats``  → proxy
@@ -128,6 +130,36 @@ def _register_routes(app: FastAPI, settings: Settings) -> None:
             )
         return JSONResponse(content=data)
 
+    @app.get("/api/workflows/overview", tags=["api"])
+    async def api_workflows_overview(request: Request) -> JSONResponse:
+        """Aggregate workflows across all visible workspaces.
+
+        For each workspace listed by the workspace service, fetch its
+        ``/workflows`` and roll the result up into a single payload the SPA
+        renders into the cross-workspace workflow list. Failures degrade
+        gracefully (``partial: true``) so a single slow workspace never
+        breaks the page.
+        """
+
+        builder: OverviewBuilder = request.app.state.overview
+        try:
+            data = await builder.build_workflows_overview()
+        except Exception as exc:  # noqa: BLE001 — last-resort guard
+            get_logger().error(
+                "dashboard.workflows_overview.failed", error=str(exc)
+            )
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Failed to build workflows overview.",
+                        "details": {"reason": str(exc)},
+                    }
+                },
+            )
+        return JSONResponse(content=data)
+
     # --------------------------------------------------------------- proxies
 
     @app.get("/api/workspaces", tags=["api"])
@@ -162,9 +194,58 @@ def _register_routes(app: FastAPI, settings: Settings) -> None:
             forward_query=True,
         )
 
+    # v0.6 — DLQ batch ops. Both routes are explicitly POST/DELETE so the
+    # SPA can't accidentally trigger them via a stray ``<a href>``. We
+    # forward the body (replay-all) and query (purge) verbatim — the
+    # workspace service is the source of truth for argument validation.
+    @app.post(
+        "/api/workspaces/{ws_id}/channels/{name:path}/deadletter/replay-all",
+        tags=["api"],
+    )
+    async def api_workspace_channel_replay_all(
+        ws_id: str,
+        name: str,
+        request: Request,
+    ) -> JSONResponse:
+        return await _proxy_mut(
+            request,
+            method="POST",
+            upstream_url=f"{ws_url}/v1/workspaces/{ws_id}/channels/{name}/deadletter/replay-all",
+            forward_query=True,
+            forward_body=True,
+        )
+
+    @app.delete(
+        "/api/workspaces/{ws_id}/channels/{name:path}/deadletter",
+        tags=["api"],
+    )
+    async def api_workspace_channel_purge_dlq(
+        ws_id: str,
+        name: str,
+        request: Request,
+    ) -> JSONResponse:
+        return await _proxy_mut(
+            request,
+            method="DELETE",
+            upstream_url=f"{ws_url}/v1/workspaces/{ws_id}/channels/{name}/deadletter",
+            forward_query=True,
+            forward_body=False,
+        )
+
     @app.get("/api/workspaces/{ws_id}/workflows", tags=["api"])
     async def api_workspace_workflows(ws_id: str, request: Request) -> JSONResponse:
         return await _proxy(request, f"{ws_url}/v1/workspaces/{ws_id}/workflows")
+
+    @app.get("/api/workspaces/{ws_id}/workflows/{wf_id}", tags=["api"])
+    async def api_workspace_workflow_detail(
+        ws_id: str,
+        wf_id: str,
+        request: Request,
+    ) -> JSONResponse:
+        return await _proxy(
+            request,
+            f"{ws_url}/v1/workspaces/{ws_id}/workflows/{wf_id}",
+        )
 
     @app.get("/api/audit", tags=["api"])
     async def api_audit(request: Request) -> JSONResponse:
@@ -222,9 +303,102 @@ def _register_routes(app: FastAPI, settings: Settings) -> None:
         # Sub-routes serve the same SPA shell; the JS router reads the URL.
         return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
 
+    @app.api_route("/workflows", methods=["GET", "HEAD"], tags=["ui"])
+    async def index_workflows() -> FileResponse:
+        # The cross-workspace workflow list is rendered by the SPA based on
+        # the hash route; serving the shell from this path means a hard
+        # refresh on /workflows still loads the dashboard.
+        return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
+
+    @app.api_route("/workflows/{wf_id}", methods=["GET", "HEAD"], tags=["ui"])
+    async def index_workflow_detail(wf_id: str) -> FileResponse:  # noqa: ARG001
+        # Same shell, different hash. The SPA reads ?ws=<ws_id> from the URL
+        # to know which workspace to query.
+        return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
+
     @app.get("/favicon.ico", include_in_schema=False)
     async def favicon() -> FileResponse:
         return FileResponse(STATIC_DIR / "favicon.svg", media_type="image/svg+xml")
+
+
+async def _proxy_mut(
+    request: Request,
+    *,
+    method: str,
+    upstream_url: str,
+    forward_query: bool = False,
+    forward_body: bool = False,
+) -> JSONResponse:
+    """Forward a mutating (POST/DELETE) call upstream.
+
+    Mirrors :func:`_proxy` but for verbs other than GET. The body is
+    forwarded verbatim when ``forward_body=True`` so the workspace
+    service (the source of truth) gets to validate the payload — the
+    dashboard is a thin transport layer here, not a policy point.
+    """
+
+    builder: OverviewBuilder = request.app.state.overview
+    params: dict[str, Any] | None = None
+    if forward_query and request.query_params:
+        params = dict(request.query_params)
+
+    body: bytes | None = None
+    if forward_body:
+        # Reading the body once consumes the stream; FastAPI does not
+        # need to re-read it because we already routed through this
+        # handler. A genuinely empty body becomes ``None`` so httpx
+        # sends a content-length:0 with no JSON header.
+        raw = await request.body()
+        body = raw or None
+
+    headers: dict[str, str] = {}
+    # Pass through the JSON content-type for body-bearing calls so the
+    # upstream pydantic body parser engages. We *don't* forward auth
+    # headers — the dashboard runs unauthenticated against an
+    # unauthenticated workspace deployment.
+    if body is not None and request.headers.get("content-type"):
+        headers["content-type"] = request.headers["content-type"]
+
+    try:
+        upstream = await builder.client.request(
+            method,
+            upstream_url,
+            params=params,
+            content=body,
+            headers=headers or None,
+        )
+    except httpx.HTTPError as exc:
+        get_logger().warning(
+            "dashboard.proxy.unreachable",
+            upstream=upstream_url,
+            method=method,
+            error=str(exc),
+        )
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": {
+                    "code": "UPSTREAM_UNREACHABLE",
+                    "message": f"Upstream {upstream_url} is unreachable.",
+                    "details": {"reason": str(exc)},
+                }
+            },
+        )
+
+    try:
+        body_json = upstream.json()
+    except ValueError:
+        return JSONResponse(
+            status_code=upstream.status_code,
+            content={
+                "error": {
+                    "code": "UPSTREAM_NON_JSON",
+                    "message": "Upstream returned a non-JSON response.",
+                    "details": {"status": upstream.status_code},
+                }
+            },
+        )
+    return JSONResponse(status_code=upstream.status_code, content=body_json)
 
 
 async def _proxy(

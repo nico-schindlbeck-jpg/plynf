@@ -407,3 +407,121 @@ async def test_repeated_apply_is_safe(runner: MigrationRunner) -> None:
         await conn.commit()
     applied = await runner.apply_pending()
     assert [m.id for m in applied] == ["0004_tenancy"]
+
+
+# ---------------------------------------------------------------------------
+# v0.6 — Postgres advisory lock dispatcher
+
+
+def test_advisory_lock_id_is_deterministic(tmp_path: Path) -> None:
+    a = MigrationRunner(
+        tmp_path / "a.db", MIGRATIONS_DIR, service_name="gateway"
+    )
+    b = MigrationRunner(
+        tmp_path / "b.db", MIGRATIONS_DIR, service_name="gateway"
+    )
+    assert a._compute_lock_id() == b._compute_lock_id()
+    assert a._compute_lock_id() >= 0
+
+
+def test_advisory_lock_id_differs_per_service(tmp_path: Path) -> None:
+    workspace_runner = MigrationRunner(
+        tmp_path / "ws.db", MIGRATIONS_DIR, service_name="workspace"
+    )
+    gateway_runner = MigrationRunner(
+        tmp_path / "gw.db", MIGRATIONS_DIR, service_name="gateway"
+    )
+    identity_runner = MigrationRunner(
+        tmp_path / "id.db", MIGRATIONS_DIR, service_name="identity"
+    )
+    ids = {
+        workspace_runner._compute_lock_id(),
+        gateway_runner._compute_lock_id(),
+        identity_runner._compute_lock_id(),
+    }
+    assert len(ids) == 3
+
+
+def test_is_postgres_detects_dsns(tmp_path: Path) -> None:
+    for url in [
+        "postgres://u:p@h/db",
+        "postgresql://u:p@h/db",
+        "postgresql+asyncpg://u:p@h/db",
+        "POSTGRESQL://u:p@h/db",
+    ]:
+        runner = MigrationRunner(
+            tmp_path / "x.db", MIGRATIONS_DIR, database_url=url
+        )
+        assert runner._is_postgres() is True, url
+    runner = MigrationRunner(tmp_path / "x.db", MIGRATIONS_DIR)
+    assert runner._is_postgres() is False
+
+
+@pytest.mark.asyncio
+async def test_acquire_lock_uses_sqlite_path_by_default(
+    tmp_path: Path,
+) -> None:
+    runner = MigrationRunner(
+        tmp_path / "gw.db",
+        MIGRATIONS_DIR,
+        lock_path=tmp_path / ".migration.lock",
+    )
+    async with runner._acquire_lock():
+        assert (tmp_path / ".migration.lock").exists()
+
+
+@pytest.mark.asyncio
+async def test_acquire_lock_dispatches_to_postgres_when_configured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import contextlib as _contextlib
+
+    runner = MigrationRunner(
+        tmp_path / "gw.db",
+        MIGRATIONS_DIR,
+        database_url="postgresql://stub/db",
+    )
+    called = {"pg": 0, "file": 0}
+
+    @_contextlib.asynccontextmanager
+    async def fake_pg(self, *, blocking: bool = True):
+        called["pg"] += 1
+        yield
+
+    @_contextlib.contextmanager
+    def fake_file(*args, **kwargs):
+        called["file"] += 1
+        yield
+
+    monkeypatch.setattr(
+        type(runner), "_pg_advisory_lock", fake_pg, raising=True
+    )
+    from plinth_gateway import migration_runner as mr_module
+
+    monkeypatch.setattr(mr_module, "_file_lock", fake_file)
+
+    async with runner._acquire_lock():
+        pass
+
+    assert called["pg"] == 1
+    assert called["file"] == 0
+
+
+@pytest.mark.asyncio
+async def test_advisory_lock_against_live_postgres(tmp_path: Path) -> None:
+    """Skipped unless PLINTH_TEST_POSTGRES_URL set."""
+
+    import os
+
+    pg_url = os.environ.get("PLINTH_TEST_POSTGRES_URL")
+    if not pg_url:
+        pytest.skip("PLINTH_TEST_POSTGRES_URL not set; skipping live PG test")
+
+    runner = MigrationRunner(
+        tmp_path / "ignored.db",
+        MIGRATIONS_DIR,
+        database_url=pg_url,
+        service_name="gateway",
+    )
+    async with runner._acquire_lock():
+        pass

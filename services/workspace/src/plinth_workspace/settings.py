@@ -99,6 +99,16 @@ class Settings(BaseSettings):
     load_shed_max_queue: int = Field(default=1000, ge=0)
     load_shed_retry_after_seconds: int = Field(default=1, ge=0)
 
+    # v0.6 — federated revocation cache. Polls the identity service's
+    # ``GET /v1/revocations`` endpoint every ``revocation_poll_interval_seconds``
+    # so a token revoked on a peer replica is rejected here within the poll
+    # window. ``revocation_poll_url=""`` (default) keeps the cache disabled —
+    # which is correct for single-node deployments and v0.5 demos that
+    # already rely on Identity's local cache.
+    revocation_poll_url: str = Field(default="")
+    revocation_poll_interval_seconds: int = Field(default=60, ge=1)
+    revocation_poll_enabled: bool = Field(default=True)
+
     @property
     def effective_database_url(self) -> str:
         """Return the workspace-specific URL if set, else the shared one."""

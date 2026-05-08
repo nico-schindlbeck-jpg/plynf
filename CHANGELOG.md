@@ -2,6 +2,43 @@
 
 All notable changes to Plinth are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [SemVer](https://semver.org).
 
+## [0.6.0] — 2026-05-07
+
+Distribution & polish release. Federated revocation across multi-node Identity, Postgres advisory locks, migration rollback execution, generic resource locks, channel-schema migration helpers + DLQ batch ops, and visual workflow graph in the dashboard.
+
+### Added
+- **Federated revocation** (Identity → Workspace + Gateway): new `GET /v1/revocations` endpoint on Identity (cursor-based, paginated) plus per-service polling cache that refreshes every 60s. JWT verification now also rejects revoked JTIs locally without a network round-trip.
+- **Postgres advisory locks** for the migration runner across all three services: `pg_advisory_lock(<service-hash>)` replaces fcntl flock when running on Postgres, allowing safe concurrent replicas.
+- **Migration rollback execution**: new `<id>_rollback.sql` files; CLI `migrate --rollback-to <id>` and `--dry-run`; new `POST /v1/admin/migrations/rollback` endpoint. Atomic per-migration transactions with rollback-checksum verification.
+- **Generic resource lock primitives** (Workspace): 5 new endpoints (`acquire`, `heartbeat`, `release`, `list`, `get`) on `/v1/workspaces/{ws}/locks/{name:path}`. Race-safe upsert. Lease reaper extended. SDK adds `ws.locks.held()` context manager (Python) and `ws.locks.withLock()` helper (TypeScript).
+- **Channel schema migration helpers**: bulk `schema/check` (validate sample of messages against proposed schema), `replay-all` DLQ batch (with dry-run mode), `purge` DLQ by age. Workspace endpoints + Python/TS SDK methods + Dashboard "Replay all" / "Purge older than 24h" buttons.
+- **Workflow visualization** in Dashboard: new `/workflows` and `/workflows/{wf_id}` SPA routes; horizontal SVG-based workflow graph with status-colored nodes (pending/running/completed/failed/cancelled), click-for-detail modal, auto-refresh with diff-based DOM updates, sortable+filterable list view, accessible (icon + text + color, keyboard-navigable).
+- New `Lock` SDK type, `LockConflict` / `LockNotHeld` / `LockNotFound` typed exceptions.
+
+### Changed
+- Workspace: 465 tests (was 350): generic locks, schema-migration helpers, rollback, revocation cache
+- Gateway: 396 tests (was 365): rollback, advisory-lock unit tests, revocation cache
+- Identity: 166 tests (was 135): rollback, revocation endpoints, advisory-lock tests
+- Python SDK: 267 tests (was 238): identity revocations, generic locks, schema-migration helpers
+- TypeScript SDK: 118 tests (was 99): generic locks, schema-migration helpers
+- Dashboard: 60 tests (was 36): workflow viz endpoints + tests, DLQ batch buttons
+- Mock-MCP, MCP servers, worker, benchmarks: unchanged
+- Total: **1503 Python + 118 TypeScript = 1621 tests passing** (was 1373 in v0.5)
+
+### Configuration additions
+- `PLINTH_REVOCATION_POLL_URL` (default ""), `PLINTH_REVOCATION_POLL_INTERVAL_SECONDS` (default 60), `PLINTH_REVOCATION_POLL_ENABLED` (default true) — workspace + gateway
+
+### Backwards compatibility
+- All v0.1–v0.5 demos still produce identical output (verified post-merge).
+- `revocation_poll_url=""` default → no polling, no cache, services behave as v0.5.
+- Postgres advisory locks no-op for SQLite path (default).
+- Migration rollback never auto-runs; explicit CLI/endpoint only.
+- Generic locks, schema-migration helpers, workflow viz: all additive. Existing surface unchanged.
+
+### Known limitations (v0.6)
+- TypeScript worker harness still pending (deferred to v0.7)
+- Channel-schema-versioning UI in Dashboard is minimal (modal buttons only); richer schema-evolution wizard in v0.7
+
 ## [0.5.0] — 2026-05-07
 
 Reliability & coordination-depth release. Real schema migrations, durable workflow execution with worker pools, Saga-style transactions, typed channels with DLQ, and stress benchmarks with load-shedding.
@@ -181,6 +218,7 @@ Initial proof-of-concept release. Working end-to-end slice of the agent-native s
 ### Stack
 Python 3.11+ for services + Python SDK; TypeScript 5.4+ for the TS SDK; FastAPI + uvicorn + aiosqlite + pydantic v2 + tiktoken; vitest for TS tests.
 
+[0.6.0]: https://github.com/your-org/plinth/releases/tag/v0.6.0
 [0.5.0]: https://github.com/your-org/plinth/releases/tag/v0.5.0
 [0.4.0]: https://github.com/your-org/plinth/releases/tag/v0.4.0
 [0.3.0]: https://github.com/your-org/plinth/releases/tag/v0.3.0

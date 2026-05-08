@@ -130,6 +130,112 @@ def _summarise_observability(
     return base
 
 
+def _summarise_workflow(
+    wf: dict[str, Any],
+    workspace: dict[str, Any],
+) -> dict[str, Any]:
+    """Compress a single workflow document into the dashboard-list shape.
+
+    The workspace endpoint returns the full workflow (manifest + every step
+    attempt). For the cross-workspace list we only need: the high-level
+    status, per-status step counts, the most useful timestamps, and just
+    enough workspace context to deep-link from the row.
+    """
+
+    steps: list[dict[str, Any]] = list(wf.get("steps") or [])
+    manifest: list[str] = list(wf.get("steps_manifest") or [])
+
+    # Step-status histogram. We bucket every attempt the workspace returned;
+    # attempt counts past 1 are visible in the per-step view, not here.
+    counts: dict[str, int] = {
+        "pending": 0,
+        "running": 0,
+        "completed": 0,
+        "failed": 0,
+        "cancelled": 0,
+    }
+    for step in steps:
+        s = str(step.get("status") or "pending")
+        if s in counts:
+            counts[s] += 1
+
+    # Manifest entries that have no recorded attempt at all are pending. We
+    # only count them for the *manifest-driven* total so the dashboard
+    # surfaces a clean "completed/total" ratio without double-counting
+    # retries.
+    seen_step_names = {step.get("name") for step in steps}
+    pending_from_manifest = sum(1 for n in manifest if n not in seen_step_names)
+    step_count = max(len(manifest), len(steps))
+
+    return {
+        "workflow_id": wf.get("id"),
+        "workspace_id": workspace.get("id"),
+        "workspace_name": workspace.get("name") or workspace.get("id"),
+        "name": wf.get("name") or wf.get("id"),
+        "status": wf.get("status") or "pending",
+        "step_count": step_count,
+        "completed_count": counts["completed"],
+        "running_count": counts["running"],
+        "pending_count": counts["pending"] + pending_from_manifest,
+        "failed_count": counts["failed"],
+        "cancelled_count": counts["cancelled"],
+        "created_at": wf.get("created_at"),
+        "started_at": wf.get("started_at"),
+        "finished_at": wf.get("finished_at"),
+    }
+
+
+def _aggregate_workflows(
+    workspaces: list[dict[str, Any]],
+    workflow_lists: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Roll a list of per-workspace workflow lists into the overview shape.
+
+    ``workflow_lists`` is parallel to ``workspaces``. Each entry is the raw
+    ``_safe_get`` envelope (``{ok, data, error, status}``). A failed call
+    contributes to ``partial=True`` and is silently skipped — the rest of the
+    aggregation continues.
+    """
+
+    flat: list[dict[str, Any]] = []
+    by_status: dict[str, int] = {
+        "pending": 0,
+        "running": 0,
+        "completed": 0,
+        "failed": 0,
+        "cancelled": 0,
+    }
+    partial = False
+
+    for ws, resp in zip(workspaces, workflow_lists):  # noqa: B905
+        if not resp["ok"]:
+            partial = True
+            continue
+        items = (resp["data"] or {}).get("workflows") or []
+        for wf in items:
+            row = _summarise_workflow(wf, ws)
+            flat.append(row)
+            status = str(row.get("status") or "pending")
+            if status not in by_status:
+                by_status[status] = 0
+            by_status[status] += 1
+
+    # Sort newest-first by created_at; rows without a timestamp drop to the
+    # end. This mirrors what the SPA wants by default.
+    def _sort_key(row: dict[str, Any]) -> tuple[int, str]:
+        ts = row.get("created_at")
+        return (0, str(ts)) if ts else (1, "")
+
+    flat.sort(key=_sort_key, reverse=True)
+    return {
+        "workflows": flat,
+        "total": len(flat),
+        "by_status": by_status,
+        "partial": partial,
+        "fetched_at": _now_iso(),
+    }
+
+
 class OverviewBuilder:
     """Fan-out aggregator for ``/api/overview``.
 
@@ -306,6 +412,63 @@ class OverviewBuilder:
             "partial": partial,
             "fetched_at": _now_iso(),
         }
+
+    async def build_workflows_overview(self) -> dict[str, Any]:
+        """Aggregate workflows across every visible workspace.
+
+        Returns the dashboard's workflow-list payload:
+
+        ``{workflows, total, by_status, partial, fetched_at}``
+
+        If the *workspace listing* itself fails the response degrades to an
+        empty list with ``partial=True``. If individual per-workspace
+        ``/workflows`` calls fail, those workspaces are skipped and the rest
+        still flow through (also setting ``partial=True``).
+        """
+
+        ws_url = self._settings.workspace_url.rstrip("/")
+        workspaces_resp = await self._safe_get(f"{ws_url}/v1/workspaces")
+        if not workspaces_resp["ok"]:
+            return {
+                "workflows": [],
+                "total": 0,
+                "by_status": {
+                    "pending": 0,
+                    "running": 0,
+                    "completed": 0,
+                    "failed": 0,
+                    "cancelled": 0,
+                },
+                "partial": True,
+                "fetched_at": _now_iso(),
+            }
+
+        workspaces_raw: list[dict[str, Any]] = (
+            (workspaces_resp["data"] or {}).get("workspaces", []) or []
+        )
+        if not workspaces_raw:
+            return {
+                "workflows": [],
+                "total": 0,
+                "by_status": {
+                    "pending": 0,
+                    "running": 0,
+                    "completed": 0,
+                    "failed": 0,
+                    "cancelled": 0,
+                },
+                "partial": False,
+                "fetched_at": _now_iso(),
+            }
+
+        # Fan out one ``/workflows`` call per workspace in parallel.
+        wf_results = await asyncio.gather(
+            *(
+                self._safe_get(f"{ws_url}/v1/workspaces/{w.get('id')}/workflows")
+                for w in workspaces_raw
+            )
+        )
+        return _aggregate_workflows(workspaces_raw, list(wf_results))
 
     # ------------------------------------------------------------------ helpers
 
@@ -496,6 +659,8 @@ def _merge_tenants(
 
 __all__ = [
     "OverviewBuilder",
+    "_aggregate_workflows",
     "_build_timeseries",
     "_summarise_observability",
+    "_summarise_workflow",
 ]

@@ -73,17 +73,30 @@ A living document. Reorder by community pull and demo data.
 - [ ] Workflow visualisation in dashboard (deferred to v0.6)
 - [ ] Lock/lease primitives for non-workflow resources (deferred to v0.6)
 
-## v0.6 — Distribution & Polish (next)
+## v0.6 — Distribution & Polish ✅ (released 2026-05-07)
 
 **Goal**: multi-node identity, richer dashboard, lock primitives, polish for first paying customers.
 
-- [ ] **Federated revocation** (multi-node Identity with shared cache or gossip)
-- [ ] **Migration rollback** (`apply_to <older_id>` executes `<id>_rollback.sql`)
-- [ ] **Workflow visualisation** in dashboard (graph view of workflow steps + leases)
-- [ ] **Lock/lease primitives** for shared resources (beyond workflow steps)
+- [x] **Federated revocation** — Identity exposes `/v1/revocations`; Workspace + Gateway poll-based cache
+- [x] **Postgres advisory locks** for migration runner across all three services
+- [x] **Migration rollback execution** — CLI `--rollback-to`, dry-run, atomic per-step
+- [x] **Generic resource lock/lease primitives** — workspace endpoints + Python/TS SDK + context manager
+- [x] **Channel-schema migration helpers** — bulk check, replay-all DLQ, purge old; Dashboard buttons
+- [x] **Workflow visualisation** in dashboard — graph view with status colors, click-for-detail, sortable list
+- [ ] **TypeScript worker harness** (deferred to v0.7)
+
+**1621 tests passing** (1503 Python + 118 TypeScript).
+
+## v0.7 — Multi-tenant SaaS Posture (next)
+
+**Goal**: turn Plinth from "self-hosted infra" into "ready for SaaS multi-tenant deployment".
+
 - [ ] **TypeScript worker harness** (parity with Python worker)
-- [ ] **Postgres advisory locks** for migration runner
-- [ ] **Channel schema versioning UX** (migration helpers for breaking changes)
+- [ ] Per-tenant resource quotas (workspaces / channels / workflows / cost)
+- [ ] Tenant-scoped admin UI in Dashboard (tenant CRUD + member management)
+- [ ] Audit-log streaming via OTLP per tenant
+- [ ] Channel-schema-evolution wizard in Dashboard (visual diff + migration plan)
+- [ ] CLI tool (`plinth`) consolidating service ops + workflow control
 
 ## v0.6 — Observability deepening
 

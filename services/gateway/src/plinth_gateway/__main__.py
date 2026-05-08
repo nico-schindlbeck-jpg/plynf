@@ -22,6 +22,8 @@ import uvicorn
 from .logging_config import configure_logging
 from .migration_runner import (
     MigrationLockError,
+    MigrationRollbackFailed,
+    MigrationRollbackMissing,
     MigrationRunner,
     default_migrations_dir,
 )
@@ -50,7 +52,12 @@ def _migrate(args: argparse.Namespace) -> int:
     settings.ensure_data_dir()
 
     migrations_dir = default_migrations_dir(__file__)
-    runner = MigrationRunner(settings.db_path, migrations_dir)
+    runner = MigrationRunner(
+        settings.db_path,
+        migrations_dir,
+        database_url=settings.effective_database_url,
+        service_name="gateway",
+    )
 
     if args.create:
         path = runner.create_migration(args.create)
@@ -59,6 +66,11 @@ def _migrate(args: argparse.Namespace) -> int:
 
     if args.status:
         return asyncio.run(_print_status(runner))
+
+    if args.rollback_to:
+        return asyncio.run(
+            _rollback_to(runner, args.rollback_to, dry_run=args.dry_run)
+        )
 
     if args.to:
         return asyncio.run(_apply_to(runner, args.to))
@@ -71,13 +83,15 @@ async def _print_status(runner: MigrationRunner) -> int:
     print(f"current: {status.current or '(none)'}")  # noqa: T201
     print(f"applied: {len(status.applied)}")  # noqa: T201
     for mig in status.applied:
+        marker = " (rollback available)" if mig.rollback_available else ""
         print(  # noqa: T201
             f"  - {mig.id}  applied_at={mig.applied_at.isoformat()} "
-            f"duration_ms={mig.duration_ms}"
+            f"duration_ms={mig.duration_ms}{marker}"
         )
     print(f"pending: {len(status.pending)}")  # noqa: T201
     for mig in status.pending:
-        print(f"  - {mig.id}")  # noqa: T201
+        marker = " (rollback available)" if mig.has_rollback else ""
+        print(f"  - {mig.id}{marker}")  # noqa: T201
     if status.mismatches:
         print(f"checksum mismatches: {len(status.mismatches)}")  # noqa: T201
         for mm in status.mismatches:
@@ -86,6 +100,68 @@ async def _print_status(runner: MigrationRunner) -> int:
                 f"current={mm.current_checksum[:12]}..."
             )
         return 2
+    return 0
+
+
+async def _rollback_to(
+    runner: MigrationRunner, target: str, *, dry_run: bool
+) -> int:
+    """Run ``migrate --rollback-to <target>`` on the gateway service.
+
+    Output format mirrors the workspace CLI (per the v0.6 spec):
+
+    * Live mode prints a header, one ``✓ rolled back ...`` line per
+      migration with its duration, and a ``Done.`` footer.
+    * Dry-run mode prints ``[DRY-RUN]`` and a list of planned IDs.
+
+    Exit codes: 0 on clean rollback (or no-op), 1 on partial-success
+    SQL failure, 2 on missing rollback file, 75 on lock contention.
+    """
+
+    try:
+        outcome = await runner.rollback_to(target, dry_run=dry_run)
+    except MigrationRollbackMissing as exc:
+        print(  # noqa: T201
+            "error: rollback files missing for: "
+            + ", ".join(exc.missing_ids),
+            file=sys.stderr,
+        )
+        return 2
+    except MigrationLockError as exc:
+        print(f"error: {exc}", file=sys.stderr)  # noqa: T201
+        return 75
+    except MigrationRollbackFailed as exc:  # pragma: no cover - belt-and-braces
+        print(f"error: {exc}", file=sys.stderr)  # noqa: T201
+        return 1
+
+    if dry_run:
+        if not outcome.rolled_back:
+            print(f"[DRY-RUN] No migrations to roll back (target {target}).")  # noqa: T201
+            return 0
+        print("[DRY-RUN] Would roll back the following migrations:")  # noqa: T201
+        for entry in outcome.rolled_back:
+            print(f"  - {entry.id}")  # noqa: T201
+        print("No SQL was executed.")  # noqa: T201
+        return 0
+
+    if not outcome.rolled_back and outcome.failed is None:
+        print(f"No migrations to roll back (target {target}).")  # noqa: T201
+        return 0
+
+    print(f"Rolling back migrations after {target}...")  # noqa: T201
+    longest_id = max((len(e.id) for e in outcome.rolled_back), default=0)
+    for entry in outcome.rolled_back:
+        padded = entry.id.ljust(longest_id)
+        print(  # noqa: T201
+            f"  ✓ rolled back {padded}   ({entry.duration_ms}ms)"
+        )
+    if outcome.failed is not None:
+        print(  # noqa: T201
+            f"FAILED at {outcome.failed}: {outcome.error_message}",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"Done. {len(outcome.rolled_back)} migrations rolled back.")  # noqa: T201
     return 0
 
 
@@ -138,6 +214,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "--to",
         metavar="ID",
         help="apply forward migrations up to and including this ID",
+    )
+    mig.add_argument(
+        "--rollback-to",
+        metavar="ID",
+        dest="rollback_to",
+        help="roll back applied migrations down to (and including) this ID",
+    )
+    mig.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="with --rollback-to: print the plan without executing it",
     )
     mig.add_argument(
         "--create",

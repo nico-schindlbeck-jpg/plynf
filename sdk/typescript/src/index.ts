@@ -12,7 +12,7 @@
 export { Plinth } from "./client.js";
 export type { AgentContext } from "./client.js";
 
-export { Workspace, KVClient, FilesClient, SnapshotProxy } from "./workspace.js";
+export { Workspace, KVClient, FilesClient, LocksClient, SnapshotProxy } from "./workspace.js";
 export { ToolsClient } from "./tools.js";
 export type { InvokeOptions } from "./tools.js";
 
@@ -73,6 +73,10 @@ export {
   ToolInvocationError,
   RateLimitedError,
   CostCapExceededError,
+  // v0.6 — generic resource locks
+  LockConflictError,
+  LockNotFoundError,
+  LockNotHeldError,
 } from "./errors.js";
 
 export type {
@@ -106,8 +110,12 @@ export type {
   ChannelSchemaSetBody,
   ChannelSendBody,
   LimitsStatus,
-  SchemaValidationError,
+  ReplayBatchResult,
+  ReplayFailure,
   ResumeInfo,
+  SchemaCheckFailure,
+  SchemaCheckResult,
+  SchemaValidationError,
   Workflow,
   WorkflowStatus,
   WorkflowStep,
@@ -118,4 +126,10 @@ export type {
   TokenIssueResponse,
   // v0.4
   SigningKey,
+  // v0.6
+  Lock,
+  LockAcquireOptions,
+  LockHeartbeatOptions,
+  LockReleaseOptions,
+  WithLockOptions,
 } from "./types.js";
