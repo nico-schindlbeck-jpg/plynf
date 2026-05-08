@@ -14,6 +14,7 @@ import { IdentityClient } from "./identity.js";
 import { count as countTokensImpl, estimateCost as estimateCostImpl } from "./tokens.js";
 import { ToolsClient } from "./tools.js";
 import type { JsonValue, PlinthConfig, Workspace as WorkspaceModel } from "./types.js";
+import { WorkersClient } from "./workers.js";
 import { Workspace } from "./workspace.js";
 
 const DEFAULT_WORKSPACE_URL = "http://localhost:7421";
@@ -39,6 +40,14 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 export class Plinth {
   /** Tool gateway client. */
   readonly tools: ToolsClient;
+
+  /**
+   * v0.5 — durable workflow worker registration client.
+   *
+   * Talks to the workspace service's `/v1/workers` endpoints. Used by
+   * `@plinth/workflow-worker`; application code rarely touches it.
+   */
+  readonly workers: WorkersClient;
 
   /**
    * v0.3 identity client.
@@ -93,6 +102,7 @@ export class Plinth {
       fetch: fetchImpl,
     });
     this.tools = new ToolsClient(this.gatewayHttp);
+    this.workers = new WorkersClient(this.workspaceHttp);
 
     if (config.identityUrl) {
       this.identityHttp = new HttpClient({

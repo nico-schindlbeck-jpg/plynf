@@ -31,6 +31,9 @@ export type {
   WorkflowCreateOptions,
 } from "./workflows.js";
 
+// v0.5 — durable workflow workers
+export { WorkersClient } from "./workers.js";
+
 // v0.3 — identity
 export { IdentityClient } from "./identity.js";
 export type { IssueTokenOptions } from "./identity.js";
@@ -77,6 +80,11 @@ export {
   LockConflictError,
   LockNotFoundError,
   LockNotHeldError,
+  // v0.5 — durable workflow executor (leases + workers)
+  LeaseConflictError,
+  LeaseNotHeldError,
+  WorkerNotFoundError,
+  NoHandlerError,
 } from "./errors.js";
 
 export type {
@@ -132,4 +140,10 @@ export type {
   LockHeartbeatOptions,
   LockReleaseOptions,
   WithLockOptions,
+  // v0.5 — durable workflow executor (leases + workers)
+  Lease,
+  LeaseStatus,
+  WorkerRecord,
+  WorkerRegistration,
+  WorkerStatus,
 } from "./types.js";

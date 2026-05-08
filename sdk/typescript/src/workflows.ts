@@ -22,10 +22,14 @@
  * Mirrors `plinth.workflows` in the Python SDK.
  */
 
-import { InvalidWorkflowStepError } from "./errors.js";
+import {
+  InvalidWorkflowStepError,
+  LeaseConflictError,
+} from "./errors.js";
 import { encodePath, type HttpClient } from "./http.js";
 import type {
   JsonValue,
+  Lease,
   ResumeInfo,
   Workflow,
   WorkflowStatus,
@@ -46,6 +50,12 @@ export interface StartStepOptions {
   input?: JsonValue;
   /** Optional snapshot taken before the step ran. */
   snapshotId?: string;
+  /**
+   * Initial step status. Defaults to `"running"` for the v0.2 in-process
+   * flow. Pass `"pending"` to stage the step for a v0.5 durable worker
+   * to lease and execute.
+   */
+  initialStatus?: "running" | "pending";
 }
 
 /** Options accepted by {@link WorkflowHandle.completeStep}. */
@@ -132,6 +142,7 @@ export class WorkflowHandle {
     const body: Record<string, JsonValue> = { name };
     if (opts.input !== undefined) body.input = opts.input;
     if (opts.snapshotId !== undefined) body.snapshot_id = opts.snapshotId;
+    if (opts.initialStatus !== undefined) body.initial_status = opts.initialStatus;
 
     const step = await this.http.requestJson<WorkflowStep>({
       method: "POST",
@@ -209,6 +220,112 @@ export class WorkflowHandle {
       method: "GET",
       path: this.workflowPath(),
     });
+  }
+
+  // -- v0.5: durable workflow executor (leases) ----------------------
+
+  /**
+   * Steps in `pending` status — ready for a worker to lease.
+   *
+   * The v0.2 in-process flow creates steps directly in `running`, so the
+   * list is empty unless a worker is in the loop (or a driver has staged
+   * steps in `initial_status="pending"`).
+   */
+  async pendingSteps(): Promise<WorkflowStep[]> {
+    const res = await this.http.requestJson<{ steps: WorkflowStep[] }>({
+      method: "GET",
+      path: `${this.workflowPath()}/pending`,
+    });
+    return res.steps ?? [];
+  }
+
+  /** Leases past their expiry that haven't been reaped yet. */
+  async expiredLeases(): Promise<Lease[]> {
+    const res = await this.http.requestJson<{ leases: Lease[] }>({
+      method: "GET",
+      path: `${this.workflowPath()}/expired`,
+    });
+    return res.leases ?? [];
+  }
+
+  /**
+   * Try to lease `stepId` for `workerId`.
+   *
+   * Returns the {@link Lease} on success, or `null` on a 409
+   * `LEASE_CONFLICT` (someone else got it). Other errors propagate as
+   * the corresponding {@link PlinthError} subclass.
+   */
+  async leaseStep(
+    stepId: string,
+    workerId: string,
+    opts: { ttlSeconds?: number } = {},
+  ): Promise<Lease | null> {
+    try {
+      return await this.http.requestJson<Lease>({
+        method: "POST",
+        path: `${this.stepsPath()}/${encodePath(stepId)}/lease`,
+        json: {
+          worker_id: workerId,
+          ttl_seconds: opts.ttlSeconds ?? 60,
+        },
+      });
+    } catch (err) {
+      if (err instanceof LeaseConflictError) return null;
+      throw err;
+    }
+  }
+
+  /** Extend the lease on `stepId` (must be held by `workerId`). */
+  async heartbeatStep(
+    stepId: string,
+    workerId: string,
+    opts: { ttlSeconds?: number } = {},
+  ): Promise<Lease> {
+    const body: Record<string, JsonValue> = { worker_id: workerId };
+    if (opts.ttlSeconds !== undefined) body.ttl_seconds = opts.ttlSeconds;
+    return this.http.requestJson<Lease>({
+      method: "POST",
+      path: `${this.stepsPath()}/${encodePath(stepId)}/heartbeat`,
+      json: body,
+    });
+  }
+
+  /**
+   * Release the lease on `stepId`, marking the step `status`.
+   *
+   * `status` is typically `completed` or `failed`. After the request the
+   * cached workflow model is refreshed so subsequent reads reflect the
+   * new step lifecycle.
+   */
+  async releaseStep(
+    stepId: string,
+    workerId: string,
+    opts: {
+      status: "completed" | "failed" | "cancelled" | "pending";
+      output?: JsonValue;
+      error?: string;
+      snapshotId?: string;
+    },
+  ): Promise<Lease> {
+    const body: Record<string, JsonValue> = {
+      worker_id: workerId,
+      status: opts.status,
+    };
+    if (opts.output !== undefined) body.output = opts.output;
+    if (opts.error !== undefined) body.error = opts.error;
+    if (opts.snapshotId !== undefined) body.snapshot_id = opts.snapshotId;
+    const lease = await this.http.requestJson<Lease>({
+      method: "POST",
+      path: `${this.stepsPath()}/${encodePath(stepId)}/release`,
+      json: body,
+    });
+    // Refresh cached steps so callers can read the new status.
+    try {
+      await this.refresh();
+    } catch {
+      // Best-effort: a refresh failure shouldn't mask a successful release.
+    }
+    return lease;
   }
 
   // -- internal --------------------------------------------------------

@@ -2,6 +2,27 @@
 
 All notable changes to Plinth are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [SemVer](https://semver.org).
 
+## [0.6.1] — 2026-05-08
+
+Polish patch: ships the deferred TypeScript worker harness so JS-shop developers reach feature-parity with the Python `plinth-workflow-worker`.
+
+### Added
+- **TypeScript worker harness** (new top-level package `worker-ts/`, `@plinth/workflow-worker`): `WorkflowRuntime` (handler registry), `Worker` class with race-safe lease + heartbeat + graceful shutdown, `plinth-workflow-worker` CLI binary mirroring the Python flag set.
+- **TS SDK additions** (additive only): new `WorkersClient` (register/heartbeat/drain/list); workflow methods `pendingSteps`, `expiredLeases`, `leaseStep`, `heartbeatStep`, `releaseStep`; new types `Lease`, `WorkerRecord`; new typed errors `LeaseConflictError`, `LeaseNotHeldError`, `WorkerNotFoundError`, `NoHandlerError`.
+- **Example 05 TypeScript variant**: `handlers.ts` + `start-workflow.ts` + per-example `tsconfig.json`; README updated with TS-side run instructions. The Python files remain unchanged and fully functional.
+- **GitHub Release tag** for v0.6.0 with complete release notes.
+
+### Changed
+- TypeScript SDK: 118 tests (unchanged — additions only added new code paths covered by new worker tests)
+- New `worker-ts` package: 29 tests (12 runtime + 17 worker incl. CLI)
+- Total: 1503 Python + 118 TS-SDK + 29 TS-Worker = **1650 tests passing**
+
+### Backwards compatibility
+- All Python tests unchanged
+- TS SDK changes are purely additive (no signature changes)
+- Example 05 Python path unchanged
+- New `worker-ts` package is opt-in (separate `npm install`)
+
 ## [0.6.0] — 2026-05-07
 
 Distribution & polish release. Federated revocation across multi-node Identity, Postgres advisory locks, migration rollback execution, generic resource locks, channel-schema migration helpers + DLQ batch ops, and visual workflow graph in the dashboard.
@@ -218,7 +239,8 @@ Initial proof-of-concept release. Working end-to-end slice of the agent-native s
 ### Stack
 Python 3.11+ for services + Python SDK; TypeScript 5.4+ for the TS SDK; FastAPI + uvicorn + aiosqlite + pydantic v2 + tiktoken; vitest for TS tests.
 
-[0.6.0]: https://github.com/your-org/plinth/releases/tag/v0.6.0
+[0.6.1]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v0.6.1
+[0.6.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v0.6.0
 [0.5.0]: https://github.com/your-org/plinth/releases/tag/v0.5.0
 [0.4.0]: https://github.com/your-org/plinth/releases/tag/v0.4.0
 [0.3.0]: https://github.com/your-org/plinth/releases/tag/v0.3.0

@@ -345,6 +345,51 @@ export interface ResumeInfo {
   snapshot_id: string | null;
 }
 
+// --- v0.5: Durable workflow executor (leases + workers) ---
+
+/** Lifecycle for a workflow-step lease held by a worker. */
+export type LeaseStatus = "running" | "released" | "expired";
+
+/**
+ * A soft-lock held by a worker over a single workflow step.
+ *
+ * The reaper sweeps leases past their `expires_at` and marks them
+ * `expired` so another worker can claim the step.
+ */
+export interface Lease {
+  step_id: string;
+  worker_id: string;
+  acquired_at: ISODateTime;
+  expires_at: ISODateTime;
+  heartbeat_at: ISODateTime;
+  status: LeaseStatus;
+}
+
+/** Lifecycle for a worker process. */
+export type WorkerStatus = "active" | "draining" | "gone";
+
+/**
+ * A registered worker process.
+ *
+ * The `id` is server-assigned at registration. The lease reaper sweeps
+ * `active` → `gone` on heartbeat lapse; `draining` is set by the worker
+ * itself when it shuts down gracefully.
+ */
+export interface WorkerRecord {
+  id: string;
+  hostname: string | null;
+  pid: number | null;
+  started_at: ISODateTime;
+  last_heartbeat_at: ISODateTime;
+  status: WorkerStatus;
+}
+
+/** Body sent to `POST /v1/workers/register`. */
+export interface WorkerRegistration {
+  hostname?: string | null;
+  pid?: number | null;
+}
+
 // --- v0.2: rate limits / cost caps (gateway service) ---
 
 export interface AgentLimits {

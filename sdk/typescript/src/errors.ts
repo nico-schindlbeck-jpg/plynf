@@ -244,6 +244,55 @@ export class SigningKeyNotFoundError extends PlinthError {
 }
 
 // ---------------------------------------------------------------------------
+// v0.5 — Durable workflow executor (leases + workers)
+// ---------------------------------------------------------------------------
+
+/**
+ * A concurrent worker holds the lease, or the step isn't pending (HTTP 409).
+ *
+ * Surfaced from `WorkflowHandle.leaseStep` callers as a thrown error only
+ * when the SDK can't return `null` (e.g. a malformed envelope). The normal
+ * happy-path is for `leaseStep` to return `null` on a 409.
+ */
+export class LeaseConflictError extends PlinthError {
+  constructor(message: string, status?: number, details?: Record<string, unknown>) {
+    super(message, "LEASE_CONFLICT", status, details);
+    this.name = "LeaseConflictError";
+  }
+}
+
+/** Heartbeat / release attempted on a lease this worker does not hold. */
+export class LeaseNotHeldError extends PlinthError {
+  constructor(message: string, status?: number, details?: Record<string, unknown>) {
+    super(message, "LEASE_NOT_HELD", status, details);
+    this.name = "LeaseNotHeldError";
+  }
+}
+
+/** The requested worker is not registered (HTTP 404). */
+export class WorkerNotFoundError extends PlinthError {
+  constructor(message: string, status?: number, details?: Record<string, unknown>) {
+    super(message, "WORKER_NOT_FOUND", status, details);
+    this.name = "WorkerNotFoundError";
+  }
+}
+
+/**
+ * No handler is registered for the requested `(workflow, step)` key.
+ *
+ * Raised by `WorkflowRuntime.dispatch` in `@plinth/workflow-worker` when a
+ * worker pulls a step whose name is not present in the registered handler
+ * table. Indicates a deployment mismatch between the worker process's
+ * handlers module and the workflows it's polling.
+ */
+export class NoHandlerError extends PlinthError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, "NO_HANDLER", undefined, details);
+    this.name = "NoHandlerError";
+  }
+}
+
+// ---------------------------------------------------------------------------
 // v0.6 — Generic resource locks
 // ---------------------------------------------------------------------------
 
@@ -397,6 +446,13 @@ export function errorFromEnvelope(
       return new LockNotHeldError(message, status, details);
     case "LOCK_NOT_FOUND":
       return new LockNotFoundError(message, status, details);
+    // v0.5 — durable workflow executor.
+    case "LEASE_CONFLICT":
+      return new LeaseConflictError(message, status, details);
+    case "LEASE_NOT_HELD":
+      return new LeaseNotHeldError(message, status, details);
+    case "WORKER_NOT_FOUND":
+      return new WorkerNotFoundError(message, status, details);
     default:
       // Best-effort fallback: map by status if no matching code.
       if (status === 401) return new UnauthorizedError(message, status, details);

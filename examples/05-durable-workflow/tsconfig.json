@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "./build",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@plinth/sdk": ["../../sdk/typescript/dist/index.d.ts"],
+      "@plinth/workflow-worker": ["../../worker-ts/dist/index.d.ts"]
+    }
+  },
+  "include": ["handlers.ts", "shared.ts", "start-workflow.ts"]
+}

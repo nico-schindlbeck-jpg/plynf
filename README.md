@@ -8,8 +8,8 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Status](https://img.shields.io/badge/status-v0.6%20distribution--&--polish-green.svg)](#status)
-[![Tests](https://img.shields.io/badge/tests-1621%20passing-brightgreen.svg)](#status)
+[![Status](https://img.shields.io/badge/status-v0.6.1%20+%20TS%20worker%20harness-green.svg)](#status)
+[![Tests](https://img.shields.io/badge/tests-1650%20passing-brightgreen.svg)](#status)
 
 </div>
 
@@ -41,7 +41,7 @@ Plinth flips the model: **the agent is the first-class user**. We give it:
 
 This is **v0.6 distribution & polish** — adds federated revocation across multi-node Identity, Postgres advisory locks, migration rollback execution, generic resource locks, channel-schema migration helpers, and a visual workflow graph in the Dashboard. On top of v0.5 reliability.
 
-**1621 tests passing** (1503 Python + 118 TypeScript). 15 Postgres tests skipped (require running Postgres). Backwards-compatible with all v0.1–v0.5 deployments.
+**1650 tests passing** (1503 Python + 118 TypeScript SDK + 29 TypeScript worker). 15 Postgres tests skipped (require running Postgres). Backwards-compatible with all v0.1–v0.5 deployments. v0.6.1 ships the TypeScript worker harness so JS-shop developers reach parity with the Python worker.
 
 | Component | Port | State |
 |-----------|-----:|-------|

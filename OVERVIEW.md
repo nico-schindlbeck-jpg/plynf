@@ -25,9 +25,9 @@
 
 | | |
 |--|--|
-| **Latest milestone** | **v0.6 — Distribution & Polish** *(May 7, 2026)* |
-| **Repo size** | ~110 000 lines of source + docs |
-| **Tests passing** | **1 621** *(1 503 Python + 118 TypeScript)* |
+| **Latest milestone** | **v0.6.1 — Distribution & Polish + TS Worker Harness** *(May 8, 2026)* |
+| **Repo size** | ~115 000 lines of source + docs |
+| **Tests passing** | **1 650** *(1 503 Python + 118 TS SDK + 29 TS Worker)* |
 | **Deployable units** | 9 *(4 services, 3 real MCP tool servers, 1 mock tool server, 1 worker, 1 benchmark suite)* |
 | **End-to-end demos** | 5 *(all run from a clean clone)* |
 | **License** | Apache 2.0 |

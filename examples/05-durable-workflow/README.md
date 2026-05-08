@@ -119,10 +119,66 @@ flow. Older v0.2 examples (e.g. `examples/03-resumable-workflow/`) use
 the default `initial_status="running"` and continue to work unchanged —
 the workspace's lease tables are additive.
 
+## TypeScript variant
+
+The same demo also runs against the Node worker (`@plinth/workflow-worker`).
+Files are alongside the Python ones:
+
+- `handlers.ts` — exports `register(runtime, client)` populating four
+  step handlers (mirrors `handlers.py`).
+- `start-workflow.ts` — driver that creates the workflow + waits
+  (mirrors `start_workflow.py`).
+- `shared.ts` — mock LLM / search / fetch helpers (mirrors `shared.py`).
+
+### One-shot setup (compile both files)
+
+The TS SDK and worker package live in this monorepo. A small
+`tsconfig.json` is provided alongside the sources — point `tsc` at it
+once the dependencies are built:
+
+```bash
+# Build the workspace dependencies once
+(cd ../../sdk/typescript && npm install && npm run build)
+(cd ../../worker-ts     && npm install && npm run build)
+
+# Compile the example sources to ./build/*.js
+cd examples/05-durable-workflow
+npx tsc -p tsconfig.json
+```
+
+The provided tsconfig wires `@plinth/sdk` and `@plinth/workflow-worker`
+to the local `dist/index.d.ts` files via `paths`, so the example
+type-checks against the same artifacts you'd publish.
+
+### Terminal 1 — start a TS worker
+
+```bash
+node ../../worker-ts/dist/cli.js \
+  --handlers-module ./build/handlers.js \
+  --concurrency 2
+```
+
+The CLI imports your compiled `handlers.js` and calls its `register(runtime, client)`
+function on startup, then enters the same poll → lease → execute → release
+loop as the Python worker.
+
+### Terminal 2 — run the workflow
+
+```bash
+node ./build/start-workflow.js --topic "renewable energy"
+```
+
+The driver prints progress as the worker handles each step, then dumps
+the synthesised report from `report.md`. Crash recovery, multi-worker,
+and lease semantics all work identically — pick the language that suits
+your stack.
+
 ## Files
 
-- `handlers.py` — `@client.workflow_handler(...)` registrations for the
-  four steps. Imported by the worker on startup.
-- `start_workflow.py` — driver that creates the workflow + waits.
-- `shared.py` — mock LLM / search / fetch helpers so the demo runs offline.
+- `handlers.py` / `handlers.ts` — handler registrations for the four
+  steps. Imported by the matching worker (Python or Node) on startup.
+- `start_workflow.py` / `start-workflow.ts` — drivers that create the
+  workflow + wait.
+- `shared.py` / `shared.ts` — mock LLM / search / fetch helpers so the
+  demo runs offline.
 - `reports/` — generated report files (gitkeep stub).
