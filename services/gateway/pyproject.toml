@@ -24,9 +24,12 @@ dependencies = [
     # the RS256 path because PyJWT defers RSA support to ``cryptography``.
     "pyjwt[crypto]>=2.8",
     # v0.4 — OTLP/HTTP log emission for the audit event stream.
-    "opentelemetry-api>=1.25",
-    "opentelemetry-sdk>=1.25",
-    "opentelemetry-exporter-otlp-proto-http>=1.25",
+    # Pinned <1.30 because 1.30 changed the internal _logs API and broke
+    # our LoggerProvider/BatchLogRecordProcessor wiring. Re-pin once we
+    # migrate to the public logs API.
+    "opentelemetry-api>=1.25,<1.30",
+    "opentelemetry-sdk>=1.25,<1.30",
+    "opentelemetry-exporter-otlp-proto-http>=1.25,<1.30",
 ]
 
 [project.optional-dependencies]
