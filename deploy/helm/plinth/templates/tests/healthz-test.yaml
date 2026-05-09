@@ -1,0 +1,86 @@
+{{- /*
+SPDX-License-Identifier: Apache-2.0
+Plinth — `helm test` smoke test.
+
+Spins up a short-lived Pod that hits /healthz on every enabled service. Run
+after `helm install` / `helm upgrade` with:
+
+  helm test plinth -n <namespace>
+
+The test pod is annotated as a `helm.sh/hook: test` resource so it's only
+created on `helm test` and gets garbage-collected with the release.
+*/ -}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "plinth.fullname" . }}-healthz-test"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.labels" . | nindent 4 }}
+    app.kubernetes.io/component: test
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  serviceAccountName: {{ include "plinth.serviceAccountName" . }}
+  securityContext:
+    {{- include "plinth.podSecurityContext" . | nindent 4 }}
+  containers:
+    - name: probe
+      image: curlimages/curl:8.7.1
+      imagePullPolicy: IfNotPresent
+      securityContext:
+        {{- include "plinth.containerSecurityContext" . | nindent 8 }}
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -eu
+          fail=0
+          probe() {
+            name="$1"
+            url="$2"
+            printf "[%-12s] GET %s ... " "$name" "$url"
+            if curl --fail --silent --show-error --max-time 5 "$url" >/dev/null; then
+              echo OK
+            else
+              echo FAIL
+              fail=1
+            fi
+          }
+          {{- if .Values.workspace.enabled }}
+          probe workspace  "http://plinth-workspace.{{ .Release.Namespace }}.svc:{{ .Values.workspace.service.port }}/healthz"
+          {{- end }}
+          {{- if .Values.gateway.enabled }}
+          probe gateway    "http://plinth-gateway.{{ .Release.Namespace }}.svc:{{ .Values.gateway.service.port }}/healthz"
+          {{- end }}
+          {{- if .Values.identity.enabled }}
+          probe identity   "http://plinth-identity.{{ .Release.Namespace }}.svc:{{ .Values.identity.service.port }}/healthz"
+          {{- end }}
+          {{- if .Values.dashboard.enabled }}
+          probe dashboard  "http://plinth-dashboard.{{ .Release.Namespace }}.svc:{{ .Values.dashboard.service.port }}/healthz"
+          {{- end }}
+          {{- if .Values.mockMcp.enabled }}
+          probe mock-mcp   "http://plinth-mock-mcp.{{ .Release.Namespace }}.svc:{{ .Values.mockMcp.service.port }}/healthz"
+          {{- end }}
+          {{- if .Values.githubMcp.enabled }}
+          probe github-mcp "http://plinth-github-mcp.{{ .Release.Namespace }}.svc:{{ .Values.githubMcp.service.port }}/healthz"
+          {{- end }}
+          {{- if .Values.slackMcp.enabled }}
+          probe slack-mcp  "http://plinth-slack-mcp.{{ .Release.Namespace }}.svc:{{ .Values.slackMcp.service.port }}/healthz"
+          {{- end }}
+          {{- if .Values.linearMcp.enabled }}
+          probe linear-mcp "http://plinth-linear-mcp.{{ .Release.Namespace }}.svc:{{ .Values.linearMcp.service.port }}/healthz"
+          {{- end }}
+          if [ "$fail" -ne 0 ]; then
+            echo "one or more services failed health check"
+            exit 1
+          fi
+          echo "all enabled services healthy"
+      resources:
+        requests:
+          cpu: 25m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi

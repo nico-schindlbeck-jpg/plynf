@@ -1,0 +1,116 @@
+# SPDX-License-Identifier: Apache-2.0
+# Plinth — Linear MCP server.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plinth-linear-mcp-config
+  namespace: plinth
+  labels:
+    app.kubernetes.io/name: linear-mcp
+    app.kubernetes.io/part-of: plinth
+data:
+  PLINTH_LINEAR_MCP_HOST: "0.0.0.0"
+  PLINTH_LINEAR_MCP_PORT: "7428"
+  PLINTH_LINEAR_MCP_LOG_LEVEL: "INFO"
+  PLINTH_LINEAR_MCP_LOG_FORMAT: "json"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plinth-linear-mcp
+  namespace: plinth
+  labels:
+    app.kubernetes.io/name: linear-mcp
+    app.kubernetes.io/part-of: plinth
+    app.kubernetes.io/component: mcp
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: linear-mcp
+      app.kubernetes.io/part-of: plinth
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: linear-mcp
+        app.kubernetes.io/part-of: plinth
+        app.kubernetes.io/component: mcp
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: linear-mcp
+          image: ghcr.io/nico-schindlbeck-jpg/plinth/linear-mcp:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 7428
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: plinth-linear-mcp-config
+          env:
+            - name: PLINTH_LINEAR_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: plinth-secrets
+                  key: linear-oauth-client-id
+                  optional: true
+            - name: PLINTH_LINEAR_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: plinth-secrets
+                  key: linear-oauth-client-secret
+                  optional: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plinth-linear-mcp
+  namespace: plinth
+  labels:
+    app.kubernetes.io/name: linear-mcp
+    app.kubernetes.io/part-of: plinth
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: linear-mcp
+    app.kubernetes.io/part-of: plinth
+  ports:
+    - name: http
+      port: 7428
+      targetPort: 7428
+      protocol: TCP

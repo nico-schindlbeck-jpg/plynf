@@ -8,8 +8,9 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Status](https://img.shields.io/badge/status-v0.6.1%20+%20TS%20worker%20harness-green.svg)](#status)
-[![Tests](https://img.shields.io/badge/tests-1650%20passing-brightgreen.svg)](#status)
+[![Status](https://img.shields.io/badge/status-v1.0%20GA-brightgreen.svg)](#status)
+[![Tests](https://img.shields.io/badge/tests-2066%20passing-brightgreen.svg)](#status)
+[![API](https://img.shields.io/badge/API-v1%20stable-blue.svg)](docs/API_STABILITY.md)
 
 </div>
 
@@ -41,7 +42,9 @@ Plinth flips the model: **the agent is the first-class user**. We give it:
 
 This is **v0.6 distribution & polish** — adds federated revocation across multi-node Identity, Postgres advisory locks, migration rollback execution, generic resource locks, channel-schema migration helpers, and a visual workflow graph in the Dashboard. On top of v0.5 reliability.
 
-**1650 tests passing** (1503 Python + 118 TypeScript SDK + 29 TypeScript worker). 15 Postgres tests skipped (require running Postgres). Backwards-compatible with all v0.1–v0.5 deployments. v0.6.1 ships the TypeScript worker harness so JS-shop developers reach parity with the Python worker.
+**2066 tests passing** (1901 Python + 136 TS SDK + 29 TS worker). 15 Postgres tests skipped (require running Postgres). Backwards-compatible with every v0.1–v0.6 demo and deployment.
+
+**v1.0 ships GA**: stable API guarantees (`docs/API_STABILITY.md`), per-tenant resource quotas, GDPR export + delete, tamper-evident audit chain, multi-region scaffolding, unified `plinth` CLI, Prometheus on every service, dashboard time-series, formal SLOs, k8s + Helm + Terraform deployment artifacts, threat model.
 
 | Component | Port | State |
 |-----------|-----:|-------|

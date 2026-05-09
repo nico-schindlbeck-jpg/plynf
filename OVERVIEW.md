@@ -25,9 +25,10 @@
 
 | | |
 |--|--|
-| **Latest milestone** | **v0.6.1 — Distribution & Polish + TS Worker Harness** *(May 8, 2026)* |
-| **Repo size** | ~115 000 lines of source + docs |
-| **Tests passing** | **1 650** *(1 503 Python + 118 TS SDK + 29 TS Worker)* |
+| **Latest milestone** | **v1.0.0 — General Availability** *(May 8, 2026)* |
+| **Repo size** | ~120 000 lines of source + docs |
+| **Tests passing** | **2 066** *(1 901 Python + 136 TS SDK + 29 TS Worker)* |
+| **API stability** | `v1` stable — see `docs/API_STABILITY.md` |
 | **Deployable units** | 9 *(4 services, 3 real MCP tool servers, 1 mock tool server, 1 worker, 1 benchmark suite)* |
 | **End-to-end demos** | 5 *(all run from a clean clone)* |
 | **License** | Apache 2.0 |
@@ -41,13 +42,13 @@
 | v0.3 | Production-credible (real auth, multi-tenancy, real GitHub OAuth, TS-SDK parity) | done |
 | v0.4 | Scale & operability (Postgres backend, OpenTelemetry export, RS256 keys with rotation, more OAuth providers) | done |
 | v0.5 | Reliability & coordination depth (migrations, durable workers, transactions, typed channels, benchmarks) | done |
-| **v0.6** | **Distribution & polish (federated revocation, migration rollback, workflow visualisation, generic locks, schema-migration helpers)** | **CURRENT** |
-| v0.7 | Multi-tenant SaaS posture (TS worker harness, per-tenant quotas, tenant admin UI, schema-evolution wizard) | next |
-| v1.0 | General availability (full multi-region, compliance certifications, stable API guarantees) | future |
+| v0.6 | Distribution & polish (federated revocation, migration rollback, workflow viz, generic locks, schema-migration helpers, TS worker) | done |
+| **v1.0** | **General Availability (per-tenant quotas, multi-region scaffolding, GDPR export+delete, tamper-evident audit, unified CLI, k8s/Helm/Terraform, Prometheus on every service, formal SLOs, threat model, stable API)** | **CURRENT** |
+| post-1.0 | Continuous improvement (OTel migration, federated revocation, advisory locks, enterprise SSO, compliance certifications) | next |
 
 ### Backwards compatibility
 
-Every demo from v0.1 forward still runs unchanged. New features are opt-in by default. An existing v0.4 installation upgrades to v0.5 without manual schema work — the migration runner detects existing tables and marks them applied automatically.
+Every demo from v0.1 forward still runs unchanged. New features are opt-in by default. **API v1 is now stable** — additive-only changes guaranteed for ≥12 months; breaking changes require `/v2/` namespace with deprecation headers + migration guide.
 
 ---
 

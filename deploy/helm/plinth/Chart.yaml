@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: v2
+name: plinth
+description: |
+  Plinth — agent-native infrastructure platform.
+  Deploys Workspace, Gateway, Identity, Dashboard, and the bundled MCP servers
+  with sane defaults, optional Postgres, and Ingress / HPA / NetworkPolicy
+  hooks suitable for production use.
+type: application
+
+# Chart version — bumped independently of appVersion. SemVer.
+version: 1.0.0
+
+# Application version — pinned to a Plinth release.
+appVersion: "1.0.0"
+
+home: https://github.com/nico-schindlbeck-jpg/plinth
+sources:
+  - https://github.com/nico-schindlbeck-jpg/plinth
+icon: https://raw.githubusercontent.com/nico-schindlbeck-jpg/plinth/main/docs/assets/logo.svg
+
+keywords:
+  - plinth
+  - agents
+  - mcp
+  - llm
+  - infrastructure
+  - workspace
+  - gateway
+
+maintainers:
+  - name: The Plinth Authors
+    url: https://github.com/nico-schindlbeck-jpg/plinth
+
+# Kubernetes version constraint — tested on 1.27+.
+kubeVersion: ">=1.27.0-0"
+
+annotations:
+  artifacthub.io/changes: |
+    - Initial Plinth Helm chart for v1.0 GA.

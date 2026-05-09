@@ -1,9 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The Plinth Authors
-"""Audit log: persist + query invocation events."""
+"""Audit log: persist + query invocation events.
+
+v1.0 adds a tamper-evident hash chain — every newly recorded event carries
+``prev_hash`` (the previous event's ``event_hash`` across all tenants) and
+``event_hash`` = sha256(prev_hash || canonical_json(event_minus_hash)). The
+:meth:`AuditLog.verify_chain` method walks the chain forward and reports
+breakage at the first mismatch.
+"""
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
@@ -12,7 +20,7 @@ from ulid import ULID
 
 from .cache import canonical_json
 from .db import Database
-from .models import AuditEvent, AuditStats, AuditToolStat
+from .models import AuditEvent, AuditStats, AuditToolStat, ChainVerifyResult
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from .otlp_emitter import OTLPEmitter
@@ -48,6 +56,37 @@ def _row_to_event(row) -> AuditEvent:
         cost_estimate_usd=float(row["cost_estimate_usd"]),
         error=row["error"],
     )
+
+
+def _canonical_event_payload(row: Any) -> dict[str, Any]:
+    """Return the canonical dict whose JSON gets fed into the chain hash.
+
+    All fields except the chain columns themselves go in. Order doesn't
+    matter — :func:`canonical_json` sorts keys.
+    """
+
+    return {
+        "id": row["id"],
+        "timestamp": str(row["timestamp"]),
+        "tool_id": row["tool_id"],
+        "workspace_id": row["workspace_id"],
+        "agent_id": row["agent_id"],
+        "tenant_id": row["tenant_id"] or "default",
+        "arguments_hash": row["arguments_hash"],
+        "arguments_preview": row["arguments_preview"],
+        "result_hash": row["result_hash"],
+        "cached": int(row["cached"] or 0),
+        "duration_ms": int(row["duration_ms"]),
+        "cost_estimate_usd": float(row["cost_estimate_usd"] or 0.0),
+        "error": row["error"],
+    }
+
+
+def compute_event_hash(prev_hash: str | None, payload: dict[str, Any]) -> str:
+    """Return ``sha256((prev_hash or "") || canonical_json(payload))``."""
+
+    body = (prev_hash or "") + canonical_json(payload)
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
 
 
 @dataclass
@@ -90,17 +129,62 @@ class AuditLog:
         """First 500 chars of canonical JSON of arguments."""
         return canonical_json(arguments)[:500]
 
+    async def _latest_event_hash(self) -> str | None:
+        """Return the most-recent non-NULL ``event_hash``, or None."""
+
+        row = await self._db.fetchone(
+            "SELECT event_hash FROM audit_events "
+            "WHERE event_hash IS NOT NULL "
+            "ORDER BY id DESC LIMIT 1"
+        )
+        if row is None:
+            return None
+        return row["event_hash"]
+
     async def record(self, rec: AuditRecord) -> AuditEvent:
-        """Persist ``rec`` and return the resulting :class:`AuditEvent`."""
+        """Persist ``rec`` and return the resulting :class:`AuditEvent`.
+
+        Computes ``prev_hash`` by reading the most-recent prior event's
+        ``event_hash`` and ``event_hash`` by hashing the canonical event
+        payload + prev_hash. The sequence "read latest → insert" is not
+        strictly atomic across concurrent writers; the chain still detects
+        tampering of any committed row, and concurrent writers simply
+        produce a chain order tied to insert order.
+        """
+
         event_id = new_audit_id()
         now = _utcnow()
+
+        prev_hash = await self._latest_event_hash()
+        # Build the canonical payload from the same column values we're
+        # about to insert. Verification on the way out re-reads from the
+        # DB and recomputes — keeping the two code paths in sync is the
+        # point of going through the same helper.
+        canonical_row = {
+            "id": event_id,
+            "timestamp": now.isoformat(),
+            "tool_id": rec.tool_id,
+            "workspace_id": rec.workspace_id,
+            "agent_id": rec.agent_id,
+            "tenant_id": rec.tenant_id or "default",
+            "arguments_hash": rec.arguments_hash,
+            "arguments_preview": rec.arguments_preview,
+            "result_hash": rec.result_hash,
+            "cached": 1 if rec.cached else 0,
+            "duration_ms": int(rec.duration_ms),
+            "cost_estimate_usd": float(rec.cost_estimate_usd),
+            "error": rec.error,
+        }
+        event_hash = compute_event_hash(prev_hash, canonical_row)
+
         await self._db.execute(
             """
             INSERT INTO audit_events (
                 id, timestamp, tool_id, workspace_id, agent_id, tenant_id,
                 arguments_hash, arguments_preview, result_hash,
-                cached, duration_ms, cost_estimate_usd, error
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                cached, duration_ms, cost_estimate_usd, error,
+                prev_hash, event_hash
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 event_id,
@@ -116,6 +200,8 @@ class AuditLog:
                 rec.duration_ms,
                 rec.cost_estimate_usd,
                 rec.error,
+                prev_hash,
+                event_hash,
             ),
         )
         event = AuditEvent(
@@ -274,4 +360,98 @@ class AuditLog:
                 for tid, counts in merged.items()
             ),
             key=lambda d: d["id"],
+        )
+
+    # ---------------------------------------------------------------- v1.0 chain
+
+    async def verify_chain(
+        self,
+        *,
+        since: datetime | None = None,
+        limit: int = 1000,
+    ) -> ChainVerifyResult:
+        """Verify the audit hash chain forward from ``since`` (or genesis).
+
+        Algorithm
+        ---------
+
+        1. Fetch up to ``limit`` events ordered by ``id ASC`` (ULID id sort
+           = chronological insert order). When ``since`` is supplied, the
+           earliest event is the first row with ``timestamp >= since``.
+        2. For each event with a non-NULL ``event_hash``:
+             * Recompute ``expected = sha256(prev_hash || canonical_json(event))``
+               using the canonical-payload helper.
+             * Compare to the stored ``event_hash``; mismatch → fail with
+               ``hash_mismatch``.
+             * Compare ``prev_hash`` against the previous chained event's
+               ``event_hash``. If the previous event also had a hash and
+               they don't match, fail with ``prev_hash_mismatch``.
+        3. NULL ``event_hash`` rows (legacy / pre-v1.0) are skipped, not
+           failed — the chain just doesn't extend through them.
+
+        Returns
+        -------
+
+        :class:`ChainVerifyResult` carrying ``verified``, ``checked``
+        (count of rows actually hashed), ``broken_at`` and
+        ``broken_reason`` on first failure.
+        """
+
+        clauses: list[str] = []
+        params: list[Any] = []
+        if since is not None:
+            clauses.append("timestamp >= ?")
+            params.append(since.isoformat())
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        sql = f"SELECT * FROM audit_events {where} ORDER BY id ASC LIMIT ?"
+        params.append(int(limit))
+        rows = await self._db.fetchall(sql, tuple(params))
+
+        prev_chained_hash: str | None = None
+        prev_chained_was_present = False
+        checked = 0
+
+        for row in rows:
+            stored_hash = row["event_hash"]
+            stored_prev = row["prev_hash"]
+            if stored_hash is None:
+                # Legacy row — chain doesn't extend through it. Reset the
+                # "previous chained" pointer so the next hashed row is
+                # treated as a chain start (its prev_hash may legitimately
+                # point to whatever was the latest hashed row globally).
+                continue
+
+            payload = _canonical_event_payload(row)
+            expected = compute_event_hash(stored_prev, payload)
+            if expected != stored_hash:
+                return ChainVerifyResult(
+                    verified=False,
+                    checked=checked,
+                    broken_at=row["id"],
+                    broken_reason="hash_mismatch",
+                )
+
+            # If this row claims a prev_hash it must match the previous
+            # chained row's hash — but only when we actually saw a chained
+            # row earlier in this verify pass. Otherwise prev_hash refers
+            # to a row before ``since`` (or before this verify window) and
+            # we trust it without re-checking.
+            if prev_chained_was_present:
+                if stored_prev != prev_chained_hash:
+                    return ChainVerifyResult(
+                        verified=False,
+                        checked=checked,
+                        broken_at=row["id"],
+                        broken_reason="prev_hash_mismatch",
+                    )
+
+            prev_chained_hash = stored_hash
+            prev_chained_was_present = True
+            checked += 1
+
+        return ChainVerifyResult(
+            verified=True,
+            checked=checked,
+            broken_at=None,
+            broken_reason=None,
         )

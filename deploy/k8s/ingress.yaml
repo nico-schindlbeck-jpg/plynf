@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: Apache-2.0
+# Plinth — example nginx Ingress for Dashboard + Gateway.
+#
+# This is intentionally NOT in the base kustomization.yaml so that operators
+# without an Ingress controller don't get errored apply attempts. Layer it
+# in via your own kustomization or apply explicitly:
+#
+#   kubectl apply -f deploy/k8s/ingress.yaml
+#
+# Assumes:
+#   - An nginx Ingress controller is installed (`ingressClassName: nginx`).
+#   - cert-manager is installed if you want TLS via the annotation below.
+#   - DNS for `dashboard.plinth.example` / `api.plinth.example` points at
+#     the Ingress controller's external address.
+#
+# Replace hostnames and the cert-manager issuer with your own before
+# applying.
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: plinth-dashboard
+  namespace: plinth
+  labels:
+    app.kubernetes.io/name: dashboard
+    app.kubernetes.io/part-of: plinth
+  annotations:
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+spec:
+  ingressClassName: nginx
+  # tls:
+  #   - hosts:
+  #       - dashboard.plinth.example
+  #     secretName: plinth-dashboard-tls
+  rules:
+    - host: dashboard.plinth.example
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: plinth-dashboard
+                port:
+                  number: 7424
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: plinth-gateway
+  namespace: plinth
+  labels:
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: plinth
+  annotations:
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+spec:
+  ingressClassName: nginx
+  # tls:
+  #   - hosts:
+  #       - api.plinth.example
+  #     secretName: plinth-gateway-tls
+  rules:
+    - host: api.plinth.example
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: plinth-gateway
+                port:
+                  number: 7422

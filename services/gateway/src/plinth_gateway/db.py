@@ -42,10 +42,14 @@ CREATE TABLE IF NOT EXISTS audit_events (
   cached INTEGER NOT NULL DEFAULT 0,
   duration_ms INTEGER NOT NULL,
   cost_estimate_usd REAL NOT NULL DEFAULT 0,
-  error TEXT
+  error TEXT,
+  prev_hash TEXT,
+  event_hash TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_audit_lookup ON audit_events(workspace_id, tool_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_agent ON audit_events(agent_id, timestamp DESC);
+-- ``idx_audit_chain`` is created in ``_migrate`` after the column ALTER so it
+-- safely runs on databases predating the prev_hash/event_hash columns.
 
 CREATE TABLE IF NOT EXISTS cache_entries (
   cache_key TEXT PRIMARY KEY,
@@ -187,6 +191,14 @@ async def _migrate(conn: aiosqlite.Connection) -> None:
     )
     await conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_tools_tenant ON tools(tenant_id)"
+    )
+    # v1.0 — tamper-evident audit chain. ``prev_hash`` and ``event_hash`` are
+    # nullable so legacy rows pre-dating the column stay valid; the verify
+    # endpoint skips NULL rows.
+    await _ensure_column(conn, "audit_events", "prev_hash", "TEXT")
+    await _ensure_column(conn, "audit_events", "event_hash", "TEXT")
+    await conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_chain ON audit_events(id, event_hash)"
     )
 
 

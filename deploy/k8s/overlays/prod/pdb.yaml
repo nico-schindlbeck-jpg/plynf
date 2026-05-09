@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+# Plinth — PodDisruptionBudgets so cluster maintenance never knocks the
+# gateway/dashboard down to zero.
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: plinth-gateway
+  namespace: plinth
+  labels:
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: plinth
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gateway
+      app.kubernetes.io/part-of: plinth
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: plinth-dashboard
+  namespace: plinth
+  labels:
+    app.kubernetes.io/name: dashboard
+    app.kubernetes.io/part-of: plinth
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dashboard
+      app.kubernetes.io/part-of: plinth

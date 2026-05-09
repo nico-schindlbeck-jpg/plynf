@@ -164,6 +164,12 @@
       }
       return { name: "workflows", params: {} };
     }
+    if (parts[0] === "tenants") {
+      if (parts[1]) {
+        return { name: "tenant-detail", params: { tenant_id: parts[1] } };
+      }
+      return { name: "tenants", params: {} };
+    }
     return { name: "overview", params: {} };
   }
 
@@ -177,6 +183,10 @@
     } else if (route.name === "workflow-detail") {
       crumb.textContent =
         "/ workflows / " + (route.params.wf_id || "");
+    } else if (route.name === "tenants") {
+      crumb.textContent = "/ tenants";
+    } else if (route.name === "tenant-detail") {
+      crumb.textContent = "/ tenants / " + (route.params.tenant_id || "");
     } else {
       crumb.textContent = "";
     }
@@ -185,10 +195,12 @@
   function renderTopnav(route) {
     // Highlight whichever top-level area the current route belongs to.
     const links = $$(".topnav-link");
-    const active =
-      route.name === "workflows" || route.name === "workflow-detail"
-        ? "workflows"
-        : "overview";
+    let active = "overview";
+    if (route.name === "workflows" || route.name === "workflow-detail") {
+      active = "workflows";
+    } else if (route.name === "tenants" || route.name === "tenant-detail") {
+      active = "tenants";
+    }
     links.forEach((el) => {
       const isActive = el.dataset.route === active;
       el.classList.toggle("active", isActive);
@@ -206,6 +218,9 @@
     renderCrumb(route);
     renderTopnav(route);
     closeWorkflowStepModal({ silent: true });
+    // v1.0 — stop tile polling whenever we leave overview; restart in the
+    // overview branch below.
+    stopTimeseriesTiles();
     if (route.name === "workspace") {
       mountTemplate("tpl-workspace");
       stopPolling();
@@ -219,6 +234,14 @@
       mountTemplate("tpl-workflow-detail");
       void refreshWorkflowDetail();
       startPolling();
+    } else if (route.name === "tenants") {
+      mountTemplate("tpl-tenants-list");
+      stopPolling();
+      void loadTenantsList();
+    } else if (route.name === "tenant-detail") {
+      mountTemplate("tpl-tenant-detail");
+      stopPolling();
+      void loadTenantDetail(route.params.tenant_id);
     } else {
       mountTemplate("tpl-overview");
       void refresh();
@@ -758,6 +781,119 @@
     ctx.fill();
   }
 
+  // ---- v1.0 time-series tiles -----------------------------------------
+  //
+  // Each tile fetches /api/timeseries?metric=...&window=24h independently so
+  // a slow/failed metric doesn't block the others. We refresh on the same
+  // 30s tempo regardless of the main overview poll cadence.
+
+  const TS_TILE_METRICS = ["cost", "latency_p99", "error_rate", "cache_hit_ratio"];
+  const TS_TILE_REFRESH_MS = 30000;
+  let tsTilesTimer = null;
+
+  function fmtTsValue(metric, v) {
+    const n = Number(v || 0);
+    if (metric === "cost") return "$" + n.toFixed(4);
+    if (metric === "latency_p99") {
+      if (n >= 1000) return (n / 1000).toFixed(2) + "s";
+      return Math.round(n) + "ms";
+    }
+    if (metric === "error_rate" || metric === "cache_hit_ratio") {
+      return n.toFixed(1) + "%";
+    }
+    return String(Math.round(n));
+  }
+
+  function renderTimeseriesTile(tile, payload) {
+    const svgRoot = tile.querySelector("[data-svg]");
+    const summary = tile.querySelector("[data-summary]");
+    if (!svgRoot) return;
+    const points = (payload && payload.points) || [];
+    const sum = (payload && payload.summary) || { min: 0, max: 0, avg: 0 };
+    const metric = tile.dataset.metric;
+    if (summary) {
+      summary.textContent = points.length
+        ? "min " + fmtTsValue(metric, sum.min)
+            + " · avg " + fmtTsValue(metric, sum.avg)
+            + " · max " + fmtTsValue(metric, sum.max)
+        : "no data";
+    }
+
+    if (!points.length) {
+      svgRoot.innerHTML = '<svg viewBox="0 0 300 100" preserveAspectRatio="none"></svg>';
+      return;
+    }
+
+    const width = 300;
+    const height = 100;
+    const padX = 4;
+    const padY = 6;
+    const innerW = width - padX * 2;
+    const innerH = height - padY * 2;
+
+    const values = points.map((p) => Number(p.value || 0));
+    const maxV = Math.max.apply(null, values);
+    const minV = Math.min.apply(null, values);
+    const span = Math.max(maxV - minV, 0.000001);
+
+    function xFor(i) {
+      return padX + (i / Math.max(1, values.length - 1)) * innerW;
+    }
+    function yFor(v) {
+      const norm = (v - minV) / span;
+      return padY + (1 - norm) * innerH;
+    }
+
+    let pathD = "";
+    values.forEach((v, i) => {
+      const x = xFor(i);
+      const y = yFor(v);
+      pathD += (i === 0 ? "M" : " L") + x.toFixed(2) + "," + y.toFixed(2);
+    });
+
+    let areaD = pathD
+      + " L" + xFor(values.length - 1).toFixed(2) + "," + (padY + innerH).toFixed(2)
+      + " L" + xFor(0).toFixed(2) + "," + (padY + innerH).toFixed(2)
+      + " Z";
+
+    const svg =
+      '<svg viewBox="0 0 ' + width + ' ' + height + '" preserveAspectRatio="none">'
+        + '<line class="ts-axis" x1="' + padX + '" y1="' + (height - padY) + '" '
+              + 'x2="' + (width - padX) + '" y2="' + (height - padY) + '" />'
+        + '<path class="ts-area" d="' + areaD + '" />'
+        + '<path class="ts-line" d="' + pathD + '" />'
+      + '</svg>';
+    svgRoot.innerHTML = svg;
+  }
+
+  async function refreshTimeseriesTiles() {
+    if (currentRoute.name !== "overview") return;
+    const tiles = document.querySelectorAll(".ts-tile[data-metric]");
+    if (!tiles.length) return;
+    await Promise.all(Array.from(tiles).map(async (tile) => {
+      const metric = tile.dataset.metric;
+      try {
+        const payload = await api(
+          "/api/timeseries?metric=" + encodeURIComponent(metric) + "&window=24h"
+        );
+        renderTimeseriesTile(tile, payload);
+      } catch (e) {
+        renderTimeseriesTile(tile, { points: [], summary: { min: 0, max: 0, avg: 0 } });
+      }
+    }));
+  }
+
+  function startTimeseriesTiles() {
+    if (tsTilesTimer) clearInterval(tsTilesTimer);
+    refreshTimeseriesTiles();
+    tsTilesTimer = setInterval(refreshTimeseriesTiles, TS_TILE_REFRESH_MS);
+  }
+
+  function stopTimeseriesTiles() {
+    if (tsTilesTimer) clearInterval(tsTilesTimer);
+    tsTilesTimer = null;
+  }
+
   function renderCostBars(byTool) {
     const root = $("#bars");
     if (!root) return;
@@ -809,6 +945,10 @@
       renderOtlpStatus(overview.observability);
       renderTimeSeries(overview.timeseries);
       renderCostBars(overview.audit ? overview.audit.by_tool : []);
+      // v1.0 — kick off tile refresh on first overview render. The tiles
+      // own their own 30s polling cadence so they don't compete with the
+      // main 5s overview poll.
+      if (!tsTilesTimer) startTimeseriesTiles();
 
       // Tool calls list comes from the audit endpoint directly so we always
       // surface raw recent events with audit IDs etc.
@@ -953,8 +1093,41 @@
         <td class="mono">${escapeHtml(c.name || "—")}</td>
         <td class="num">${escapeHtml(intFmt.format(c.message_count || 0))}</td>
         <td class="time">${escapeHtml(fmtDate(c.last_send_at || c.created_at))}</td>
+        <td class="actions">
+          <button class="btn small" type="button"
+                  data-channel-edit-schema="${escapeHtml(c.name || "")}">
+            Edit schema
+          </button>
+        </td>
       </tr>`,
     });
+    // Wire the per-row "Edit schema" buttons after rendering.
+    const body = $("#channel-body");
+    if (body) {
+      body.querySelectorAll("[data-channel-edit-schema]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const name = btn.getAttribute("data-channel-edit-schema") || "";
+          const wsId = currentRoute.params.ws_id;
+          if (!wsId || !name) return;
+          // Fetch the existing schema (may 404 → null) so the editor pre-fills.
+          let existing = null;
+          try {
+            const r = await fetch(
+              `/api/workspaces/${encodeURIComponent(wsId)}/channels/${encodeURIComponent(name)}/schema`,
+            );
+            if (r.ok) {
+              const body = await r.json();
+              existing = body.schema_json || body.schema || null;
+            }
+          } catch (_) {
+            /* no-op */
+          }
+          if (window.PlinthSchemaWizard) {
+            window.PlinthSchemaWizard.open(wsId, name, existing);
+          }
+        });
+      });
+    }
   }
 
   function renderWorkflows(workflows) {
@@ -1681,4 +1854,554 @@
     window.addEventListener("hashchange", navigate);
     navigate();
   });
+
+  // ---- v1.0: Tenants admin UI -----------------------------------------
+
+  // Quota presets used by the create-tenant modal. ``default`` matches
+  // the contract; trial / enterprise are 10% and 10x of every numeric
+  // limit (rounded sensibly).
+  const QUOTA_PRESETS = {
+    default: null,  // server-side defaults take over.
+    trial: {
+      max_workspaces: 10,
+      max_storage_gb: 1.0,
+      max_channels_per_workspace: 5,
+      max_workflows_per_workspace: 10,
+      max_active_tokens: 100,
+      max_oauth_connections: 5,
+      max_cost_usd_day: 10.0,
+      max_cost_usd_month: 200.0,
+      max_invocations_per_minute: 60,
+    },
+    enterprise: {
+      max_workspaces: 1000,
+      max_storage_gb: 100.0,
+      max_channels_per_workspace: 500,
+      max_workflows_per_workspace: 1000,
+      max_active_tokens: 10000,
+      max_oauth_connections: 500,
+      max_cost_usd_day: 1000.0,
+      max_cost_usd_month: 20000.0,
+      max_invocations_per_minute: 6000,
+    },
+  };
+
+  async function loadTenantsList() {
+    const body = $("#tenants-list-body");
+    const countEl = $("#tenants-list-count");
+    if (!body) return;
+    body.innerHTML = `<tr class="empty"><td colspan="6">loading&hellip;</td></tr>`;
+
+    let tenants = [];
+    let costByTenant = {};
+    try {
+      const list = await api("/api/tenants");
+      tenants = list.tenants || [];
+    } catch (err) {
+      body.innerHTML = `<tr class="empty"><td colspan="6">Failed to load: ${escapeHtml(
+        err.message,
+      )}</td></tr>`;
+      return;
+    }
+    try {
+      // Best-effort: use the overview's audit rollup for cost-by-tenant.
+      const ov = await api("/api/overview");
+      const list = (ov.tenants || {}).list || [];
+      costByTenant = list.reduce((acc, t) => {
+        acc[t.id] = Number(t.cost_24h || 0);
+        return acc;
+      }, {});
+    } catch (_) {
+      // Silent — costs simply show as $0 if the overview is unreachable.
+    }
+
+    if (countEl) countEl.textContent = `${tenants.length} total`;
+    if (!tenants.length) {
+      body.innerHTML = `<tr class="empty"><td colspan="6">No tenants yet.</td></tr>`;
+      return;
+    }
+    body.innerHTML = tenants
+      .map((t) => {
+        const cost = costByTenant[t.id] || 0;
+        return `
+          <tr>
+            <td class="id mono">${escapeHtml(t.id)}</td>
+            <td>${escapeHtml(safe(t.name, t.id))}</td>
+            <td class="num">${intFmt.format(t.member_count || 0)}</td>
+            <td class="num">${intFmt.format(t.workspace_count || 0)}</td>
+            <td class="num">${escapeHtml(fmtUSD(cost))}</td>
+            <td class="actions">
+              <a class="btn small" href="#/tenants/${encodeURIComponent(
+                t.id,
+              )}">view</a>
+            </td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    // Wire create-tenant button.
+    const createBtn = $("#tenant-create-btn");
+    if (createBtn) {
+      createBtn.onclick = openTenantCreateModal;
+    }
+  }
+
+  function openTenantCreateModal() {
+    const m = $("#tenant-create-modal");
+    if (!m) return;
+    m.hidden = false;
+    const form = $("#tenant-create-form");
+    const status = $("#tenant-create-status");
+    if (status) status.textContent = "";
+    if (!form) return;
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const data = new FormData(form);
+      const id = String(data.get("id") || "").trim();
+      const name = String(data.get("name") || "").trim();
+      const preset = String(data.get("preset") || "default");
+      if (!id || !name) return;
+      try {
+        const r = await fetch("/api/tenants", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, name }),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        // Optionally apply a preset.
+        const presetBody = QUOTA_PRESETS[preset];
+        if (presetBody) {
+          await fetch(`/api/tenants/${encodeURIComponent(id)}/quotas`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(presetBody),
+          });
+        }
+        if (status) status.textContent = "Created.";
+        location.hash = `#/tenants/${encodeURIComponent(id)}`;
+      } catch (err) {
+        if (status) status.textContent = `Failed: ${err.message}`;
+      }
+    };
+    const closeBtn = $("#tenant-create-close");
+    if (closeBtn) {
+      closeBtn.onclick = () => {
+        m.hidden = true;
+      };
+    }
+  }
+
+  async function loadTenantDetail(tenantId) {
+    if (!tenantId) return;
+    const idEl = $("#tenant-id");
+    if (idEl) idEl.textContent = tenantId;
+    const nameEl = $("#tenant-name");
+
+    let tenant = null;
+    try {
+      tenant = await api(`/api/tenants/${encodeURIComponent(tenantId)}`);
+    } catch (err) {
+      if (nameEl) nameEl.textContent = `Tenant (${err.message})`;
+    }
+    if (nameEl) nameEl.textContent = (tenant && tenant.name) || tenantId;
+
+    // Quotas
+    let quotas = null;
+    try {
+      quotas = await api(`/api/tenants/${encodeURIComponent(tenantId)}/quotas`);
+    } catch (_) {
+      /* identity may be unreachable; form stays blank */
+    }
+    populateQuotasForm(quotas);
+    wireQuotasForm(tenantId);
+
+    // Usage
+    void renderTenantUsage(tenantId, quotas);
+
+    // Audit (filter by tenant_id)
+    void renderTenantAudit(tenantId);
+
+    // Delete
+    const delBtn = $("#tenant-delete-btn");
+    if (delBtn) {
+      delBtn.onclick = () => {
+        if (
+          confirm(
+            "Delete tenant " +
+              tenantId +
+              "?\n\nThis is hard. Run a GDPR export first if you need the data.",
+          )
+        ) {
+          // For now we surface a CONTRACTS-aligned "use the API" message;
+          // full hard-delete cascade lives behind /v1/tenants/{id}/data
+          // which is parallel-agent territory.
+          alert("Hard-delete must be done via the GDPR endpoint at this time.");
+        }
+      };
+    }
+  }
+
+  function populateQuotasForm(quotas) {
+    const form = $("#tenant-quotas-form");
+    if (!form) return;
+    if (!quotas) return;
+    Array.from(form.elements).forEach((el) => {
+      if (el.name && Object.prototype.hasOwnProperty.call(quotas, el.name)) {
+        el.value = String(quotas[el.name]);
+      }
+    });
+  }
+
+  function wireQuotasForm(tenantId) {
+    const form = $("#tenant-quotas-form");
+    if (!form) return;
+    const status = $("#quotas-status");
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const data = new FormData(form);
+      const body = {};
+      for (const [k, v] of data.entries()) {
+        if (v === "" || v == null) continue;
+        body[k] = Number(v);
+      }
+      try {
+        const r = await fetch(
+          `/api/tenants/${encodeURIComponent(tenantId)}/quotas`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          },
+        );
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        if (status) status.textContent = "Saved.";
+        // Refresh usage display with the latest quota values.
+        const quotas = await r.json();
+        populateQuotasForm(quotas);
+        await renderTenantUsage(tenantId, quotas);
+      } catch (err) {
+        if (status) status.textContent = `Failed: ${err.message}`;
+      }
+    };
+    const reset = $("#quotas-reset");
+    if (reset) {
+      reset.onclick = async () => {
+        if (!confirm("Reset all quotas for " + tenantId + "?")) return;
+        try {
+          await fetch(
+            `/api/tenants/${encodeURIComponent(tenantId)}/quotas`,
+            { method: "DELETE" },
+          );
+          // Reload defaults from the server.
+          const q = await api(
+            `/api/tenants/${encodeURIComponent(tenantId)}/quotas`,
+          );
+          populateQuotasForm(q);
+          if (status) status.textContent = "Reset to defaults.";
+        } catch (err) {
+          if (status) status.textContent = `Failed: ${err.message}`;
+        }
+      };
+    }
+  }
+
+  async function renderTenantUsage(tenantId, quotas) {
+    const root = $("#tenant-usage");
+    if (!root) return;
+    let usage = null;
+    try {
+      usage = await api(`/api/tenants/${encodeURIComponent(tenantId)}/usage`);
+    } catch (_) {
+      root.innerHTML = `<p class="empty muted">Usage unavailable.</p>`;
+      return;
+    }
+    const rows = [
+      ["workspaces", usage.workspaces, quotas && quotas.max_workspaces],
+      ["storage_gb", usage.storage_gb, quotas && quotas.max_storage_gb],
+      ["active_tokens", usage.active_tokens, quotas && quotas.max_active_tokens],
+      [
+        "oauth_connections",
+        usage.oauth_connections,
+        quotas && quotas.max_oauth_connections,
+      ],
+      [
+        "cost_usd_day",
+        usage.cost_usd_day,
+        quotas && quotas.max_cost_usd_day,
+      ],
+      [
+        "cost_usd_month",
+        usage.cost_usd_month,
+        quotas && quotas.max_cost_usd_month,
+      ],
+    ];
+    root.innerHTML = rows
+      .map(([label, current, max]) => {
+        const pct = max && max > 0 ? Math.min(100, (current / max) * 100) : 0;
+        return `
+          <div class="usage-row">
+            <span class="usage-label">${escapeHtml(label)}</span>
+            <span class="usage-meter" aria-hidden="true">
+              <span class="usage-bar" style="width:${pct.toFixed(1)}%"></span>
+            </span>
+            <span class="usage-value mono">
+              ${escapeHtml(String(current))} / ${escapeHtml(String(max ?? "—"))}
+            </span>
+          </div>
+        `;
+      })
+      .join("");
+    const note = (usage.notes && Object.keys(usage.notes).length)
+      ? `<p class="muted">Some metrics live in other services; identity reports them as 0 with a notes map.</p>`
+      : "";
+    root.innerHTML += note;
+  }
+
+  async function renderTenantAudit(tenantId) {
+    const body = $("#tenant-audit-body");
+    if (!body) return;
+    try {
+      const audit = await api(
+        `/api/audit?tenant_id=${encodeURIComponent(tenantId)}&limit=50`,
+      );
+      const events = audit.events || [];
+      if (!events.length) {
+        body.innerHTML = `<tr class="empty"><td colspan="5">No invocations yet.</td></tr>`;
+        return;
+      }
+      body.innerHTML = events
+        .map((e) => {
+          return `
+            <tr>
+              <td class="time">${escapeHtml(fmtTime(e.timestamp))}</td>
+              <td class="tool">${escapeHtml(e.tool_id || "?")}</td>
+              <td>${e.cached ? "cached" : "fresh"}</td>
+              <td class="num">${escapeHtml(fmtMs(e.duration_ms))}</td>
+              <td class="num">${escapeHtml(fmtUSD(e.cost_estimate_usd))}</td>
+            </tr>
+          `;
+        })
+        .join("");
+    } catch (_) {
+      body.innerHTML = `<tr class="empty"><td colspan="5">Audit unavailable.</td></tr>`;
+    }
+  }
+
+  // ---- v1.0: Channel schema evolution wizard --------------------------
+
+  let schemaWizardCtx = { wsId: null, channel: null };
+
+  function openSchemaWizard(wsId, channel, initialSchema) {
+    schemaWizardCtx = { wsId, channel };
+    const m = $("#schema-wizard-modal");
+    if (!m) return;
+    m.hidden = false;
+    const title = $("#schema-wizard-title");
+    if (title) title.textContent = `Edit schema — ${channel}`;
+    const summary = $("#schema-wizard-summary");
+    if (summary) {
+      summary.textContent = `Workspace ${shortId(wsId, 14)}, channel ${channel}.`;
+    }
+    const editor = $("#schema-wizard-editor");
+    if (editor) {
+      editor.value = initialSchema
+        ? JSON.stringify(initialSchema, null, 2)
+        : "{\n  \"type\": \"object\"\n}\n";
+      editor.oninput = updateSchemaWizardSyntax;
+      updateSchemaWizardSyntax();
+    }
+    const result = $("#schema-check-result");
+    if (result) result.innerHTML = "";
+    const apply = $("#schema-apply-btn");
+    if (apply) apply.disabled = true;
+    wireSchemaWizardButtons();
+  }
+
+  function closeSchemaWizard() {
+    const m = $("#schema-wizard-modal");
+    if (m) m.hidden = true;
+    schemaWizardCtx = { wsId: null, channel: null };
+  }
+
+  function readSchemaFromEditor() {
+    const editor = $("#schema-wizard-editor");
+    if (!editor) return null;
+    try {
+      return JSON.parse(editor.value);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function updateSchemaWizardSyntax() {
+    const status = $("#schema-wizard-syntax");
+    if (!status) return;
+    const parsed = readSchemaFromEditor();
+    const apply = $("#schema-apply-btn");
+    if (parsed === null) {
+      status.textContent = "Invalid JSON.";
+      status.className = "schema-status err";
+      if (apply) apply.disabled = true;
+      return;
+    }
+    status.textContent = "Valid JSON.";
+    status.className = "schema-status ok";
+    // Apply remains disabled until a green check.
+  }
+
+  function wireSchemaWizardButtons() {
+    const closeBtn = $("#schema-wizard-close");
+    if (closeBtn) closeBtn.onclick = closeSchemaWizard;
+
+    const checkBtn = $("#schema-check-btn");
+    if (checkBtn) checkBtn.onclick = doSchemaCheck;
+
+    const applyBtn = $("#schema-apply-btn");
+    if (applyBtn) applyBtn.onclick = doSchemaApply;
+
+    const replayBtn = $("#schema-replay-all-btn");
+    if (replayBtn) replayBtn.onclick = doDlqReplayDryRun;
+
+    const purgeBtn = $("#schema-purge-btn");
+    if (purgeBtn) purgeBtn.onclick = doDlqPurge;
+  }
+
+  async function doSchemaCheck() {
+    const { wsId, channel } = schemaWizardCtx;
+    const result = $("#schema-check-result");
+    const apply = $("#schema-apply-btn");
+    const schema = readSchemaFromEditor();
+    if (!result) return;
+    if (!schema) {
+      result.innerHTML = `<p class="schema-status err">Fix the JSON syntax first.</p>`;
+      return;
+    }
+    result.innerHTML = `<p class="muted">Checking&hellip;</p>`;
+    try {
+      const r = await fetch(
+        `/api/workspaces/${encodeURIComponent(
+          wsId,
+        )}/channels/${encodeURIComponent(channel)}/schema/check`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ schema, scope: "both" }),
+        },
+      );
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const body = await r.json();
+      const checked = body.checked || 0;
+      const invalid = body.invalid || 0;
+      const compatible = invalid === 0;
+      const samples = (body.sample_failures || []).slice(0, 10);
+      const samplesHtml = samples.length
+        ? `<details>
+             <summary>${samples.length} sample failure(s)</summary>
+             <pre>${escapeHtml(JSON.stringify(samples, null, 2))}</pre>
+           </details>`
+        : "";
+      result.innerHTML = `
+        <p class="schema-status ${compatible ? "ok" : "err"}">
+          ${checked} message(s) checked, ${invalid} invalid.
+          ${compatible ? "Compatible." : "Incompatible."}
+        </p>
+        ${samplesHtml}
+      `;
+      if (apply) apply.disabled = !compatible;
+    } catch (err) {
+      result.innerHTML = `<p class="schema-status err">Failed: ${escapeHtml(
+        err.message,
+      )}</p>`;
+    }
+  }
+
+  async function doSchemaApply() {
+    const { wsId, channel } = schemaWizardCtx;
+    const result = $("#schema-check-result");
+    const schema = readSchemaFromEditor();
+    if (!schema) return;
+    try {
+      const r = await fetch(
+        `/api/workspaces/${encodeURIComponent(
+          wsId,
+        )}/channels/${encodeURIComponent(channel)}/schema`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ schema }),
+        },
+      );
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (result)
+        result.innerHTML = `<p class="schema-status ok">Schema applied.</p>`;
+    } catch (err) {
+      if (result)
+        result.innerHTML = `<p class="schema-status err">Apply failed: ${escapeHtml(
+          err.message,
+        )}</p>`;
+    }
+  }
+
+  async function doDlqReplayDryRun() {
+    const { wsId, channel } = schemaWizardCtx;
+    const result = $("#schema-check-result");
+    if (!result) return;
+    try {
+      const r = await fetch(
+        `/api/workspaces/${encodeURIComponent(
+          wsId,
+        )}/channels/${encodeURIComponent(channel)}/deadletter/replay-all?dry_run=true`,
+        { method: "POST" },
+      );
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const body = await r.json();
+      result.innerHTML = `
+        <p class="schema-status">
+          Dry run: would replay ${intFmt.format(body.attempted || 0)},
+          succeed ${intFmt.format(body.succeeded || 0)},
+          fail ${intFmt.format(body.failed || 0)}.
+        </p>
+      `;
+    } catch (err) {
+      result.innerHTML = `<p class="schema-status err">Replay dry-run failed: ${escapeHtml(
+        err.message,
+      )}</p>`;
+    }
+  }
+
+  async function doDlqPurge() {
+    const { wsId, channel } = schemaWizardCtx;
+    const seconds = Number($("#schema-purge-seconds")?.value || "0");
+    const result = $("#schema-check-result");
+    if (!confirm(`Purge DLQ rows older than ${seconds}s?`)) return;
+    try {
+      const r = await fetch(
+        `/api/workspaces/${encodeURIComponent(
+          wsId,
+        )}/channels/${encodeURIComponent(
+          channel,
+        )}/deadletter?older_than_seconds=${encodeURIComponent(seconds)}`,
+        { method: "DELETE" },
+      );
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const body = await r.json();
+      if (result)
+        result.innerHTML = `<p class="schema-status ok">Purged ${intFmt.format(
+          body.purged || 0,
+        )} row(s).</p>`;
+    } catch (err) {
+      if (result)
+        result.innerHTML = `<p class="schema-status err">Purge failed: ${escapeHtml(
+          err.message,
+        )}</p>`;
+    }
+  }
+
+  // Expose two helpers so existing channel rendering can call them:
+  // ``window.PlinthSchemaWizard.open(wsId, channel, currentSchema?)``.
+  window.PlinthSchemaWizard = {
+    open: openSchemaWizard,
+    close: closeSchemaWizard,
+  };
 })();

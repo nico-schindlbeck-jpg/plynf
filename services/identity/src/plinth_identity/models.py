@@ -8,7 +8,7 @@ Mirrors ``CONTRACTS.md → Identity Service`` 1:1.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional  # noqa: UP035
+from typing import Any, Dict, List, Literal, Optional  # noqa: UP035
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -222,6 +222,62 @@ class RevocationStats(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# v1.0 — GDPR compliance (export + delete orchestration)
+# ---------------------------------------------------------------------------
+
+
+class ExportStatus(BaseModel):
+    """Snapshot of a GDPR data-export job (Article 20 portability)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    export_id: str
+    tenant_id: str
+    status: Literal["pending", "ready", "expired", "failed"]
+    requested_at: datetime
+    completed_at: Optional[datetime] = None  # noqa: UP045
+    expires_at: Optional[datetime] = None  # noqa: UP045
+    size_bytes: Optional[int] = None  # noqa: UP045
+    error: Optional[str] = None  # noqa: UP045
+
+
+class ExportJobAcknowledgement(BaseModel):
+    """Response from ``POST /v1/tenants/{tenant_id}/export``."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    export_id: str
+    status: Literal["pending", "ready", "expired", "failed"] = "pending"
+
+
+class DeleteConfirmation(BaseModel):
+    """Response from ``POST /v1/tenants/{tenant_id}/delete-data-confirm``."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    confirm_token: str
+    expires_at: datetime
+
+
+class DeleteJob(BaseModel):
+    """Response body for ``DELETE /v1/tenants/{tenant_id}/data``.
+
+    Mirrors the runtime job shape: a single immutable handle the caller
+    polls until it transitions out of ``pending``/``in_progress``.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    job_id: str
+    tenant_id: str
+    status: Literal["pending", "in_progress", "completed", "failed"]
+    requested_at: datetime
+    completed_at: Optional[datetime] = None  # noqa: UP045
+    deleted_counts: Dict[str, int] = Field(default_factory=dict)  # noqa: UP006
+    error: Optional[str] = None  # noqa: UP045
+
+
+# ---------------------------------------------------------------------------
 # v0.6 — Migration rollback
 # ---------------------------------------------------------------------------
 
@@ -263,6 +319,10 @@ class RollbackResult(BaseModel):
 
 
 __all__ = [
+    "DeleteConfirmation",
+    "DeleteJob",
+    "ExportJobAcknowledgement",
+    "ExportStatus",
     "HealthResponse",
     "JWKSResponse",
     "RevocationEntry",

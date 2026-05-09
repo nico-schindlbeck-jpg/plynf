@@ -89,17 +89,29 @@ export class Plinth {
 
     const defaultTimeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
+    // v1.0 — multi-region. Build per-service fallback maps in the order
+    // the operator listed them in `fallbackRegions`. Unknown regions are
+    // dropped silently — a partial config shouldn't be a runtime error.
+    const fallbackRegions = config.fallbackRegions ?? [];
+    const wsFallbacks = pickFallbackUrls(fallbackRegions, config.fallbackWorkspaceUrls);
+    const gwFallbacks = pickFallbackUrls(fallbackRegions, config.fallbackGatewayUrls);
+    const idFallbacks = pickFallbackUrls(fallbackRegions, config.fallbackIdentityUrls);
+
     this.workspaceHttp = new HttpClient({
       baseUrl: workspaceUrl,
       apiKey: config.apiKey,
       defaultTimeoutMs,
       fetch: fetchImpl,
+      fallbackUrls: wsFallbacks,
+      primaryRegion: config.region,
     });
     this.gatewayHttp = new HttpClient({
       baseUrl: gatewayUrl,
       apiKey: config.apiKey,
       defaultTimeoutMs,
       fetch: fetchImpl,
+      fallbackUrls: gwFallbacks,
+      primaryRegion: config.region,
     });
     this.tools = new ToolsClient(this.gatewayHttp);
     this.workers = new WorkersClient(this.workspaceHttp);
@@ -110,6 +122,8 @@ export class Plinth {
         apiKey: config.apiKey,
         defaultTimeoutMs,
         fetch: fetchImpl,
+        fallbackUrls: idFallbacks,
+        primaryRegion: config.region,
       });
       this.identityClient = new IdentityClient(this.identityHttp);
     } else {
@@ -226,4 +240,23 @@ export interface AgentContext {
   agentId: string;
   workspace: Workspace;
   tools: ToolsClient;
+}
+
+/**
+ * Return a `{ region: url }` map filtered to entries in `fallbackRegions`,
+ * preserving the operator's declared order.
+ *
+ * Missing URLs are silently dropped — partial config is allowed.
+ */
+function pickFallbackUrls(
+  fallbackRegions: ReadonlyArray<string>,
+  urls: Record<string, string> | undefined,
+): Record<string, string> {
+  if (!urls) return {};
+  const out: Record<string, string> = {};
+  for (const region of fallbackRegions) {
+    const url = urls[region];
+    if (url) out[region] = url;
+  }
+  return out;
 }

@@ -49,7 +49,8 @@ def test_discover_migrations_returns_sorted_list() -> None:
     migrations = discover_migrations(MIGRATIONS_DIR)
     ids = [m.id for m in migrations]
     assert ids == sorted(ids)
-    assert ids == ["0001_initial", "0002_signing_keys"]
+    # The first two migrations are stable; later additions are fine.
+    assert ids[:2] == ["0001_initial", "0002_signing_keys"]
 
 
 def test_checksum_changes_with_content() -> None:
@@ -66,7 +67,10 @@ def test_checksum_changes_with_content() -> None:
 @pytest.mark.asyncio
 async def test_apply_pending_on_fresh_db(runner: MigrationRunner) -> None:
     applied = await runner.apply_pending()
-    assert [m.id for m in applied] == ["0001_initial", "0002_signing_keys"]
+    ids = [m.id for m in applied]
+    # The first two are baseline; later additions are appended in order.
+    assert ids[:2] == ["0001_initial", "0002_signing_keys"]
+    assert ids == sorted(ids)
     # Idempotent.
     assert await runner.apply_pending() == []
 
@@ -87,8 +91,9 @@ async def test_apply_creates_expected_tables(runner: MigrationRunner) -> None:
 async def test_status_after_fresh_apply(runner: MigrationRunner) -> None:
     await runner.apply_pending()
     s = await runner.status()
-    assert s.current == "0002_signing_keys"
-    assert len(s.applied) == 2
+    on_disk = discover_migrations(MIGRATIONS_DIR)
+    assert s.current == on_disk[-1].id
+    assert len(s.applied) == len(on_disk)
     assert s.pending == []
     assert s.mismatches == []
 
@@ -106,7 +111,8 @@ async def test_legacy_db_marks_migrations_applied(fresh_db_path: Path) -> None:
     await init_db(fresh_db_path)
     runner = MigrationRunner(fresh_db_path, MIGRATIONS_DIR)
     applied = await runner.apply_pending()
-    assert len(applied) == 2
+    on_disk = discover_migrations(MIGRATIONS_DIR)
+    assert len(applied) == len(on_disk)
     for mig in applied:
         assert mig.duration_ms < 100
 
@@ -143,7 +149,8 @@ async def test_partial_legacy_db_applies_missing(fresh_db_path: Path) -> None:
     runner = MigrationRunner(fresh_db_path, MIGRATIONS_DIR)
     await runner.apply_pending()
     s = await runner.status()
-    assert s.current == "0002_signing_keys"
+    on_disk = discover_migrations(MIGRATIONS_DIR)
+    assert s.current == on_disk[-1].id
 
     async with aiosqlite.connect(fresh_db_path) as conn:
         cur = await conn.execute(
@@ -212,7 +219,9 @@ async def test_apply_to_partial(runner: MigrationRunner) -> None:
     applied = await runner.apply_to("0001_initial")
     assert [m.id for m in applied] == ["0001_initial"]
     pending = await runner.list_pending()
-    assert [m.id for m in pending] == ["0002_signing_keys"]
+    on_disk = discover_migrations(MIGRATIONS_DIR)
+    expected_pending = [m.id for m in on_disk if m.id != "0001_initial"]
+    assert [m.id for m in pending] == expected_pending
 
 
 @pytest.mark.asyncio
@@ -333,7 +342,8 @@ async def test_auto_migrate_true_applies_during_lifespan(tmp_path: Path) -> None
     async with app.router.lifespan_context(app):
         runner: MigrationRunner = app.state.migration_runner
         applied = await runner.list_applied()
-        assert len(applied) == 2
+        on_disk = discover_migrations(MIGRATIONS_DIR)
+        assert len(applied) == len(on_disk)
 
 
 @pytest.mark.asyncio

@@ -4,7 +4,7 @@
 
 **The founder's manual for showing Plinth and selling Plinth.**
 
-`v0.6` · `1621 tests` · `5 demos` · `May 7, 2026`
+`v1.0 GA` · `2066 tests` · `5 demos` · `May 8, 2026` · `API v1 stable`
 
 </div>
 

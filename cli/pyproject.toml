@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plinth-cli"
+version = "1.0.0"
+description = "Unified `plinth` CLI — ops, workflow, audit, tenant, and benchmark control plane."
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.11"
+authors = [{name = "The Plinth Authors"}]
+keywords = ["plinth", "cli", "ops", "agents", "mcp"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = [
+    "click>=8.1",
+    "rich>=13.0",
+    "httpx>=0.27",
+    "plinth",
+    # `tomllib` is stdlib on 3.11+; the fallback below is for older
+    # interpreters that the verification step targets via
+    # `--ignore-requires-python` (the project's `.venv` runs Python 3.9).
+    "tomli>=2.0; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.1",
+    "respx>=0.21",
+    "ruff>=0.3",
+    "black>=24.1",
+]
+
+[project.scripts]
+plinth = "plinth_cli.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/your-org/plinth"
+Documentation = "https://github.com/your-org/plinth/blob/main/cli/README.md"
+Repository = "https://github.com/your-org/plinth"
+Issues = "https://github.com/your-org/plinth/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.coverage.run]
+source = ["plinth_cli"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "\\.\\.\\.",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RET"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]

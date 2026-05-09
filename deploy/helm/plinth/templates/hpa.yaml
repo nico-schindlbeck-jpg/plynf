@@ -1,0 +1,49 @@
+{{- /* SPDX-License-Identifier: Apache-2.0 */ -}}
+{{- if and .Values.gateway.enabled .Values.gateway.hpa.enabled -}}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: plinth-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.service.labels" (dict "ctx" . "svc" "gateway") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: plinth-gateway
+  minReplicas: {{ .Values.gateway.hpa.minReplicas }}
+  maxReplicas: {{ .Values.gateway.hpa.maxReplicas }}
+  metrics:
+    {{- if .Values.gateway.hpa.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.gateway.hpa.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.gateway.hpa.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.gateway.hpa.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}
+{{- if and .Values.gateway.enabled .Values.gateway.pdb.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: plinth-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.service.labels" (dict "ctx" . "svc" "gateway") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.gateway.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "plinth.service.selectorLabels" (dict "ctx" . "svc" "gateway") | nindent 6 }}
+{{- end }}

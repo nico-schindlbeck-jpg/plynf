@@ -1,0 +1,65 @@
+{{- /* SPDX-License-Identifier: Apache-2.0 */ -}}
+{{- if .Values.networkPolicy.enabled -}}
+---
+# Default-deny baseline; only Plinth pods + Ingress controller can reach
+# Plinth services. Adjust the ingress controller selector to match your
+# cluster (e.g. `app.kubernetes.io/name: ingress-nginx`).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: plinth-default-deny
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: plinth
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: plinth-allow-internal
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: plinth
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: plinth
+---
+# Allow Ingress controller to reach gateway + dashboard.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: plinth-allow-ingress-controller
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchExpressions:
+      - key: plinth.dev/service
+        operator: In
+        values: ["gateway", "dashboard"]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+{{- end }}

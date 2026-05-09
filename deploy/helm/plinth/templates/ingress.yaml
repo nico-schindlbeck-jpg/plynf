@@ -1,0 +1,71 @@
+{{- /* SPDX-License-Identifier: Apache-2.0 */ -}}
+{{- if and .Values.ingress.enabled .Values.dashboard.enabled .Values.dashboard.ingress.enabled -}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: plinth-dashboard
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.service.labels" (dict "ctx" . "svc" "dashboard") | nindent 4 }}
+  {{- with .Values.dashboard.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with (or .Values.dashboard.ingress.className .Values.ingress.className) }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- if .Values.dashboard.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.dashboard.ingress.host | quote }}
+      secretName: {{ .Values.dashboard.ingress.tls.secretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.dashboard.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: plinth-dashboard
+                port:
+                  number: {{ .Values.dashboard.service.port }}
+{{- end }}
+{{- if and .Values.ingress.enabled .Values.gateway.enabled .Values.ingress.gateway.enabled -}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: plinth-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.service.labels" (dict "ctx" . "svc" "gateway") | nindent 4 }}
+  {{- with .Values.ingress.gateway.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  {{- if .Values.ingress.gateway.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.gateway.host | quote }}
+      secretName: {{ .Values.ingress.gateway.tls.secretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.gateway.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: plinth-gateway
+                port:
+                  number: {{ .Values.gateway.service.port }}
+{{- end }}

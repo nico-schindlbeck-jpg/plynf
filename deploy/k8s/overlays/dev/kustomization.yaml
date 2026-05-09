@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: Apache-2.0
+# Plinth — dev overlay.
+#
+# - 1 replica per service (default)
+# - SQLite-backed (no Postgres)
+# - No autoscaling
+# - DEBUG logging
+# - Smaller PVCs
+#
+# Apply with:
+#   kubectl apply -k deploy/k8s/overlays/dev/
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: plinth
+
+resources:
+  - ../../
+
+commonLabels:
+  app.kubernetes.io/instance: plinth-dev
+  app.plinth.dev/environment: dev
+
+# Patch all deployments to log at DEBUG.
+patches:
+  - target:
+      kind: ConfigMap
+      name: plinth-workspace-config
+    patch: |
+      - op: replace
+        path: /data/PLINTH_LOG_LEVEL
+        value: "DEBUG"
+      - op: replace
+        path: /data/PLINTH_LOG_FORMAT
+        value: "console"
+  - target:
+      kind: ConfigMap
+      name: plinth-gateway-config
+    patch: |
+      - op: replace
+        path: /data/PLINTH_LOG_LEVEL
+        value: "DEBUG"
+      - op: replace
+        path: /data/PLINTH_LOG_FORMAT
+        value: "console"
+  - target:
+      kind: ConfigMap
+      name: plinth-identity-config
+    patch: |
+      - op: replace
+        path: /data/PLINTH_IDENTITY_LOG_LEVEL
+        value: "DEBUG"
+      - op: replace
+        path: /data/PLINTH_IDENTITY_LOG_FORMAT
+        value: "console"
+  - target:
+      kind: PersistentVolumeClaim
+      name: plinth-workspace-data
+    patch: |
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: "1Gi"
+  - target:
+      kind: PersistentVolumeClaim
+      name: plinth-gateway-data
+    patch: |
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: "1Gi"
+  - target:
+      kind: PersistentVolumeClaim
+      name: plinth-identity-data
+    patch: |
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: "1Gi"

@@ -87,44 +87,42 @@ A living document. Reorder by community pull and demo data.
 
 **1621 tests passing** (1503 Python + 118 TypeScript).
 
-## v0.7 — Multi-tenant SaaS Posture (next)
+## v1.0 — General Availability ✅ (released 2026-05-08)
 
-**Goal**: turn Plinth from "self-hosted infra" into "ready for SaaS multi-tenant deployment".
+**Goal**: stable API guarantees, production-ready ops, multi-region capable, compliance-aligned.
 
-- [ ] **TypeScript worker harness** (parity with Python worker)
-- [ ] Per-tenant resource quotas (workspaces / channels / workflows / cost)
-- [ ] Tenant-scoped admin UI in Dashboard (tenant CRUD + member management)
-- [ ] Audit-log streaming via OTLP per tenant
-- [ ] Channel-schema-evolution wizard in Dashboard (visual diff + migration plan)
-- [ ] CLI tool (`plinth`) consolidating service ops + workflow control
+- [x] **Per-tenant resource quotas** (workspaces / storage / channels / workflows / tokens / OAuth / cost / RPM) with `QUOTA_EXCEEDED` enforcement
+- [x] **Tenant Admin UI** in Dashboard — `/tenants` CRUD + per-tenant detail (members, quotas, OAuth, audit, cost)
+- [x] **Channel Schema Evolution Wizard** — Dashboard modal for set/check/replay-all/purge
+- [x] **Multi-region scaffolding** — region_id, peers, replica-mode 421 redirect with `X-Plinth-Primary-URL`, SDK auto-failover
+- [x] **Unified `plinth` CLI** — services, migrate, workflow, audit, tenant, bench, health, completion (101 tests)
+- [x] **GDPR data export** — async ZIP-bundled cross-service dump with token redaction
+- [x] **GDPR data deletion** — two-phase cascade across Workspace + Gateway + Identity
+- [x] **Tamper-evident audit chain** — SHA-256 prev_hash chain on `audit_events`, `/v1/audit/verify` endpoint
+- [x] **Threat model** — STRIDE-based, 45 specific threats, 8 attacker classes
+- [x] **API v1 stability promise** — additive-only guarantee, 12-month deprecation, contract tests
+- [x] **Production deployment artifacts** — k8s manifests, Helm chart 1.0.0, Terraform AWS module, GHCR multi-arch release pipeline
+- [x] **Comprehensive Prometheus metrics** — `/metrics` on every service with normalized paths
+- [x] **Dashboard time-series graphs** — 24h + 7d trends for cost, latency p99, error rate, cache hit rate
+- [x] **Formal SLOs** — 26 SLOs across services, burn-rate alerts, page-vs-ticket policy
+- [x] All test suites green: **1901 Python + 136 TS-SDK + 29 TS-Worker = 2066 tests**
 
-## v0.6 — Observability deepening
+## post-1.0 — Continuous improvement
 
-**Goal**: every agent action is queryable, replayable, attributable.
+**Goal**: harden, optimize, expand. v1.0 is stable; we iterate without breaking the API contract.
 
-- [ ] Unified semantic event stream (replacing per-tool audit log)
-- [ ] Cost attribution per agent / workspace / customer
-- [ ] Replay any past invocation
-- [ ] Anomaly detection for agent behavior
-- [ ] Time-series storage (ClickHouse / Tigris) for events at scale
-
-## v0.7 — Enterprise auth & policy
-
-**Goal**: features enterprises specifically need beyond v0.3 capability tokens.
-
-- [ ] Capability-token issuance flow
-- [ ] User-facing consent UI
-- [ ] Policy engine (OPA-compatible)
-- [ ] Approval workflows for sensitive operations
-- [ ] SOC2-readiness checklist
-
-## v1.0 — General availability
-
-- [ ] Multi-region deployment story
-- [ ] Cluster mode (no SPOFs)
-- [ ] Enterprise SSO (SAML, OIDC)
-- [ ] Compliance certifications path
-- [ ] Stable API guarantees
+- [ ] **OTel SDK migration to public `logs` API** (currently pinned <1.30 due to internal API churn)
+- [ ] **Federated revocation** of multi-node Identity (currently polling-based; Redis or gossip option)
+- [ ] **Postgres advisory locks** for migration runner (currently fcntl flock; Postgres path needs work)
+- [ ] **Migration rollback execution** for the rollback-to-target case (CLI exists, full rollback semantics next)
+- [ ] **Cluster-mode workspace** — distributed lease coordinator beyond single-process locks
+- [ ] **Enterprise SSO** — SAML + OIDC providers, group sync, just-in-time provisioning
+- [ ] **Compliance certifications path** — SOC2 Type II audit prep, GDPR DPA template, HIPAA module
+- [ ] **Workflow visualization v2** — historical replay, error attribution graphs
+- [ ] **TS worker → Node distributed mode**, hot-reload handlers
+- [ ] **More OAuth providers** — Notion, Jira, Confluence, Asana
+- [ ] **Cost attribution at agent level** (today is at tenant level)
+- [ ] **Anomaly detection** for agent behavior (token spikes, unusual tool patterns)
 
 ## Themes always-on
 

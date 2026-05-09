@@ -2,9 +2,10 @@
 
 | | |
 |---|---|
-| **Version** | v0.6 |
-| **Date** | May 7, 2026 |
-| **Commit** | `<commit-hash-placeholder>` |
+| **Version** | **v1.0 GA** |
+| **Date** | May 8, 2026 |
+| **API contract** | v1 stable — see [`docs/API_STABILITY.md`](./docs/API_STABILITY.md) |
+| **Tests** | 2,066 passing (1,901 Python + 136 TS SDK + 29 TS Worker) |
 | **License** | Apache 2.0 — see [`LICENSE`](./LICENSE) |
 | **Source of truth** | [`CONTRACTS.md`](./CONTRACTS.md), [`docs/architecture/`](./docs/architecture/), [`docs/adr/`](./docs/adr/) |
 

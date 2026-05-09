@@ -37,11 +37,14 @@ CREATE TABLE IF NOT EXISTS audit_events (
   cached INTEGER NOT NULL DEFAULT 0,
   duration_ms INTEGER NOT NULL,
   cost_estimate_usd REAL NOT NULL DEFAULT 0,
-  error TEXT
+  error TEXT,
+  prev_hash TEXT,
+  event_hash TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_audit_lookup ON audit_events(workspace_id, tool_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_agent ON audit_events(agent_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_tenant ON audit_events(tenant_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_chain ON audit_events(id, event_hash);
 CREATE INDEX IF NOT EXISTS idx_tools_tenant ON tools(tenant_id);
 
 CREATE TABLE IF NOT EXISTS cache_entries (
@@ -133,11 +136,14 @@ CREATE TABLE IF NOT EXISTS audit_events (
   cached SMALLINT NOT NULL DEFAULT 0,
   duration_ms BIGINT NOT NULL,
   cost_estimate_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
-  error TEXT
+  error TEXT,
+  prev_hash TEXT,
+  event_hash TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_audit_lookup ON audit_events(workspace_id, tool_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_agent ON audit_events(agent_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_tenant ON audit_events(tenant_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_chain ON audit_events(id, event_hash);
 CREATE INDEX IF NOT EXISTS idx_tools_tenant ON tools(tenant_id);
 
 CREATE TABLE IF NOT EXISTS cache_entries (

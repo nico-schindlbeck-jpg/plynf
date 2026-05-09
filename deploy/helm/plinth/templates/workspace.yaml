@@ -1,0 +1,156 @@
+{{- /* SPDX-License-Identifier: Apache-2.0 */ -}}
+{{- if .Values.workspace.enabled -}}
+{{- $svc := "workspace" -}}
+{{- $cfg := .Values.workspace -}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plinth-workspace-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.service.labels" (dict "ctx" . "svc" $svc) | nindent 4 }}
+data:
+  PLINTH_DATA_DIR: "/data"
+  PLINTH_WORKSPACE_HOST: "0.0.0.0"
+  PLINTH_WORKSPACE_PORT: {{ $cfg.service.port | quote }}
+  PLINTH_LOG_LEVEL: {{ $cfg.config.logLevel | quote }}
+  PLINTH_LOG_FORMAT: {{ $cfg.config.logFormat | quote }}
+  PLINTH_AUTO_MIGRATE: {{ $cfg.config.autoMigrate | quote }}
+  PLINTH_LEASE_REAPER_ENABLED: {{ $cfg.config.leaseReaperEnabled | quote }}
+  PLINTH_REPLICATION_MODE: {{ .Values.global.replicationMode | quote }}
+  {{- if .Values.global.region }}
+  PLINTH_REGION_ID: {{ .Values.global.region | quote }}
+  {{- end }}
+{{- if $cfg.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: plinth-workspace-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.service.labels" (dict "ctx" . "svc" $svc) | nindent 4 }}
+spec:
+  accessModes: [{{ $cfg.persistence.accessMode | quote }}]
+  resources:
+    requests:
+      storage: {{ $cfg.persistence.size | quote }}
+  {{- $sc := include "plinth.storageClass" (dict "ctx" . "svcClass" $cfg.persistence.storageClass) }}
+  {{- if $sc }}
+  storageClassName: {{ $sc | quote }}
+  {{- end }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plinth-workspace
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.service.labels" (dict "ctx" . "svc" $svc) | nindent 4 }}
+spec:
+  replicas: {{ $cfg.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "plinth.service.selectorLabels" (dict "ctx" . "svc" $svc) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "plinth.service.labels" (dict "ctx" . "svc" $svc) | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ $cfg.service.port | quote }}
+        prometheus.io/path: "/metrics"
+        {{- with $cfg.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "plinth.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "plinth.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: workspace
+          image: {{ include "plinth.image" (dict "ctx" . "svc" $svc "config" $cfg) | quote }}
+          imagePullPolicy: {{ .Values.global.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ $cfg.service.port }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: plinth-workspace-config
+          env:
+            - name: PLINTH_POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default "plinth-secrets" .Values.existingSecret }}
+                  key: postgres-url
+                  optional: true
+          {{- if $cfg.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml $cfg.resources | nindent 12 }}
+          securityContext:
+            {{- include "plinth.containerSecurityContext" . | nindent 12 }}
+      {{- if $cfg.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: plinth-workspace-data
+      {{- end }}
+      {{- with $cfg.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $cfg.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $cfg.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plinth-workspace
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.service.labels" (dict "ctx" . "svc" $svc) | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "plinth.service.selectorLabels" (dict "ctx" . "svc" $svc) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $cfg.service.port }}
+      targetPort: {{ $cfg.service.port }}
+      protocol: TCP
+{{- end }}

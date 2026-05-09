@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+# Plinth — base kustomization.
+#
+# Apply directly with:
+#   kubectl apply -k deploy/k8s/
+# or layer in a per-environment overlay (see overlays/dev, overlays/prod).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: plinth
+
+commonLabels:
+  app.kubernetes.io/part-of: plinth
+  app.kubernetes.io/managed-by: kustomize
+
+resources:
+  - namespace.yaml
+  - workspace.yaml
+  - gateway.yaml
+  - identity.yaml
+  - dashboard.yaml
+  - mock-mcp.yaml
+  - github-mcp.yaml
+  - slack-mcp.yaml
+  - linear-mcp.yaml
+  # `postgres.yaml` is intentionally NOT in the base — opt in via the
+  # prod overlay or your own kustomization. See `overlays/prod`.
+  # `secrets.example.yaml` is a TEMPLATE — never apply it as-is. Generate
+  # a real Secret out-of-band and apply that instead.
+
+images:
+  - name: ghcr.io/nico-schindlbeck-jpg/plinth/workspace
+    newTag: "1.0.0"
+  - name: ghcr.io/nico-schindlbeck-jpg/plinth/gateway
+    newTag: "1.0.0"
+  - name: ghcr.io/nico-schindlbeck-jpg/plinth/identity
+    newTag: "1.0.0"
+  - name: ghcr.io/nico-schindlbeck-jpg/plinth/dashboard
+    newTag: "1.0.0"
+  - name: ghcr.io/nico-schindlbeck-jpg/plinth/mock-mcp
+    newTag: "1.0.0"
+  - name: ghcr.io/nico-schindlbeck-jpg/plinth/github-mcp
+    newTag: "1.0.0"
+  - name: ghcr.io/nico-schindlbeck-jpg/plinth/slack-mcp
+    newTag: "1.0.0"
+  - name: ghcr.io/nico-schindlbeck-jpg/plinth/linear-mcp
+    newTag: "1.0.0"

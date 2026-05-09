@@ -411,6 +411,67 @@ class ChannelsProxy:
         )
         return SchemaCheckResult.model_validate(response.json())
 
+    def preview_schema_change(
+        self,
+        channel: str,
+        new_schema: dict[str, Any],
+        *,
+        limit: int = 1000,
+    ) -> dict[str, Any]:
+        """Preview the effect of swapping ``channel``'s schema.
+
+        Runs ``check_schema`` against both the main channel and the DLQ,
+        then summarises whether the new schema is "compatible" (no live
+        rows would fail). The wizard in the dashboard renders this dict
+        directly; CLI callers use it to pretty-print the impact before
+        committing.
+
+        Returns:
+            ``{"compatible": bool, "main_check": SchemaCheckResult,
+              "deadletter_check": SchemaCheckResult, "recommendation": str}``
+            Both check results are :class:`SchemaCheckResult` instances.
+            ``recommendation`` is a short hint suitable for direct UI
+            display ("Safe to apply", "Replay DLQ first", ...).
+        """
+
+        main_check = self.check_schema(
+            channel, new_schema, scope="main", limit=limit
+        )
+        dlq_check = self.check_schema(
+            channel, new_schema, scope="deadletter", limit=limit
+        )
+
+        # ``invalid`` is the count of failures across the sampled rows.
+        # ``compatible=True`` means no live (non-DLQ) rows would fail —
+        # operators may still want to replay the DLQ first if it has
+        # rows the new schema would accept.
+        compatible = main_check.invalid == 0
+        if not compatible:
+            recommendation = (
+                f"{main_check.invalid} live message(s) would fail; "
+                "rewrite the schema or migrate the data first."
+            )
+        elif dlq_check.checked > 0 and dlq_check.invalid == 0:
+            recommendation = (
+                "Safe to apply. The new schema accepts all "
+                f"{dlq_check.checked} DLQ message(s) — replay them after."
+            )
+        elif dlq_check.checked > 0:
+            recommendation = (
+                "Safe to apply, but the DLQ still holds messages that "
+                f"don't pass the new schema ({dlq_check.invalid} of "
+                f"{dlq_check.checked}); review them before replay."
+            )
+        else:
+            recommendation = "Safe to apply."
+
+        return {
+            "compatible": compatible,
+            "main_check": main_check,
+            "deadletter_check": dlq_check,
+            "recommendation": recommendation,
+        }
+
     def replay_all_dlq(
         self,
         channel: str,

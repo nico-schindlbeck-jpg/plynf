@@ -18,6 +18,7 @@ from .exceptions import InvalidArguments, ToolNotFound
 from .models import (
     AgentLimits,
     AuditEvent,
+    ChainVerifyResult,
     DryRunResponse,
     InvokeResponse,
     LimitsStatus,
@@ -306,6 +307,32 @@ class ToolGateway:
         if isinstance(data, dict) and "stats" in data and isinstance(data["stats"], dict):
             return data["stats"]
         return data
+
+    def verify_audit_chain(
+        self,
+        *,
+        since: str | datetime | None = None,
+        limit: int = 1000,
+    ) -> ChainVerifyResult:
+        """Verify the gateway audit hash chain (v1.0 tamper-evidence).
+
+        ``since`` accepts the same shapes as :meth:`audit` (relative
+        duration, datetime, or ISO-8601). The server walks events
+        forward from that cutoff and reports the first hash mismatch.
+        """
+
+        params: dict[str, Any] = {"limit": int(limit)}
+        if since is not None:
+            try:
+                iso = _parse_since(since)
+            except ValueError as exc:
+                raise InvalidArguments(str(exc)) from exc
+            if iso is not None:
+                # Server expects a unix timestamp.
+                ts = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+                params["since"] = int(ts.timestamp())
+        data = self._http.get_json("/v1/audit/verify", params=params)
+        return ChainVerifyResult.model_validate(data)
 
     # -- cache ---------------------------------------------------------
 

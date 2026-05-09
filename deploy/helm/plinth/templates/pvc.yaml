@@ -1,0 +1,9 @@
+{{- /*
+SPDX-License-Identifier: Apache-2.0
+PVCs are emitted alongside the Deployments that consume them (in
+workspace.yaml, gateway.yaml, identity.yaml, postgres.yaml). This file is
+intentionally empty so the chart structure matches what operators expect to
+find when grepping `templates/`.
+Operators can extend this file to declare additional volumes (e.g. a shared
+read-only blob cache) without forking other templates.
+*/ -}}

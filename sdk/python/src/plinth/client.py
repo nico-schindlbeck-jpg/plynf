@@ -66,6 +66,19 @@ class Plinth:
         workspace_transport: httpx.BaseTransport | None = None,
         gateway_transport: httpx.BaseTransport | None = None,
         identity_transport: httpx.BaseTransport | None = None,
+        # v1.0 — multi-region. ``region`` is the primary region this
+        # client is "homed" against. ``fallback_regions`` is an ordered
+        # list of region ids to try on connection failures or replica
+        # redirects (the SDK reads ``X-Plinth-Primary-Region`` and routes
+        # accordingly). ``fallback_*_urls`` are dicts mapping each
+        # fallback region id to its workspace/gateway URL — keeping them
+        # split per service mirrors the production deploy where the
+        # workspace and gateway live behind separate DNS names.
+        region: str | None = None,
+        fallback_regions: list[str] | None = None,
+        fallback_workspace_urls: dict[str, str] | None = None,
+        fallback_gateway_urls: dict[str, str] | None = None,
+        fallback_identity_urls: dict[str, str] | None = None,
     ) -> None:
         if not api_key:
             # Surface the issue at construction rather than on first
@@ -80,19 +93,41 @@ class Plinth:
         self._identity_url = identity_url
         self._api_key = api_key
         self._timeout = timeout
+        self._region = region
+        self._fallback_regions = list(fallback_regions or [])
+
+        # Build the per-service fallback maps in the order spec'd by the
+        # operator. Unknown regions are silently dropped so a typo'd
+        # ``fallback_regions=["us"]`` without a matching URL doesn't trip
+        # a spurious connection attempt.
+        ws_fallbacks = _ordered_fallback_urls(
+            self._fallback_regions, fallback_workspace_urls
+        )
+        gw_fallbacks = _ordered_fallback_urls(
+            self._fallback_regions, fallback_gateway_urls
+        )
+        identity_fallbacks = _ordered_fallback_urls(
+            self._fallback_regions, fallback_identity_urls
+        )
 
         self._workspace_http = HTTPClient(
             workspace_url,
             api_key,
             timeout=timeout,
             transport=workspace_transport,
+            fallback_urls=ws_fallbacks,
+            primary_region=region,
         )
         self._gateway_http = HTTPClient(
             gateway_url,
             api_key,
             timeout=timeout,
             transport=gateway_transport,
+            fallback_urls=gw_fallbacks,
+            primary_region=region,
         )
+        # Stash for the identity client below.
+        self._identity_fallbacks = identity_fallbacks
 
         self.tools = ToolGateway(self._gateway_http)
         # ``client.gateway`` is the v0.5 alias for ``client.tools``: it
@@ -119,6 +154,8 @@ class Plinth:
                 api_key=api_key,
                 timeout=timeout,
                 transport=identity_transport,
+                fallback_urls=self._identity_fallbacks,
+                primary_region=region,
             )
 
     # ------------------------------------------------------------------
@@ -297,6 +334,33 @@ class Plinth:
         """
 
         return self._workflow_runtime
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _ordered_fallback_urls(
+    fallback_regions: list[str],
+    fallback_url_map: dict[str, str] | None,
+) -> dict[str, str]:
+    """Return a dict of ``{region_id: url}`` in ``fallback_regions`` order.
+
+    Regions in ``fallback_regions`` that have no entry in
+    ``fallback_url_map`` are silently dropped — operators typically
+    configure both maps with the same regions, but a partial config
+    shouldn't crash the SDK.
+    """
+
+    if not fallback_url_map:
+        return {}
+    out: dict[str, str] = {}
+    for region in fallback_regions:
+        url = fallback_url_map.get(region)
+        if url:
+            out[region] = url
+    return out
 
 
 __all__ = [

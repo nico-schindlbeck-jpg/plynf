@@ -410,6 +410,79 @@ class Tenant(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# v1.0 — Per-tenant resource quotas
+# ---------------------------------------------------------------------------
+
+
+class TenantQuotas(BaseModel):
+    """Quota envelope for a single tenant.
+
+    Mirrors the identity service's ``GET /v1/tenants/{id}/quotas`` response.
+    Defaults match :doc:`/CONTRACTS.md` so callers can construct partial
+    overrides via :meth:`IdentityClient.set_quotas` without restating
+    every field.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    tenant_id: str
+    max_workspaces: int = 100
+    max_storage_gb: float = 10.0
+    max_channels_per_workspace: int = 50
+    max_workflows_per_workspace: int = 100
+    max_active_tokens: int = 1000
+    max_oauth_connections: int = 50
+    max_cost_usd_day: float = 100.0
+    max_cost_usd_month: float = 2000.0
+    max_invocations_per_minute: int = 600
+    updated_at: Optional[datetime] = None  # noqa: UP045
+
+
+class TenantQuotasUpdate(BaseModel):
+    """Partial-update body for ``POST /v1/tenants/{id}/quotas``.
+
+    All fields optional — unset values fall back to the existing row (or
+    the contract defaults if no row exists).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_workspaces: Optional[int] = None  # noqa: UP045
+    max_storage_gb: Optional[float] = None  # noqa: UP045
+    max_channels_per_workspace: Optional[int] = None  # noqa: UP045
+    max_workflows_per_workspace: Optional[int] = None  # noqa: UP045
+    max_active_tokens: Optional[int] = None  # noqa: UP045
+    max_oauth_connections: Optional[int] = None  # noqa: UP045
+    max_cost_usd_day: Optional[float] = None  # noqa: UP045
+    max_cost_usd_month: Optional[float] = None  # noqa: UP045
+    max_invocations_per_minute: Optional[int] = None  # noqa: UP045
+
+
+class TenantUsage(BaseModel):
+    """Computed usage rollup from ``GET /v1/tenants/{id}/usage``.
+
+    Cross-service fields (``storage_gb``, ``cost_usd_day``,
+    ``cost_usd_month``, ``last_invocation_at``, ``workspaces``,
+    ``oauth_connections``) are reported as ``0`` / ``None`` with a
+    ``notes`` map pointing at the canonical source — v1.0 doesn't
+    aggregate cross-service usage at the identity layer (known
+    limitation).
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    tenant_id: str
+    workspaces: int = 0
+    storage_gb: float = 0.0
+    active_tokens: int = 0
+    oauth_connections: int = 0
+    cost_usd_day: float = 0.0
+    cost_usd_month: float = 0.0
+    last_invocation_at: Optional[datetime] = None  # noqa: UP045
+    notes: Dict[str, str] = Field(default_factory=dict)  # noqa: UP006
+
+
+# ---------------------------------------------------------------------------
 # v0.4 — Identity signing keys
 # ---------------------------------------------------------------------------
 
@@ -466,6 +539,69 @@ class RevocationList(BaseModel):
     revocations: List[RevocationEntry] = Field(default_factory=list)  # noqa: UP006
     next_since: int = 0
     has_more: bool = False
+
+
+# ---------------------------------------------------------------------------
+# v1.0 — GDPR compliance (export + delete) + audit-chain verify
+# ---------------------------------------------------------------------------
+
+
+class ExportStatus(BaseModel):
+    """A snapshot of a tenant data-export job."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    export_id: str
+    tenant_id: str
+    status: str
+    requested_at: datetime
+    completed_at: Optional[datetime] = None  # noqa: UP045
+    expires_at: Optional[datetime] = None  # noqa: UP045
+    size_bytes: Optional[int] = None  # noqa: UP045
+    error: Optional[str] = None  # noqa: UP045
+
+
+class ExportJob(BaseModel):
+    """Returned from the initial ``POST /v1/tenants/{id}/export``."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    export_id: str
+    status: str = "pending"
+
+
+class DeleteConfirmation(BaseModel):
+    """Returned from ``POST /v1/tenants/{id}/delete-data-confirm``."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    confirm_token: str
+    expires_at: datetime
+
+
+class DeleteJob(BaseModel):
+    """A GDPR Article 17 erasure job, polled until ``status`` settles."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    job_id: str
+    tenant_id: str
+    status: str
+    requested_at: datetime
+    completed_at: Optional[datetime] = None  # noqa: UP045
+    deleted_counts: Dict[str, int] = Field(default_factory=dict)  # noqa: UP006
+    error: Optional[str] = None  # noqa: UP045
+
+
+class ChainVerifyResult(BaseModel):
+    """Outcome of ``GET /v1/audit/verify`` (gateway tamper-evidence check)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    verified: bool
+    checked: int = 0
+    broken_at: Optional[str] = None  # noqa: UP045
+    broken_reason: Optional[str] = None  # noqa: UP045
 
 
 # ---------------------------------------------------------------------------
@@ -621,6 +757,9 @@ __all__ = [
     "SigningKey",
     "Snapshot",
     "Tenant",
+    "TenantQuotas",
+    "TenantQuotasUpdate",
+    "TenantUsage",
     "Tool",
     "ToolRegistration",
     "Transaction",

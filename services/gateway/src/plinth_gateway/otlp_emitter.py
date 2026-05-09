@@ -93,31 +93,73 @@ def _flatten_attributes(
     return out
 
 
-def _build_attributes(event: dict[str, Any], service_name: str) -> dict[str, Any]:
-    """Map an audit event dict to the OTel attribute namespace.
+def _build_attributes(
+    event: dict[str, Any],
+    service_name: str,
+    *,
+    service_version: str | None = None,
+    region_id: str | None = None,
+) -> dict[str, Any]:
+    """Map an audit event dict to the canonical OTel attribute namespace.
 
-    The mapping mirrors the contract in ``CONTRACTS.md`` v0.4 (OTLP Event
-    Stream): top-level fields like ``tool_id`` become ``tool.id``,
-    ``cost_estimate_usd`` becomes ``tool.cost_usd``, etc. Any field already
-    namespaced (``actor.kind``) flows through ``_flatten_attributes`` as-is.
+    The mapping mirrors the contract in ``docs/observability.md`` v1.0:
+
+    * Common (every event)::
+
+          service.name = "plinth-gateway"
+          service.version = "1.0.0"
+          region.id = "..."   (only when configured)
+
+    * Per-tenant scope::  ``tenant.id``, ``agent.id``
+    * Per-workflow scope:: ``workflow.id``, ``workflow.step``
+    * Per-tool scope::    ``tool.id``, ``tool.cached``,
+                          ``tool.duration_ms``, ``tool.cost_usd``
+    * Per-workspace scope:: ``workspace.id``
+
+    Top-level fields like ``tool_id`` are mapped to dotted attributes
+    (``tool.id``); ``cost_estimate_usd`` becomes ``tool.cost_usd``. Any
+    field already in dotted form (``actor.kind``) flows through
+    ``_flatten_attributes`` unchanged.
+
+    The audit-event input may use either snake_case (``workflow_id``) or
+    dotted (``workflow.id``) field names; both forms are accepted.
     """
     attrs: dict[str, Any] = {"service.name": service_name}
+    if service_version:
+        attrs["service.version"] = str(service_version)
+    if region_id:
+        attrs["region.id"] = str(region_id)
 
-    if "tool_id" in event and event["tool_id"] is not None:
+    # Per-tool scope.
+    if event.get("tool_id") is not None:
         attrs["tool.id"] = event["tool_id"]
-    if "cached" in event and event["cached"] is not None:
+    if event.get("cached") is not None:
         attrs["tool.cached"] = bool(event["cached"])
-    if "duration_ms" in event and event["duration_ms"] is not None:
+    if event.get("duration_ms") is not None:
         attrs["tool.duration_ms"] = int(event["duration_ms"])
-    if "cost_estimate_usd" in event and event["cost_estimate_usd"] is not None:
+    if event.get("cost_estimate_usd") is not None:
         attrs["tool.cost_usd"] = float(event["cost_estimate_usd"])
 
+    # Per-tenant + agent scope.
     if event.get("agent_id"):
         attrs["agent.id"] = str(event["agent_id"])
     if event.get("tenant_id"):
         attrs["tenant.id"] = str(event["tenant_id"])
+
+    # Per-workspace scope.
     if event.get("workspace_id"):
         attrs["workspace.id"] = str(event["workspace_id"])
+
+    # Per-workflow scope. Accept either snake_case (``workflow_id``,
+    # ``workflow_step``) or dotted (``workflow.id``, ``workflow.step``)
+    # input — operators sending events from custom emitters use both
+    # in the wild.
+    workflow_id = event.get("workflow_id") or event.get("workflow.id")
+    workflow_step = event.get("workflow_step") or event.get("workflow.step")
+    if workflow_id:
+        attrs["workflow.id"] = str(workflow_id)
+    if workflow_step:
+        attrs["workflow.step"] = str(workflow_step)
 
     if event.get("arguments_hash"):
         attrs["arguments.hash"] = str(event["arguments_hash"])
@@ -149,6 +191,10 @@ def _build_attributes(event: dict[str, Any], service_name: str) -> dict[str, Any
             "agent_id",
             "tenant_id",
             "workspace_id",
+            "workflow_id",
+            "workflow.id",
+            "workflow_step",
+            "workflow.step",
             "arguments_hash",
             "arguments_preview",
             "result_hash",
@@ -219,6 +265,24 @@ class OTLPEmitter:
         self.endpoint: str = str(getattr(settings, "otlp_endpoint", ""))
         self.service_name: str = str(
             getattr(settings, "otlp_service_name", "plinth-gateway")
+        )
+        # v1.0 — propagate ``service.version`` + ``region.id`` so every
+        # emitted log carries the canonical attribute set documented in
+        # ``docs/observability.md``. ``service_version`` defaults to the
+        # gateway's pyproject ``__version__`` when settings doesn't set
+        # it explicitly.
+        try:
+            from plinth_gateway import __version__ as _pkg_version
+
+            default_version: str | None = str(_pkg_version)
+        except Exception:  # noqa: BLE001 — best-effort
+            default_version = None
+        self.service_version: str | None = (
+            getattr(settings, "otlp_service_version", None)
+            or default_version
+        )
+        self.region_id: str | None = (
+            getattr(settings, "region_id", None) or None
         )
         self.batch_size: int = int(getattr(settings, "otlp_batch_size", 64))
         self.flush_interval: float = float(
@@ -367,7 +431,12 @@ class OTLPEmitter:
                 severity_number=severity_number,
                 severity_text=severity_text,
                 body=str(event.get("type") or "tool.invoked"),
-                attributes=_build_attributes(event, self.service_name),
+                attributes=_build_attributes(
+                    event,
+                    self.service_name,
+                    service_version=self.service_version,
+                    region_id=self.region_id,
+                ),
             )
             self._logger.emit(record)
             self._events_emitted += 1

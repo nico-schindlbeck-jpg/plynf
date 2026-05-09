@@ -1,0 +1,704 @@
+# SPDX-License-Identifier: Apache-2.0
+# Plinth Tool Gateway — OpenAPI 3.1 specification
+openapi: 3.1.0
+info:
+  title: Plinth Tool Gateway
+  version: 0.1.0
+  description: |
+    The Tool Gateway is the universal proxy for MCP / HTTP / GraphQL tools used by
+    agents. It centralises authentication, caching, idempotency, dry-run and audit
+    so that agents see one consistent invocation surface.
+
+    All endpoints require a bearer token via `Authorization: Bearer <token>`. In the
+    v0.1 PoC any non-empty token is accepted.
+
+    See `CONTRACTS.md` and `ARCHITECTURE.md` for prose context.
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+servers:
+  - url: http://localhost:7422
+    description: Local development server (default port)
+tags:
+  - name: tools
+    description: Tool registration and discovery.
+  - name: invoke
+    description: Tool invocation (and dry-run).
+  - name: audit
+    description: Append-only log of every invocation.
+  - name: cache
+    description: Inspect and clear the gateway cache.
+  - name: meta
+    description: Service health and metadata endpoints.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /healthz:
+    get:
+      tags: [meta]
+      summary: Liveness probe
+      description: Returns service health and version. No authentication required.
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: Service is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+
+  /v1/tools:
+    get:
+      tags: [tools]
+      summary: List registered tools
+      operationId: listTools
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All registered tools.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/tools/register:
+    post:
+      tags: [tools]
+      summary: Register a tool
+      description: |
+        Registers a new tool. Re-registering an existing `tool_id` updates the
+        record (and its `updated_at`).
+      operationId: registerTool
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToolRegistration'
+      responses:
+        '201':
+          description: Tool registered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tool'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/tools/{tool_id}:
+    parameters:
+      - $ref: '#/components/parameters/ToolId'
+    get:
+      tags: [tools]
+      summary: Get a tool
+      operationId: getTool
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Tool record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tool'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [tools]
+      summary: Delete a tool
+      operationId: deleteTool
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Tool deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/invoke:
+    post:
+      tags: [invoke]
+      summary: Invoke a tool
+      description: |
+        Executes a tool. The request flows through policy → cache → auth → backend
+        → audit → cache-store. Cache is keyed by
+        `sha256(tool_id || canonical_json(arguments))` and respects the tool's
+        `idempotent` and `cache_ttl_seconds` settings, plus the per-call `cache`
+        flag.
+      operationId: invokeTool
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvokeRequest'
+      responses:
+        '200':
+          description: Invocation result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvokeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/invoke/dry-run:
+    post:
+      tags: [invoke]
+      summary: Dry-run an invocation
+      description: |
+        Returns whether the call would hit cache, the cached result if any, and
+        cost / duration estimates. No backend call is made and no audit event is
+        emitted.
+      operationId: dryRunInvoke
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvokeRequest'
+      responses:
+        '200':
+          description: Dry-run result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DryRunResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/audit:
+    get:
+      tags: [audit]
+      summary: Query audit events
+      operationId: listAuditEvents
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: workspace_id
+          required: false
+          description: Filter by workspace id.
+          schema:
+            $ref: '#/components/schemas/WorkspaceIdValue'
+        - in: query
+          name: tool_id
+          required: false
+          description: Filter by tool id.
+          schema:
+            $ref: '#/components/schemas/ToolIdValue'
+        - in: query
+          name: agent_id
+          required: false
+          description: Filter by agent id.
+          schema:
+            type: string
+        - in: query
+          name: since
+          required: false
+          description: |
+            Lower time bound. Either an ISO-8601 datetime or a relative window
+            (`5m`, `1h`, `24h`).
+          schema:
+            type: string
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+      responses:
+        '200':
+          description: Matching audit events, newest first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/audit/stats:
+    get:
+      tags: [audit]
+      summary: Aggregate audit statistics
+      operationId: getAuditStats
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: workspace_id
+          required: false
+          schema:
+            $ref: '#/components/schemas/WorkspaceIdValue'
+      responses:
+        '200':
+          description: Aggregate stats over the matching audit window.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/cache/stats:
+    get:
+      tags: [cache]
+      summary: Cache statistics
+      operationId: getCacheStats
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Hit/miss counters and total cache size.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CacheStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/cache:
+    delete:
+      tags: [cache]
+      summary: Clear cache
+      description: Clears the entire cache, or only the entries scoped to a single tool when `tool_id` is provided.
+      operationId: clearCache
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: tool_id
+          required: false
+          schema:
+            $ref: '#/components/schemas/ToolIdValue'
+      responses:
+        '204':
+          description: Cache cleared.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Static bearer token in v0.1 (any non-empty string accepted).
+
+  parameters:
+    ToolId:
+      in: path
+      name: tool_id
+      required: true
+      description: Tool identifier (e.g. `web.fetch`).
+      schema:
+        $ref: '#/components/schemas/ToolIdValue'
+
+  responses:
+    BadRequest:
+      description: Validation or argument error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    NotFound:
+      description: Resource does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    RateLimited:
+      description: Too many requests.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    InternalError:
+      description: Server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+
+  schemas:
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        version:
+          type: string
+          example: "0.1.0"
+
+    ToolIdValue:
+      type: string
+      description: Tool identifier. Lowercase, dot-separated namespace then verb (e.g. `web.fetch`).
+      pattern: '^[a-z0-9][a-z0-9._-]{0,127}$'
+      example: web.fetch
+
+    WorkspaceIdValue:
+      type: string
+      pattern: '^ws_[0-9A-HJKMNP-TV-Z]{26}$'
+      example: "ws_01HZX9V5K4M7N0Q1R2S3T4V5W6"
+
+    AuditEventIdValue:
+      type: string
+      pattern: '^evt_[0-9A-HJKMNP-TV-Z]{26}$'
+
+    JSONSchemaObject:
+      type: object
+      description: |
+        A JSON Schema document (draft 2020-12 or compatible). Free-form to keep
+        forward-compat; concrete validators are responsible for interpreting it.
+      additionalProperties: true
+
+    ToolRegistration:
+      type: object
+      additionalProperties: false
+      required: [tool_id, name, description, transport, endpoint, input_schema, output_schema]
+      properties:
+        tool_id:
+          $ref: '#/components/schemas/ToolIdValue'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 256
+        description:
+          type: string
+          description: Agent-optimized description — short, action-oriented.
+        transport:
+          type: string
+          enum: [http, stdio]
+        endpoint:
+          type: string
+          description: URL for `http` transport, command line for `stdio`.
+        input_schema:
+          $ref: '#/components/schemas/JSONSchemaObject'
+        output_schema:
+          $ref: '#/components/schemas/JSONSchemaObject'
+        idempotent:
+          type: boolean
+          default: false
+        side_effects:
+          type: string
+          enum: [none, read, write]
+          default: read
+        cache_ttl_seconds:
+          oneOf:
+            - type: integer
+              minimum: 0
+            - type: 'null'
+          default: 300
+          description: Null disables caching for the tool.
+        auth_method:
+          type: string
+          enum: [none, bearer, oauth2]
+          default: none
+        auth_config:
+          type: object
+          additionalProperties: true
+          default: {}
+
+    Tool:
+      allOf:
+        - $ref: '#/components/schemas/ToolRegistration'
+        - type: object
+          additionalProperties: false
+          required: [created_at, updated_at]
+          properties:
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+
+    ToolList:
+      type: object
+      additionalProperties: false
+      required: [tools]
+      properties:
+        tools:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tool'
+
+    InvokeRequest:
+      type: object
+      additionalProperties: false
+      required: [tool_id, arguments]
+      properties:
+        tool_id:
+          $ref: '#/components/schemas/ToolIdValue'
+        arguments:
+          type: object
+          description: Arguments matching the tool's `input_schema`.
+          additionalProperties: true
+        workspace_id:
+          oneOf:
+            - $ref: '#/components/schemas/WorkspaceIdValue'
+            - type: 'null'
+          description: For audit attribution.
+        agent_id:
+          oneOf:
+            - type: string
+            - type: 'null'
+          description: For audit attribution.
+        cache:
+          type: boolean
+          default: true
+          description: Set to `false` to bypass cache lookup and storage for this call.
+        idempotency_key:
+          oneOf:
+            - type: string
+              minLength: 1
+              maxLength: 256
+            - type: 'null'
+          description: Client-supplied de-duplication key.
+
+    InvokeResponse:
+      type: object
+      additionalProperties: false
+      required: [tool_id, arguments, result, cached, duration_ms, audit_id, cost_estimate_usd]
+      properties:
+        tool_id:
+          $ref: '#/components/schemas/ToolIdValue'
+        arguments:
+          type: object
+          additionalProperties: true
+        result:
+          description: Free-form JSON result returned by the backend.
+        cached:
+          type: boolean
+        duration_ms:
+          type: integer
+          minimum: 0
+        audit_id:
+          $ref: '#/components/schemas/AuditEventIdValue'
+        cost_estimate_usd:
+          type: number
+          minimum: 0
+          default: 0
+
+    DryRunResponse:
+      type: object
+      additionalProperties: false
+      required: [tool_id, arguments, would_invoke]
+      properties:
+        tool_id:
+          $ref: '#/components/schemas/ToolIdValue'
+        arguments:
+          type: object
+          additionalProperties: true
+        would_invoke:
+          type: boolean
+          description: True when the gateway would call the backend (no usable cache hit).
+        cached_result:
+          description: Cached result if one would be returned; null otherwise.
+        estimated_cost_usd:
+          type: number
+          minimum: 0
+          default: 0
+        estimated_duration_ms:
+          type: integer
+          minimum: 0
+          default: 0
+
+    AuditEvent:
+      type: object
+      additionalProperties: false
+      required: [id, timestamp, tool_id, arguments_hash, result_hash, cached, duration_ms, cost_estimate_usd]
+      properties:
+        id:
+          $ref: '#/components/schemas/AuditEventIdValue'
+        timestamp:
+          type: string
+          format: date-time
+        tool_id:
+          $ref: '#/components/schemas/ToolIdValue'
+        workspace_id:
+          oneOf:
+            - $ref: '#/components/schemas/WorkspaceIdValue'
+            - type: 'null'
+        agent_id:
+          oneOf:
+            - type: string
+            - type: 'null'
+        arguments_hash:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        result_hash:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        cached:
+          type: boolean
+        duration_ms:
+          type: integer
+          minimum: 0
+        cost_estimate_usd:
+          type: number
+          minimum: 0
+        error:
+          oneOf:
+            - type: string
+            - type: 'null'
+
+    AuditEventList:
+      type: object
+      additionalProperties: false
+      required: [events]
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEvent'
+
+    AuditStats:
+      type: object
+      additionalProperties: false
+      required: [stats]
+      properties:
+        stats:
+          type: object
+          additionalProperties: false
+          required: [total_calls, cache_hits, cache_misses, errors, total_cost_usd]
+          properties:
+            total_calls:
+              type: integer
+              minimum: 0
+            cache_hits:
+              type: integer
+              minimum: 0
+            cache_misses:
+              type: integer
+              minimum: 0
+            errors:
+              type: integer
+              minimum: 0
+            total_cost_usd:
+              type: number
+              minimum: 0
+            by_tool:
+              type: object
+              description: Per-tool breakdown.
+              additionalProperties:
+                type: object
+                additionalProperties: false
+                properties:
+                  calls:
+                    type: integer
+                    minimum: 0
+                  cost_usd:
+                    type: number
+                    minimum: 0
+
+    CacheStats:
+      type: object
+      additionalProperties: false
+      required: [hits, misses, size_bytes]
+      properties:
+        hits:
+          type: integer
+          minimum: 0
+        misses:
+          type: integer
+          minimum: 0
+        size_bytes:
+          type: integer
+          minimum: 0
+        entries:
+          type: integer
+          minimum: 0
+
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - WORKSPACE_NOT_FOUND
+            - KEY_NOT_FOUND
+            - FILE_NOT_FOUND
+            - SNAPSHOT_NOT_FOUND
+            - BRANCH_NOT_FOUND
+            - TOOL_NOT_FOUND
+            - TOOL_INVOCATION_FAILED
+            - INVALID_ARGUMENTS
+            - UNAUTHORIZED
+            - RATE_LIMITED
+            - INTERNAL_ERROR
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          $ref: '#/components/schemas/Error'

@@ -2,6 +2,55 @@
 
 All notable changes to Plinth are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [SemVer](https://semver.org).
 
+## [1.0.0] — 2026-05-08
+
+**General Availability release.** Compresses the v0.7–v0.9 trajectory into one coherent ship: stable API guarantees, multi-region scaffolding, per-tenant resource quotas, GDPR compliance scaffolding, tamper-evident audit chain, unified operator CLI, comprehensive Prometheus + OTLP observability, production deployment artifacts (k8s + Helm + Terraform), threat model.
+
+### Added
+
+- **Per-tenant resource quotas** (Identity-driven, enforced in Workspace + Gateway): max workspaces, max storage GB, max channels per workspace, max workflows per workspace, max active tokens, max OAuth connections, max cost USD/day + USD/month, max invocations/minute. Returns 429 + `QUOTA_EXCEEDED` envelope. Opt-in via `PLINTH_QUOTAS_ENABLED=true` (default false to preserve v0.6 demos).
+- **Tenant Admin UI** in Dashboard — `/tenants` route with create/edit/delete + quota editor + per-tenant detail page (members, OAuth connections, audit, cost).
+- **Channel Schema Evolution Wizard** — Dashboard modal for `set_schema`, `schema/check`, `replay-all` DLQ, `purge`. JSON validation in-browser.
+- **Multi-region scaffolding** — `region_id` + `region_replication_mode` settings, peer probe, `GET /v1/regions` per service, replica-mode middleware that returns 421 (Misdirected Request) with `X-Plinth-Primary-Region` + `X-Plinth-Primary-URL` for mutating calls. SDKs (Python + TypeScript) auto-retry once against primary on 421; fall back across `fallback_regions` on connection errors.
+- **Unified `plinth` CLI** (new top-level `cli/` package, `pip install plinth-cli`): commands `services`, `migrate`, `workflow`, `audit`, `tenant`, `bench`, `health`, `completion`. Click + Rich output. `~/.plinth/config.toml` profiles + env-var override. 101 tests.
+- **GDPR data export** — async export job pipeline: Identity coordinates, Workspace + Gateway each expose `/v1/admin/tenants/{id}/data_dump` (admin-scoped). Output: ZIP with workspaces, KV/files JSONL, audit, oauth (token-redacted), tenants, quotas. 7-day expiry.
+- **GDPR data deletion** — two-phase confirm (request → confirm token → cascade delete across services). Block if pending exports.
+- **Tamper-evident audit chain** in Gateway — every audit event now carries `prev_hash` + `event_hash` (SHA-256 over canonical-JSON). New endpoint `GET /v1/audit/verify` walks the chain and reports first hash mismatch.
+- **Threat model** — `docs/threat-model.md`, 2,623 words, STRIDE-based, 45 specifically numbered threats, 8 attacker classes.
+- **Compliance operator guide** — `docs/compliance.md` mapping SOC2 controls to Plinth features, GDPR walkthrough, audit-chain how-to, key-rotation cookbook.
+- **Production deployment artifacts**:
+  - `deploy/k8s/` — namespace + Deployments + Services + ConfigMaps + Secrets + Ingress + kustomization for all 8 services + Postgres (optional StatefulSet)
+  - `deploy/helm/plinth/` — Helm chart 1.0.0 with values, values-prod.yaml, ingress, HPA, NetworkPolicy, ServiceAccount, helm-test pod
+  - `deploy/terraform/aws-example/` — EKS + RDS + S3 + IAM module
+  - `.github/workflows/release.yml` — GHCR multi-arch build + push for all 8 services on tag
+- **API v1 stability promise** — `docs/API_STABILITY.md` codifies additive-only guarantee, 12-month deprecation policy via `Deprecation:` + `Sunset:` headers, scope of stability.
+- **Contract tests** — `tests/contract/` runs against running services to verify response shapes match OpenAPI specs. Includes `scripts/openapi_diff.py` for breaking-change detection in CI.
+- **Comprehensive Prometheus exporter** — `/metrics` endpoint on every service: `plinth_http_requests_total`, `plinth_http_request_duration_seconds`, `plinth_tool_invocations_total`, `plinth_tool_invocation_cost_usd_total`, `plinth_workflow_steps_total`, `plinth_lease_acquired_total`, `plinth_workers_active`, `plinth_load_shed_total`, `plinth_oauth_connections`, `plinth_rate_limit_rejections_total`, `plinth_tokens_issued_total`, `plinth_active_tokens`, `plinth_mcp_invocations_total`. Path normalization for high-cardinality routes.
+- **Dashboard time-series graphs** — 24h + 7d trends for cost, latency p99, error rate, cache hit rate. Pure SVG, no external libs.
+- **SLO definitions** — `docs/slos.md`, 26 specific SLOs across workspace/gateway/identity/cross-service with measurement methodology + burn-rate alerts + page-vs-ticket policy.
+- **Observability operator guide** — `docs/observability.md`, 2,177 words, 10 PromQL alert recipes, Grafana dashboard layout, OTLP receivers (Datadog/Honeycomb/Tempo).
+
+### Changed
+
+- README, OVERVIEW, EXECUTIVE_SUMMARY, PLAYBOOK, TECHNICAL_REFERENCE all updated for v1.0 surface.
+- Test totals: **2066 tests passing** (1901 Python + 136 TS-SDK + 29 TS-Worker). 15 Postgres tests skipped.
+- Repo: ~9 services, 8 deployable units, 5 demos, 13 OpenAPI specs validated, ~120k LOC.
+
+### Stack additions
+- `prometheus-client` (zero-dep custom registry actually — see Notes)
+- Click + Rich (CLI)
+- No new heavy runtime deps
+
+### Backwards compatibility
+- Every v0.x demo produces unchanged output
+- All new endpoints additive
+- Quotas opt-in; multi-region opt-in (standalone is default); audit chain backward-compatible (NULL hashes for legacy rows)
+- Existing 1650 v0.6.1 tests still pass
+
+### Notes
+- Prometheus exporter uses an in-tree zero-dep `MetricsRegistry` rather than the `prometheus-client` package — output is canonical Prometheus exposition format, verified parseable by `prometheus_client.parser`. Decision keeps the runtime deps minimal.
+- OpenTelemetry SDK pinned `<1.30` (1.30 reorganized internal `_logs` API and silently breaks our `LoggerProvider` wiring; will migrate to public API in v1.1).
+
 ## [0.6.1] — 2026-05-08
 
 Polish patch: ships the deferred TypeScript worker harness so JS-shop developers reach feature-parity with the Python `plinth-workflow-worker`.
@@ -239,6 +288,7 @@ Initial proof-of-concept release. Working end-to-end slice of the agent-native s
 ### Stack
 Python 3.11+ for services + Python SDK; TypeScript 5.4+ for the TS SDK; FastAPI + uvicorn + aiosqlite + pydantic v2 + tiktoken; vitest for TS tests.
 
+[1.0.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.0.0
 [0.6.1]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v0.6.1
 [0.6.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v0.6.0
 [0.5.0]: https://github.com/your-org/plinth/releases/tag/v0.5.0

@@ -1,0 +1,117 @@
+# SPDX-License-Identifier: Apache-2.0
+# Plinth — prod values override.
+#
+# Recommended invocation:
+#   helm upgrade --install plinth ./deploy/helm/plinth \
+#     -f deploy/helm/plinth/values.yaml \
+#     -f deploy/helm/plinth/values.prod.yaml \
+#     --set-file identity.jwtSecret=./secrets/jwt.txt \
+#     --set-file gateway.oauth.encryptionKey=./secrets/oauth-key.txt \
+#     --set workspace.postgresUrl="postgresql+psycopg://...@db.example.com/plinth"
+
+global:
+  imageTag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+workspace:
+  replicas: 1                    # SQLite single-writer; >1 only with Postgres
+  persistence:
+    size: 100Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  config:
+    logLevel: "INFO"
+    logFormat: "json"
+
+gateway:
+  replicas: 3
+  persistence:
+    size: 20Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  config:
+    rateLimitsEnabled: true
+    loadShedEnabled: true
+    logLevel: "INFO"
+    logFormat: "json"
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  pdb:
+    enabled: true
+    minAvailable: 2
+
+identity:
+  replicas: 1                    # Single-writer; HA needs Postgres
+  persistence:
+    size: 20Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  # jwtSecret MUST be supplied via --set-file or external secret manager
+  jwtSecret: ""
+
+dashboard:
+  replicas: 3
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  ingress:
+    enabled: true
+    className: nginx
+    host: "dashboard.plinth.example"
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    tls:
+      enabled: true
+      secretName: plinth-dashboard-tls
+
+mockMcp:
+  enabled: false                 # Don't run the mock in prod
+
+githubMcp:
+  enabled: true
+slackMcp:
+  enabled: true
+linearMcp:
+  enabled: true
+
+postgres:
+  enabled: false                 # Use a managed DB in prod
+
+ingress:
+  enabled: true
+  className: nginx
+  gateway:
+    enabled: true
+    host: "api.plinth.example"
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+    tls:
+      enabled: true
+      secretName: plinth-gateway-tls
+
+networkPolicy:
+  enabled: true

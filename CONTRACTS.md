@@ -1778,3 +1778,240 @@ ws.channels.purge_dlq("research-out", older_than_seconds=86400)
 - Workflow viz: dashboard-only; backend unchanged.
 
 All v0.1–v0.5 demos must produce unchanged output.
+
+---
+
+# v1.0 Additions — General Availability
+
+The v1.0 release is the GA milestone: **stable API guarantees, production-ready ops, multi-region capability, compliance scaffolding, and a unified operator CLI**. It rolls up everything that was on the v0.7–v0.9 trajectory into one coherent ship.
+
+## Per-Tenant Resource Quotas
+
+Each tenant gets an enforceable quota envelope. Quotas live in Identity (the source of tenant truth) and are read by Workspace + Gateway when accepting create/invoke calls.
+
+### Endpoints (Identity)
+
+```
+POST   /v1/tenants/{tenant_id}/quotas    body: TenantQuotas         → 200 TenantQuotas
+GET    /v1/tenants/{tenant_id}/quotas                                → 200 TenantQuotas
+DELETE /v1/tenants/{tenant_id}/quotas                                → 204 (revert to defaults)
+GET    /v1/tenants/{tenant_id}/usage                                 → 200 TenantUsage
+```
+
+### Models
+
+```python
+class TenantQuotas(BaseModel):
+    tenant_id: str
+    max_workspaces: int = 100
+    max_storage_gb: float = 10.0
+    max_channels_per_workspace: int = 50
+    max_workflows_per_workspace: int = 100
+    max_active_tokens: int = 1000
+    max_oauth_connections: int = 50
+    max_cost_usd_day: float = 100.0
+    max_cost_usd_month: float = 2000.0
+    max_invocations_per_minute: int = 600
+    updated_at: datetime
+
+class TenantUsage(BaseModel):
+    tenant_id: str
+    workspaces: int
+    storage_gb: float
+    active_tokens: int
+    oauth_connections: int
+    cost_usd_day: float
+    cost_usd_month: float
+    last_invocation_at: datetime | None
+```
+
+### Enforcement
+
+Workspace `POST /v1/workspaces` checks `tenant_usage.workspaces < quota.max_workspaces` → else 429 with `QUOTA_EXCEEDED`. Same pattern on channel/workflow create, file write (storage_gb), gateway invoke (rate + cost). Errors carry `details.quota = "max_workspaces"` etc.
+
+## Tenant Admin UI (Dashboard)
+
+Dashboard gains `/tenants` route:
+- List tenants (id, name, member count, quota usage bars)
+- Create tenant
+- Edit quotas (form)
+- Delete tenant (with confirm + GDPR-export prompt)
+- Per-tenant detail page: members, OAuth connections, recent audit, cost rollup
+
+Endpoints: `/api/tenants` (proxies Identity).
+
+## Channel-Schema-Evolution Wizard (Dashboard)
+
+Visual UI for the v0.6 schema-migration helpers:
+- Edit schema in a JSON editor (with validation)
+- Click "Check compatibility" → calls `schema/check`, renders pass/fail counts + first 10 errors
+- If valid: "Apply schema" button → POSTs to `set_schema`
+- "Replay all DLQ" + "Purge older than" buttons (already in v0.6)
+
+## Multi-Region Scaffolding
+
+v1.0 doesn't *run* multi-region by default but provides the scaffolding:
+
+### Region configuration
+
+Each service accepts:
+```
+PLINTH_REGION_ID=eu-west-1                  # this instance's region
+PLINTH_REGION_PEERS=us-east-1,ap-south-1   # comma-separated peer regions
+PLINTH_REGION_PEERS_<id>_URL=https://...    # peer URLs
+PLINTH_REPLICATION_MODE=primary|replica|standalone
+```
+
+### Replication
+
+- Workspace + Identity: log-shipping for SQLite-based deployments (a periodic SQL dump streamed to peers); native streaming replication for Postgres.
+- Read-replicas accept GET-only requests; redirect mutating requests to primary with `X-Plinth-Primary-Region` header.
+
+### SDK addition
+
+```python
+client = Plinth(
+    workspace_url="https://workspace.plinth.example",
+    region="eu-west-1",                # SDK can route region-aware
+    fallback_regions=["us-east-1"],    # automatic failover on 503/connection
+)
+```
+
+### Endpoint
+
+```
+GET /v1/regions                       → 200 { current: str, peers: [{id, url, status, lag_ms}] }
+```
+
+## Unified CLI: `plinth`
+
+A single Python CLI consolidating ops:
+
+```
+plinth services start | stop | status | logs <svc>
+plinth migrate <svc> --status | --apply | --rollback-to <id>
+plinth workflow list | show <wf_id> | cancel <wf_id> | resume <wf_id>
+plinth audit --tool <id> --since 1h --workspace <ws>
+plinth tenant list | create <id> | quotas <id> | usage <id> | export <id>
+plinth health
+plinth bench quick | full | compare <a> <b>
+plinth completion install
+```
+
+Built on Click. Reads `~/.plinth/config.toml` for service URLs + API key (with env-var override). Tab-completion for tenant/workspace/workflow IDs.
+
+Distributed as a separate package `plinth-cli` (top-level `cli/` directory).
+
+## Compliance Scaffolding
+
+### GDPR data export
+
+```
+POST /v1/tenants/{tenant_id}/export                   → 202 { export_id }
+GET  /v1/tenants/{tenant_id}/exports/{export_id}      → 200 ExportStatus  (status: pending|ready|expired)
+GET  /v1/tenants/{tenant_id}/exports/{export_id}/download   → 200 application/zip
+```
+
+ZIP contains: workspaces (kv as JSONL, files as raw), audit events JSONL, OAuth connections (token-redacted), tenants/quotas, workflow records.
+
+### GDPR data deletion
+
+```
+DELETE /v1/tenants/{tenant_id}/data?confirm=<token>   → 202 DeleteJob
+```
+
+Hard-delete cascade: workspaces → kv/files/snapshots/branches/channels/workflows/transactions, audit events filtered by tenant_id, OAuth connections, identity tokens, tenant row itself. Two-phase confirm via opaque token.
+
+### Tamper-evident audit chain
+
+Each `audit_events` row gets a `prev_hash` column. Hash chain: `hash = sha256(prev_hash || event_canonical_json)`. Verification endpoint:
+
+```
+GET /v1/audit/verify?since=<ts>     → 200 { verified: bool, broken_at: id | null }
+```
+
+### Threat model
+
+`docs/threat-model.md` — STRIDE-based, attacker classes, mitigations, residual risks.
+
+## API v1 Stability Promise
+
+`docs/API_STABILITY.md` codifies:
+- All endpoints under `/v1/...` are guaranteed backwards-compatible until v2 ships
+- Deprecation policy: 12-month notice via `Deprecation:` and `Sunset:` HTTP headers
+- Additive-only changes within v1 (new optional fields, new endpoints, never breaking changes)
+- Contract tests (`tests/contract/`) that verify the OpenAPI specs match running services
+
+A deprecation header on a deprecated endpoint:
+```
+Deprecation: true
+Sunset: Wed, 01 May 2027 00:00:00 GMT
+Link: <https://docs.plinth.dev/api/v2/migration>; rel="alternate"
+```
+
+## Production Deployment Artifacts
+
+```
+deploy/
+├── k8s/
+│   ├── workspace.yaml     # Deployment + Service + ConfigMap
+│   ├── gateway.yaml
+│   ├── identity.yaml
+│   ├── dashboard.yaml
+│   ├── mock-mcp.yaml
+│   └── kustomization.yaml
+├── helm/plinth/
+│   ├── Chart.yaml
+│   ├── values.yaml         # tenant config, region, replicas, etc.
+│   └── templates/
+└── terraform/aws-example/
+    ├── main.tf              # EKS + RDS Postgres + S3 + IAM
+    ├── variables.tf
+    └── outputs.tf
+```
+
+Plus `.github/workflows/release.yml` for image build + push to GHCR on tag.
+
+## Comprehensive Metrics
+
+### Prometheus exporter
+
+Each service exposes `GET /metrics` (Prometheus format). Standard metrics:
+- `plinth_http_requests_total{service, method, status}`
+- `plinth_http_request_duration_seconds{service, method}`
+- `plinth_tool_invocations_total{tool_id, tenant_id, cached}`
+- `plinth_workflow_steps_total{state}`
+- `plinth_load_shed_total`
+- `plinth_workers_active`
+
+### OTLP attribute consistency
+
+Documented attribute set in `docs/observability.md`. All services emit the same attribute names: `tenant.id`, `agent.id`, `workspace.id`, `tool.id`, `workflow.id`, etc.
+
+### SLOs
+
+`docs/slos.md` — published targets:
+- Workspace `GET /v1/workspaces/{id}/kv/{key}`: p99 < 50ms (cached cluster)
+- Gateway `POST /v1/invoke` cache-hit: p99 < 30ms
+- Identity `POST /v1/tokens/verify`: p99 < 20ms
+- Workflow lease acquisition: p95 < 100ms
+
+### Dashboard time-series
+
+24h + 7d rolling time-series graphs for: cost, latency p99, error rate, cache hit ratio, active workers.
+
+## Production-Readiness Checklist
+
+`PRODUCTION_READINESS.md` — operator checklist with ~50 items: backups, monitoring, alerting, runbooks, rollback procedures, disaster recovery, cost limits, security hardening, etc.
+
+## Backwards compatibility (v1.0)
+
+- All v0.1–v0.6 endpoints unchanged
+- Per-tenant quotas: existing tenants get default quotas auto-applied; large defaults so existing workloads don't get throttled
+- Multi-region: opt-in via env vars; standalone mode is default
+- Compliance endpoints are NEW (additive)
+- Audit hash chain: column added with `NULL` allowed; legacy rows get `prev_hash=NULL`. Verification only checks rows with hashes.
+- Prometheus `/metrics` endpoint: new, additive
+- CLI is a separate package — no impact on services
+
+All v0.1–v0.6 demos must produce unchanged output.

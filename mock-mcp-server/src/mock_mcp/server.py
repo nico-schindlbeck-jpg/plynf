@@ -19,6 +19,7 @@ Path traversal protection, scheme validation and error mapping live in
 
 from __future__ import annotations
 
+import time
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -28,6 +29,11 @@ from fastapi.responses import JSONResponse
 
 from . import __version__
 from .logging_config import configure_logging, get_logger
+from .metrics import (
+    MetricsRegistry,
+    metrics_middleware_factory,
+    metrics_response,
+)
 from .settings import Settings, get_settings
 from .tools import TOOL_LIST, TOOL_REGISTRY, ToolContext, ToolError
 
@@ -35,6 +41,41 @@ from .tools import TOOL_LIST, TOOL_REGISTRY, ToolContext, ToolError
 def _build_error(code: str, message: str, details: dict[str, Any] | None = None) -> dict[str, Any]:
     """Return the canonical Plinth error envelope."""
     return {"error": {"code": code, "message": message, "details": details or {}}}
+
+
+def _record_mcp_invocation(
+    registry: MetricsRegistry | None,
+    tool: str,
+    start: float,
+    *,
+    ok: bool,
+) -> None:
+    """Record an MCP invocation outcome on the registry.
+
+    Best-effort: any failure here is swallowed so a metrics bug never
+    breaks an invocation. Increments the canonical
+    ``plinth_mcp_invocations_total`` and (on errors) the matching
+    ``_errors_total``, plus observes the duration histogram.
+    """
+    if registry is None:
+        return
+    try:
+        elapsed = max(0.0, time.perf_counter() - start)
+        registry.counter(
+            "plinth_mcp_invocations_total",
+            {"tool": tool, "result": "ok" if ok else "error"},
+        ).inc(1)
+        if not ok:
+            registry.counter(
+                "plinth_mcp_invocation_errors_total",
+                {"tool": tool},
+            ).inc(1)
+        registry.histogram(
+            "plinth_mcp_invocation_duration_seconds",
+            {"tool": tool},
+        ).observe(elapsed)
+    except Exception:  # noqa: BLE001 — metrics must never crash invoke
+        pass
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -73,6 +114,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
 
+    # v1.0 — Prometheus metrics. Pre-declared so a fresh server returns the
+    # canonical schema even before any tool has been invoked.
+    metrics = MetricsRegistry(service_name="mock-mcp", version=__version__)
+    metrics.declare_counter(
+        "plinth_mcp_invocations_total",
+        "Total MCP tool invocations.",
+    )
+    metrics.declare_counter(
+        "plinth_mcp_invocation_errors_total",
+        "Failed MCP tool invocations (any error).",
+    )
+    metrics.declare_histogram(
+        "plinth_mcp_invocation_duration_seconds",
+        "MCP tool invocation duration in seconds.",
+    )
+    app.state.metrics = metrics
+    app.middleware("http")(metrics_middleware_factory(metrics))
+
     # ------------------------------------------------------------------
     # Routes
     # ------------------------------------------------------------------
@@ -80,6 +139,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
         return {"status": "ok", "version": __version__, "service": "mock-mcp"}
+
+    @app.get("/metrics", include_in_schema=False)
+    async def metrics_endpoint(request: Request):
+        """Prometheus text exposition for the mock-mcp server.
+
+        Public (no auth) by design: Prometheus scrapers don't typically
+        authenticate, and the metrics carry no secrets.
+        """
+        registry: MetricsRegistry = request.app.state.metrics
+        return metrics_response(registry)
 
     @app.get("/tools")
     async def list_tools() -> dict[str, list[dict[str, Any]]]:
@@ -127,6 +196,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
         log.info("mock-mcp.invoke", tool_id=tool_name)
+        registry: MetricsRegistry = request.app.state.metrics
+        start_t = time.perf_counter()
         try:
             result = await tool.handler(args, ctx)
         except ToolError as exc:
@@ -136,12 +207,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 code=exc.code,
                 message=exc.message,
             )
+            _record_mcp_invocation(
+                registry,
+                tool_name,
+                start_t,
+                ok=False,
+            )
             return JSONResponse(
                 status_code=exc.status_code,
                 content=_build_error(exc.code, exc.message, exc.details),
             )
         except Exception as exc:  # pragma: no cover - safety net
             log.exception("mock-mcp.invoke.unexpected", tool_id=tool_name)
+            _record_mcp_invocation(
+                registry,
+                tool_name,
+                start_t,
+                ok=False,
+            )
             return JSONResponse(
                 status_code=500,
                 content=_build_error(
@@ -150,6 +233,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 ),
             )
 
+        _record_mcp_invocation(registry, tool_name, start_t, ok=True)
         return JSONResponse(status_code=200, content={"result": result})
 
     return app

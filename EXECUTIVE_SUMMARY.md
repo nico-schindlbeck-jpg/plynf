@@ -4,7 +4,7 @@
 
 **The runtime where production AI agents actually work.**
 
-`v0.6 — Distribution & Polish` · May 2026 · Apache 2.0
+`v1.0 — General Availability` · May 2026 · Apache 2.0 · **API v1 stable**
 
 </div>
 
@@ -32,10 +32,11 @@ The honest measurement: in the headline benchmark, a five-source research task r
 
 | | |
 |--|--|
-| **Current milestone** | v0.6 — Distribution & Polish (May 7, 2026) |
-| **Tests passing** | 1,621 across 11 test suites |
-| **Codebase** | ~110,000 lines of source and documentation |
-| **Deployable units** | 9 (4 platform services, 3 production tool integrations, 1 mock tool server, 1 worker pool, 1 benchmark suite) |
+| **Current milestone** | **v1.0 — General Availability** (May 8, 2026) |
+| **Tests passing** | **2,066** across 14 test suites (1,901 Python + 136 TS SDK + 29 TS Worker) |
+| **Codebase** | ~120,000 lines of source and documentation |
+| **Deployable units** | 10 (4 platform services, 3 production tool integrations, 1 mock tool server, 1 worker pool, 1 benchmark suite, 1 unified CLI) |
+| **API stability** | v1 contract frozen — additive-only changes guaranteed for ≥12 months (`docs/API_STABILITY.md`) |
 | **End-to-end demos** | 5, all running from a clean clone |
 | **Repository** | Private GitHub at `github.com/nico-schindlbeck-jpg/plinth` |
 | **License** | Apache 2.0 |

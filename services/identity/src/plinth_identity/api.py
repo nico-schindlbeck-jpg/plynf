@@ -15,7 +15,16 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 import structlog
-from fastapi import Depends, FastAPI, Query, Request, Response, status
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    Query,
+    Request,
+    Response,
+    status,
+)
+from fastapi.responses import FileResponse, JSONResponse
 
 from . import __service__, __version__
 from .exceptions import (
@@ -29,6 +38,11 @@ from .exceptions import (
 from .jwt_io import HS256, RS256, TokenManager
 from .keys import KeyStore
 from .logging_config import configure_logging, get_logger
+from .metrics import (
+    MetricsRegistry,
+    metrics_middleware_factory,
+    metrics_response,
+)
 from .migration_runner import (
     MigrationLockError,
     MigrationRollbackMissing as RunnerRollbackMissing,
@@ -36,6 +50,10 @@ from .migration_runner import (
     default_migrations_dir,
 )
 from .models import (
+    DeleteConfirmation,
+    DeleteJob,
+    ExportJobAcknowledgement,
+    ExportStatus,
     HealthResponse,
     JWKSResponse,
     RevocationList,
@@ -55,6 +73,13 @@ from .models import (
     TokenIssueResponse,
     TokenVerifyRequest,
 )
+from .quotas import (
+    QuotaStore,
+    TenantQuotas,
+    TenantQuotasUpdate,
+    TenantUsage,
+)
+from .regions import RegionsResponse, RegionStatusProbe
 from .settings import Settings, get_settings
 from .store import TenantStore, TokenStore, init_db
 
@@ -173,6 +198,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.key_store = key_store
         app.state.store = TokenStore(settings.db_path)
         app.state.tenants = TenantStore(settings.db_path)
+        app.state.quotas = QuotaStore(settings.db_path)
         # Warm the revocation cache so the first verify doesn't pay disk cost.
         await app.state.store.reload_cache()
         log.info(
@@ -223,8 +249,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         database_url=settings.effective_database_url,
         service_name="identity",
     )
+    # v1.0 — multi-region scaffolding. Identity's cross-region propagation
+    # lever (revocation polling) is in v0.6; the probe here just powers
+    # the ``/v1/regions`` discovery endpoint.
+    app.state.region_status_probe = RegionStatusProbe(
+        cache_ttl_seconds=settings.regions_status_cache_ttl_seconds,
+        probe_timeout_seconds=settings.regions_status_probe_timeout_seconds,
+    )
+    # v1.0 — Prometheus metrics. Pre-declares identity-specific series
+    # so scrapes against a fresh deployment return the canonical schema.
+    metrics = MetricsRegistry(service_name=__service__, version=__version__)
+    metrics.declare_counter(
+        "plinth_tokens_issued_total",
+        "Tokens issued (per tenant).",
+    )
+    metrics.declare_counter(
+        "plinth_tokens_revoked_total",
+        "Tokens revoked.",
+    )
+    metrics.declare_gauge(
+        "plinth_tokens_active",
+        "Active (non-revoked, non-expired) tokens.",
+    )
+    metrics.declare_counter(
+        "plinth_token_verifications_total",
+        "Token verifications by result (ok|expired|revoked|invalid).",
+    )
+    app.state.metrics = metrics
     install_exception_handlers(app)
+    app.middleware("http")(metrics_middleware_factory(metrics))
     app.middleware("http")(_request_context_middleware)
+    app.middleware("http")(_replica_redirect_middleware)
 
     _register_routes(app)
     return app
@@ -277,6 +332,64 @@ async def _request_context_middleware(request: Request, call_next):
     return response
 
 
+# v1.0 — read-replica redirect. Identity is mostly issue/verify/revoke;
+# replicas legitimately serve verify (read) but must redirect issue +
+# revoke to the primary. Token verification is intentionally idempotent
+# so this works.
+_MUTATING_METHODS = frozenset({"POST", "PUT", "DELETE", "PATCH"})
+_REPLICA_ALLOWLIST = (
+    "/healthz",
+    "/v1/regions",
+    "/v1/.well-known/jwks.json",
+    "/v1/tokens/verify",  # POST but read-only verification
+    "/metrics",
+)
+
+
+async def _replica_redirect_middleware(request: Request, call_next):
+    """Short-circuit mutating writes when ``replication_mode == 'replica'``.
+
+    Emits 421 (Misdirected Request) with ``X-Plinth-Primary-Region`` +
+    ``X-Plinth-Primary-URL`` so SDK clients can transparently retry. A
+    standard ``Location`` header is added for plain-HTTP / curl users.
+    """
+
+    settings: Settings = request.app.state.settings
+    if settings.replication_mode != "replica":
+        return await call_next(request)
+    if request.method not in _MUTATING_METHODS:
+        return await call_next(request)
+    path = request.url.path
+    if any(path.startswith(prefix) for prefix in _REPLICA_ALLOWLIST):
+        return await call_next(request)
+
+    primary_id = settings.region_peers[0] if settings.region_peers else settings.region_id
+    primary_url = settings.region_primary_url or settings.region_peer_urls.get(primary_id, "")
+    headers: dict[str, str] = {"X-Plinth-Primary-Region": primary_id}
+    if primary_url:
+        normalized = primary_url.rstrip("/")
+        headers["X-Plinth-Primary-URL"] = normalized
+        headers["Location"] = normalized + path
+    return JSONResponse(
+        status_code=421,
+        content={
+            "error": {
+                "code": "REPLICA_READ_ONLY",
+                "message": (
+                    "this is a read-replica; submit mutating requests "
+                    f"to {primary_url or primary_id}"
+                ),
+                "details": {
+                    "region": settings.region_id,
+                    "primary_region": primary_id,
+                    "primary_url": primary_url or None,
+                },
+            }
+        },
+        headers=headers,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Dependencies
 
@@ -293,13 +406,37 @@ def _get_tenants(request: Request) -> TenantStore:
     return request.app.state.tenants
 
 
+def _get_quotas(request: Request) -> QuotaStore:
+    # ``app.state.quotas`` is set inside ``lifespan`` for production.
+    # Tests that bypass the lifespan handler still work because the
+    # store is a thin wrapper over ``settings.db_path``.
+    quotas = getattr(request.app.state, "quotas", None)
+    if quotas is None:
+        quotas = QuotaStore(request.app.state.settings.db_path)
+        request.app.state.quotas = quotas
+    return quotas
+
+
 def _get_key_store(request: Request) -> KeyStore | None:
     return request.app.state.key_store
+
+
+def _get_compliance(request: Request):
+    """Lazy-init the :class:`ComplianceStore` (test-friendly)."""
+
+    from .compliance import ComplianceStore
+
+    store = getattr(request.app.state, "compliance", None)
+    if store is None:
+        store = ComplianceStore(request.app.state.settings.db_path)
+        request.app.state.compliance = store
+    return store
 
 
 ManagerDep = Annotated[TokenManager, Depends(_get_manager)]
 StoreDep = Annotated[TokenStore, Depends(_get_store)]
 TenantsDep = Annotated[TenantStore, Depends(_get_tenants)]
+QuotasDep = Annotated[QuotaStore, Depends(_get_quotas)]
 
 
 def _signing_key_response(key) -> SigningKey:
@@ -326,6 +463,22 @@ def _register_routes(app: FastAPI) -> None:
     async def healthz() -> HealthResponse:
         return HealthResponse(status="ok", version=__version__, service=__service__)
 
+    @app.get("/metrics", tags=["meta"], include_in_schema=False)
+    async def metrics_endpoint(request: Request):
+        """Prometheus exposition endpoint.
+
+        Refreshes the active-tokens gauge on each scrape from the in-memory
+        revocation cache + token store. Best-effort: any failure leaves
+        the previously-set value in place.
+        """
+
+        registry: MetricsRegistry = request.app.state.metrics
+        try:
+            await _refresh_identity_gauges(request.app, registry)
+        except Exception:  # noqa: BLE001 — never crash a scrape
+            pass
+        return metrics_response(registry)
+
     @app.get(
         "/v1/.well-known/jwks.json",
         response_model=JWKSResponse,
@@ -339,6 +492,35 @@ def _register_routes(app: FastAPI) -> None:
             return JWKSResponse(keys=[])
         keys = await key_store.list_jwks_keys()
         return JWKSResponse(keys=[key_store.to_jwk(k) for k in keys])
+
+    # ------------------------------------------------------------------ regions
+
+    @app.get(
+        "/v1/regions",
+        response_model=RegionsResponse,
+        tags=["meta"],
+    )
+    async def get_regions(request: Request) -> RegionsResponse:
+        """Return the current region + cached peer reachability.
+
+        Identity's cross-region propagation lever — token revocation
+        polling — is wired separately (see ``revocation.py``); this
+        endpoint exposes peer reachability for the discovery surface.
+        """
+
+        settings: Settings = request.app.state.settings
+        probe: RegionStatusProbe = request.app.state.region_status_probe
+        peer_urls = {
+            peer_id: settings.region_peer_urls.get(peer_id, "")
+            for peer_id in settings.region_peers
+            if settings.region_peer_urls.get(peer_id)
+        }
+        peers = await probe.all_peers(peer_urls) if peer_urls else []
+        return RegionsResponse(
+            current=settings.region_id,
+            mode=settings.replication_mode,
+            peers=list(peers),
+        )
 
     # ------------------------------------------------------------------ tokens
 
@@ -402,6 +584,13 @@ def _register_routes(app: FastAPI) -> None:
             scopes=list(claims.scopes),
             alg=manager.alg,
         )
+        try:
+            request.app.state.metrics.counter(
+                "plinth_tokens_issued_total",
+                {"tenant_id": str(claims.tenant_id or "default")},
+            ).inc(1)
+        except Exception:  # noqa: BLE001 — metrics never crash core path
+            pass
         return TokenIssueResponse(
             token=issued.token,
             jti=claims.jti,
@@ -418,6 +607,7 @@ def _register_routes(app: FastAPI) -> None:
         body: TokenVerifyRequest,
         manager: ManagerDep,
         store: StoreDep,
+        request: Request,
     ) -> TokenClaims:
         if not body.token:
             raise InvalidArguments(
@@ -428,16 +618,20 @@ def _register_routes(app: FastAPI) -> None:
         try:
             claims = await manager.decode_async(body.token)
         except TokenExpired:
+            _bump_verify_counter(request.app, "expired")
             raise
         except InvalidToken:
+            _bump_verify_counter(request.app, "invalid")
             raise
 
         if await store.is_revoked(claims.jti):
+            _bump_verify_counter(request.app, "revoked")
             raise TokenRevoked(
                 f"Token {claims.jti} has been revoked",
                 details={"jti": claims.jti},
             )
 
+        _bump_verify_counter(request.app, "ok")
         return claims
 
     @app.post(
@@ -448,9 +642,17 @@ def _register_routes(app: FastAPI) -> None:
     async def revoke_token(
         jti: str,
         store: StoreDep,
+        request: Request,
     ) -> Response:
         await store.revoke(jti)
         get_logger().info("identity.token.revoked", jti=jti)
+        try:
+            request.app.state.metrics.counter(
+                "plinth_tokens_revoked_total",
+                {"service": __service__},
+            ).inc(1)
+        except Exception:  # noqa: BLE001 — metrics never crash
+            pass
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.get(
@@ -603,6 +805,355 @@ def _register_routes(app: FastAPI) -> None:
         tenants: TenantsDep,
     ) -> Tenant:
         return await tenants.get(tenant_id)
+
+    # ----------------------------------------------------------- quotas (v1.0)
+    #
+    # Per-tenant resource quota envelope. The endpoints are additive: tenants
+    # without an explicit row return defaults so existing callers see no
+    # change. Workspace + Gateway poll ``GET .../quotas`` (cached locally
+    # for 60s) before accepting create/invoke calls. See ``CONTRACTS.md`` —
+    # "Per-Tenant Resource Quotas".
+
+    @app.get(
+        "/v1/tenants/{tenant_id}/quotas",
+        response_model=TenantQuotas,
+        tags=["tenants"],
+    )
+    async def get_tenant_quotas(
+        tenant_id: str,
+        quotas: QuotasDep,
+    ) -> TenantQuotas:
+        # Per spec: a tenant with no row returns defaults (never 404).
+        # Whether the tenant *itself* exists is checked downstream — the
+        # quota endpoint is intentionally permissive so caller services
+        # can fetch quotas from a still-bootstrapping deployment.
+        return await quotas.get(tenant_id)
+
+    @app.post(
+        "/v1/tenants/{tenant_id}/quotas",
+        response_model=TenantQuotas,
+        tags=["tenants"],
+    )
+    async def set_tenant_quotas(
+        tenant_id: str,
+        body: TenantQuotasUpdate,
+        quotas: QuotasDep,
+    ) -> TenantQuotas:
+        result = await quotas.set(tenant_id, body)
+        get_logger().info(
+            "identity.tenant.quotas.set",
+            tenant_id=tenant_id,
+            max_workspaces=result.max_workspaces,
+            max_storage_gb=result.max_storage_gb,
+            max_cost_usd_day=result.max_cost_usd_day,
+        )
+        return result
+
+    @app.delete(
+        "/v1/tenants/{tenant_id}/quotas",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["tenants"],
+    )
+    async def reset_tenant_quotas(
+        tenant_id: str,
+        quotas: QuotasDep,
+    ) -> Response:
+        await quotas.delete(tenant_id)
+        get_logger().info("identity.tenant.quotas.reset", tenant_id=tenant_id)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @app.get(
+        "/v1/tenants/{tenant_id}/usage",
+        response_model=TenantUsage,
+        tags=["tenants"],
+    )
+    async def get_tenant_usage(
+        tenant_id: str,
+        quotas: QuotasDep,
+    ) -> TenantUsage:
+        return await quotas.usage(tenant_id)
+
+    # ----------------------------------------------------- v1.0 GDPR — exports
+
+    @app.post(
+        "/v1/tenants/{tenant_id}/export",
+        response_model=ExportJobAcknowledgement,
+        status_code=status.HTTP_202_ACCEPTED,
+        tags=["compliance"],
+    )
+    async def request_tenant_export(
+        tenant_id: str,
+        request: Request,
+        background_tasks: BackgroundTasks,
+        tenants: TenantsDep,
+    ) -> ExportJobAcknowledgement:
+        """Kick off a GDPR Article 20 (data portability) export.
+
+        Returns 202 with a pending ``export_id``. The client polls
+        ``GET /v1/tenants/{id}/exports/{export_id}`` until ``status``
+        becomes ``ready``, then ``GET .../download`` for the ZIP.
+        """
+
+        from .compliance import run_export
+
+        await tenants.get(tenant_id)  # 404 if missing
+        store = _get_compliance(request)
+        export = await store.create_export(tenant_id)
+
+        gw_settings: Settings = request.app.state.settings
+        exports_dir = gw_settings.data_dir / "exports"
+        background_tasks.add_task(
+            run_export,
+            store=store,
+            export_id=export.export_id,
+            tenant_id=tenant_id,
+            workspace_url=gw_settings.workspace_url or None,
+            gateway_url=gw_settings.gateway_url or None,
+            exports_dir=exports_dir,
+            db_path=gw_settings.db_path,
+        )
+        get_logger().info(
+            "identity.compliance.export.requested",
+            export_id=export.export_id,
+            tenant_id=tenant_id,
+        )
+        return ExportJobAcknowledgement(
+            export_id=export.export_id,
+            status="pending",
+        )
+
+    @app.get(
+        "/v1/tenants/{tenant_id}/exports/{export_id}",
+        response_model=ExportStatus,
+        tags=["compliance"],
+    )
+    async def get_export_status(
+        tenant_id: str,
+        export_id: str,
+        request: Request,
+    ) -> ExportStatus:
+        store = _get_compliance(request)
+        export = await store.get_export(export_id)
+        if export is None or export.tenant_id != tenant_id:
+            return JSONResponse(  # type: ignore[return-value]
+                status_code=404,
+                content={
+                    "error": {
+                        "code": "EXPORT_NOT_FOUND",
+                        "message": f"export {export_id!r} not found",
+                        "details": {"export_id": export_id},
+                    }
+                },
+            )
+        # Late expiry: surface "expired" once we're past expires_at.
+        if (
+            export.expires_at is not None
+            and export.status == "ready"
+            and export.expires_at < datetime.now(UTC).replace(microsecond=0)
+        ):
+            await store.update_export(
+                export_id,
+                status="expired",
+                completed_at=export.completed_at,
+                expires_at=export.expires_at,
+                size_bytes=export.size_bytes,
+            )
+            export = await store.get_export(export_id)
+            assert export is not None  # noqa: S101
+        return export
+
+    @app.get(
+        "/v1/tenants/{tenant_id}/exports/{export_id}/download",
+        tags=["compliance"],
+    )
+    async def download_export(
+        tenant_id: str,
+        export_id: str,
+        request: Request,
+    ) -> Response:
+        store = _get_compliance(request)
+        export = await store.get_export(export_id)
+        if export is None or export.tenant_id != tenant_id:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "error": {
+                        "code": "EXPORT_NOT_FOUND",
+                        "message": f"export {export_id!r} not found",
+                        "details": {"export_id": export_id},
+                    }
+                },
+            )
+        if export.status != "ready":
+            if (
+                export.status == "ready"
+                or export.status == "expired"
+                or (
+                    export.expires_at is not None
+                    and export.expires_at
+                    < datetime.now(UTC).replace(microsecond=0)
+                )
+            ):
+                return JSONResponse(
+                    status_code=410,
+                    content={
+                        "error": {
+                            "code": "EXPORT_EXPIRED",
+                            "message": "export has expired",
+                            "details": {"export_id": export_id},
+                        }
+                    },
+                )
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error": {
+                        "code": "EXPORT_NOT_READY",
+                        "message": (
+                            f"export {export_id!r} is in status "
+                            f"{export.status!r}; not yet ready"
+                        ),
+                        "details": {"status": export.status},
+                    }
+                },
+            )
+        if (
+            export.expires_at is not None
+            and export.expires_at < datetime.now(UTC).replace(microsecond=0)
+        ):
+            return JSONResponse(
+                status_code=410,
+                content={
+                    "error": {
+                        "code": "EXPORT_EXPIRED",
+                        "message": "export has expired",
+                        "details": {"export_id": export_id},
+                    }
+                },
+            )
+        gw_settings: Settings = request.app.state.settings
+        exports_dir = gw_settings.data_dir / "exports"
+        zip_path = exports_dir / f"{export_id}.zip"
+        if not zip_path.exists():
+            return JSONResponse(
+                status_code=410,
+                content={
+                    "error": {
+                        "code": "EXPORT_FILE_MISSING",
+                        "message": "export file no longer present on disk",
+                        "details": {"export_id": export_id},
+                    }
+                },
+            )
+        return FileResponse(
+            str(zip_path),
+            media_type="application/zip",
+            filename=f"plinth-export-{tenant_id}-{export_id}.zip",
+        )
+
+    # ----------------------------------------------------- v1.0 GDPR — deletes
+
+    @app.post(
+        "/v1/tenants/{tenant_id}/delete-data-confirm",
+        response_model=DeleteConfirmation,
+        tags=["compliance"],
+    )
+    async def request_delete_confirmation(
+        tenant_id: str,
+        request: Request,
+        tenants: TenantsDep,
+    ) -> DeleteConfirmation:
+        """Phase 1 of GDPR Article 17 erasure — issue a one-shot confirm token.
+
+        The token is short-lived (10 min). The caller passes it back as
+        ``?confirm=<token>`` on the actual ``DELETE`` to prove intent and
+        protect against accidental cascade.
+        """
+
+        await tenants.get(tenant_id)
+        store = _get_compliance(request)
+        token, expires_at = await store.issue_confirm_token(tenant_id)
+        get_logger().info(
+            "identity.compliance.delete.confirm_issued",
+            tenant_id=tenant_id,
+        )
+        return DeleteConfirmation(confirm_token=token, expires_at=expires_at)
+
+    @app.delete(
+        "/v1/tenants/{tenant_id}/data",
+        response_model=DeleteJob,
+        status_code=status.HTTP_202_ACCEPTED,
+        tags=["compliance"],
+    )
+    async def delete_tenant_data(
+        tenant_id: str,
+        request: Request,
+        background_tasks: BackgroundTasks,
+        tenants: TenantsDep,
+        confirm: Annotated[str, Query(min_length=1)],
+    ) -> DeleteJob:
+        """Phase 2 of GDPR Article 17 erasure — kick off the cascade."""
+
+        from .compliance import run_delete
+
+        await tenants.get(tenant_id)
+        store = _get_compliance(request)
+        ok = await store.consume_confirm_token(confirm, tenant_id)
+        if not ok:
+            return JSONResponse(  # type: ignore[return-value]
+                status_code=400,
+                content={
+                    "error": {
+                        "code": "DELETE_CONFIRM_INVALID",
+                        "message": (
+                            "confirm token missing, expired, or wrong tenant"
+                        ),
+                        "details": {"tenant_id": tenant_id},
+                    }
+                },
+            )
+        job = await store.create_delete_job(tenant_id)
+        gw_settings: Settings = request.app.state.settings
+        background_tasks.add_task(
+            run_delete,
+            store=store,
+            job_id=job.job_id,
+            tenant_id=tenant_id,
+            workspace_url=gw_settings.workspace_url or None,
+            gateway_url=gw_settings.gateway_url or None,
+            db_path=gw_settings.db_path,
+        )
+        get_logger().info(
+            "identity.compliance.delete.requested",
+            job_id=job.job_id,
+            tenant_id=tenant_id,
+        )
+        return job
+
+    @app.get(
+        "/v1/tenants/{tenant_id}/delete-jobs/{job_id}",
+        response_model=DeleteJob,
+        tags=["compliance"],
+    )
+    async def get_delete_job_status(
+        tenant_id: str,
+        job_id: str,
+        request: Request,
+    ) -> DeleteJob:
+        store = _get_compliance(request)
+        job = await store.get_delete_job(job_id)
+        if job is None or job.tenant_id != tenant_id:
+            return JSONResponse(  # type: ignore[return-value]
+                status_code=404,
+                content={
+                    "error": {
+                        "code": "DELETE_JOB_NOT_FOUND",
+                        "message": f"job {job_id!r} not found",
+                        "details": {"job_id": job_id},
+                    }
+                },
+            )
+        return job
 
     # -------------------------------------------------------------------- keys
 
@@ -807,6 +1358,44 @@ def _serialize_pending(mig) -> dict:  # noqa: ANN001
         "id": mig.id,
         "checksum": mig.checksum,
     }
+
+
+def _bump_verify_counter(app: FastAPI, result: str) -> None:
+    """Bump the per-result token-verification counter (best-effort)."""
+
+    try:
+        registry: MetricsRegistry | None = getattr(app.state, "metrics", None)
+        if registry is None:
+            return
+        registry.counter(
+            "plinth_token_verifications_total",
+            {"result": str(result)},
+        ).inc(1)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+async def _refresh_identity_gauges(app: FastAPI, registry: MetricsRegistry) -> None:
+    """Refresh identity-specific gauges on each Prometheus scrape.
+
+    Best-effort: any failure leaves the previously-set value in place. The
+    ``tokens_active`` count is the difference between issued and revoked
+    rows (computed via the existing token store).
+    """
+
+    store = getattr(app.state, "store", None)
+    if store is None:
+        return
+    count_fn = getattr(store, "count_active", None)
+    if callable(count_fn):
+        try:
+            n = await count_fn()
+            registry.gauge(
+                "plinth_tokens_active",
+                {"service": __service__},
+            ).set(int(n or 0))
+        except Exception:  # noqa: BLE001
+            pass
 
 
 # A module-level default for environments that import

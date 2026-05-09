@@ -23,7 +23,18 @@ from .exceptions import (
     TokenExpired,
     TokenRevoked,
 )
-from .models import RevocationEntry, RevocationList, SigningKey
+from .models import (
+    DeleteConfirmation,
+    DeleteJob,
+    ExportJob,
+    ExportStatus,
+    RevocationEntry,
+    RevocationList,
+    SigningKey,
+    TenantQuotas,
+    TenantQuotasUpdate,
+    TenantUsage,
+)
 
 DEFAULT_IDENTITY_URL = "http://localhost:7425"
 
@@ -95,12 +106,16 @@ class IdentityClient:
         api_key: str | None = None,
         timeout: float = 30.0,
         transport: httpx.BaseTransport | None = None,
+        fallback_urls: dict[str, str] | None = None,
+        primary_region: str | None = None,
     ) -> None:
         self._http = HTTPClient(
             base_url,
             api_key or "identity-client",
             timeout=timeout,
             transport=transport,
+            fallback_urls=fallback_urls,
+            primary_region=primary_region,
         )
 
     def close(self) -> None:
@@ -302,6 +317,63 @@ class IdentityClient:
 
         return self._http.get_json(f"/v1/tenants/{tenant_id}")
 
+    # --------------------------------------------------------- quotas (v1.0)
+
+    def get_quotas(self, tenant_id: str) -> TenantQuotas:
+        """Fetch the per-tenant quota envelope.
+
+        A tenant without an explicit row returns the contract defaults —
+        identity never returns 404 here, so callers don't need to wrap
+        the call in a try/except.
+        """
+
+        body = self._http.get_json(f"/v1/tenants/{tenant_id}/quotas")
+        return TenantQuotas.model_validate(body)
+
+    def set_quotas(
+        self,
+        tenant_id: str,
+        quotas: TenantQuotas | TenantQuotasUpdate | dict[str, Any],
+    ) -> TenantQuotas:
+        """Patch the tenant's quota envelope.
+
+        Accepts a :class:`TenantQuotas` (full overwrite), a
+        :class:`TenantQuotasUpdate` (partial), or a raw dict. Unset
+        fields fall back to the existing row.
+        """
+
+        if isinstance(quotas, TenantQuotas):
+            body = quotas.model_dump(
+                exclude={"tenant_id", "updated_at"},
+                exclude_none=True,
+            )
+        elif isinstance(quotas, TenantQuotasUpdate):
+            body = quotas.model_dump(exclude_none=True)
+        else:
+            body = dict(quotas)
+        response = self._http.post(
+            f"/v1/tenants/{tenant_id}/quotas",
+            json=body,
+        )
+        return TenantQuotas.model_validate(response.json())
+
+    def reset_quotas(self, tenant_id: str) -> None:
+        """Drop the tenant's quota row, reverting it to defaults."""
+
+        self._http.delete(f"/v1/tenants/{tenant_id}/quotas")
+
+    def get_usage(self, tenant_id: str) -> TenantUsage:
+        """Return the per-tenant usage rollup.
+
+        Some fields (``storage_gb``, ``cost_usd_day``, ``cost_usd_month``,
+        ``last_invocation_at``) live in other services and surface as
+        ``0`` / ``None`` with a ``notes`` map pointing at the canonical
+        source.
+        """
+
+        body = self._http.get_json(f"/v1/tenants/{tenant_id}/usage")
+        return TenantUsage.model_validate(body)
+
     # ---------------------------------------------------------------- keys (v0.4)
 
     def list_keys(self, *, include_expired: bool = False) -> list[SigningKey]:
@@ -358,17 +430,94 @@ class IdentityClient:
 
         self._http.delete(f"/v1/keys/{kid}")
 
+    # ------------------------------------------------------ GDPR (v1.0)
+
+    def export_tenant(self, tenant_id: str) -> ExportJob:
+        """Kick off a GDPR Article 20 (data portability) export.
+
+        Returns the ``ExportJob`` handle (``export_id``, ``status``).
+        The caller polls :meth:`get_export` until ``status == 'ready'``,
+        then fetches the ZIP via :meth:`download_export`.
+        """
+
+        response = self._http.post(f"/v1/tenants/{tenant_id}/export")
+        return ExportJob.model_validate(response.json())
+
+    def get_export(self, tenant_id: str, export_id: str) -> ExportStatus:
+        """Return the current :class:`ExportStatus` for ``export_id``."""
+
+        body = self._http.get_json(
+            f"/v1/tenants/{tenant_id}/exports/{export_id}"
+        )
+        return ExportStatus.model_validate(body)
+
+    def download_export(self, tenant_id: str, export_id: str) -> bytes:
+        """Fetch the ZIP body for a ``ready`` export. Raises on 410/409."""
+
+        response = self._http.get(
+            f"/v1/tenants/{tenant_id}/exports/{export_id}/download"
+        )
+        return response.content
+
+    def request_delete_confirmation(
+        self,
+        tenant_id: str,
+    ) -> DeleteConfirmation:
+        """Phase 1 of GDPR Article 17 — issue a one-shot confirm token.
+
+        The token is short-lived (~10 min). Pass it back as the
+        ``confirm_token=`` argument of :meth:`delete_tenant_data`.
+        """
+
+        response = self._http.post(
+            f"/v1/tenants/{tenant_id}/delete-data-confirm"
+        )
+        return DeleteConfirmation.model_validate(response.json())
+
+    def delete_tenant_data(
+        self,
+        tenant_id: str,
+        *,
+        confirm_token: str,
+    ) -> DeleteJob:
+        """Phase 2 of GDPR Article 17 — kick off the cascade.
+
+        Returns the :class:`DeleteJob` handle. Poll with
+        :meth:`get_delete_job` until ``status`` settles.
+        """
+
+        response = self._http.delete(
+            f"/v1/tenants/{tenant_id}/data",
+            params={"confirm": confirm_token},
+        )
+        return DeleteJob.model_validate(response.json())
+
+    def get_delete_job(self, tenant_id: str, job_id: str) -> DeleteJob:
+        """Return the current :class:`DeleteJob` snapshot."""
+
+        body = self._http.get_json(
+            f"/v1/tenants/{tenant_id}/delete-jobs/{job_id}"
+        )
+        return DeleteJob.model_validate(body)
+
 
 # Re-export the new typed exceptions so callers can do
 # ``from plinth.identity import TokenExpired``.
 __all__ = [
     "DEFAULT_IDENTITY_URL",
+    "DeleteConfirmation",
+    "DeleteJob",
+    "ExportJob",
+    "ExportStatus",
     "IdentityClient",
     "InvalidToken",
     "PlinthError",
     "RevocationEntry",
     "RevocationList",
     "SigningKey",
+    "TenantQuotas",
+    "TenantQuotasUpdate",
+    "TenantUsage",
     "TokenClaims",
     "TokenExpired",
     "TokenInfo",

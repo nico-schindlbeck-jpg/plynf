@@ -38,8 +38,18 @@ from fastapi.staticfiles import StaticFiles
 
 from . import __service__, __version__
 from .logging_config import configure_logging, get_logger
+from .metrics import (
+    MetricsRegistry,
+    metrics_middleware_factory,
+    metrics_response,
+)
 from .overview import OverviewBuilder
 from .settings import Settings, get_settings
+from .timeseries import (
+    InvalidMetricError,
+    InvalidWindowError,
+    build_timeseries,
+)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -88,6 +98,21 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.settings = settings
+
+    # v1.0 — Prometheus metrics. Pre-declares dashboard-specific series so
+    # scrapes against a fresh deployment return the canonical schema.
+    metrics = MetricsRegistry(service_name=__service__, version=__version__)
+    metrics.declare_counter(
+        "plinth_dashboard_polls_total",
+        "Dashboard /api/* polls (per endpoint).",
+    )
+    metrics.declare_counter(
+        "plinth_dashboard_upstream_failures_total",
+        "Failed upstream calls (per upstream service).",
+    )
+    app.state.metrics = metrics
+
+    app.middleware("http")(metrics_middleware_factory(metrics))
     app.middleware("http")(_request_context_middleware)
 
     # Static SPA: vanilla HTML/CSS/JS, no build step.
@@ -110,6 +135,19 @@ def _register_routes(app: FastAPI, settings: Settings) -> None:
     @app.get("/healthz", tags=["meta"])
     async def healthz() -> dict:
         return {"status": "ok", "version": __version__, "service": __service__}
+
+    @app.get("/metrics", tags=["meta"], include_in_schema=False)
+    async def metrics_endpoint(request: Request):
+        """Prometheus exposition endpoint.
+
+        The dashboard service primarily serves as a proxy + UI shell, so the
+        useful metrics are HTTP-level (recorded automatically by middleware)
+        plus a poll counter for each ``/api/*`` route. Per-endpoint poll
+        counters are bumped inline by ``_proxy``/``_proxy_mut``.
+        """
+
+        registry: MetricsRegistry = request.app.state.metrics
+        return metrics_response(registry)
 
     @app.get("/api/overview", tags=["api"])
     async def api_overview(request: Request) -> JSONResponse:
@@ -161,6 +199,85 @@ def _register_routes(app: FastAPI, settings: Settings) -> None:
         return JSONResponse(content=data)
 
     # --------------------------------------------------------------- proxies
+
+    @app.get("/api/timeseries", tags=["api"])
+    async def api_timeseries(request: Request) -> JSONResponse:
+        """Return a time-series payload for one of the canonical metrics.
+
+        Query params: ``metric``, ``window`` (default ``24h``), ``buckets``
+        (optional). Pulls audit events from the gateway and aggregates
+        them in-process. The gateway's ``/v1/audit?limit=10000`` is the
+        source of truth — anything older than what's in that buffer is
+        silently dropped (operators querying multi-day windows should
+        scrape Prometheus directly).
+        """
+
+        metric = (request.query_params.get("metric") or "cost").strip()
+        window = (request.query_params.get("window") or "24h").strip()
+        buckets_param = request.query_params.get("buckets")
+        buckets_n = None
+        if buckets_param:
+            try:
+                buckets_n = int(buckets_param)
+            except (TypeError, ValueError):
+                buckets_n = None
+
+        # Reuse the overview builder's HTTP client for connection reuse.
+        builder: OverviewBuilder = request.app.state.overview
+        upstream = f"{gw_url}/v1/audit"
+        try:
+            upstream_resp = await builder.client.get(
+                upstream, params={"limit": 10000}
+            )
+        except httpx.HTTPError as exc:
+            return JSONResponse(
+                status_code=502,
+                content={
+                    "error": {
+                        "code": "UPSTREAM_UNREACHABLE",
+                        "message": f"Upstream {upstream} is unreachable.",
+                        "details": {"reason": str(exc)},
+                    }
+                },
+            )
+
+        if upstream_resp.status_code >= 400:
+            return JSONResponse(
+                status_code=upstream_resp.status_code,
+                content={
+                    "error": {
+                        "code": "UPSTREAM_ERROR",
+                        "message": f"Upstream returned {upstream_resp.status_code}.",
+                        "details": {},
+                    }
+                },
+            )
+
+        try:
+            data = upstream_resp.json()
+        except ValueError:
+            data = {}
+        events = (data or {}).get("events") or []
+
+        try:
+            payload = build_timeseries(
+                events,
+                metric=metric,
+                window=window,
+                buckets=buckets_n,
+            )
+        except (InvalidMetricError, InvalidWindowError) as exc:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": {
+                        "code": "INVALID_ARGUMENTS",
+                        "message": str(exc),
+                        "details": {"metric": metric, "window": window},
+                    }
+                },
+            )
+        return JSONResponse(content=payload)
 
     @app.get("/api/workspaces", tags=["api"])
     async def api_workspaces(request: Request) -> JSONResponse:
@@ -265,11 +382,97 @@ def _register_routes(app: FastAPI, settings: Settings) -> None:
 
     @app.get("/api/tenants", tags=["api"])
     async def api_tenants(request: Request) -> JSONResponse:
-        # Defer to the workspace's tenants list — the dashboard merges with
-        # the gateway view inside ``/api/overview``. Keeping the dedicated
-        # endpoint pointed at the workspace mirrors the contract: tenant IDs
-        # are owned by the workspace service first.
+        # The identity service is the source of truth for tenant rows; we
+        # fall back to the workspace if identity is unreachable so single-
+        # node v0.6 deploys (no identity) still see something on /tenants.
+        primary = await _proxy(request, f"{id_url}/v1/tenants")
+        if primary.status_code == 200:
+            return primary
         return await _proxy(request, f"{ws_url}/v1/tenants")
+
+    @app.post("/api/tenants", tags=["api"])
+    async def api_tenants_create(request: Request) -> JSONResponse:
+        # Forward the body verbatim so identity does the validation.
+        return await _proxy_mut(
+            request,
+            method="POST",
+            upstream_url=f"{id_url}/v1/tenants",
+            forward_body=True,
+        )
+
+    @app.get("/api/tenants/{tenant_id}", tags=["api"])
+    async def api_tenant_detail(tenant_id: str, request: Request) -> JSONResponse:
+        return await _proxy(request, f"{id_url}/v1/tenants/{tenant_id}")
+
+    # v1.0 — per-tenant quotas. The dashboard proxies CRUD verbatim so the
+    # admin form posts go to identity (the source of truth).
+    @app.get("/api/tenants/{tenant_id}/quotas", tags=["api"])
+    async def api_tenant_quotas(tenant_id: str, request: Request) -> JSONResponse:
+        return await _proxy(request, f"{id_url}/v1/tenants/{tenant_id}/quotas")
+
+    @app.post("/api/tenants/{tenant_id}/quotas", tags=["api"])
+    async def api_tenant_quotas_set(
+        tenant_id: str,
+        request: Request,
+    ) -> JSONResponse:
+        return await _proxy_mut(
+            request,
+            method="POST",
+            upstream_url=f"{id_url}/v1/tenants/{tenant_id}/quotas",
+            forward_body=True,
+        )
+
+    @app.delete("/api/tenants/{tenant_id}/quotas", tags=["api"])
+    async def api_tenant_quotas_reset(
+        tenant_id: str,
+        request: Request,
+    ) -> JSONResponse:
+        return await _proxy_mut(
+            request,
+            method="DELETE",
+            upstream_url=f"{id_url}/v1/tenants/{tenant_id}/quotas",
+        )
+
+    @app.get("/api/tenants/{tenant_id}/usage", tags=["api"])
+    async def api_tenant_usage(tenant_id: str, request: Request) -> JSONResponse:
+        return await _proxy(request, f"{id_url}/v1/tenants/{tenant_id}/usage")
+
+    # v1.0 — channel schema evolution wizard. The dashboard's wizard calls
+    # these three endpoints; they're thin pass-throughs so the workspace
+    # service stays the source of truth for validation.
+    @app.post(
+        "/api/workspaces/{ws_id}/channels/{name:path}/schema/check",
+        tags=["api"],
+    )
+    async def api_channel_schema_check(
+        ws_id: str,
+        name: str,
+        request: Request,
+    ) -> JSONResponse:
+        return await _proxy_mut(
+            request,
+            method="POST",
+            upstream_url=(
+                f"{ws_url}/v1/workspaces/{ws_id}/channels/{name}/schema/check"
+            ),
+            forward_body=True,
+        )
+
+    @app.post(
+        "/api/workspaces/{ws_id}/channels/{name:path}/schema",
+        tags=["api"],
+    )
+    async def api_channel_schema_set(
+        ws_id: str,
+        name: str,
+        request: Request,
+    ) -> JSONResponse:
+        return await _proxy_mut(
+            request,
+            method="POST",
+            upstream_url=f"{ws_url}/v1/workspaces/{ws_id}/channels/{name}/schema",
+            forward_body=True,
+        )
 
     @app.get("/api/identity/tokens", tags=["api"])
     async def api_identity_tokens(request: Request) -> JSONResponse:
@@ -314,6 +517,16 @@ def _register_routes(app: FastAPI, settings: Settings) -> None:
     async def index_workflow_detail(wf_id: str) -> FileResponse:  # noqa: ARG001
         # Same shell, different hash. The SPA reads ?ws=<ws_id> from the URL
         # to know which workspace to query.
+        return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
+
+    @app.api_route("/tenants", methods=["GET", "HEAD"], tags=["ui"])
+    async def index_tenants() -> FileResponse:
+        # v1.0 — tenants list (admin UI). SPA shell; the JS router reads
+        # the URL hash and fetches /api/tenants.
+        return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
+
+    @app.api_route("/tenants/{tenant_id}", methods=["GET", "HEAD"], tags=["ui"])
+    async def index_tenant_detail(tenant_id: str) -> FileResponse:  # noqa: ARG001
         return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
 
     @app.get("/favicon.ico", include_in_schema=False)
@@ -412,6 +625,15 @@ async def _proxy(
     Returns the upstream JSON body, or a 502 if the upstream is unreachable.
     """
     builder: OverviewBuilder = request.app.state.overview
+    # v1.0 — best-effort poll counter. The label is the dashboard endpoint
+    # (request.url.path) so a Grafana panel can ``sum by (endpoint)``.
+    try:
+        request.app.state.metrics.counter(
+            "plinth_dashboard_polls_total",
+            {"endpoint": request.url.path},
+        ).inc(1)
+    except Exception:  # noqa: BLE001 — metrics never crash a proxy
+        pass
     params: dict[str, Any] | None = None
     if forward_query and request.query_params:
         params = dict(request.query_params)
@@ -423,6 +645,14 @@ async def _proxy(
             upstream=upstream_url,
             error=str(exc),
         )
+        try:
+            upstream_label = _extract_upstream_label(upstream_url)
+            request.app.state.metrics.counter(
+                "plinth_dashboard_upstream_failures_total",
+                {"upstream": upstream_label},
+            ).inc(1)
+        except Exception:  # noqa: BLE001
+            pass
         return JSONResponse(
             status_code=502,
             content={
@@ -454,6 +684,24 @@ async def _proxy(
 
 # ---------------------------------------------------------------------------
 # Middleware
+
+
+def _extract_upstream_label(url: str) -> str:
+    """Reduce an upstream URL to a service-name label.
+
+    Maps ``http://workspace:7421/v1/...`` → ``"workspace"``. Falls back to
+    the host name when the URL doesn't match a known service so the metric
+    is still scrape-safe (Prometheus doesn't tolerate empty labels well).
+    """
+
+    lower = url.lower()
+    if "workspace" in lower or ":7421" in lower:
+        return "workspace"
+    if "gateway" in lower or ":7422" in lower:
+        return "gateway"
+    if "identity" in lower or ":7423" in lower:
+        return "identity"
+    return "unknown"
 
 
 async def _request_context_middleware(request: Request, call_next):

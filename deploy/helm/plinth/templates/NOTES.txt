@@ -1,0 +1,29 @@
+Plinth {{ .Chart.AppVersion }} has been installed into namespace {{ .Release.Namespace }}.
+
+Release name: {{ .Release.Name }}
+Chart version: {{ .Chart.Version }}
+
+Services exposed (ClusterIP):
+  - workspace : http://plinth-workspace.{{ .Release.Namespace }}.svc:{{ .Values.workspace.service.port }}
+  - gateway   : http://plinth-gateway.{{ .Release.Namespace }}.svc:{{ .Values.gateway.service.port }}
+  - identity  : http://plinth-identity.{{ .Release.Namespace }}.svc:{{ .Values.identity.service.port }}
+  - dashboard : http://plinth-dashboard.{{ .Release.Namespace }}.svc:{{ .Values.dashboard.service.port }}
+
+{{- if .Values.dashboard.ingress.enabled }}
+
+Dashboard URL: https://{{ .Values.dashboard.ingress.host }}/
+{{- end }}
+
+{{- if .Values.ingress.gateway.enabled }}
+Gateway URL  : https://{{ .Values.ingress.gateway.host }}/
+{{- end }}
+
+Quick check:
+  kubectl -n {{ .Release.Namespace }} get pods,svc
+
+Port-forward the dashboard locally:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/plinth-dashboard {{ .Values.dashboard.service.port }}:{{ .Values.dashboard.service.port }}
+  open http://localhost:{{ .Values.dashboard.service.port }}
+
+Read the operator handbook at docs/deployment.md for upgrades, rollback, and
+backup guidance.

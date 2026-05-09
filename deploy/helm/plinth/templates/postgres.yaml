@@ -1,0 +1,117 @@
+{{- /* SPDX-License-Identifier: Apache-2.0 */ -}}
+{{- if .Values.postgres.enabled -}}
+{{- $cfg := .Values.postgres -}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plinth-postgres-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.service.labels" (dict "ctx" . "svc" "postgres") | nindent 4 }}
+data:
+  POSTGRES_DB: {{ $cfg.database | quote }}
+  POSTGRES_USER: {{ $cfg.username | quote }}
+  PGDATA: "/var/lib/postgresql/data/pgdata"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: plinth-postgres-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.service.labels" (dict "ctx" . "svc" "postgres") | nindent 4 }}
+spec:
+  accessModes: [{{ $cfg.persistence.accessMode | quote }}]
+  resources:
+    requests:
+      storage: {{ $cfg.persistence.size | quote }}
+  {{- $sc := include "plinth.storageClass" (dict "ctx" . "svcClass" $cfg.persistence.storageClass) }}
+  {{- if $sc }}
+  storageClassName: {{ $sc | quote }}
+  {{- end }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: plinth-postgres
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.service.labels" (dict "ctx" . "svc" "postgres") | nindent 4 }}
+spec:
+  serviceName: plinth-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "plinth.service.selectorLabels" (dict "ctx" . "svc" "postgres") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "plinth.service.labels" (dict "ctx" . "svc" "postgres") | nindent 8 }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: "{{ $cfg.image.repository }}:{{ $cfg.image.tag }}"
+          imagePullPolicy: {{ .Values.global.pullPolicy }}
+          ports:
+            - name: postgres
+              containerPort: {{ $cfg.service.port }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: plinth-postgres-config
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default "plinth-secrets" .Values.existingSecret }}
+                  key: postgres-password
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ $cfg.username | quote }}, "-d", {{ $cfg.database | quote }}]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ $cfg.username | quote }}, "-d", {{ $cfg.database | quote }}]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml $cfg.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: plinth-postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plinth-postgres
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.service.labels" (dict "ctx" . "svc" "postgres") | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    {{- include "plinth.service.selectorLabels" (dict "ctx" . "svc" "postgres") | nindent 4 }}
+  ports:
+    - name: postgres
+      port: {{ $cfg.service.port }}
+      targetPort: {{ $cfg.service.port }}
+      protocol: TCP
+{{- end }}

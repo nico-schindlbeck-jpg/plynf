@@ -18,6 +18,7 @@
         <nav class="topnav" aria-label="primary">
           <a class="topnav-link" href="#/" data-route="overview">Overview</a>
           <a class="topnav-link" href="#/workflows" data-route="workflows">Workflows</a>
+          <a class="topnav-link" href="#/tenants" data-route="tenants">Tenants</a>
         </nav>
         <span class="crumb" id="crumb"></span>
       </div>
@@ -137,6 +138,45 @@
         </div>
       </section>
 
+      <!-- v1.0 — time-series tiles (cost / latency / error rate / cache hit ratio).
+           Each tile renders a small inline SVG; auto-refreshes via /api/timeseries. -->
+      <section class="card">
+        <div class="card-head">
+          <h2>Time-series (24h rolling)</h2>
+          <span class="muted">refresh every 30s</span>
+        </div>
+        <div class="ts-grid">
+          <div class="ts-tile" data-metric="cost">
+            <div class="ts-head">
+              <span class="ts-title">Cost ($/h)</span>
+              <span class="ts-summary" data-summary></span>
+            </div>
+            <div class="ts-svg" data-svg></div>
+          </div>
+          <div class="ts-tile" data-metric="latency_p99">
+            <div class="ts-head">
+              <span class="ts-title">Tool-call latency p99 (ms)</span>
+              <span class="ts-summary" data-summary></span>
+            </div>
+            <div class="ts-svg" data-svg></div>
+          </div>
+          <div class="ts-tile" data-metric="error_rate">
+            <div class="ts-head">
+              <span class="ts-title">Error rate (%)</span>
+              <span class="ts-summary" data-summary></span>
+            </div>
+            <div class="ts-svg" data-svg></div>
+          </div>
+          <div class="ts-tile" data-metric="cache_hit_ratio">
+            <div class="ts-head">
+              <span class="ts-title">Cache hit ratio (%)</span>
+              <span class="ts-summary" data-summary></span>
+            </div>
+            <div class="ts-svg" data-svg></div>
+          </div>
+        </div>
+      </section>
+
       <section class="card">
         <div class="card-head">
           <h2>Tool calls</h2>
@@ -205,8 +245,8 @@
           <div class="card-head"><h2>Channels</h2><span class="muted" id="channel-count"></span></div>
           <div class="table-wrap">
             <table class="data-table">
-              <thead><tr><th>Name</th><th class="num">Depth</th><th>Last send</th></tr></thead>
-              <tbody id="channel-body"><tr class="empty"><td colspan="3">No channels.</td></tr></tbody>
+              <thead><tr><th>Name</th><th class="num">Depth</th><th>Last send</th><th class="actions-col">Actions</th></tr></thead>
+              <tbody id="channel-body"><tr class="empty"><td colspan="4">No channels.</td></tr></tbody>
             </table>
           </div>
         </section>
@@ -292,6 +332,210 @@
         </div>
       </section>
     </template>
+
+    <template id="tpl-tenants-list">
+      <a class="back-link" href="#/" id="tenants-back">&larr; Back to overview</a>
+      <section class="card">
+        <div class="card-head">
+          <h2>Tenants</h2>
+          <div>
+            <span class="muted" id="tenants-list-count"></span>
+            <button class="btn small" id="tenant-create-btn" type="button">
+              Create tenant
+            </button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="tenants-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th class="num">Members</th>
+                <th class="num">Workspaces</th>
+                <th class="num">Cost (24h)</th>
+                <th class="actions-col">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="tenants-list-body">
+              <tr class="empty"><td colspan="6">Loading&hellip;</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </template>
+
+    <template id="tpl-tenant-detail">
+      <a class="back-link" href="#/tenants" id="tenant-back">&larr; Back to tenants</a>
+
+      <section class="card workspace-head" id="tenant-head">
+        <div>
+          <h1 id="tenant-name">Tenant</h1>
+          <p class="muted mono" id="tenant-id"></p>
+        </div>
+        <div class="workspace-meta" id="tenant-meta"></div>
+      </section>
+
+      <div class="workspace-grid">
+        <section class="card">
+          <div class="card-head"><h2>Quotas</h2><span class="muted">editable</span></div>
+          <form id="tenant-quotas-form" class="quotas-form">
+            <label class="qf-row">
+              <span>max_workspaces</span>
+              <input type="number" min="0" name="max_workspaces" />
+            </label>
+            <label class="qf-row">
+              <span>max_storage_gb</span>
+              <input type="number" min="0" step="0.1" name="max_storage_gb" />
+            </label>
+            <label class="qf-row">
+              <span>max_channels_per_workspace</span>
+              <input type="number" min="0" name="max_channels_per_workspace" />
+            </label>
+            <label class="qf-row">
+              <span>max_workflows_per_workspace</span>
+              <input type="number" min="0" name="max_workflows_per_workspace" />
+            </label>
+            <label class="qf-row">
+              <span>max_active_tokens</span>
+              <input type="number" min="0" name="max_active_tokens" />
+            </label>
+            <label class="qf-row">
+              <span>max_oauth_connections</span>
+              <input type="number" min="0" name="max_oauth_connections" />
+            </label>
+            <label class="qf-row">
+              <span>max_cost_usd_day</span>
+              <input type="number" min="0" step="0.01" name="max_cost_usd_day" />
+            </label>
+            <label class="qf-row">
+              <span>max_cost_usd_month</span>
+              <input type="number" min="0" step="0.01" name="max_cost_usd_month" />
+            </label>
+            <label class="qf-row">
+              <span>max_invocations_per_minute</span>
+              <input type="number" min="0" name="max_invocations_per_minute" />
+            </label>
+            <div class="qf-actions">
+              <button class="btn small" type="submit" id="quotas-save">Save</button>
+              <button class="btn small" type="button" id="quotas-reset">
+                Reset to defaults
+              </button>
+              <span class="muted" id="quotas-status"></span>
+            </div>
+          </form>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>Usage</h2></div>
+          <div id="tenant-usage" class="quotas-usage">
+            <p class="empty muted">loading&hellip;</p>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>Members</h2></div>
+          <ul id="tenant-members" class="members">
+            <li class="empty muted">No members yet.</li>
+          </ul>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>Recent audit</h2></div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Time</th><th>Tool</th><th>Cached</th>
+                  <th class="num">Duration</th><th class="num">Cost</th>
+                </tr>
+              </thead>
+              <tbody id="tenant-audit-body">
+                <tr class="empty"><td colspan="5">No invocations yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <section class="card danger-zone">
+        <div class="card-head"><h2>Danger zone</h2></div>
+        <button class="btn small danger" id="tenant-delete-btn" type="button">
+          Delete tenant
+        </button>
+        <p class="muted">
+          Deletion is hard — review the GDPR export before proceeding.
+        </p>
+      </section>
+    </template>
+
+    <!-- Tenant create modal -->
+    <div class="dlq-modal" id="tenant-create-modal" hidden>
+      <div class="dlq-modal-card">
+        <div class="dlq-modal-head">
+          <h2>Create tenant</h2>
+          <button class="btn small" id="tenant-create-close" type="button">close</button>
+        </div>
+        <div class="dlq-modal-body">
+          <form id="tenant-create-form">
+            <label class="qf-row">
+              <span>id</span>
+              <input type="text" name="id" placeholder="e.g. acme" required />
+            </label>
+            <label class="qf-row">
+              <span>name</span>
+              <input type="text" name="name" placeholder="Acme Inc." required />
+            </label>
+            <fieldset class="qf-presets">
+              <legend>Initial quota preset</legend>
+              <label><input type="radio" name="preset" value="default" checked /> default</label>
+              <label><input type="radio" name="preset" value="trial" /> trial (10% of default)</label>
+              <label><input type="radio" name="preset" value="enterprise" /> enterprise (10x default)</label>
+            </fieldset>
+            <div class="qf-actions">
+              <button class="btn small" type="submit">Create</button>
+              <span class="muted" id="tenant-create-status"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Channel schema evolution wizard modal -->
+    <div class="dlq-modal" id="schema-wizard-modal" hidden>
+      <div class="dlq-modal-card schema-wizard">
+        <div class="dlq-modal-head">
+          <h2 id="schema-wizard-title">Edit channel schema</h2>
+          <button class="btn small" id="schema-wizard-close" type="button">close</button>
+        </div>
+        <div class="dlq-modal-body">
+          <p class="muted" id="schema-wizard-summary"></p>
+          <textarea
+            id="schema-wizard-editor"
+            spellcheck="false"
+            rows="14"
+            placeholder='{"type": "object", "properties": {...}}'></textarea>
+          <p id="schema-wizard-syntax" class="schema-status"></p>
+          <div class="qf-actions">
+            <button class="btn small" id="schema-check-btn" type="button">
+              Check compatibility
+            </button>
+            <button class="btn small" id="schema-apply-btn" type="button" disabled>
+              Apply schema
+            </button>
+            <button class="btn small" id="schema-replay-all-btn" type="button">
+              Replay all DLQ (dry run)
+            </button>
+            <label class="qf-row inline">
+              <span>Purge DLQ older than (s)</span>
+              <input type="number" min="0" id="schema-purge-seconds" value="0" />
+              <button class="btn small danger" id="schema-purge-btn" type="button">Purge</button>
+            </label>
+          </div>
+          <div id="schema-check-result" class="schema-check-result"></div>
+        </div>
+      </div>
+    </div>
 
     <!-- Workflow step detail modal (vanilla; opened by app.js) -->
     <div class="wf-step-modal" id="wf-step-modal" hidden>

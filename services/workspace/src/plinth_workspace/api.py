@@ -39,12 +39,20 @@ from .gc import GCEngine, RetentionStore
 from .leases import LeaseStore, lease_reaper_loop
 from .load_shed import LoadShedder, load_shed_middleware
 from .logging_config import configure_logging, get_logger
+from .metrics import (
+    MetricsRegistry,
+    metrics_middleware_factory,
+    metrics_response,
+)
 from .migration_runner import (
     MigrationLockError,
     MigrationRollbackMissing as RunnerRollbackMissing,
     MigrationRunner,
     default_migrations_dir,
 )
+from .regions import RegionsResponse, RegionStatusProbe
+from .replication import ReplicationLog
+from .quotas import QuotaCache, QuotaEnforcer
 from .resource_locks import ResourceLockStore
 from .revocation_cache import RevocationCache
 from .models import (
@@ -108,6 +116,7 @@ from .models import (
     WorkspaceCreate,
     WorkspaceList,
 )
+from .compliance import WorkspaceComplianceStore
 from .settings import Settings, get_settings
 from .snapshots import SnapshotStore
 from .storage import WorkspaceStore
@@ -133,6 +142,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         settings.blobs_dir.mkdir(parents=True, exist_ok=True)
         await init_db(settings.db_path)
+
+        # v1.0 — replication log table. Idempotent (CREATE IF NOT EXISTS)
+        # so standalone deployments pay zero cost beyond a single empty
+        # table on disk; the table only fills up when ``replication_mode``
+        # flips to ``"primary"`` and the routes write to it.
+        await app.state.replication_log.init()
 
         # v0.5 — schema migrations. Apply pending migrations after init_db
         # (which is idempotent CREATE-IF-NOT-EXISTS bootstrap) so existing
@@ -317,6 +332,49 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         enabled=settings.load_shed_enabled,
     )
 
+    # v1.0 — Prometheus metrics. Constructed eagerly so the middleware can
+    # reach it on the very first request. Pre-declares every workspace-
+    # specific metric so ``GET /metrics`` always returns the canonical
+    # series even before any request has flowed through (Prometheus needs
+    # the ``# TYPE`` lines to start scoring rate() correctly).
+    metrics = MetricsRegistry(
+        service_name=__service__,
+        version=__version__,
+    )
+    metrics.declare_counter(
+        "plinth_kv_writes_total",
+        "Total KV writes (puts + deletes).",
+    )
+    metrics.declare_counter(
+        "plinth_files_writes_total",
+        "Total file writes (puts + deletes).",
+    )
+    metrics.declare_gauge(
+        "plinth_workspaces_total",
+        "Number of workspaces (gauge, by tenant).",
+    )
+    metrics.declare_gauge(
+        "plinth_storage_bytes",
+        "Total bytes stored across blobs (gauge, by tenant).",
+    )
+    metrics.declare_gauge(
+        "plinth_workflows_active",
+        "Active workflows (gauge, by tenant).",
+    )
+    metrics.declare_gauge(
+        "plinth_workflow_steps_total",
+        "Workflow steps by state (gauge).",
+    )
+    metrics.declare_gauge(
+        "plinth_workers_active",
+        "Active workers (gauge).",
+    )
+    metrics.declare_counter(
+        "plinth_load_shed_total",
+        "Requests rejected by the load shedder.",
+    )
+    app.state.metrics = metrics
+
     # v0.6 — federated revocation cache. Constructed eagerly so the auth
     # middleware + admin/stats endpoint can rely on its presence, even
     # when polling is disabled (start() is gated by settings inside the
@@ -326,11 +384,43 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         poll_interval=settings.revocation_poll_interval_seconds,
     )
 
+    # v1.0 — per-tenant quota enforcement. Always constructed so the
+    # admin/stats and routing code can rely on its presence; ``enabled``
+    # comes from ``settings.quotas_enabled`` (default False) so v0.6 demos
+    # see a no-op.
+    app.state.quota_enforcer = QuotaEnforcer(
+        QuotaCache(
+            identity_url=settings.identity_url,
+            ttl_seconds=settings.quotas_cache_ttl_seconds,
+            timeout_seconds=settings.quotas_fetch_timeout_seconds,
+        ),
+        db_path=settings.db_path,
+        enabled=settings.quotas_enabled,
+    )
+
+    # v1.0 — multi-region scaffolding. The probe runs only when an operator
+    # actually configures peers; ``standalone`` deployments incur no cost.
+    # The replication log table is initialised below in ``init_db`` (it's
+    # additive; reading is cheap) but only written to when ``replication_mode``
+    # flips to ``"primary"``.
+    app.state.region_status_probe = RegionStatusProbe(
+        cache_ttl_seconds=settings.regions_status_cache_ttl_seconds,
+        probe_timeout_seconds=settings.regions_status_probe_timeout_seconds,
+    )
+    app.state.replication_log = ReplicationLog(
+        settings.db_path,
+        region_id=settings.region_id,
+    )
+
     install_exception_handlers(app)
     # Order matters: middleware registered LAST runs FIRST on inbound
     # requests. We want load-shedding to be the outermost gate so a
     # rejected request never touches auth or any downstream state.
+    # The metrics middleware sits between auth and load-shed so it sees
+    # genuine traffic (not 503s) and the histograms stay clean.
+    app.middleware("http")(metrics_middleware_factory(metrics))
     app.middleware("http")(_request_context_middleware)
+    app.middleware("http")(_replica_redirect_middleware)
     app.middleware("http")(load_shed_middleware)
 
     _register_routes(app)
@@ -443,6 +533,141 @@ async def _request_context_middleware(request: Request, call_next):
     return response
 
 
+# v1.0 — multi-region read-replica middleware.
+# When the local instance is a ``replica``, every mutating verb returns
+# 421 (Misdirected Request) with both ``X-Plinth-Primary-Region`` and
+# ``X-Plinth-Primary-URL`` headers populated so the SDK can transparently
+# retry the request against the primary. A ``Location`` header is also
+# emitted for plain-HTTP clients (curl, etc.) that follow standard
+# redirects. Standalone + primary deployments bypass this entirely.
+# Primaries with ``replication_mode='primary'`` route through the same
+# middleware so successful mutations append to the replication log on
+# the way out — replicas pull and replay from there.
+_MUTATING_METHODS = frozenset({"POST", "PUT", "DELETE", "PATCH"})
+# These paths are always allowed even on a replica — operators need
+# them to introspect the deployment and orchestrate replication pulls.
+_REPLICA_ALLOWLIST = (
+    "/healthz",
+    "/v1/regions",
+    "/v1/admin/replication/",
+    "/metrics",
+)
+
+
+def _classify_mutation(method: str, path: str) -> tuple[str, str | None] | None:
+    """Map an HTTP method+path to a replication-log ``kind`` + workspace_id.
+
+    Returns ``None`` for paths that don't represent meaningful mutations
+    (admin endpoints, OAuth callbacks, etc.) — those don't get logged.
+    """
+
+    if method not in _MUTATING_METHODS:
+        return None
+    parts = [p for p in path.split("/") if p]
+    if len(parts) < 2 or parts[0] != "v1":
+        return None
+    if parts[1] != "workspaces":
+        # Non-workspace mutations: workflows top-level, tenants, etc. We
+        # log them with no workspace context so a replica can replay.
+        return f"http.{method.lower()}.{parts[1]}", None
+    if len(parts) < 3:
+        # POST /v1/workspaces — workspace creation.
+        return f"workspace.{method.lower()}", None
+    ws_id = parts[2]
+    if len(parts) == 3:
+        return f"workspace.{method.lower()}", ws_id
+    suffix = ".".join(parts[3:])
+    return f"workspace.{method.lower()}.{suffix}", ws_id
+
+
+async def _replica_redirect_middleware(request: Request, call_next):
+    """Short-circuit mutating writes when ``replication_mode == 'replica'``."""
+
+    settings: Settings = request.app.state.settings
+
+    if settings.replication_mode == "replica" and request.method in _MUTATING_METHODS:
+        path = request.url.path
+        if not any(path.startswith(prefix) for prefix in _REPLICA_ALLOWLIST):
+            return _replica_redirect_response(settings, path)
+
+    response = await call_next(request)
+
+    # On the primary, append a log entry for every successful mutation so
+    # replicas can pull + replay later. Failures are not logged; a partial
+    # write doesn't actually mutate state on the primary.
+    if (
+        settings.replication_mode == "primary"
+        and request.method in _MUTATING_METHODS
+        and 200 <= response.status_code < 400
+    ):
+        path = request.url.path
+        if not any(path.startswith(prefix) for prefix in _REPLICA_ALLOWLIST):
+            classified = _classify_mutation(request.method, path)
+            if classified is not None:
+                kind, ws_id = classified
+                try:
+                    log_store: ReplicationLog = request.app.state.replication_log
+                    await log_store.append(
+                        kind,
+                        {
+                            "method": request.method,
+                            "path": path,
+                            "status": response.status_code,
+                        },
+                        workspace_id=ws_id,
+                    )
+                except Exception:  # pragma: no cover - never break a write
+                    get_logger().warning(
+                        "workspace.replication.log_append_failed",
+                        path=path,
+                        method=request.method,
+                    )
+    return response
+
+
+def _replica_redirect_response(settings: Settings, path: str) -> JSONResponse:
+    """Return the 421 ``REPLICA_READ_ONLY`` envelope for a mutating call.
+
+    The 421 (Misdirected Request) status is RFC 7540 §9.1.2: "the request
+    was directed at a server that is not able to produce a response".
+    That fits the read-replica case exactly — the request is
+    syntactically fine but addressed to the wrong host.
+    """
+
+    # The primary region id is the first configured peer (replicas
+    # declare their primary as a peer). Falls back to ``region_id`` so
+    # an operator that hasn't fully wired peers still gets a sensible
+    # header instead of an empty string.
+    primary_id = settings.region_peers[0] if settings.region_peers else settings.region_id
+    primary_url = settings.region_primary_url or settings.region_peer_urls.get(primary_id, "")
+    headers: dict[str, str] = {"X-Plinth-Primary-Region": primary_id}
+    if primary_url:
+        # ``X-Plinth-Primary-URL`` is the SDK-readable redirect target.
+        # ``Location`` is emitted alongside for plain-HTTP / curl users
+        # who follow standard redirects.
+        normalized = primary_url.rstrip("/")
+        headers["X-Plinth-Primary-URL"] = normalized
+        headers["Location"] = normalized + path
+    return JSONResponse(
+        status_code=421,
+        content={
+            "error": {
+                "code": "REPLICA_READ_ONLY",
+                "message": (
+                    "this is a read-replica; submit mutating requests "
+                    f"to {primary_url or primary_id}"
+                ),
+                "details": {
+                    "region": settings.region_id,
+                    "primary_region": primary_id,
+                    "primary_url": primary_url or None,
+                },
+            }
+        },
+        headers=headers,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Dependencies
 
@@ -479,6 +704,10 @@ def _get_resource_locks(request: Request) -> ResourceLockStore:
     return request.app.state.resource_locks
 
 
+def _get_quota_enforcer(request: Request) -> QuotaEnforcer:
+    return request.app.state.quota_enforcer
+
+
 StoreDep = Annotated[WorkspaceStore, Depends(_get_store)]
 SnapshotsDep = Annotated[SnapshotStore, Depends(_get_snapshots)]
 ChannelsDep = Annotated[ChannelStore, Depends(_get_channels)]
@@ -487,6 +716,7 @@ RetentionDep = Annotated[RetentionStore, Depends(_get_retention)]
 GCEngineDep = Annotated[GCEngine, Depends(_get_gc_engine)]
 LeasesDep = Annotated[LeaseStore, Depends(_get_leases)]
 ResourceLocksDep = Annotated[ResourceLockStore, Depends(_get_resource_locks)]
+QuotaEnforcerDep = Annotated[QuotaEnforcer, Depends(_get_quota_enforcer)]
 # These two type aliases are evaluated at runtime; on 3.11+ ``str | None``
 # resolves to a UnionType, but on 3.9 we need ``Optional`` for the install
 # path that runs `pip install -e .` to even import the module.
@@ -503,6 +733,24 @@ def _register_routes(app: FastAPI) -> None:
     async def healthz() -> dict:
         return {"status": "ok", "version": __version__, "service": __service__}
 
+    @app.get("/metrics", tags=["meta"], include_in_schema=False)
+    async def metrics_endpoint(request: Request):
+        """Prometheus exposition endpoint.
+
+        Refreshes a small set of gauges (workspace count, storage bytes,
+        active workflows, workers, workflow-step states, load-shed
+        counters) on each scrape so operators get fresh values without a
+        separate sweeper task. The refresh is best-effort: any failure is
+        swallowed so the scrape always succeeds.
+        """
+
+        registry: MetricsRegistry = request.app.state.metrics
+        try:
+            await _refresh_workspace_gauges(request.app, registry)
+        except Exception:  # noqa: BLE001 — metrics must never crash a scrape
+            pass
+        return metrics_response(registry)
+
     # ------------------------------------------------------------------ workspaces
 
     @app.post(
@@ -514,9 +762,12 @@ def _register_routes(app: FastAPI) -> None:
     async def create_workspace(
         body: WorkspaceCreate,
         store: StoreDep,
+        quotas: QuotaEnforcerDep,
         request: Request,
     ) -> Workspace:
         tenant_id = getattr(request.state, "tenant_id", "default")
+        # v1.0 — per-tenant quota enforcement (no-op when disabled).
+        await quotas.check_workspace_create(tenant_id)
         ws = await store.create_workspace(body.name, body.metadata, tenant_id=tenant_id)
         get_logger().info(
             "workspace.created",
@@ -588,11 +839,17 @@ def _register_routes(app: FastAPI) -> None:
         key: str,
         body: KVWrite,
         store: StoreDep,
+        request: Request,
         branch: BranchQuery = None,
     ) -> KVEntry:
         if not key:
             raise InvalidArguments("key must be non-empty")
-        return await store.kv_put(ws_id, key, body.value, branch_id=branch)
+        result = await store.kv_put(ws_id, key, body.value, branch_id=branch)
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        request.app.state.metrics.counter(
+            "plinth_kv_writes_total", {"tenant_id": tenant_id}
+        ).inc(1)
+        return result
 
     @app.get(
         "/v1/workspaces/{ws_id}/kv/{key:path}/history",
@@ -642,9 +899,14 @@ def _register_routes(app: FastAPI) -> None:
         ws_id: str,
         key: str,
         store: StoreDep,
+        request: Request,
         branch: BranchQuery = None,
     ) -> Response:
         await store.kv_delete(ws_id, key, branch_id=branch)
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        request.app.state.metrics.counter(
+            "plinth_kv_writes_total", {"tenant_id": tenant_id}
+        ).inc(1)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # ------------------------------------------------------------------ files
@@ -659,21 +921,30 @@ def _register_routes(app: FastAPI) -> None:
         path: str,
         request: Request,
         store: StoreDep,
+        quotas: QuotaEnforcerDep,
         branch: BranchQuery = None,
     ) -> FileEntry:
         if not path:
             raise InvalidArguments("file path must be non-empty")
         data = await request.body()
+        # v1.0 — per-tenant storage quota. Run BEFORE any disk write so a
+        # tenant can't sneak past the cap by partial write + abort.
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        await quotas.check_file_storage(tenant_id, len(data))
         ct_header = request.headers.get("content-type")
         # Treat the FastAPI default of "application/json" as "no opinion"
         # only if the client probably meant to send raw bytes.
-        return await store.file_put(
+        result = await store.file_put(
             ws_id,
             path,
             data,
             content_type=ct_header,
             branch_id=branch,
         )
+        request.app.state.metrics.counter(
+            "plinth_files_writes_total", {"tenant_id": tenant_id}
+        ).inc(1)
+        return result
 
     @app.get(
         "/v1/workspaces/{ws_id}/files",
@@ -737,9 +1008,14 @@ def _register_routes(app: FastAPI) -> None:
         ws_id: str,
         path: str,
         store: StoreDep,
+        request: Request,
         branch: BranchQuery = None,
     ) -> Response:
         await store.file_delete(ws_id, path, branch_id=branch)
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        request.app.state.metrics.counter(
+            "plinth_files_writes_total", {"tenant_id": tenant_id}
+        ).inc(1)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # ------------------------------------------------------------------ snapshots
@@ -876,7 +1152,13 @@ def _register_routes(app: FastAPI) -> None:
         name: str,
         body: ChannelSendBody,
         channels: ChannelsDep,
+        quotas: QuotaEnforcerDep,
+        request: Request,
     ) -> ChannelMessage:
+        # v1.0 — channel auto-create quota check. Only enforces when this
+        # would create a new channel; existing channels are unaffected.
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        await quotas.check_channel_autocreate(tenant_id, ws_id, name)
         msg = await channels.send(
             ws_id,
             name,
@@ -1241,7 +1523,12 @@ def _register_routes(app: FastAPI) -> None:
         ws_id: str,
         body: WorkflowCreate,
         workflows: WorkflowsDep,
+        quotas: QuotaEnforcerDep,
+        request: Request,
     ) -> Workflow:
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        # v1.0 — per-workspace workflow quota check (no-op when disabled).
+        await quotas.check_workflow_create(tenant_id, ws_id)
         wf = await workflows.create_workflow(
             ws_id,
             body.name,
@@ -1854,6 +2141,97 @@ def _register_routes(app: FastAPI) -> None:
         rev_cache: RevocationCache = request.app.state.revocation_cache
         return rev_cache.stats
 
+    # ------------------------------------------------------------------ regions
+
+    @app.get(
+        "/v1/regions",
+        response_model=RegionsResponse,
+        tags=["meta"],
+    )
+    async def get_regions(request: Request) -> RegionsResponse:
+        """Return the current region + cached peer reachability."""
+
+        settings: Settings = request.app.state.settings
+        probe: RegionStatusProbe = request.app.state.region_status_probe
+        peer_urls = {
+            peer_id: settings.region_peer_urls.get(peer_id, "")
+            for peer_id in settings.region_peers
+            if settings.region_peer_urls.get(peer_id)
+        }
+        peers = await probe.all_peers(peer_urls) if peer_urls else []
+        return RegionsResponse(
+            current=settings.region_id,
+            mode=settings.replication_mode,
+            peers=list(peers),
+        )
+
+    # ------------------------------------------------------------------ replication
+
+    @app.get(
+        "/v1/admin/replication/log",
+        tags=["replication"],
+    )
+    async def replication_log_fetch(
+        request: Request,
+        since: int = Query(default=0, ge=0),
+        limit: int = Query(default=1000, ge=1, le=10000),
+    ) -> dict:
+        """Return mutation entries with ``seq > since`` (capped by ``limit``)."""
+
+        _require_admin(request)
+        log_store: ReplicationLog = request.app.state.replication_log
+        entries = await log_store.fetch(since=since, limit=limit)
+        return {
+            "entries": [entry.to_dict() for entry in entries],
+            "next_since": entries[-1].seq if entries else since,
+        }
+
+    @app.get(
+        "/v1/admin/replication/status",
+        tags=["replication"],
+    )
+    async def replication_status(request: Request) -> dict:
+        """Return the local replication mode + current sequence."""
+
+        _require_admin(request)
+        settings: Settings = request.app.state.settings
+        log_store: ReplicationLog = request.app.state.replication_log
+        current_seq = await log_store.current_seq()
+        probe: RegionStatusProbe = request.app.state.region_status_probe
+        peer_urls = {
+            peer_id: settings.region_peer_urls.get(peer_id, "")
+            for peer_id in settings.region_peers
+            if settings.region_peer_urls.get(peer_id)
+        }
+        peers = await probe.all_peers(peer_urls) if peer_urls else []
+        peers_lag = {p.id: p.lag_ms for p in peers if p.lag_ms is not None}
+        return {
+            "mode": settings.replication_mode,
+            "region": settings.region_id,
+            "current_seq": current_seq,
+            "peers_lag": peers_lag,
+        }
+
+    @app.post(
+        "/v1/admin/replication/apply",
+        status_code=status.HTTP_201_CREATED,
+        tags=["replication"],
+    )
+    async def replication_apply(
+        request: Request,
+        body: list[dict],
+    ) -> dict:
+        """Ingest mutation entries from a primary peer.
+
+        Skips entries whose ``seq`` is already present locally so a replica
+        can safely retry an apply call without duplicating state.
+        """
+
+        _require_admin(request)
+        log_store: ReplicationLog = request.app.state.replication_log
+        applied, skipped = await log_store.apply_entries(body)
+        return {"applied": applied, "skipped": skipped}
+
     # ------------------------------------------------------------------ migrations
 
     @app.get(
@@ -1959,6 +2337,65 @@ def _register_routes(app: FastAPI) -> None:
             dry_run=outcome.dry_run,
         )
 
+    # ---------------------------------------------- v1.0 GDPR (admin endpoints)
+    #
+    # Tenant-scoped export + delete. Called by the identity service when
+    # orchestrating a GDPR Article 20 (portability) or Article 17 (erasure)
+    # request. Both endpoints require admin scope (or no auth in dev mode).
+
+    @app.get(
+        "/v1/admin/tenant/{tenant_id}/export-data",
+        tags=["admin"],
+    )
+    async def admin_export_tenant_data(
+        tenant_id: str,
+        request: Request,
+        store: StoreDep,
+    ) -> StarletteResponse:
+        """Stream every tenant-scoped row as JSON-Lines.
+
+        Body content-type is ``application/jsonl``. Each line is a single
+        JSON object with a ``type`` field (``workspace``, ``kv_entry``,
+        ``file_entry``, ``snapshot``, ``branch``, ``channel``,
+        ``channel_message``, ``workflow``, ``workflow_step``, etc.).
+        """
+
+        _require_admin(request)
+        compliance = WorkspaceComplianceStore(
+            store.db_path, store.blobs_dir
+        )
+        lines: list[str] = []
+        async for line in compliance.export_jsonl(tenant_id):
+            lines.append(line)
+        body = ("\n".join(lines) + ("\n" if lines else "")).encode("utf-8")
+        return StarletteResponse(
+            content=body,
+            media_type="application/jsonl",
+        )
+
+    @app.delete(
+        "/v1/admin/tenant/{tenant_id}/data",
+        tags=["admin"],
+    )
+    async def admin_delete_tenant_data(
+        tenant_id: str,
+        request: Request,
+        store: StoreDep,
+    ) -> dict:
+        """Hard-delete every tenant-scoped row (workspace cascade)."""
+
+        _require_admin(request)
+        compliance = WorkspaceComplianceStore(
+            store.db_path, store.blobs_dir
+        )
+        counts = await compliance.delete_tenant_data(tenant_id)
+        get_logger().info(
+            "workspace.admin.gdpr_delete",
+            tenant_id=tenant_id,
+            counts=counts,
+        )
+        return {"deleted": counts}
+
 
 # Helpers for the admin/migrations endpoints. Plain ``dict`` returns avoid
 # adding pydantic models that mirror ``MigrationRunner`` dataclasses 1:1.
@@ -1997,6 +2434,100 @@ def _require_admin(request: Request) -> None:
         code="UNAUTHORIZED",
         details={"required_scope": "tenant:*:admin"},
     )
+
+
+async def _refresh_workspace_gauges(app: FastAPI, registry: MetricsRegistry) -> None:
+    """Refresh workspace-specific gauges on each Prometheus scrape.
+
+    Best-effort: any failure leaves the previously-set value in place. A
+    bad SELECT here must NEVER cause the scrape itself to fail. Each
+    ``try``/``except`` is intentionally narrow: we want to keep refreshing
+    the *other* gauges even if one of them blows up against an unfamiliar
+    schema.
+    """
+
+    # Mirror load-shedder cumulative count into a Prometheus counter.
+    shedder: LoadShedder | None = getattr(app.state, "load_shedder", None)
+    if shedder is not None:
+        shed_count = float(shedder.stats.get("shed_count", 0) or 0)
+        c = registry.counter(
+            "plinth_load_shed_total",
+            {"service": registry.service_name},
+        )
+        delta = shed_count - c.value
+        if delta > 0:
+            c.inc(delta)
+
+    store = getattr(app.state, "store", None)
+    workflows = getattr(app.state, "workflows", None)
+    leases = getattr(app.state, "leases", None)
+    if store is None:
+        return
+
+    # Per-tenant workspace count.
+    tenants: list = []
+    try:
+        tenants = await store.list_tenants()
+        for t in tenants:
+            registry.gauge(
+                "plinth_workspaces_total",
+                {"tenant_id": str(t.get("id", "default"))},
+            ).set(int(t.get("workspace_count", 0) or 0))
+    except Exception:  # noqa: BLE001
+        pass
+
+    # Per-tenant total stored bytes (optional; method may not exist in tests).
+    storage_fn = getattr(store, "tenant_storage_bytes", None)
+    if callable(storage_fn) and tenants:
+        for t in tenants:
+            tenant_id = str(t.get("id", "default"))
+            try:
+                bytes_used = await storage_fn(tenant_id)
+                registry.gauge(
+                    "plinth_storage_bytes",
+                    {"tenant_id": tenant_id},
+                ).set(int(bytes_used or 0))
+            except Exception:  # noqa: BLE001
+                continue
+
+    # Active workflows + workflow steps grouped by state.
+    if workflows is not None and tenants:
+        count_fn = getattr(workflows, "count_active", None)
+        if callable(count_fn):
+            for t in tenants:
+                tenant_id = str(t.get("id", "default"))
+                try:
+                    n = await count_fn(tenant_id=tenant_id)
+                    registry.gauge(
+                        "plinth_workflows_active",
+                        {"tenant_id": tenant_id},
+                    ).set(int(n or 0))
+                except Exception:  # noqa: BLE001
+                    continue
+        steps_fn = getattr(workflows, "count_steps_by_state", None)
+        if callable(steps_fn):
+            try:
+                grouped = await steps_fn()
+                for state, count in (grouped or {}).items():
+                    registry.gauge(
+                        "plinth_workflow_steps_total",
+                        {"state": str(state)},
+                    ).set(int(count or 0))
+            except Exception:  # noqa: BLE001
+                pass
+
+    # Active workers — ``LeaseStore`` exposes ``count_active_workers``.
+    if leases is not None:
+        active_fn = getattr(leases, "count_active_workers", None)
+        if callable(active_fn):
+            try:
+                n = await active_fn()
+                registry.gauge(
+                    "plinth_workers_active",
+                    {"service": registry.service_name},
+                ).set(int(n or 0))
+            except Exception:  # noqa: BLE001
+                pass
 
 
 # A module-level default for environments that import ``plinth_workspace.api:app``.

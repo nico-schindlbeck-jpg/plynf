@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-2.0
+# Plinth — namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: plinth
+  labels:
+    app.kubernetes.io/name: plinth
+    app.kubernetes.io/part-of: plinth
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

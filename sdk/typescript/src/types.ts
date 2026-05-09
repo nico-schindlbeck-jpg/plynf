@@ -505,6 +505,67 @@ export interface WithLockOptions {
   heartbeatIntervalMs?: number;
 }
 
+// --- v1.0: Per-tenant resource quotas ---
+
+/** Quota envelope for a single tenant — mirrors `GET /v1/tenants/{id}/quotas`. */
+export interface TenantQuotas {
+  tenant_id: string;
+  max_workspaces: number;
+  max_storage_gb: number;
+  max_channels_per_workspace: number;
+  max_workflows_per_workspace: number;
+  max_active_tokens: number;
+  max_oauth_connections: number;
+  max_cost_usd_day: number;
+  max_cost_usd_month: number;
+  max_invocations_per_minute: number;
+  updated_at?: ISODateTime;
+}
+
+/**
+ * Partial-update body for `POST /v1/tenants/{id}/quotas`.
+ *
+ * All fields optional — unset values fall back to the existing row, or
+ * the contract defaults if no row exists.
+ */
+export interface TenantQuotasUpdate {
+  max_workspaces?: number;
+  max_storage_gb?: number;
+  max_channels_per_workspace?: number;
+  max_workflows_per_workspace?: number;
+  max_active_tokens?: number;
+  max_oauth_connections?: number;
+  max_cost_usd_day?: number;
+  max_cost_usd_month?: number;
+  max_invocations_per_minute?: number;
+}
+
+/** Computed usage rollup from `GET /v1/tenants/{id}/usage`. */
+export interface TenantUsage {
+  tenant_id: string;
+  workspaces: number;
+  storage_gb: number;
+  active_tokens: number;
+  oauth_connections: number;
+  cost_usd_day: number;
+  cost_usd_month: number;
+  last_invocation_at: ISODateTime | null;
+  notes: Record<string, string>;
+}
+
+/**
+ * Result of {@link ChannelsClient.previewSchemaChange}.
+ *
+ * Wraps two {@link SchemaCheckResult}s (main + DLQ) plus a recommendation
+ * string suitable for direct UI display.
+ */
+export interface SchemaChangePreview {
+  compatible: boolean;
+  main_check: SchemaCheckResult;
+  deadletter_check: SchemaCheckResult;
+  recommendation: string;
+}
+
 // --- v0.4: Identity signing keys ---
 
 /** Public-safe view of an RS256 signing key (never carries private material). */
@@ -530,6 +591,25 @@ export interface PlinthConfig {
   timeoutMs?: number;
   /** Override the global fetch implementation (useful for testing). */
   fetch?: typeof fetch;
+  /**
+   * v1.0 — multi-region. The region id of the primary deployment this
+   * client is talking to (e.g. `"eu-west-1"`). Surfaced in failover
+   * logs and used as a lookup key when a server's 409 redirect points
+   * at our own primary region.
+   */
+  region?: string;
+  /**
+   * v1.0 — multi-region. Ordered list of fallback region ids tried
+   * after the primary on connection errors / 5xx / replica redirects.
+   * Order matters; the SDK tries entries in the order listed here.
+   */
+  fallbackRegions?: ReadonlyArray<string>;
+  /** Per-region workspace URL map: `{ region_id: url }`. */
+  fallbackWorkspaceUrls?: Record<string, string>;
+  /** Per-region gateway URL map: `{ region_id: url }`. */
+  fallbackGatewayUrls?: Record<string, string>;
+  /** Per-region identity URL map: `{ region_id: url }`. */
+  fallbackIdentityUrls?: Record<string, string>;
 }
 
 /** Shape of the `{ "error": {...} }` envelope returned by every service. */

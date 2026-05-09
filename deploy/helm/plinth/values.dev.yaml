@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: Apache-2.0
+# Plinth — dev values override.
+# Apply with:
+#   helm install plinth ./deploy/helm/plinth \
+#     -f deploy/helm/plinth/values.yaml \
+#     -f deploy/helm/plinth/values.dev.yaml \
+#     --set identity.jwtSecret="$(openssl rand -hex 48)"
+
+global:
+  imageTag: "1.0.0"
+
+workspace:
+  replicas: 1
+  persistence:
+    size: 1Gi
+  config:
+    logLevel: "DEBUG"
+    logFormat: "console"
+
+gateway:
+  replicas: 1
+  persistence:
+    size: 1Gi
+  config:
+    logLevel: "DEBUG"
+    logFormat: "console"
+  hpa:
+    enabled: false
+  pdb:
+    enabled: false
+
+identity:
+  replicas: 1
+  persistence:
+    size: 1Gi
+  config:
+    logLevel: "DEBUG"
+    logFormat: "console"
+
+dashboard:
+  replicas: 1
+  config:
+    logLevel: "DEBUG"
+    logFormat: "console"
+
+mockMcp:
+  enabled: true
+
+githubMcp:
+  enabled: false
+slackMcp:
+  enabled: false
+linearMcp:
+  enabled: false
+
+postgres:
+  enabled: false
+
+networkPolicy:
+  enabled: false

@@ -7,14 +7,32 @@ All values are read from environment variables prefixed with ``PLINTH_``.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Literal, Optional  # noqa: UP035
 
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings.sources import EnvSettingsSource
 
 
 AuthMode = Literal["permissive", "verify_local", "verify_remote"]
+ReplicationMode = Literal["primary", "replica", "standalone"]
+
+
+# v1.0 — multi-region. Pydantic-settings tries to JSON-decode any list-typed
+# env var; CONTRACTS.md spec'd ``PLINTH_REGION_PEERS=us,eu`` as comma-
+# separated, so we route that one field through a custom decoder.
+class _PlinthEnvSource(EnvSettingsSource):
+    """Subclass that accepts comma-separated values for ``region_peers``."""
+
+    def decode_complex_value(self, field_name, field, value):  # type: ignore[override]
+        if field_name == "region_peers" and isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            return [part.strip() for part in stripped.split(",") if part.strip()]
+        return super().decode_complex_value(field_name, field, value)
 
 
 class Settings(BaseSettings):
@@ -108,6 +126,102 @@ class Settings(BaseSettings):
     revocation_poll_url: str = Field(default="")
     revocation_poll_interval_seconds: int = Field(default=60, ge=1)
     revocation_poll_enabled: bool = Field(default=True)
+
+    # v1.0 — multi-region scaffolding. ``standalone`` (the default) keeps
+    # behaviour identical to v0.6 — replication is opt-in. Only flip to
+    # ``primary`` or ``replica`` when you have peers configured. See
+    # ``docs/multi-region.md`` for the full operator playbook.
+    region_id: str = Field(default="default")
+    # ``region_peers`` parses a comma-separated env var into a deduped list
+    # of peer region ids: ``PLINTH_REGION_PEERS=us-east-1,ap-south-1``.
+    region_peers: list[str] = Field(default_factory=list)
+    # Per-peer URL — populated from any env var matching
+    # ``PLINTH_REGION_PEER_<ID>_URL``. The model_validator below scrapes
+    # ``os.environ`` because pydantic-settings' nested-model parsing can't
+    # express "every env var with this prefix is a dict key".
+    region_peer_urls: dict[str, str] = Field(default_factory=dict)
+    replication_mode: ReplicationMode = Field(default="standalone")
+    # Public URL used by replicas in the ``X-Plinth-Primary-Region`` header
+    # they emit on 409s. When empty we just emit the region_id; the client
+    # is then expected to look up the URL from its own fallback map.
+    region_primary_url: str = Field(default="")
+    # Cache TTL for ``/v1/regions`` peer status. The endpoint pings every
+    # peer (HEAD ``/healthz``) on a cold cache, then serves from memory
+    # until ``regions_status_cache_ttl_seconds`` expires.
+    regions_status_cache_ttl_seconds: int = Field(default=30, ge=1)
+    regions_status_probe_timeout_seconds: float = Field(default=2.0, ge=0.1)
+
+    # v1.0 — per-tenant resource quotas. Default ``False`` so existing v0.6
+    # demos that hammer endpoints don't suddenly hit quota walls; flip to
+    # True in production after sizing the limits in identity.
+    quotas_enabled: bool = Field(default=False)
+    quotas_cache_ttl_seconds: int = Field(default=60, ge=0)
+    quotas_fetch_timeout_seconds: float = Field(default=2.0, ge=0.1)
+
+    @field_validator("region_peers", mode="before")
+    @classmethod
+    def _coerce_region_peers(cls, value: object) -> object:
+        """Allow ``["us","eu"]``-style direct overrides + comma strings.
+
+        The custom :class:`_PlinthEnvSource` already handles env-var
+        decoding; this catches ``Settings(region_peers="us,eu")``-style
+        constructor calls (used by tests).
+        """
+
+        if value is None or isinstance(value, list):
+            return value
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            return [part.strip() for part in stripped.split(",") if part.strip()]
+        return value
+
+    @classmethod
+    def settings_customise_sources(  # type: ignore[override]
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        """Wire in :class:`_PlinthEnvSource` so comma-separated peers parse."""
+
+        custom_env = _PlinthEnvSource(settings_cls)
+        return init_settings, custom_env, dotenv_settings, file_secret_settings
+
+    @model_validator(mode="after")
+    def _scrape_region_peer_urls(self) -> Settings:
+        """Pick up ``PLINTH_REGION_PEER_<ID>_URL`` env vars.
+
+        Shell env var names can't contain dashes, so the operator-side
+        convention is ``PLINTH_REGION_PEER_US_EAST_1_URL`` → peer id
+        ``us-east-1`` (underscores back to dashes). The ``region_peers``
+        list is the canonical naming source: when one of the parsed env
+        var ids exactly matches a declared peer id with underscores
+        replaced, we use the dashed form.
+
+        Only fills in keys that aren't already populated from explicit
+        constructor overrides — tests can pass ``region_peer_urls={...}``
+        without env-var interference.
+        """
+
+        prefix = "PLINTH_REGION_PEER_"
+        suffix = "_URL"
+        # Cross-reference declared peers so we restore dashes correctly.
+        declared = {peer.replace("-", "_").lower(): peer for peer in self.region_peers}
+        for env_name, env_value in os.environ.items():
+            if not env_name.startswith(prefix) or not env_name.endswith(suffix):
+                continue
+            raw_id = env_name[len(prefix) : -len(suffix)].lower()
+            if not raw_id:
+                continue
+            peer_id = declared.get(raw_id, raw_id.replace("_", "-"))
+            if peer_id in self.region_peer_urls:
+                continue
+            self.region_peer_urls[peer_id] = env_value
+        return self
 
     @property
     def effective_database_url(self) -> str:

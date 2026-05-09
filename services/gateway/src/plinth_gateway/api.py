@@ -7,7 +7,7 @@ from __future__ import annotations
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, Query, Request, Response
@@ -29,8 +29,18 @@ from .exceptions import (
 )
 from .jwt_auth import extract_auth_context_async
 from .limits import LimitsRegistry
+from .tenant_quotas import (
+    QuotaCache,
+    QuotaExceeded as TenantQuotaExceeded,
+    TenantQuotaEnforcer,
+)
 from .load_shed import LoadShedder, load_shed_middleware
 from .logging_config import configure_logging, get_logger
+from .metrics import (
+    MetricsRegistry,
+    metrics_middleware_factory,
+    metrics_response,
+)
 from .migration_runner import (
     MigrationLockError,
     MigrationRollbackMissing as RunnerRollbackMissing,
@@ -43,6 +53,7 @@ from .models import (
     AuditListResponse,
     AuditStatsResponse,
     CacheStats,
+    ChainVerifyResult,
     DryRunResponse,
     ErrorBody,
     ErrorResponse,
@@ -66,6 +77,7 @@ from .otlp_emitter import OTLPEmitter
 from .policy import check_capability
 from .pricing import estimate_cost
 from .proxy import HttpProxy
+from .regions import RegionsResponse, RegionStatusProbe
 from .registry import Registry
 from .revocation_cache import RevocationCache
 from .settings import Settings, get_settings
@@ -203,6 +215,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.audit = AuditLog(db, otlp=otlp)
         app.state.proxy = proxy
         app.state.limits = LimitsRegistry(db, settings)
+        # v1.0 — tenant-level quotas. Always constructed so the admin
+        # endpoints + ``check_invoke`` calls can rely on its presence;
+        # ``enabled`` comes from ``settings.quotas_enabled`` (default
+        # False) so v0.6 demos see a no-op.
+        app.state.tenant_quotas = TenantQuotaEnforcer(
+            QuotaCache(
+                identity_url=settings.identity_url,
+                ttl_seconds=settings.quotas_cache_ttl_seconds,
+                timeout_seconds=settings.quotas_fetch_timeout_seconds,
+            ),
+            db=db,
+            enabled=settings.quotas_enabled,
+        )
         app.state.oauth_encryption_key = encryption_key
         app.state.oauth_connections = OAuthConnectionStore(
             db, encryption_key=encryption_key
@@ -276,6 +301,51 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
 
+    # v1.0 — Prometheus metrics. Constructed in outer scope (not inside the
+    # lifespan) so the metrics middleware below has a stable reference; the
+    # registry is process-wide and survives the lifespan window.
+    metrics = MetricsRegistry(service_name="gateway", version=__version__)
+    metrics.declare_counter(
+        "plinth_tool_invocations_total",
+        "Total tool invocations.",
+    )
+    metrics.declare_histogram(
+        "plinth_tool_invocation_duration_seconds",
+        "Tool invocation latency (cache miss includes upstream RTT).",
+    )
+    metrics.declare_counter(
+        "plinth_tool_invocation_cost_usd_total",
+        "Cumulative cost per tool/tenant in USD.",
+    )
+    metrics.declare_gauge(
+        "plinth_oauth_connections_active",
+        "Active OAuth connections (gauge).",
+    )
+    metrics.declare_counter(
+        "plinth_rate_limit_rejections_total",
+        "Rate-limit rejections.",
+    )
+    metrics.declare_counter(
+        "plinth_quota_rejections_total",
+        "Quota rejections (per quota dimension).",
+    )
+    metrics.declare_gauge(
+        "plinth_audit_chain_verified",
+        "Last audit-chain verification result (1 ok, 0 broken).",
+    )
+    metrics.declare_counter(
+        "plinth_load_shed_total",
+        "Requests rejected by the load shedder.",
+    )
+    app.state.metrics = metrics
+
+    # v1.0 — multi-region scaffolding. Gateway is stateless so this is
+    # discovery-only; cache TTL keeps probe traffic bounded.
+    app.state.region_status_probe = RegionStatusProbe(
+        cache_ttl_seconds=settings.regions_status_cache_ttl_seconds,
+        probe_timeout_seconds=settings.regions_status_probe_timeout_seconds,
+    )
+
     # ---- middleware: extract tenant_id + agent_id from JWT -----------------
 
     @app.middleware("http")
@@ -332,11 +402,69 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request.state.auth_scopes = ctx.scopes or []
         return await call_next(request)
 
+    # ---- v1.0 read-replica redirect middleware -----------------------------
+
+    # ``replica`` mode: mutating verbs return 421 (Misdirected Request)
+    # with both ``X-Plinth-Primary-Region`` + ``X-Plinth-Primary-URL``
+    # headers so SDK clients can transparently fail over to the primary.
+    # Gateway is stateless from the persistence point of view, but writes
+    # to its tool registry / audit / OAuth-connection tables happen
+    # locally and would diverge from the primary, so we redirect them.
+    _MUTATING_METHODS = frozenset({"POST", "PUT", "DELETE", "PATCH"})
+    _REPLICA_ALLOWLIST = (
+        "/healthz",
+        "/v1/regions",
+        "/v1/invoke/dry-run",  # explicitly read-only
+        "/metrics",
+    )
+
+    @app.middleware("http")
+    async def _replica_redirect_middleware(request: Request, call_next):
+        gw_settings: Settings = request.app.state.settings
+        if gw_settings.replication_mode != "replica":
+            return await call_next(request)
+        if request.method not in _MUTATING_METHODS:
+            return await call_next(request)
+        path = request.url.path
+        if any(path.startswith(prefix) for prefix in _REPLICA_ALLOWLIST):
+            return await call_next(request)
+        primary_id = (
+            gw_settings.region_peers[0]
+            if gw_settings.region_peers
+            else gw_settings.region_id
+        )
+        primary_url = (
+            gw_settings.region_primary_url
+            or gw_settings.region_peer_urls.get(primary_id, "")
+        )
+        headers: dict[str, str] = {"X-Plinth-Primary-Region": primary_id}
+        if primary_url:
+            normalized = primary_url.rstrip("/")
+            headers["X-Plinth-Primary-URL"] = normalized
+            headers["Location"] = normalized + path
+        return JSONResponse(
+            status_code=421,
+            content=_error_payload(
+                "REPLICA_READ_ONLY",
+                "this is a read-replica; submit mutating requests to "
+                f"{primary_url or primary_id}",
+                {
+                    "region": gw_settings.region_id,
+                    "primary_region": primary_id,
+                    "primary_url": primary_url or None,
+                },
+            ),
+            headers=headers,
+        )
+
     # ---- v0.5 load-shed middleware (outermost) -----------------------------
 
     # Order: middleware added LAST runs FIRST. Registering load-shed after
     # the tenant context means a 503 short-circuits before we touch auth or
     # any downstream state (cheap rejection under overload).
+    # The metrics middleware sits between tenant-context and load-shed so
+    # it captures genuine traffic (not 503s) for clean histograms.
+    app.middleware("http")(metrics_middleware_factory(metrics))
     app.middleware("http")(load_shed_middleware)
 
     # ---- exception handlers ------------------------------------------------
@@ -385,11 +513,57 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def get_limits() -> LimitsRegistry:
         return app.state.limits
 
+    def get_tenant_quotas() -> TenantQuotaEnforcer:
+        return app.state.tenant_quotas
+
     # ---- health ------------------------------------------------------------
+
+    @app.get(
+        "/v1/regions",
+        response_model=RegionsResponse,
+        tags=["health"],
+    )
+    async def get_regions(request: Request) -> RegionsResponse:
+        """Return the current region + cached peer reachability.
+
+        Gateway is stateless — region settings here drive only the
+        discovery surface. There's no replication primitive.
+        """
+
+        gw_settings: Settings = request.app.state.settings
+        probe: RegionStatusProbe = request.app.state.region_status_probe
+        peer_urls = {
+            peer_id: gw_settings.region_peer_urls.get(peer_id, "")
+            for peer_id in gw_settings.region_peers
+            if gw_settings.region_peer_urls.get(peer_id)
+        }
+        peers = await probe.all_peers(peer_urls) if peer_urls else []
+        return RegionsResponse(
+            current=gw_settings.region_id,
+            mode=gw_settings.replication_mode,
+            peers=list(peers),
+        )
 
     @app.get("/healthz", response_model=HealthResponse, tags=["health"])
     async def healthz() -> HealthResponse:
         return HealthResponse(status="ok", version=__version__, service="gateway")
+
+    @app.get("/metrics", tags=["health"], include_in_schema=False)
+    async def metrics_endpoint(request: Request):
+        """Prometheus exposition endpoint.
+
+        Refreshes a small set of gauges (OAuth-connection count, audit-chain
+        verification status) on each scrape so operators get fresh values
+        without a separate sweeper. Best-effort: any failure is swallowed
+        and we still return whatever counters have accumulated.
+        """
+
+        registry: MetricsRegistry = request.app.state.metrics
+        try:
+            await _refresh_gateway_gauges(request.app, registry)
+        except Exception:  # noqa: BLE001 — never crash a scrape
+            pass
+        return metrics_response(registry)
 
     # ---- tools -------------------------------------------------------------
 
@@ -482,6 +656,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         audit: AuditLog = Depends(get_audit),
         proxy: HttpProxy = Depends(get_proxy),
         limits: LimitsRegistry = Depends(get_limits),
+        tenant_quotas: TenantQuotaEnforcer = Depends(get_tenant_quotas),
     ) -> InvokeResponse:
         # Rate-limit + cost-cap enforcement.
         # Per CONTRACTS.md (v0.2 Additions: "Rate Limiting & Cost Caps"), limits
@@ -495,6 +670,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if settings.rate_limits_enabled and payload.agent_id is not None:
             await limits.assert_within_rate(payload.agent_id)
             await limits.assert_within_cost_caps(payload.agent_id)
+
+        # v1.0 — tenant-level quotas (cluster-wide cost + invocations/min).
+        # No-op when ``settings.quotas_enabled`` is False, which is the
+        # v0.6 default so demos that hammer ``/v1/invoke`` keep working.
+        await tenant_quotas.check_invoke(tenant_id)
+        # Record AFTER the check so the bucket reflects the post-call state
+        # only on calls that got past quota gating.
+        await tenant_quotas.record_invoke(tenant_id)
 
         # In strict-auth modes, scope tool lookup to the caller's tenant so
         # tenant A can't invoke tools registered in tenant B.
@@ -545,6 +728,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     workspace_id=payload.workspace_id,
                     audit_id=event.id,
                 )
+                _record_invocation_metrics(
+                    request.app,
+                    tool_id=tool.tool_id,
+                    tenant_id=tenant_id,
+                    cached=True,
+                    result_ok=True,
+                    duration_ms=duration_ms,
+                    cost=cost,
+                )
                 return InvokeResponse(
                     tool_id=tool.tool_id,
                     arguments=payload.arguments,
@@ -592,6 +784,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 audit_id=event.id,
                 error=error_message,
             )
+            _record_invocation_metrics(
+                request.app,
+                tool_id=tool.tool_id,
+                tenant_id=tenant_id,
+                cached=False,
+                result_ok=False,
+                duration_ms=duration_ms,
+                cost=cost,
+            )
             # Re-raise with the audit_id surfaced in details so clients can find it.
             raise GatewayError(
                 exc.message,
@@ -634,6 +835,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             workspace_id=payload.workspace_id,
             audit_id=event.id,
             duration_ms=duration_ms,
+        )
+        _record_invocation_metrics(
+            request.app,
+            tool_id=tool.tool_id,
+            tenant_id=tenant_id,
+            cached=False,
+            result_ok=True,
+            duration_ms=duration_ms,
+            cost=cost,
         )
 
         return InvokeResponse(
@@ -736,6 +946,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             tenant_id=_scope_tenant(request),
         )
         return AuditStatsResponse(stats=stats)
+
+    @app.get(
+        "/v1/audit/verify",
+        response_model=ChainVerifyResult,
+        tags=["audit"],
+        dependencies=[Depends(auth_dep)],
+    )
+    async def audit_verify(
+        since: float | None = Query(default=None, ge=0),
+        limit: int = Query(default=1000, ge=1, le=10000),
+        audit: AuditLog = Depends(get_audit),
+    ) -> ChainVerifyResult:
+        """Verify the audit hash chain.
+
+        ``since`` is an optional unix timestamp (seconds, may be float).
+        Rows with ``timestamp >= since`` are checked. Without ``since`` the
+        whole window (up to ``limit``) is checked from the chain genesis.
+        """
+
+        since_dt: datetime | None = None
+        if since is not None:
+            try:
+                since_dt = datetime.fromtimestamp(float(since), tz=timezone.utc)
+            except (OverflowError, ValueError, OSError) as exc:
+                raise InvalidArguments(
+                    f"Invalid 'since' timestamp: {since!r}",
+                    details={"since": since},
+                ) from exc
+        return await audit.verify_chain(since=since_dt, limit=int(limit))
 
     # ---- cache -------------------------------------------------------------
 
@@ -1025,6 +1264,57 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             dry_run=outcome.dry_run,
         )
 
+    # ---------------------------------------------- v1.0 GDPR (admin endpoints)
+
+    @app.get(
+        "/v1/admin/tenant/{tenant_id}/export-data",
+        tags=["admin"],
+    )
+    async def admin_export_tenant_data(
+        tenant_id: str,
+        request: Request,
+    ) -> Response:
+        """Stream every tenant-scoped row as JSON-Lines.
+
+        The body is ``application/jsonl`` with one row per line. OAuth
+        access/refresh tokens are always redacted.
+        """
+
+        _require_admin(request)
+        from .compliance import GatewayComplianceStore
+
+        store = GatewayComplianceStore(request.app.state.db)
+        lines: list[str] = []
+        async for line in store.export_jsonl(tenant_id):
+            lines.append(line)
+        body = ("\n".join(lines) + ("\n" if lines else "")).encode("utf-8")
+        return Response(
+            content=body,
+            media_type="application/jsonl",
+        )
+
+    @app.delete(
+        "/v1/admin/tenant/{tenant_id}/data",
+        tags=["admin"],
+    )
+    async def admin_delete_tenant_data(
+        tenant_id: str,
+        request: Request,
+    ) -> dict:
+        """Hard-delete every tenant-scoped row (audit, OAuth, limits, tools)."""
+
+        _require_admin(request)
+        from .compliance import GatewayComplianceStore
+
+        store = GatewayComplianceStore(request.app.state.db)
+        counts = await store.delete_tenant_data(tenant_id)
+        log.info(
+            "gateway.admin.gdpr_delete",
+            tenant_id=tenant_id,
+            counts=counts,
+        )
+        return {"deleted": counts}
+
     return app
 
 
@@ -1068,6 +1358,109 @@ def _require_admin(request: Request) -> None:
         "admin migrations require tenant:*:admin or * scope",
         details={"required_scope": "tenant:*:admin"},
     )
+
+
+def _record_invocation_metrics(
+    app: FastAPI,
+    *,
+    tool_id: str,
+    tenant_id: str | None,
+    cached: bool,
+    result_ok: bool,
+    duration_ms: int,
+    cost: float,
+) -> None:
+    """Increment per-tool/tenant invocation metrics.
+
+    Called from every branch of the ``/v1/invoke`` handler — cache hit,
+    upstream success, upstream error. Best-effort: any failure here is
+    swallowed so a metrics bug never breaks an invocation.
+    """
+
+    registry: MetricsRegistry | None = getattr(app.state, "metrics", None)
+    if registry is None:
+        return
+    try:
+        labels = {
+            "tool_id": str(tool_id),
+            "tenant_id": str(tenant_id or "default"),
+            "cached": "true" if cached else "false",
+            "result": "ok" if result_ok else "error",
+        }
+        registry.counter("plinth_tool_invocations_total", labels).inc(1)
+        registry.histogram(
+            "plinth_tool_invocation_duration_seconds",
+            {
+                "tool_id": str(tool_id),
+                "cached": "true" if cached else "false",
+            },
+        ).observe(max(0.0, float(duration_ms) / 1000.0))
+        if cost and cost > 0:
+            registry.counter(
+                "plinth_tool_invocation_cost_usd_total",
+                {
+                    "tool_id": str(tool_id),
+                    "tenant_id": str(tenant_id or "default"),
+                },
+            ).inc(float(cost))
+    except Exception:  # noqa: BLE001 — metrics must never crash invoke
+        pass
+
+
+async def _refresh_gateway_gauges(app: FastAPI, registry: MetricsRegistry) -> None:
+    """Refresh gateway-specific gauges on each Prometheus scrape.
+
+    Best-effort: any failure leaves the previously-set value in place. The
+    canonical scrape contract says ``/metrics`` MUST always succeed, so we
+    swallow per-gauge errors rather than propagating them.
+    """
+
+    # Mirror load-shedder cumulative count into a Prometheus counter.
+    shedder = getattr(app.state, "load_shedder", None)
+    if shedder is not None:
+        try:
+            shed_count = float(shedder.stats.get("shed_count", 0) or 0)
+            c = registry.counter(
+                "plinth_load_shed_total",
+                {"service": "gateway"},
+            )
+            delta = shed_count - c.value
+            if delta > 0:
+                c.inc(delta)
+        except Exception:  # noqa: BLE001
+            pass
+
+    # Active OAuth connections.
+    oauth = getattr(app.state, "oauth_connections", None)
+    if oauth is not None:
+        count_fn = getattr(oauth, "count_active", None)
+        if callable(count_fn):
+            try:
+                n = await count_fn()
+                registry.gauge(
+                    "plinth_oauth_connections_active",
+                    {"service": "gateway"},
+                ).set(int(n or 0))
+            except Exception:  # noqa: BLE001
+                pass
+
+    # Audit chain verification status. The audit log may expose
+    # ``last_verified_ok`` or ``verify_status``; we surface a 1/0 gauge.
+    audit = getattr(app.state, "audit", None)
+    if audit is not None:
+        verified = None
+        if hasattr(audit, "last_verified_ok"):
+            verified = bool(audit.last_verified_ok)
+        elif hasattr(audit, "verify_status"):
+            try:
+                verified = bool(audit.verify_status)
+            except Exception:  # noqa: BLE001
+                verified = None
+        if verified is not None:
+            registry.gauge(
+                "plinth_audit_chain_verified",
+                {"service": "gateway"},
+            ).set(1 if verified else 0)
 
 
 # Default module-level app for `python -m plinth_gateway` / uvicorn factories

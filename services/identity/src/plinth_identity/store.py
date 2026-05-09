@@ -54,6 +54,70 @@ CREATE TABLE IF NOT EXISTS tenants (
   metadata TEXT NOT NULL DEFAULT '{}',
   created_at TIMESTAMP NOT NULL
 );
+
+-- v1.0 — per-tenant resource quotas + usage rollup.
+CREATE TABLE IF NOT EXISTS tenant_quotas (
+  tenant_id TEXT PRIMARY KEY,
+  max_workspaces INTEGER NOT NULL DEFAULT 100,
+  max_storage_gb REAL NOT NULL DEFAULT 10.0,
+  max_channels_per_workspace INTEGER NOT NULL DEFAULT 50,
+  max_workflows_per_workspace INTEGER NOT NULL DEFAULT 100,
+  max_active_tokens INTEGER NOT NULL DEFAULT 1000,
+  max_oauth_connections INTEGER NOT NULL DEFAULT 50,
+  max_cost_usd_day REAL NOT NULL DEFAULT 100.0,
+  max_cost_usd_month REAL NOT NULL DEFAULT 2000.0,
+  max_invocations_per_minute INTEGER NOT NULL DEFAULT 600,
+  updated_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS tenant_usage (
+  tenant_id TEXT PRIMARY KEY,
+  workspaces INTEGER NOT NULL DEFAULT 0,
+  storage_gb REAL NOT NULL DEFAULT 0.0,
+  active_tokens INTEGER NOT NULL DEFAULT 0,
+  oauth_connections INTEGER NOT NULL DEFAULT 0,
+  cost_usd_day REAL NOT NULL DEFAULT 0.0,
+  cost_usd_month REAL NOT NULL DEFAULT 0.0,
+  last_invocation_at TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL
+);
+
+-- v1.0 — GDPR Article 20 (data portability) export jobs.
+CREATE TABLE IF NOT EXISTS export_jobs (
+  export_id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  requested_at TIMESTAMP NOT NULL,
+  completed_at TIMESTAMP,
+  expires_at TIMESTAMP,
+  size_bytes INTEGER,
+  error TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_export_jobs_tenant
+  ON export_jobs(tenant_id, requested_at DESC);
+
+-- v1.0 — GDPR Article 17 (erasure) cascade jobs.
+CREATE TABLE IF NOT EXISTS delete_jobs (
+  job_id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  requested_at TIMESTAMP NOT NULL,
+  completed_at TIMESTAMP,
+  deleted_counts TEXT NOT NULL DEFAULT '{}',
+  error TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_delete_jobs_tenant
+  ON delete_jobs(tenant_id, requested_at DESC);
+
+-- v1.0 — Two-phase delete confirm tokens. Short-lived (~10 min), one-shot.
+CREATE TABLE IF NOT EXISTS delete_confirm_tokens (
+  confirm_token TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  expires_at TIMESTAMP NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_delete_confirm_tokens_tenant
+  ON delete_confirm_tokens(tenant_id);
 """
 
 DEFAULT_TENANT_ID = "default"

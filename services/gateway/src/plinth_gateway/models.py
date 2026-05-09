@@ -122,6 +122,25 @@ class AuditStatsResponse(BaseModel):
     stats: AuditStats
 
 
+class ChainVerifyResult(BaseModel):
+    """Outcome of ``GET /v1/audit/verify`` — tamper-evidence check.
+
+    ``verified`` is True iff every audit_events row in the verification
+    window passed the hash-chain check. ``checked`` reports how many
+    non-NULL ``event_hash`` rows were actually inspected (legacy rows
+    pre-v1.0 are skipped). ``broken_at`` carries the ID of the first
+    failing event; ``broken_reason`` is one of ``hash_mismatch``,
+    ``prev_hash_mismatch``, ``missing_prev_hash``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    verified: bool
+    checked: int = 0
+    broken_at: str | None = None
+    broken_reason: str | None = None
+
+
 # ---------------------------------------------------------------------------
 # Cache
 # ---------------------------------------------------------------------------

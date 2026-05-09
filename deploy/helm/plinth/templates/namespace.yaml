@@ -1,0 +1,21 @@
+{{- /*
+SPDX-License-Identifier: Apache-2.0
+By default Helm creates the release namespace via `--create-namespace`.
+Including a Namespace resource conflicts with that. We only emit one when the
+operator opts in via `createNamespace=true` and the resource is annotated as
+helm-managed so Helm doesn't drop it on uninstall (release-scope namespaces
+are usually shared with other workloads).
+*/ -}}
+{{- if .Values.createNamespace -}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Release.Namespace }}
+  labels:
+    {{- include "plinth.labels" . | nindent 4 }}
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    helm.sh/resource-policy: keep
+{{- end }}

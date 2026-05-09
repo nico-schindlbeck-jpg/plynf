@@ -17,6 +17,9 @@ import { encodePath, type HttpClient } from "./http.js";
 import type {
   JsonValue,
   SigningKey,
+  TenantQuotas,
+  TenantQuotasUpdate,
+  TenantUsage,
   TokenClaims,
   TokenInfo,
   TokenIssueRequest,
@@ -156,6 +159,61 @@ export class IdentityClient {
     await this.http.requestVoid({
       method: "DELETE",
       path: `/v1/keys/${encodePath(kid)}`,
+    });
+  }
+
+  // ---------------------------------------------------------------- v1.0 quotas
+
+  /**
+   * Fetch the per-tenant quota envelope.
+   *
+   * A tenant without an explicit row returns the contract defaults —
+   * identity never returns 404 here, so callers don't need to wrap the
+   * call in a try/catch.
+   */
+  async getQuotas(tenantId: string): Promise<TenantQuotas> {
+    return this.http.requestJson<TenantQuotas>({
+      method: "GET",
+      path: `/v1/tenants/${encodePath(tenantId)}/quotas`,
+    });
+  }
+
+  /**
+   * Patch the tenant's quota envelope.
+   *
+   * Unset fields fall back to the existing row, otherwise to the
+   * contract defaults. Returns the fully-resolved {@link TenantQuotas}.
+   */
+  async setQuotas(
+    tenantId: string,
+    quotas: TenantQuotasUpdate,
+  ): Promise<TenantQuotas> {
+    return this.http.requestJson<TenantQuotas>({
+      method: "POST",
+      path: `/v1/tenants/${encodePath(tenantId)}/quotas`,
+      json: quotas as unknown as JsonValue,
+    });
+  }
+
+  /** Drop the tenant's quota row, reverting it to defaults. */
+  async resetQuotas(tenantId: string): Promise<void> {
+    await this.http.requestVoid({
+      method: "DELETE",
+      path: `/v1/tenants/${encodePath(tenantId)}/quotas`,
+    });
+  }
+
+  /**
+   * Return the per-tenant usage rollup.
+   *
+   * Some fields (`storage_gb`, `cost_usd_day`, `cost_usd_month`,
+   * `last_invocation_at`) live in other services and surface as
+   * `0` / `null` with a `notes` map pointing at the canonical source.
+   */
+  async getUsage(tenantId: string): Promise<TenantUsage> {
+    return this.http.requestJson<TenantUsage>({
+      method: "GET",
+      path: `/v1/tenants/${encodePath(tenantId)}/usage`,
     });
   }
 }
