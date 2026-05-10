@@ -2,7 +2,7 @@
 # Copyright 2026 The Plinth Authors
 
 # ---- builder ----
-FROM python:3.11-slim AS builder
+FROM python:3.14-slim AS builder
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -17,7 +17,7 @@ RUN pip install --upgrade pip build && \
     pip wheel --wheel-dir /wheels .
 
 # ---- runtime ----
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
