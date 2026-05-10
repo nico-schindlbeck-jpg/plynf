@@ -43,6 +43,7 @@ import aiosqlite
 import structlog
 from ulid import ULID
 
+from .coordination import CoordinationBackend, MemoryBackend
 from .db import connect, iso, now_utc, parse_ts
 from .exceptions import (
     InvalidArguments,
@@ -137,10 +138,54 @@ class LeaseStore:
     Holds no in-memory state beyond ``db_path``; every method opens a
     fresh connection, mirroring the pattern in the rest of the workspace
     service.
+
+    v1.3 — accepts an optional :class:`CoordinationBackend`. When the
+    backend is a non-memory implementation (e.g. ``RedisBackend``) the
+    acquire path takes a *cluster-shared* distributed lock first so
+    multiple workspace replicas pointing at separate SQLite/Postgres
+    files cannot all win the race for the same workflow step. When the
+    backend is :class:`MemoryBackend` (default) or ``None``, the cluster
+    gate is skipped — behaviour is identical to v1.2.
+
+    The cluster lock is keyed on
+    ``<coordination_prefix>:<workspace_id>:<step_id>`` and holds for the
+    same TTL as the local lease. Heartbeat refreshes the cluster TTL;
+    release deletes the cluster lock. If the local DB write fails after
+    the cluster lock was acquired, the cluster lock is released
+    defensively so no orphaned locks remain.
     """
 
-    def __init__(self, db_path: Path) -> None:
+    def __init__(
+        self,
+        db_path: Path,
+        *,
+        coordination: CoordinationBackend | None = None,
+        coordination_prefix: str = "plinth:workspace:lease",
+    ) -> None:
         self.db_path = db_path
+        self.coordination = coordination
+        self.coordination_prefix = coordination_prefix.rstrip(":")
+
+    # ------------------------------------------------------------------
+    # Coordination helpers
+    # ------------------------------------------------------------------
+
+    def _cluster_enabled(self) -> bool:
+        """Return ``True`` when the cluster gate should run.
+
+        Skip when ``coordination`` is unset (legacy callers) or when
+        the backend is :class:`MemoryBackend` — the in-memory backend
+        only coordinates within a single process, so it cannot help
+        race-coordinate across replicas, and the local DB write already
+        provides race-safety inside one process.
+        """
+
+        if self.coordination is None:
+            return False
+        return not isinstance(self.coordination, MemoryBackend)
+
+    def _cluster_lock_key(self, workspace_id: str, step_id: str) -> str:
+        return f"{self.coordination_prefix}:{workspace_id}:{step_id}"
 
     # ------------------------------------------------------------------
     # Worker lifecycle
@@ -282,10 +327,84 @@ class LeaseStore:
            lease.
 
         On success returns the freshly inserted :class:`Lease`.
+
+        v1.3 — when a non-memory :class:`CoordinationBackend` is
+        configured (typically Redis), the acquire path first takes a
+        cluster-shared distributed lock on
+        ``<coordination_prefix>:<workspace_id>:<step_id>`` with the same
+        TTL as the lease. If the cluster lock is already held by another
+        replica, :class:`LeaseConflict` is raised before any DB work.
+        If the local DB write fails after the cluster lock was taken, the
+        cluster lock is released defensively so no orphaned cluster
+        locks remain.
         """
 
         if ttl_seconds <= 0:
             raise InvalidArguments("ttl_seconds must be > 0")
+
+        # v1.3 — cluster gate. Skip for ``MemoryBackend`` / ``None`` so
+        # single-process tests and v1.2 callers see no behavioural change.
+        cluster_acquired = False
+        cluster_key: str | None = None
+        if self._cluster_enabled():
+            assert self.coordination is not None  # narrow for mypy
+            cluster_key = self._cluster_lock_key(workspace_id, step_id)
+            cluster_acquired = await self.coordination.acquire_lock(
+                cluster_key,
+                holder=worker_id,
+                ttl_seconds=ttl_seconds,
+            )
+            if not cluster_acquired:
+                raise LeaseConflict(
+                    f"Step {step_id} is leased by another replica",
+                    details={
+                        "step_id": step_id,
+                        "cluster_key": cluster_key,
+                    },
+                )
+
+        try:
+            return await self._acquire_lease_local(
+                workspace_id,
+                workflow_id,
+                step_id,
+                worker_id=worker_id,
+                ttl_seconds=ttl_seconds,
+            )
+        except Exception:
+            # Defensive: if the local write failed for any reason
+            # (LeaseConflict from the SQL path, IO error, etc.) and we
+            # took the cluster lock above, release it so the next caller
+            # isn't blocked by an orphan cluster lock holding the gate.
+            if cluster_acquired and cluster_key is not None:
+                assert self.coordination is not None
+                try:
+                    await self.coordination.release_lock(
+                        cluster_key, holder=worker_id
+                    )
+                except Exception as exc:  # noqa: BLE001 - best effort
+                    log.warning(
+                        "workspace.lease.cluster_release_failed",
+                        cluster_key=cluster_key,
+                        error=str(exc),
+                    )
+            raise
+
+    async def _acquire_lease_local(
+        self,
+        workspace_id: str,
+        workflow_id: str,
+        step_id: str,
+        *,
+        worker_id: str,
+        ttl_seconds: int,
+    ) -> Lease:
+        """The original v1.2 SQLite/Postgres acquire path.
+
+        Kept verbatim so the cluster-gate adapter in :py:meth:`acquire_lease`
+        is a thin layer; backwards-compat tests exercise this function
+        with no coordination backend configured.
+        """
 
         async with connect(self.db_path) as conn:
             await WorkflowStore._assert_workspace(conn, workspace_id)
@@ -488,6 +607,28 @@ class LeaseStore:
             )
             await conn.commit()
 
+        # v1.3 — refresh the cluster lock TTL alongside the local row.
+        # Re-acquire by the same holder is documented as a TTL-bump
+        # (see ``CoordinationBackend.acquire_lock`` re-assert path), so
+        # we just call it again with the new ttl. Best-effort: any
+        # transport error here only loses the cluster TTL refresh; the
+        # local heartbeat already succeeded.
+        if self._cluster_enabled():
+            assert self.coordination is not None
+            cluster_key = self._cluster_lock_key(workspace_id, step_id)
+            try:
+                await self.coordination.acquire_lock(
+                    cluster_key,
+                    holder=worker_id,
+                    ttl_seconds=ttl,
+                )
+            except Exception as exc:  # noqa: BLE001 - best effort
+                log.warning(
+                    "workspace.lease.cluster_heartbeat_failed",
+                    cluster_key=cluster_key,
+                    error=str(exc),
+                )
+
         return Lease(
             step_id=step_id,
             worker_id=worker_id,
@@ -675,7 +816,26 @@ class LeaseStore:
             updated = await cur.fetchone()
             await cur.close()
             assert updated is not None
-            return _row_to_lease(updated)
+
+        # v1.3 — drop the cluster-shared lock so a different replica can
+        # acquire the next lease for this step. Best-effort: a Redis
+        # outage here just leaves the lock in place until its TTL
+        # elapses naturally.
+        if self._cluster_enabled():
+            assert self.coordination is not None
+            cluster_key = self._cluster_lock_key(workspace_id, step_id)
+            try:
+                await self.coordination.release_lock(
+                    cluster_key, holder=worker_id
+                )
+            except Exception as exc:  # noqa: BLE001 - best effort
+                log.warning(
+                    "workspace.lease.cluster_release_failed",
+                    cluster_key=cluster_key,
+                    error=str(exc),
+                )
+
+        return _row_to_lease(updated)
 
     # ------------------------------------------------------------------
     # Pending / expired discovery
@@ -774,19 +934,34 @@ class LeaseStore:
            are left alone — those are races where the worker released
            the lease just before the reaper ran.
 
+        v1.3 — also drop the cluster-shared lock (best-effort) so the
+        next acquire from any replica isn't blocked waiting for the
+        cluster TTL to elapse. The cluster lock TTL matches the lease
+        TTL so the lock would expire naturally, but explicitly releasing
+        it on the reaper path lets pending workers see availability
+        immediately.
+
         Returns the number of leases flipped.
         """
 
         ts = now or now_utc()
         async with connect(self.db_path) as conn:
+            # Join with workflow_steps + workflows to recover the
+            # workspace_id for cluster-lock release. We pull it inside
+            # the same query so the reaper doesn't open a second
+            # connection per stale row.
             cur = await conn.execute(
-                "SELECT * FROM workflow_step_leases "
-                "WHERE status='running' AND expires_at < ?",
+                "SELECT l.*, w.workspace_id AS workspace_id "
+                "FROM workflow_step_leases l "
+                "JOIN workflow_steps s ON s.id = l.step_id "
+                "JOIN workflows w ON w.id = s.workflow_id "
+                "WHERE l.status='running' AND l.expires_at < ?",
                 (iso(ts),),
             )
             rows = await cur.fetchall()
             await cur.close()
             count = 0
+            cluster_releases: list[tuple[str, str, str]] = []
             for row in rows:
                 step_id = row["step_id"]
                 await conn.execute(
@@ -805,9 +980,30 @@ class LeaseStore:
                     (step_id,),
                 )
                 count += 1
+                if self._cluster_enabled():
+                    cluster_releases.append(
+                        (row["workspace_id"], step_id, row["worker_id"])
+                    )
             if count:
                 await conn.commit()
-            return count
+
+        # Release cluster locks outside the DB transaction so a Redis
+        # outage doesn't roll back local progress.
+        if self._cluster_enabled() and cluster_releases:
+            assert self.coordination is not None
+            for workspace_id, step_id, worker_id in cluster_releases:
+                cluster_key = self._cluster_lock_key(workspace_id, step_id)
+                try:
+                    await self.coordination.release_lock(
+                        cluster_key, holder=worker_id
+                    )
+                except Exception as exc:  # noqa: BLE001 - best effort
+                    log.warning(
+                        "workspace.lease.cluster_reap_release_failed",
+                        cluster_key=cluster_key,
+                        error=str(exc),
+                    )
+        return count
 
     async def mark_inactive_workers(
         self,

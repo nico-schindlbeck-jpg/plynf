@@ -43,6 +43,7 @@ from pathlib import Path
 import aiosqlite
 import structlog
 
+from .coordination import CoordinationBackend, MemoryBackend
 from .db import connect, iso, now_utc, parse_ts
 from .exceptions import (
     LockHeld,
@@ -89,10 +90,38 @@ class ResourceLockStore:
     Holds no in-memory state beyond ``db_path``. Mirrors the rest of the
     workspace service: every method opens a fresh connection scoped to
     the request.
+
+    v1.3 — accepts an optional :class:`CoordinationBackend`. When the
+    backend is non-memory (typically Redis), the acquire path takes a
+    cluster-shared distributed lock first so multiple workspace replicas
+    cannot all win the race for the same resource. ``MemoryBackend`` /
+    ``None`` short-circuit the cluster gate to preserve v1.2 behaviour.
     """
 
-    def __init__(self, db_path: Path) -> None:
+    def __init__(
+        self,
+        db_path: Path,
+        *,
+        coordination: CoordinationBackend | None = None,
+        coordination_prefix: str = "plinth:workspace:resource_lock",
+    ) -> None:
         self.db_path = db_path
+        self.coordination = coordination
+        self.coordination_prefix = coordination_prefix.rstrip(":")
+
+    # ------------------------------------------------------------------
+    # Coordination helpers
+    # ------------------------------------------------------------------
+
+    def _cluster_enabled(self) -> bool:
+        """Return ``True`` when the cluster gate should run."""
+
+        if self.coordination is None:
+            return False
+        return not isinstance(self.coordination, MemoryBackend)
+
+    def _cluster_lock_key(self, workspace_id: str, name: str) -> str:
+        return f"{self.coordination_prefix}:{workspace_id}:{name}"
 
     # ------------------------------------------------------------------
     # Helpers
@@ -187,7 +216,61 @@ class ResourceLockStore:
         attempt either observes the winner's row directly (raising
         :class:`LockHeld`) or maps ``SQLITE_BUSY`` to the same exception
         so callers see a uniform error shape.
+
+        v1.3 — cluster-gates the acquire when a non-memory coordination
+        backend is configured, so that multiple replicas race-coordinate
+        through Redis before touching the per-replica DB.
         """
+
+        # v1.3 — cluster gate. Skip for ``MemoryBackend`` / ``None``.
+        cluster_acquired = False
+        cluster_key: str | None = None
+        if self._cluster_enabled():
+            assert self.coordination is not None
+            cluster_key = self._cluster_lock_key(workspace_id, name)
+            cluster_acquired = await self.coordination.acquire_lock(
+                cluster_key,
+                holder=holder,
+                ttl_seconds=ttl_seconds,
+            )
+            if not cluster_acquired:
+                raise LockHeld(
+                    workspace_id,
+                    name,
+                    retry_after_seconds=1,
+                )
+
+        try:
+            return await self._try_acquire_once_local(
+                workspace_id,
+                name,
+                holder=holder,
+                ttl_seconds=ttl_seconds,
+            )
+        except Exception:
+            if cluster_acquired and cluster_key is not None:
+                assert self.coordination is not None
+                try:
+                    await self.coordination.release_lock(
+                        cluster_key, holder=holder
+                    )
+                except Exception as exc:  # noqa: BLE001 - best effort
+                    log.warning(
+                        "workspace.resource_lock.cluster_release_failed",
+                        cluster_key=cluster_key,
+                        error=str(exc),
+                    )
+            raise
+
+    async def _try_acquire_once_local(
+        self,
+        workspace_id: str,
+        name: str,
+        *,
+        holder: str,
+        ttl_seconds: int,
+    ) -> Lock:
+        """Original v1.2 single race-safe upsert path."""
 
         async with connect(self.db_path) as conn:
             try:
@@ -386,7 +469,25 @@ class ResourceLockStore:
             updated = await cur.fetchone()
             await cur.close()
             assert updated is not None
-            return _row_to_lock(updated)
+
+        # v1.3 — refresh the cluster lock TTL alongside the local row.
+        if self._cluster_enabled():
+            assert self.coordination is not None
+            cluster_key = self._cluster_lock_key(workspace_id, name)
+            try:
+                await self.coordination.acquire_lock(
+                    cluster_key,
+                    holder=holder,
+                    ttl_seconds=ttl,
+                )
+            except Exception as exc:  # noqa: BLE001 - best effort
+                log.warning(
+                    "workspace.resource_lock.cluster_heartbeat_failed",
+                    cluster_key=cluster_key,
+                    error=str(exc),
+                )
+
+        return _row_to_lock(updated)
 
     # ------------------------------------------------------------------
     # Release
@@ -419,6 +520,23 @@ class ResourceLockStore:
                 (workspace_id, name, holder),
             )
             await conn.commit()
+
+        # v1.3 — drop the cluster-shared lock so a different replica can
+        # acquire the next lease on this resource. Best-effort; the lock
+        # has its own TTL as a safety net.
+        if self._cluster_enabled():
+            assert self.coordination is not None
+            cluster_key = self._cluster_lock_key(workspace_id, name)
+            try:
+                await self.coordination.release_lock(
+                    cluster_key, holder=holder
+                )
+            except Exception as exc:  # noqa: BLE001 - best effort
+                log.warning(
+                    "workspace.resource_lock.cluster_release_failed",
+                    cluster_key=cluster_key,
+                    error=str(exc),
+                )
 
     # ------------------------------------------------------------------
     # Read
@@ -474,10 +592,29 @@ class ResourceLockStore:
         :func:`leases.lease_reaper_loop` so a single background task
         keeps both the workflow-step lease table and the resource-lock
         table tidy.
+
+        v1.3 — also drops the cluster-shared lock for each swept row
+        when a non-memory coordination backend is configured. Cluster
+        locks expire naturally on their TTL anyway; the explicit release
+        just lets pending acquirers see availability immediately.
         """
 
         ts = now or now_utc()
         async with connect(self.db_path) as conn:
+            stale: list[tuple[str, str, str]] = []
+            if self._cluster_enabled():
+                # Snapshot the rows we're about to delete so we can release
+                # their cluster locks afterwards.
+                cur = await conn.execute(
+                    "SELECT workspace_id, name, holder FROM resource_locks "
+                    "WHERE expires_at < ?",
+                    (iso(ts),),
+                )
+                rows = await cur.fetchall()
+                await cur.close()
+                stale = [
+                    (r["workspace_id"], r["name"], r["holder"]) for r in rows
+                ]
             cur = await conn.execute(
                 "DELETE FROM resource_locks WHERE expires_at < ?",
                 (iso(ts),),
@@ -486,7 +623,22 @@ class ResourceLockStore:
             await cur.close()
             if count:
                 await conn.commit()
-            return count
+
+        if self._cluster_enabled() and stale:
+            assert self.coordination is not None
+            for workspace_id, name, holder in stale:
+                cluster_key = self._cluster_lock_key(workspace_id, name)
+                try:
+                    await self.coordination.release_lock(
+                        cluster_key, holder=holder
+                    )
+                except Exception as exc:  # noqa: BLE001 - best effort
+                    log.warning(
+                        "workspace.resource_lock.cluster_reap_release_failed",
+                        cluster_key=cluster_key,
+                        error=str(exc),
+                    )
+        return count
 
 
 __all__ = [

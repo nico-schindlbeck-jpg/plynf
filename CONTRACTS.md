@@ -2285,3 +2285,71 @@ mid-tier rate so cost estimates stay non-zero during model rollouts.
 - LLM extras are opt-in: `pip install plinth` keeps the dependency tree
   identical to v1.1.
 - The TypeScript SDK does not gain an LLM layer in v1.2.
+
+# v1.3 Additions — Cluster-Mode Workspace Lease Coordination
+
+v1.3 closes the v1.1 known limitation: workspace lease coordination is now
+cluster-shared via `CoordinationBackend` (memory by default, Redis when
+configured). Multiple workspace replicas can safely race for the same
+workflow step — exactly one wins.
+
+## Lease coordination model
+
+When `PLINTH_COORDINATION_BACKEND=redis` is set on the workspace service,
+`LeaseStore.acquire_lease(...)` does two things:
+
+1. **Cluster gate**: tries to acquire a distributed lock keyed
+   `<prefix>:workspace:lease:<workspace_id>:<step_id>` with TTL = lease TTL.
+   If lost, raises `LeaseConflict` immediately (no DB work). The error
+   `details` include `cluster_key` so operators can trace cluster-side
+   contention.
+
+2. **Local upsert** (existing SQLite/Postgres path) for the
+   `workflow_step_leases` row.
+
+`LeaseStore.heartbeat_lease(...)` refreshes both the cluster lock TTL and
+the local row.
+
+`LeaseStore.release_lease(...)` deletes both.
+
+`LeaseStore.expire_stale_leases(...)` (the reaper) sweeps both: stale rows
+flip to `expired` and the matching cluster lock is released best-effort.
+
+If the local DB write fails after cluster acquisition succeeds, the
+cluster lock is released defensively — no orphaned cluster locks even on
+errors.
+
+## Resource locks
+
+The same v0.6 generic `ResourceLockStore.acquire(...)` primitive gets the
+identical treatment: cluster-gate first, local upsert second, with the
+prefix `<prefix>:workspace:resource_lock:<workspace_id>:<name>`. Heartbeat
+and release refresh / drop the cluster lock. The reaper releases cluster
+locks for swept rows.
+
+## Backwards compatibility (v1.3)
+
+- All v1.0/v1.1/v1.2 endpoints unchanged.
+- `coordination_backend=memory` (default): cluster gate is short-circuited.
+  v1.2 single-process behaviour is preserved bit-for-bit.
+- `coordination=None` (legacy callers that construct `LeaseStore` directly
+  with one positional argument): identical to v1.0 behaviour.
+- All 33 existing lease tests and all 30 resource-lock tests continue to
+  pass with the new code path.
+- API surface unchanged (no new endpoints; the cluster gate is internal
+  to `LeaseStore` / `ResourceLockStore`).
+- Worker / SDK code unchanged.
+
+## Operator note
+
+For multi-replica workspace deployments, set:
+
+```
+PLINTH_COORDINATION_BACKEND=redis
+PLINTH_COORDINATION_REDIS_URL=redis://<cluster-redis>:6379/0
+PLINTH_COORDINATION_KEY_PREFIX=plinth-prod
+```
+
+Without Redis, multiple replicas will race in the database layer only —
+race-safe per-row but not coordinated across replicas; recommended only
+for read-replicas + a single primary writer.

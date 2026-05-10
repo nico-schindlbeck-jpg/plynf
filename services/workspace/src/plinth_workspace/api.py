@@ -156,6 +156,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         coordination: CoordinationBackend = make_coordination_backend(settings)
         app.state.coordination = coordination
 
+        # v1.3 — wire the coordination backend into the lease + resource
+        # lock stores so multi-replica deployments race-coordinate via
+        # the cluster-shared lock. ``MemoryBackend`` (default) short-
+        # circuits the cluster gate, preserving v1.2 single-process
+        # behaviour. The store-level prefix uses the operator-configured
+        # ``coordination_key_prefix`` so multi-tenant Redis clusters
+        # share an instance without colliding.
+        prefix = (
+            getattr(settings, "coordination_key_prefix", "plinth")
+            or "plinth"
+        )
+        app.state.leases.coordination = coordination
+        app.state.leases.coordination_prefix = (
+            f"{prefix.rstrip(':')}:workspace:lease"
+        )
+        app.state.resource_locks.coordination = coordination
+        app.state.resource_locks.coordination_prefix = (
+            f"{prefix.rstrip(':')}:workspace:resource_lock"
+        )
+
         # v1.0 — replication log table. Idempotent (CREATE IF NOT EXISTS)
         # so standalone deployments pay zero cost beyond a single empty
         # table on disk; the table only fills up when ``replication_mode``

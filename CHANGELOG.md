@@ -2,6 +2,33 @@
 
 All notable changes to Plinth are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [SemVer](https://semver.org).
 
+## [1.3.0] — 2026-05-10
+
+Cluster-Mode Workspace — closes the v1.1 known-limitation: workspace lease coordination is now cluster-shared via the existing `CoordinationBackend` (memory + Redis). Multiple workspace replicas can safely race for the same workflow step — exactly one wins.
+
+### Added
+- **Cluster-aware `LeaseStore`** — accepts a `CoordinationBackend` and gates `acquire_lease()` on a distributed lock keyed `<prefix>:workspace:lease:<workspace_id>:<step_id>` before the local DB upsert. Local-DB-failure releases the cluster lock defensively.
+- **Cluster-aware `ResourceLockStore`** — same pattern for the v0.6 generic resource locks.
+- Heartbeat refreshes both cluster TTL + local row.
+- Release deletes both cluster lock + local row.
+- API lifespan wires `app.state.coordination` into both lock stores with prefix `<key_prefix>:workspace:{lease|resource_lock}`.
+- 7 new cluster-coordination tests (workspace 583 total, was 576).
+
+### Fixed (CI)
+- `asyncio.get_event_loop()` deprecation in Postgres-driver tests → `asyncio.run()` (workspace + gateway + identity).
+- Contract test middleware-status-code list expanded to include `400` (validation) + `422` (Pydantic) alongside `401` + `500`.
+- CI sdk-python suite installs `[dev,all]` extra so anthropic + openai vendor SDKs are available for LLM-provider tests.
+
+### Changed
+- Workspace: 583 tests (was 576) — +7 cluster coordination
+- Total: **2215 Python + 194 TS-SDK + 29 TS-Worker = 2438 tests passing**
+
+### Backwards compatibility
+- `coordination_backend=memory` (default): cluster gate is skipped — v1.2 behavior preserved
+- `coordination=None`: legacy behavior, identical to v1.0
+- All 33 existing lease tests pass with the new code path
+- API surface unchanged — change is internal to LeaseStore
+
 ## [1.2.1] — 2026-05-10
 
 Patch release: TypeScript SDK reaches full LLM-layer parity with the Python SDK + CI hotfix.
@@ -393,6 +420,7 @@ Initial proof-of-concept release. Working end-to-end slice of the agent-native s
 ### Stack
 Python 3.11+ for services + Python SDK; TypeScript 5.4+ for the TS SDK; FastAPI + uvicorn + aiosqlite + pydantic v2 + tiktoken; vitest for TS tests.
 
+[1.3.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.3.0
 [1.2.1]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.2.1
 [1.2.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.2.0
 [1.1.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.1.0

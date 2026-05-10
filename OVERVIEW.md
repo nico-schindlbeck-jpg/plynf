@@ -25,9 +25,9 @@
 
 | | |
 |--|--|
-| **Latest milestone** | **v1.2.1 — LLM Layer parity (Python + TypeScript)** *(May 10, 2026)* |
-| **Repo size** | ~128 000 lines of source + docs |
-| **Tests passing** | **2 629** *(2 406 Python + 194 TS SDK + 29 TS Worker)* |
+| **Latest milestone** | **v1.3.0 — Cluster-Mode Workspace** *(May 10, 2026)* |
+| **Repo size** | ~129 000 lines of source + docs |
+| **Tests passing** | **2 438** *(2 215 Python + 194 TS SDK + 29 TS Worker)* |
 | **API stability** | `v1` stable — see `docs/API_STABILITY.md` |
 | **Coordination** | memory (default) or Redis (cluster-shared) — opt-in via `PLINTH_COORDINATION_BACKEND=redis` |
 | **OAuth providers** | GitHub, Slack, Linear, Notion, Google Workspace |

@@ -820,3 +820,400 @@ async def test_lease_acquire_404_workflow(settings, store) -> None:
         await lease_store.acquire_lease(
             ws.id, "wf_nope", "step_nope", worker_id=w.id, ttl_seconds=60
         )
+
+
+# ---------------------------------------------------------------------------
+# v1.3 — Cluster-coordinated leases
+# ---------------------------------------------------------------------------
+
+
+def _fake_redis_server():
+    """Construct an in-memory ``fakeredis.FakeServer`` shared between
+    multiple ``RedisBackend`` clients so they simulate distinct workspace
+    replicas pointing at the same Redis cluster.
+    """
+
+    import fakeredis
+
+    return fakeredis.FakeServer()
+
+
+def _shared_redis_backend(server, *, key_prefix: str = "plinth-test"):
+    import fakeredis.aioredis
+
+    from plinth_workspace.coordination import RedisBackend
+
+    client = fakeredis.aioredis.FakeRedis(server=server, decode_responses=True)
+    return RedisBackend(
+        "redis://x/0", key_prefix=key_prefix, client=client
+    )
+
+
+async def _create_cluster_workspace_with_pending_step(
+    store, settings, ws_name: str
+):
+    """Create a workspace, workflow, and a step ready to be leased."""
+
+    from plinth_workspace.db import connect
+    from plinth_workspace.workflows import WorkflowStore
+
+    workflow_store = WorkflowStore(settings.db_path)
+    ws = await store.create_workspace(ws_name, {})
+    wf = await workflow_store.create_workflow(ws.id, "wf", ["a"])
+    step = await workflow_store.create_step(ws.id, wf.id, "a")
+    async with connect(settings.db_path) as conn:
+        await conn.execute(
+            "UPDATE workflow_steps SET status='pending', started_at=NULL "
+            "WHERE id=?",
+            (step.id,),
+        )
+        await conn.commit()
+    return ws.id, wf.id, step.id
+
+
+class TestClusterCoordinatedLeases:
+    """v1.3 — multiple LeaseStore replicas race-coordinate via Redis.
+
+    The ``RedisBackend`` is fronted by ``fakeredis.FakeServer`` so each
+    test simulates two replicas pointing at *separate* SQLite DBs but
+    *one* shared Redis cluster. Without v1.3 these tests would let both
+    replicas win.
+    """
+
+    async def test_two_workers_one_wins_via_cluster(
+        self, settings, store, tmp_path
+    ) -> None:
+        """Two LeaseStore instances against separate SQLite DBs but a
+        shared Redis cluster: exactly one acquire wins.
+
+        We mirror replica A's workspace + workflow + step rows into
+        replica B's separate SQLite DB so the cluster lock is what
+        decides the winner — the local DB writes would otherwise both
+        succeed against their own files.
+        """
+
+        from plinth_workspace.db import connect, init_db
+        from plinth_workspace.leases import LeaseConflict
+        from plinth_workspace.storage import WorkspaceStore
+        from plinth_workspace.workflows import WorkflowStore
+
+        # Replica A (the existing fixture's settings.db_path)
+        ws_id_a, wf_id_a, step_id_a = (
+            await _create_cluster_workspace_with_pending_step(
+                store, settings, "alpha"
+            )
+        )
+
+        # Replica B — separate SQLite DB. Use the same store APIs to
+        # ensure schema columns (incl. timestamps) are populated, then
+        # realign the IDs to match replica A so the cluster key collides.
+        replica_b_dir = tmp_path / "replica-b"
+        replica_b_dir.mkdir(parents=True, exist_ok=True)
+        blobs_b = replica_b_dir / "blobs"
+        blobs_b.mkdir(parents=True, exist_ok=True)
+        replica_b_path = replica_b_dir / "workspace.db"
+        await init_db(replica_b_path)
+        store_b_ws = WorkspaceStore(replica_b_path, blobs_b)
+
+        ws_b = await store_b_ws.create_workspace("alpha", {})
+        wf_store_b = WorkflowStore(replica_b_path)
+        wf_b = await wf_store_b.create_workflow(ws_b.id, "wf", ["a"])
+        step_b = await wf_store_b.create_step(ws_b.id, wf_b.id, "a")
+
+        # Realign IDs to match replica A so the cluster key
+        # ``<prefix>:workspace:lease:<workspace_id>:<step_id>`` collides.
+        # Disable FKs during the rename so we don't have to reorder
+        # parent/child updates.
+        async with connect(replica_b_path) as conn:
+            await conn.execute("PRAGMA foreign_keys=OFF")
+            await conn.execute(
+                "UPDATE workspaces SET id=? WHERE id=?",
+                (ws_id_a, ws_b.id),
+            )
+            await conn.execute(
+                "UPDATE workflows SET id=?, workspace_id=? WHERE id=?",
+                (wf_id_a, ws_id_a, wf_b.id),
+            )
+            await conn.execute(
+                "UPDATE workflow_steps SET id=?, workflow_id=?, "
+                "status='pending', started_at=NULL WHERE id=?",
+                (step_id_a, wf_id_a, step_b.id),
+            )
+            await conn.commit()
+            await conn.execute("PRAGMA foreign_keys=ON")
+
+        # Shared Redis cluster.
+        server = _fake_redis_server()
+        store_a_lease = LeaseStore(
+            settings.db_path,
+            coordination=_shared_redis_backend(server),
+        )
+        store_b_lease = LeaseStore(
+            replica_b_path,
+            coordination=_shared_redis_backend(server),
+        )
+
+        worker_a = await store_a_lease.register_worker()
+        # Replica B's worker registration writes to its own DB.
+        store_b_pre = LeaseStore(replica_b_path)
+        worker_b = await store_b_pre.register_worker()
+
+        async def acquire_via(s, wid):
+            try:
+                return await s.acquire_lease(
+                    ws_id_a, wf_id_a, step_id_a,
+                    worker_id=wid, ttl_seconds=60,
+                )
+            except LeaseConflict as exc:
+                return exc
+
+        results = await asyncio.gather(
+            acquire_via(store_a_lease, worker_a.id),
+            acquire_via(store_b_lease, worker_b.id),
+        )
+        successes = [r for r in results if not isinstance(r, Exception)]
+        failures = [r for r in results if isinstance(r, LeaseConflict)]
+        assert len(successes) == 1, (
+            "exactly one replica must win the cluster lock race"
+        )
+        assert len(failures) == 1
+
+    async def test_release_releases_cluster_lock(
+        self, settings, store
+    ) -> None:
+        """Acquire from store A, release; store B can then acquire."""
+
+        from plinth_workspace.leases import LeaseConflict
+
+        ws_id, wf_id, step_id = (
+            await _create_cluster_workspace_with_pending_step(
+                store, settings, "release-cluster"
+            )
+        )
+
+        server = _fake_redis_server()
+        store_a = LeaseStore(
+            settings.db_path,
+            coordination=_shared_redis_backend(server),
+        )
+        store_b = LeaseStore(
+            settings.db_path,
+            coordination=_shared_redis_backend(server),
+        )
+
+        worker_a = await store_a.register_worker()
+        worker_b = await store_a.register_worker()
+
+        await store_a.acquire_lease(
+            ws_id, wf_id, step_id, worker_id=worker_a.id, ttl_seconds=60
+        )
+
+        # B can't acquire yet — both cluster lock is held AND step is running.
+        with pytest.raises(LeaseConflict):
+            await store_b.acquire_lease(
+                ws_id, wf_id, step_id, worker_id=worker_b.id, ttl_seconds=60
+            )
+
+        # A releases (status=pending re-queues so B can re-lease).
+        await store_a.release_lease(
+            ws_id, wf_id, step_id,
+            worker_id=worker_a.id, step_status="pending",
+        )
+
+        # Now B should be able to acquire.
+        lease_b = await store_b.acquire_lease(
+            ws_id, wf_id, step_id, worker_id=worker_b.id, ttl_seconds=60
+        )
+        assert lease_b.worker_id == worker_b.id
+        assert lease_b.status == "running"
+
+    async def test_heartbeat_refreshes_cluster_ttl(
+        self, settings, store
+    ) -> None:
+        """Heartbeat extends the cluster lock TTL too.
+
+        Verified by inspecting the underlying fakeredis after a heartbeat
+        with an increased TTL — the cluster key should still be present
+        and re-asserted by the same holder.
+        """
+
+        ws_id, wf_id, step_id = (
+            await _create_cluster_workspace_with_pending_step(
+                store, settings, "heartbeat-cluster"
+            )
+        )
+
+        server = _fake_redis_server()
+        backend = _shared_redis_backend(server)
+        lease_store = LeaseStore(settings.db_path, coordination=backend)
+
+        worker = await lease_store.register_worker()
+        await lease_store.acquire_lease(
+            ws_id, wf_id, step_id, worker_id=worker.id, ttl_seconds=30
+        )
+
+        cluster_key = (
+            f"{lease_store.coordination_prefix}:{ws_id}:{step_id}"
+        )
+
+        # Cluster lock is currently held by the worker.
+        held = await backend.get(f"lock:{cluster_key}")
+        assert held == worker.id
+
+        # Heartbeat with a larger TTL.
+        await lease_store.heartbeat_lease(
+            ws_id, wf_id, step_id, worker_id=worker.id, ttl_seconds=600
+        )
+
+        # Cluster lock still held by the same worker.
+        held_after = await backend.get(f"lock:{cluster_key}")
+        assert held_after == worker.id
+
+    async def test_memory_backend_uses_local_path_only(
+        self, settings, store
+    ) -> None:
+        """When coordination is MemoryBackend, no cluster keys are written."""
+
+        from plinth_workspace.coordination import MemoryBackend
+
+        ws_id, wf_id, step_id = (
+            await _create_cluster_workspace_with_pending_step(
+                store, settings, "memory-only"
+            )
+        )
+
+        memory = MemoryBackend()
+        lease_store = LeaseStore(settings.db_path, coordination=memory)
+        assert lease_store._cluster_enabled() is False
+
+        worker = await lease_store.register_worker()
+        lease = await lease_store.acquire_lease(
+            ws_id, wf_id, step_id, worker_id=worker.id, ttl_seconds=60
+        )
+        assert lease.worker_id == worker.id
+        # MemoryBackend's lock store is unused — no entries for our key.
+        # Implementation detail; check the private dict to confirm.
+        assert all(
+            "lease" not in k for k in memory._locks  # type: ignore[attr-defined]
+        )
+
+    async def test_no_coordination_legacy_behavior(
+        self, settings, store
+    ) -> None:
+        """Without a coordination backend, behaviour matches v1.2."""
+
+        ws_id, wf_id, step_id = (
+            await _create_cluster_workspace_with_pending_step(
+                store, settings, "legacy"
+            )
+        )
+
+        lease_store = LeaseStore(settings.db_path)
+        assert lease_store.coordination is None
+        assert lease_store._cluster_enabled() is False
+
+        worker = await lease_store.register_worker()
+        lease = await lease_store.acquire_lease(
+            ws_id, wf_id, step_id, worker_id=worker.id, ttl_seconds=60
+        )
+        assert lease.worker_id == worker.id
+
+        released = await lease_store.release_lease(
+            ws_id, wf_id, step_id, worker_id=worker.id, step_status="completed"
+        )
+        assert released.status == "released"
+
+    async def test_local_failure_releases_cluster(
+        self, settings, store
+    ) -> None:
+        """If the local DB write fails after cluster acquire, the
+        cluster lock is released so the next caller can retry without
+        waiting for the cluster TTL.
+        """
+
+        from plinth_workspace.exceptions import WorkflowStepNotFound
+
+        # Create a workspace + workflow but NOT the step (so the local
+        # DB write inside ``_acquire_lease_local`` raises
+        # ``WorkflowStepNotFound``).
+        from plinth_workspace.workflows import WorkflowStore
+
+        workflow_store = WorkflowStore(settings.db_path)
+        ws = await store.create_workspace("local-fail", {})
+        wf = await workflow_store.create_workflow(ws.id, "wf", ["a"])
+        # No step row created — acquire below will hit the cluster lock
+        # then fail at the local DB layer.
+
+        server = _fake_redis_server()
+        backend = _shared_redis_backend(server)
+        lease_store = LeaseStore(settings.db_path, coordination=backend)
+
+        worker = await lease_store.register_worker()
+
+        # First attempt: cluster gate succeeds, local DB write fails.
+        with pytest.raises(WorkflowStepNotFound):
+            await lease_store.acquire_lease(
+                ws.id, wf.id, "step_missing",
+                worker_id=worker.id, ttl_seconds=60,
+            )
+
+        # The cluster lock for that key must NOT still be held — the
+        # next caller (from a different replica) should not see a
+        # lingering orphan lock.
+        cluster_key = (
+            f"{lease_store.coordination_prefix}:{ws.id}:step_missing"
+        )
+        # Use a fresh holder to prove the lock is releasable.
+        ok = await backend.acquire_lock(
+            cluster_key, holder="fresh-holder", ttl_seconds=10
+        )
+        assert ok is True, (
+            "expected the cluster lock to be released after local "
+            "failure; instead found it orphaned"
+        )
+
+    async def test_cluster_release_on_concurrent_local_race(
+        self, settings, store
+    ) -> None:
+        """The cluster gate is permissive — when both replicas pass the
+        cluster gate sequentially and only the SECOND fails the local
+        race (because the first already held the row), the second
+        replica's cluster lock attempt should fail (since the first
+        replica holds it) and surface as ``LeaseConflict`` cleanly.
+        """
+
+        from plinth_workspace.leases import LeaseConflict
+
+        ws_id, wf_id, step_id = (
+            await _create_cluster_workspace_with_pending_step(
+                store, settings, "concurrent-race"
+            )
+        )
+
+        server = _fake_redis_server()
+        store_a = LeaseStore(
+            settings.db_path,
+            coordination=_shared_redis_backend(server),
+        )
+        store_b = LeaseStore(
+            settings.db_path,
+            coordination=_shared_redis_backend(server),
+        )
+
+        worker_a = await store_a.register_worker()
+        worker_b = await store_a.register_worker()
+
+        # A wins.
+        await store_a.acquire_lease(
+            ws_id, wf_id, step_id, worker_id=worker_a.id, ttl_seconds=60
+        )
+        # B loses on the cluster gate alone.
+        with pytest.raises(LeaseConflict) as exc_info:
+            await store_b.acquire_lease(
+                ws_id, wf_id, step_id, worker_id=worker_b.id, ttl_seconds=60
+            )
+        # Error details should include the cluster key so operators can
+        # trace cluster contention.
+        assert exc_info.value.details.get("cluster_key", "").endswith(
+            f":{ws_id}:{step_id}"
+        )
