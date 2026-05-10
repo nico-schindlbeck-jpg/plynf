@@ -1,0 +1,148 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Why Plinth"
+  description="The strategic context — why purpose-built agent infrastructure beats wrappers around human UIs."
+>
+  <section class="bg-rock-50">
+    <div class="container-narrow py-16 md:py-20">
+      <div class="max-w-3xl">
+        <div class="text-[12px] font-bold uppercase tracking-[0.1em] text-amber-700">The thesis</div>
+        <h1 class="mt-3 text-4xl md:text-5xl font-extrabold tracking-tight text-rock-900">
+          The next infrastructure layer is the agent-native substrate.
+        </h1>
+        <p class="mt-5 text-xl text-rock-600 leading-relaxed">
+          AWS for servers. Stripe for payments. Vercel for frontends. Plinth for production AI agents.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-rock-50 border-t border-rock-200">
+    <div class="container-narrow py-16 md:py-20">
+      <div class="grid lg:grid-cols-2 gap-12 max-w-5xl">
+        <div>
+          <h2 class="text-2xl font-bold text-rock-900 mb-4">The current paradigm is wrong</h2>
+          <p class="text-rock-700 leading-relaxed mb-3">
+            AI agents in 2026 are mostly wrappers around interfaces designed for humans:
+          </p>
+          <ul class="text-rock-700 leading-relaxed space-y-2 list-disc pl-6">
+            <li>
+              <strong>Browser automation</strong> — pixels in, clicks out. Slow, expensive, brittle.
+            </li>
+            <li>
+              <strong>API call helpers</strong> — better, but APIs were designed for human-driven CLIs and
+              dashboards, not agent reasoning patterns.
+            </li>
+            <li>
+              <strong>Chat-as-state</strong> — agents reconstruct their world from conversation history every
+              step. Tokens balloon, reasoning gets lossy.
+            </li>
+          </ul>
+          <p class="mt-4 text-rock-700 leading-relaxed">
+            The cost of "agent-as-human" is enormous: 30–60% of tokens spent re-reading state, workflows
+            that crash with no good resume mechanism, hand-offs that lose information at every text-pass,
+            bespoke OAuth + auth + audit + error handling for every new tool integration.
+          </p>
+        </div>
+        <div>
+          <h2 class="text-2xl font-bold text-rock-900 mb-4">The right paradigm: agent-as-first-class-tenant</h2>
+          <p class="text-rock-700 leading-relaxed mb-3">
+            Stop pretending the agent is a person clicking buttons. Treat it as a first-class user of dedicated
+            infrastructure. The picture changes completely:
+          </p>
+          <ul class="text-rock-700 leading-relaxed space-y-2 list-disc pl-6">
+            <li><strong>State lives in a structured workspace</strong>, not in chat. Agents <em>reference</em> state by key.</li>
+            <li><strong>Tools live behind a gateway.</strong> One auth boundary, unified caching, audit, dry-run.</li>
+            <li><strong>Workflows are durable.</strong> A snapshot before a risky step lets agents resume on failure.</li>
+            <li><strong>Multi-agent coordination is structured.</strong> Typed channels, not text hand-offs.</li>
+            <li><strong>Identity is agent-scoped.</strong> Capability tokens encode exactly what the agent may do.</li>
+          </ul>
+          <p class="mt-4 text-rock-700 leading-relaxed">
+            This isn't just nicer to build. It's <strong>measurably cheaper</strong>. Our research-agent demo
+            shows <strong class="text-amber-700">71% token reduction</strong> on a realistic 5-source task —
+            without changing the underlying model.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-rock-100/40 border-t border-rock-200">
+    <div class="container-narrow py-16 md:py-20">
+      <div class="max-w-3xl">
+        <h2 class="text-3xl font-bold text-rock-900 mb-6">Why now?</h2>
+        <div class="space-y-6 text-rock-700 leading-relaxed">
+          <p>
+            <strong class="text-rock-900">MCP is real.</strong> A standard for tool exposure means we can build
+            <em>above</em> the protocol layer rather than trying to define one.
+          </p>
+          <p>
+            <strong class="text-rock-900">Real agents in production.</strong> Devin, Sierra, internal agent
+            platforms — there's a new class of buyer that feels the pain daily.
+          </p>
+          <p>
+            <strong class="text-rock-900">Token economics matter.</strong> As models get cheaper per token,
+            agentic workloads use more tokens. Reduction is the difference between unit economics that work and
+            ones that don't.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-rock-50 border-t border-rock-200">
+    <div class="container-narrow py-16 md:py-20">
+      <div class="grid lg:grid-cols-2 gap-12 max-w-5xl">
+        <div>
+          <h2 class="text-2xl font-bold text-rock-900 mb-4">What Plinth is</h2>
+          <ul class="space-y-2 text-rock-700 list-disc pl-6">
+            <li>A persistent workspace (KV + files + snapshots + branches)</li>
+            <li>A semantic tool gateway (caching + audit + auth + dry-run)</li>
+            <li>A coordination layer (multi-agent channels + workflows + locks)</li>
+            <li>An observability plane (Prometheus + OTLP + audit chain)</li>
+            <li>An identity layer (capability tokens + JWKS + revocation)</li>
+          </ul>
+        </div>
+        <div>
+          <h2 class="text-2xl font-bold text-rock-900 mb-4">What Plinth is not</h2>
+          <ul class="space-y-2 text-rock-700 list-disc pl-6">
+            <li>Not an agent framework (frameworks are in-process; we're a hosted runtime)</li>
+            <li>Not a vertical agent product — we're substrate, not endpoint</li>
+            <li>Not an LLM gateway — we sit <em>above</em> the model layer, model-agnostic</li>
+            <li>Not a browser-for-agents — we replace the pixel paradigm, not host it</li>
+            <li>Not a single point of failure — every component runs as an independent process</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-rock-950 text-rock-100 border-t border-rock-800">
+    <div class="container-narrow py-16 md:py-20">
+      <div class="max-w-3xl">
+        <h2 class="text-3xl font-bold tracking-tight">The bet</h2>
+        <p class="mt-5 text-lg text-rock-300 leading-relaxed">
+          In 2–3 years, every team running production agents will have <em>some</em> form of this layer. Either:
+        </p>
+        <ul class="mt-4 space-y-3 text-rock-300 leading-relaxed list-disc pl-6">
+          <li>They build it themselves (expensive, half-baked, non-differentiating).</li>
+          <li>A hyperscaler ships it (vendor-locked to their model).</li>
+          <li>An independent platform wins (Plinth).</li>
+        </ul>
+        <p class="mt-6 text-amber-300 font-semibold">We're building for the third option.</p>
+        <div class="mt-8 flex flex-col sm:flex-row gap-3">
+          <a class="btn-amber" href="/docs/quickstart">Run the demo</a>
+          <a
+            class="inline-flex items-center gap-2 rounded-md border border-rock-700 px-5 py-2.5 text-sm font-semibold text-rock-100 hover:bg-rock-800"
+            href="/docs/architecture"
+          >
+            Read the architecture
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

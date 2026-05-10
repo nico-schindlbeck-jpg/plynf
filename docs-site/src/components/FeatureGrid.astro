@@ -1,0 +1,81 @@
+---
+const features = [
+  {
+    title: "Persistent Workspace",
+    body: "Versioned KV + files + snapshots + branches. Agent memory survives crashes, restarts, and hand-offs. Reference state by key — stop re-reading it into every prompt.",
+    icon: "workspace",
+  },
+  {
+    title: "Tool Gateway",
+    body: "One auth boundary for every MCP / REST / GraphQL tool. Caches results, enforces rate limits and cost caps, writes a tamper-evident audit chain. 8 OAuth providers shipped.",
+    icon: "gateway",
+  },
+  {
+    title: "Multi-Agent Channels",
+    body: "Durable, sequenced, schema-validated message queues. Agents compose into pipelines without inheriting each other's prompt context. Bad messages route to a DLQ.",
+    icon: "channels",
+  },
+  {
+    title: "Resumable Workflows",
+    body: "Lease-based recovery, checkpointed steps, Saga-style compensating actions. Crash mid-flight, restart, pick up from the last snapshot — verified end-to-end in the demo.",
+    icon: "workflow",
+  },
+  {
+    title: "Production-Ready",
+    body: "JWT capability tokens (RS256 + key rotation), per-tenant quotas, GDPR export + delete, multi-tenant isolation, k8s/Helm/Terraform deployment artifacts.",
+    icon: "shield",
+  },
+  {
+    title: "Observability",
+    body: "Prometheus metrics on every service, OTLP export to your collector, dashboard time-series, 26 published SLOs. Every action attributable, every cost trackable.",
+    icon: "telemetry",
+  },
+];
+
+const iconPaths: Record<string, string> = {
+  workspace:
+    "M3 7.5C3 6.12 4.12 5 5.5 5h13C19.88 5 21 6.12 21 7.5v9c0 1.38-1.12 2.5-2.5 2.5h-13C4.12 19 3 17.88 3 16.5v-9Zm2.5-.5a.5.5 0 0 0-.5.5V8h14v-.5a.5.5 0 0 0-.5-.5h-13ZM5 16.5c0 .28.22.5.5.5h13a.5.5 0 0 0 .5-.5V10H5v6.5Z",
+  gateway:
+    "M12 2.5 4 6v6c0 4.5 3.4 8.6 8 9.5 4.6-.9 8-5 8-9.5V6l-8-3.5Zm0 2.18 6 2.62v4.7c0 3.36-2.59 6.62-6 7.46-3.41-.84-6-4.1-6-7.46V7.3l6-2.62Zm-1 4.32h2v3h3v2h-3v3h-2v-3H8v-2h3V9Z",
+  channels:
+    "M4 5h12a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h-1.5l-3 3v-3H8a3 3 0 0 1-3-3V8a3 3 0 0 1 .15-.95A3 3 0 0 1 4 5Zm12 2H7a1 1 0 0 0-1 1v3a1 1 0 0 0 1 1h2.5l1.5 1.5V12H16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1Z",
+  workflow:
+    "M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6ZM6 6v2h2V6H6Zm10 0v2h2V6h-2ZM6 16v2h2v-2H6Zm10 0v2h2v-2h-2Z",
+  shield:
+    "M12 2 4 5v6c0 4.55 3.18 8.78 8 10 4.82-1.22 8-5.45 8-10V5l-8-3Zm0 2.18 6 2.25V11c0 3.46-2.49 6.83-6 7.93-3.51-1.1-6-4.47-6-7.93V6.43l6-2.25Zm3.59 5.41L11 14.17l-2.59-2.58L7 13l4 4 6-6-1.41-1.41Z",
+  telemetry:
+    "M3 13h2v8H3v-8Zm4-6h2v14H7V7Zm4 4h2v10h-2V11Zm4-2h2v12h-2V9Zm4-6h2v18h-2V3Z",
+};
+---
+
+<section class="bg-rock-50">
+  <div class="container-narrow py-20 md:py-24">
+    <div class="max-w-2xl">
+      <div class="text-[12px] font-bold uppercase tracking-[0.1em] text-amber-700">What's in the box</div>
+      <h2 class="mt-3 text-3xl md:text-4xl font-bold text-rock-900 tracking-tight">
+        Everything an agent runtime needs.
+        <br />
+        Nothing it doesn't.
+      </h2>
+      <p class="mt-4 text-rock-600 text-lg leading-relaxed">
+        Six primitives, independently composable. Build the substrate first; the rest snaps in.
+      </p>
+    </div>
+
+    <div class="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+      {
+        features.map((f) => (
+          <div class="card group">
+            <div class="flex items-center justify-center h-10 w-10 rounded-lg bg-rock-900 text-rock-50 group-hover:bg-amber-600 transition-colors">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d={iconPaths[f.icon]} />
+              </svg>
+            </div>
+            <h3 class="mt-4 font-semibold text-rock-900 text-lg">{f.title}</h3>
+            <p class="mt-1.5 text-rock-600 text-[14.5px] leading-relaxed">{f.body}</p>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>

@@ -1,0 +1,211 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+import { getCollection } from "astro:content";
+
+interface Props {
+  title: string;
+  description?: string;
+  /** Slug of the current doc, e.g. "overview". */
+  slug: string;
+  /** Optional source-file note shown in the header. */
+  sourceFile?: string;
+  /** Optional rendered headings array from Astro's render() */
+  headings?: { depth: number; slug: string; text: string }[];
+}
+
+const { title, description, slug, sourceFile, headings = [] } = Astro.props;
+
+const allDocs = await getCollection("docs");
+
+const SECTION_ORDER: { id: string; label: string }[] = [
+  { id: "overview", label: "Get Started" },
+  { id: "guides", label: "Guides" },
+  { id: "api", label: "API" },
+  { id: "operations", label: "Operations" },
+];
+
+type Entry = (typeof allDocs)[number];
+const grouped = new Map<string, Entry[]>();
+for (const sec of SECTION_ORDER) grouped.set(sec.id, []);
+for (const d of allDocs) {
+  const list = grouped.get(d.data.section) ?? [];
+  list.push(d);
+  grouped.set(d.data.section, list);
+}
+for (const [k, list] of grouped) {
+  list.sort((a, b) => a.data.order - b.data.order || a.data.title.localeCompare(b.data.title));
+  grouped.set(k, list);
+}
+
+// Filter TOC to h2/h3 only
+const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+---
+
+<BaseLayout title={title} description={description}>
+  <div class="container-narrow grid gap-10 lg:grid-cols-[16rem_minmax(0,1fr)_14rem] py-10">
+    {/* Sidebar */}
+    <aside class="hidden lg:block">
+      <nav class="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pb-10" aria-label="Documentation">
+        <div class="px-3 py-2 mb-2 text-[11px] font-mono uppercase tracking-wider text-rock-500 border-b border-rock-200">
+          Documentation
+        </div>
+        {
+          SECTION_ORDER.map((sec) => {
+            const list = grouped.get(sec.id) ?? [];
+            if (!list.length) return null;
+            return (
+              <div>
+                <div class="sidebar-section-title">{sec.label}</div>
+                <ul>
+                  {list.map((d) => {
+                    const active = d.slug === slug;
+                    return (
+                      <li>
+                        <a class={`sidebar-link ${active ? "active" : ""}`} href={`/docs/${d.slug}`}>
+                          {d.data.title}
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })
+        }
+      </nav>
+    </aside>
+
+    {/* Mobile dropdown for navigating docs */}
+    <div class="lg:hidden">
+      <details class="rounded-lg border border-rock-200 bg-white">
+        <summary class="cursor-pointer px-4 py-3 text-sm font-medium text-rock-800 flex justify-between items-center">
+          Browse documentation
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.06l3.71-3.83a.75.75 0 1 1 1.08 1.04l-4.25 4.39a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" /></svg>
+        </summary>
+        <div class="p-3">
+          {
+            SECTION_ORDER.map((sec) => {
+              const list = grouped.get(sec.id) ?? [];
+              if (!list.length) return null;
+              return (
+                <div>
+                  <div class="sidebar-section-title">{sec.label}</div>
+                  <ul>
+                    {list.map((d) => (
+                      <li>
+                        <a class={`sidebar-link ${d.slug === slug ? "active" : ""}`} href={`/docs/${d.slug}`}>
+                          {d.data.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })
+          }
+        </div>
+      </details>
+    </div>
+
+    {/* Main */}
+    <article class="min-w-0">
+      <header class="mb-6 pb-4 border-b border-rock-200">
+        <div class="flex items-center gap-2 text-[12px] font-mono uppercase tracking-wider text-rock-500 mb-3">
+          <a href="/docs/overview" class="hover:text-rock-900">Docs</a>
+          <span>/</span>
+          <span class="text-rock-700">{title}</span>
+        </div>
+        <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-rock-900">{title}</h1>
+        {description && <p class="mt-3 text-rock-600 text-lg leading-relaxed max-w-2xl">{description}</p>}
+        {
+          sourceFile && (
+            <p class="mt-3 inline-flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-rock-400 bg-rock-100 border border-rock-200 rounded px-2 py-1">
+              source · {sourceFile}
+            </p>
+          )
+        }
+      </header>
+
+      <div class="prose-doc max-w-prose" data-pagefind-body>
+        <slot />
+      </div>
+
+      <div class="mt-12 pt-8 border-t border-rock-200 flex flex-wrap items-center justify-between gap-4 text-sm text-rock-500">
+        <a
+          href="https://github.com/nico-schindlbeck-jpg/plinth"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-rock-700 hover:text-rock-900 inline-flex items-center gap-1"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.4 3-.405 1.02.005 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+          </svg>
+          Edit on GitHub
+        </a>
+        <a href="/docs/overview" class="text-amber-700 hover:text-amber-800 font-semibold">Back to docs index →</a>
+      </div>
+    </article>
+
+    {/* TOC */}
+    <aside class="hidden xl:block">
+      <nav class="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pb-10" aria-label="On this page">
+        <div class="px-1 mb-3 text-[11px] font-mono uppercase tracking-wider text-rock-500 border-b border-rock-200 pb-2">
+          On this page
+        </div>
+        {
+          toc.length === 0 ? (
+            <p class="text-[13px] text-rock-500 px-1">—</p>
+          ) : (
+            <ul class="space-y-0.5" data-toc>
+              {toc.map((h) => (
+                <li class={h.depth === 3 ? "pl-3" : ""}>
+                  <a class="toc-link" href={`#${h.slug}`} data-toc-link={h.slug}>
+                    {h.text}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </nav>
+    </aside>
+  </div>
+</BaseLayout>
+
+<script>
+  // ScrollSpy: highlight TOC link of nearest visible heading.
+  const toc = document.querySelector<HTMLElement>("[data-toc]");
+  if (toc) {
+    const links = new Map<string, HTMLAnchorElement>();
+    toc.querySelectorAll<HTMLAnchorElement>("[data-toc-link]").forEach((a) => {
+      const id = a.dataset.tocLink;
+      if (id) links.set(id, a);
+    });
+    const headings = Array.from(links.keys())
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => !!el);
+
+    if (headings.length && "IntersectionObserver" in window) {
+      const visible = new Set<string>();
+      const obs = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((e) => {
+            if (e.isIntersecting) visible.add(e.target.id);
+            else visible.delete(e.target.id);
+          });
+          // Highlight first heading present in visible set in document order
+          links.forEach((l) => l.classList.remove("active"));
+          for (const h of headings) {
+            if (visible.has(h.id)) {
+              const link = links.get(h.id);
+              if (link) link.classList.add("active");
+              break;
+            }
+          }
+        },
+        { rootMargin: "-15% 0px -70% 0px", threshold: 0 }
+      );
+      headings.forEach((h) => obs.observe(h));
+    }
+  }
+</script>

@@ -2,6 +2,29 @@
 
 All notable changes to Plinth are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [SemVer](https://semver.org).
 
+## [1.5.1] — 2026-05-10
+
+Patch release: docs site, TS-worker LLM parity, CI cost reduction.
+
+### Added
+- **`docs-site/`** (new top-level package, Astro + Tailwind, ~40 files): static site for plinth.dev. Hero + feature grid + SDK tabs (5 languages) + demo comparison + content collection ingesting OVERVIEW/ARCHITECTURE/COMPLIANCE/THREAT-MODEL/SLOs. 13 routes, 2.6 MB dist, 2.9 KB site-wide JS, Pagefind search baked at build, GitHub Pages deploy workflow.
+- **TS-worker LLM-handler parity** — `examples/05-durable-workflow/handlers.ts` extract-step now uses real `ctx.client.llm.complete(...)` with auto-detected provider. 7 new worker-ts tests demonstrating LLM-using handlers (incl. audit-recording verification). README "LLM-Using Step Handlers" section.
+
+### Fixed (CI)
+- **Cost reduction** — Python matrix conditional: 3.11+3.12 on `main` push, 3.11-only on PRs (saves 50% GHA minutes on PR runs).
+- CodeQL workflow removed `push` trigger (already runs on PRs + weekly schedule).
+
+### Changed
+- worker-ts tests: 29 → **36** (+7 LLM-handler tests)
+
+### Notes
+- v1.5 push hit GitHub Actions free-tier minute quota. v1.5.1 reduces burn rate; quota resets next billing cycle. Repo can be made public for unlimited GHA minutes — operator decision.
+
+### Backwards compatibility
+- All v1.x demos unchanged
+- Docs-site is new top-level dir
+- TS worker change is example-only; existing handlers unaffected
+
 ## [1.5.0] — 2026-05-10
 
 Tier-2 sweep: closes the remaining Tier-2 items from the post-v1.0 audit. Visual workflow tools, three more OAuth providers, Go SDK, and mobile SDKs (Swift + Kotlin).
@@ -505,6 +528,7 @@ Initial proof-of-concept release. Working end-to-end slice of the agent-native s
 ### Stack
 Python 3.11+ for services + Python SDK; TypeScript 5.4+ for the TS SDK; FastAPI + uvicorn + aiosqlite + pydantic v2 + tiktoken; vitest for TS tests.
 
+[1.5.1]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.5.1
 [1.5.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.5.0
 [1.4.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.4.0
 [1.3.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.3.0

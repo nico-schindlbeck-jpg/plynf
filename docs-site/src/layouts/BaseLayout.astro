@@ -1,0 +1,73 @@
+---
+import "../styles/globals.css";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+
+interface Props {
+  title: string;
+  description?: string;
+  ogImage?: string;
+  noindex?: boolean;
+  /** Add a class to <main> if you need to override default container width. */
+  mainClass?: string;
+}
+
+const {
+  title,
+  description = "Plinth — the runtime where production AI agents actually work. A versioned workspace + tool gateway + multi-agent channels, with 71% fewer tokens on real workloads.",
+  ogImage = "/og-image.svg",
+  noindex = false,
+  mainClass = "",
+} = Astro.props;
+
+const canonical = new URL(Astro.url.pathname, Astro.site ?? "https://plinth.dev").toString();
+const fullTitle = title === "Plinth" ? "Plinth — runtime for production AI agents" : `${title} · Plinth`;
+---
+
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex" />}
+
+    {/* Open Graph */}
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={new URL(ogImage, Astro.site ?? "https://plinth.dev").toString()} />
+    <meta property="og:site_name" content="Plinth" />
+
+    {/* Twitter */}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={new URL(ogImage, Astro.site ?? "https://plinth.dev").toString()} />
+
+    {/* Theme color */}
+    <meta name="theme-color" content="#fafaf7" />
+
+    {/* Pagefind UI styles only on docs pages — load lazily on others */}
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+  </head>
+  <body class="min-h-screen flex flex-col antialiased">
+    <a
+      href="#main"
+      class="sr-only focus:not-sr-only fixed left-3 top-3 z-[60] rounded bg-rock-900 px-3 py-2 text-sm font-semibold text-rock-50"
+    >
+      Skip to content
+    </a>
+    <Nav />
+    <main id="main" class={`flex-1 ${mainClass}`}>
+      <slot />
+    </main>
+    <Footer />
+  </body>
+</html>

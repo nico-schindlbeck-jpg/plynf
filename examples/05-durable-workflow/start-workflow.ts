@@ -7,7 +7,9 @@
  *
  * 1. Creates / fetches the `durable-demo` workspace.
  * 2. Idempotently creates a `research-pipeline` workflow with the
- *    manifest `search → fetch → extract → synth`.
+ *    manifest `search → fetch → extract → synth`. The `extract` step
+ *    calls the LLM facade (`client.llm.complete`) from inside the
+ *    handler so cost flows through the audit endpoint automatically.
  * 3. Creates each step in `pending` status so workers can lease them.
  * 4. Polls until the workflow transitions to `completed` / `failed`.
  * 5. Reads `report.md` from the workspace and prints it.
@@ -19,6 +21,13 @@
  * Then in another terminal:
  *
  *     node ./start-workflow.js --topic "renewable energy"
+ *
+ * Optionally pass `--model claude-sonnet-4-5` (or another supported
+ * model) to override the model used by the `extract` step's LLM call.
+ *
+ * Provider auto-detection happens inside `handlers.ts` —
+ * `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` switches to a real provider;
+ * otherwise the demo runs offline with `MockProvider`.
  *
  * You can kill the worker mid-flight; start another one — it will pick
  * up where the first left off.
@@ -47,7 +56,11 @@ async function ensureServices(): Promise<void> {
   }
 }
 
-async function ensurePendingSteps(wf: WorkflowHandle, topic: string): Promise<number> {
+async function ensurePendingSteps(
+  wf: WorkflowHandle,
+  topic: string,
+  model: string,
+): Promise<number> {
   await wf.refresh();
   const completed = new Set(
     wf.steps.filter((s) => s.status === "completed").map((s) => s.name),
@@ -62,8 +75,10 @@ async function ensurePendingSteps(wf: WorkflowHandle, topic: string): Promise<nu
     if (completed.has(name) || inflight.has(name)) continue;
     // ``initialStatus: "pending"`` is the v0.5 opt-in: the step is
     // staged for a worker to lease rather than running in-process.
+    // The `extract` step reads `input.model` to choose its LLM —
+    // other steps simply ignore the field.
     await wf.startStep(name, {
-      input: { topic, k: 5 },
+      input: { topic, k: 5, model },
       initialStatus: "pending",
     });
     started += 1;
@@ -75,12 +90,14 @@ async function main(): Promise<number> {
   const { values } = parseArgs({
     options: {
       topic: { type: "string", default: "renewable energy" },
+      model: { type: "string", default: "claude-sonnet-4-5" },
       "workspace-name": { type: "string", default: "durable-demo" },
       timeout: { type: "string", default: "120" },
       "poll-interval": { type: "string", default: "2" },
     },
   });
   const topic = values.topic as string;
+  const model = values.model as string;
   const wsName = values["workspace-name"] as string;
   const timeout = Number.parseInt(values.timeout as string, 10);
   const pollInterval = Number.parseFloat(values["poll-interval"] as string) * 1000;
@@ -101,7 +118,7 @@ async function main(): Promise<number> {
   });
   process.stdout.write(`[start] workflow: ${wf.id} (status=${wf.status})\n`);
 
-  const started = await ensurePendingSteps(wf, topic);
+  const started = await ensurePendingSteps(wf, topic, model);
   if (started > 0) {
     process.stdout.write(`[start] queued ${started} steps for the worker pool\n`);
   } else {

@@ -1,0 +1,49 @@
+---
+import HomeLayout from "../layouts/HomeLayout.astro";
+import Hero from "../components/Hero.astro";
+import FeatureGrid from "../components/FeatureGrid.astro";
+import DemoComparison from "../components/DemoComparison.astro";
+import SDKTabs from "../components/SDKTabs.astro";
+
+const description =
+  "The runtime where production AI agents actually work. A versioned workspace + tool gateway + multi-agent channels. 71% fewer tokens, measured. 5 SDK languages.";
+---
+
+<HomeLayout title="Plinth" description={description}>
+  <Hero />
+  <FeatureGrid />
+  <DemoComparison />
+  <SDKTabs />
+
+  {/* Final call-to-action */}
+  <section class="bg-rock-50 border-t border-rock-200">
+    <div class="container-narrow py-20 md:py-24">
+      <div class="rounded-2xl border border-rock-200 bg-gradient-to-br from-rock-100 to-rock-50 p-10 md:p-14 shadow-sm">
+        <div class="max-w-2xl">
+          <div class="text-[12px] font-bold uppercase tracking-[0.1em] text-amber-700">v1.5 Tier-2 Sweep</div>
+          <h2 class="mt-3 text-3xl md:text-4xl font-bold text-rock-900 tracking-tight">
+            Five minutes from clone to running demo.
+          </h2>
+          <p class="mt-4 text-rock-600 leading-relaxed text-lg">
+            Apache 2.0. No external services required. Every demo from v0.1 forward still runs unchanged. The
+            runtime exists today — see for yourself.
+          </p>
+          <div class="mt-7 flex flex-col sm:flex-row gap-3">
+            <a class="btn-primary" href="/docs/quickstart">Read the Quickstart</a>
+            <a
+              class="btn-ghost"
+              href="https://github.com/nico-schindlbeck-jpg/plinth"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Star on GitHub
+            </a>
+          </div>
+          <pre class="mt-7 overflow-x-auto rounded-lg border border-rock-300 bg-rock-950 p-4 text-rock-100 text-[13px] font-mono leading-relaxed"><code>git clone https://github.com/nico-schindlbeck-jpg/plinth.git
+cd plinth && make install && make serve
+make demo   # 71% token-saving comparison</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+</HomeLayout>

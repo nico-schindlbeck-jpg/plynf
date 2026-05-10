@@ -1,0 +1,125 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Pricing"
+  description="Plinth is open source today. The hosted runtime is on the roadmap."
+>
+  <section class="bg-rock-50">
+    <div class="container-narrow py-20 md:py-24">
+      <div class="max-w-3xl">
+        <div class="text-[12px] font-bold uppercase tracking-[0.1em] text-amber-700">Pricing</div>
+        <h1 class="mt-3 text-4xl md:text-5xl font-extrabold tracking-tight text-rock-900">
+          Open source today.
+          <br />
+          Hosted runtime on the roadmap.
+        </h1>
+        <p class="mt-5 text-xl text-rock-600 leading-relaxed">
+          Plinth is Apache 2.0. Run it on your own infrastructure today, free, with the same v1 API you'd use on
+          a managed service.
+        </p>
+      </div>
+
+      <div class="mt-12 grid gap-6 md:grid-cols-3 max-w-5xl">
+        <div class="card flex flex-col">
+          <div class="text-[12px] font-mono uppercase tracking-wider text-rock-500">Self-hosted</div>
+          <div class="mt-2 text-4xl font-extrabold text-rock-900 tracking-tight">$0</div>
+          <p class="text-rock-500 text-sm">Apache 2.0 · forever</p>
+          <ul class="mt-5 space-y-2 text-sm text-rock-700 flex-1">
+            <li class="flex gap-2">
+              <span class="text-amber-600">✓</span> Full source on GitHub
+            </li>
+            <li class="flex gap-2">
+              <span class="text-amber-600">✓</span> 5 SDK languages
+            </li>
+            <li class="flex gap-2">
+              <span class="text-amber-600">✓</span> Docker Compose / Helm / Terraform
+            </li>
+            <li class="flex gap-2">
+              <span class="text-amber-600">✓</span> 8 OAuth integrations
+            </li>
+            <li class="flex gap-2">
+              <span class="text-amber-600">✓</span> Stable v1 API
+            </li>
+          </ul>
+          <a
+            href="https://github.com/nico-schindlbeck-jpg/plinth"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn-primary mt-6 w-full justify-center"
+          >
+            Clone the repo
+          </a>
+        </div>
+
+        <div class="card flex flex-col border-amber-300 ring-2 ring-amber-200">
+          <div class="text-[12px] font-mono uppercase tracking-wider text-amber-700">Cloud (planned)</div>
+          <div class="mt-2 text-4xl font-extrabold text-rock-900 tracking-tight">Usage-based</div>
+          <p class="text-rock-500 text-sm">tokens + tool invocations · TBD</p>
+          <ul class="mt-5 space-y-2 text-sm text-rock-700 flex-1">
+            <li class="flex gap-2">
+              <span class="text-amber-600">✓</span> Multi-tenant managed runtime
+            </li>
+            <li class="flex gap-2">
+              <span class="text-amber-600">✓</span> Per-tenant quotas + cost ceilings
+            </li>
+            <li class="flex gap-2">
+              <span class="text-amber-600">✓</span> Federated revocation across regions
+            </li>
+            <li class="flex gap-2">
+              <span class="text-amber-600">✓</span> SOC 2 / GDPR compliance posture
+            </li>
+            <li class="flex gap-2">
+              <span class="text-amber-600">✓</span> 99.95% availability SLA
+            </li>
+          </ul>
+          <a
+            href="https://github.com/nico-schindlbeck-jpg/plinth"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn-ghost mt-6 w-full justify-center"
+          >
+            Watch the repo for updates
+          </a>
+        </div>
+
+        <div class="card flex flex-col">
+          <div class="text-[12px] font-mono uppercase tracking-wider text-rock-500">Enterprise (planned)</div>
+          <div class="mt-2 text-4xl font-extrabold text-rock-900 tracking-tight">Talk to us</div>
+          <p class="text-rock-500 text-sm">single-tenant · regulated buyers</p>
+          <ul class="mt-5 space-y-2 text-sm text-rock-700 flex-1">
+            <li class="flex gap-2">
+              <span class="text-amber-600">✓</span> Air-gapped / on-prem deployment
+            </li>
+            <li class="flex gap-2">
+              <span class="text-amber-600">✓</span> Custom SSO + SCIM
+            </li>
+            <li class="flex gap-2">
+              <span class="text-amber-600">✓</span> Dedicated support + roadmap input
+            </li>
+            <li class="flex gap-2">
+              <span class="text-amber-600">✓</span> Compliance certifications
+            </li>
+            <li class="flex gap-2">
+              <span class="text-amber-600">✓</span> Custom MCP integrations
+            </li>
+          </ul>
+          <a
+            href="https://github.com/nico-schindlbeck-jpg/plinth/discussions"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn-ghost mt-6 w-full justify-center"
+          >
+            Open a discussion
+          </a>
+        </div>
+      </div>
+
+      <p class="mt-12 text-sm text-rock-500 text-center max-w-2xl mx-auto">
+        Note: a future hosted runtime would likely move that codebase to a Business Source License (BSL) to
+        protect commercial interests. The Apache-2.0 self-hosted track will remain available.
+      </p>
+    </div>
+  </section>
+</BaseLayout>

@@ -14,18 +14,60 @@
  * Each step writes its outputs to the workspace KV / files so the next
  * step can read them; snapshots are taken at every boundary so a crash
  * + worker restart resumes from the last known good state.
+ *
+ * `extract` calls the LLM facade via `ctx.client.llm.complete(...)`. By
+ * default the example wires `MockProvider` (offline, deterministic) so
+ * the workflow runs without an API key — flip to Anthropic or OpenAI
+ * in `start-workflow.ts` once you've exported the relevant env var.
  */
 
-import type { Plinth, JsonValue } from "@plinth/sdk";
+import { MockProvider, type Plinth, type JsonValue } from "@plinth/sdk";
 import type { WorkflowRuntime } from "@plinth/workflow-worker";
 
 import {
-  mockExtract,
   mockFetch,
   mockSearch,
   mockSynthesise,
   slugify,
 } from "./shared.js";
+
+/**
+ * Wire an LLM provider before the first handler runs.
+ *
+ *   * `ANTHROPIC_API_KEY` → AnthropicProvider (real Claude calls).
+ *   * `OPENAI_API_KEY`   → OpenAIProvider (real GPT calls).
+ *   * otherwise           → MockProvider (deterministic, offline).
+ *
+ * The auto-detection inside `LLMClient` would also resolve env keys at
+ * the first `complete()` call, but configuring eagerly here makes the
+ * worker boot fail loud — and gives us a clean place to install the
+ * offline mock when no key is set.
+ */
+async function configureLLM(client: Plinth): Promise<void> {
+  if (process.env.ANTHROPIC_API_KEY) {
+    await client.llm.useProvider("anthropic", {
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    });
+    return;
+  }
+  if (process.env.OPENAI_API_KEY) {
+    await client.llm.useProvider("openai", {
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+    return;
+  }
+  // Offline default — same shape and timing as a real provider, no
+  // network calls. Useful for `make demo-durable-ts` runs without an
+  // API key in the environment.
+  client.llm.useCustomProvider(
+    new MockProvider({
+      responses: [
+        "- Mock fact one\n- Mock fact two\n- Mock fact three",
+      ],
+      defaultModel: "claude-sonnet-4-5",
+    }),
+  );
+}
 
 interface SearchInput {
   topic: string;
@@ -38,7 +80,9 @@ interface MockSource {
   snippet: string;
 }
 
-export function register(runtime: WorkflowRuntime, _client: Plinth): void {
+export async function register(runtime: WorkflowRuntime, client: Plinth): Promise<void> {
+  await configureLLM(client);
+
   runtime.register("research-pipeline", "search", async (ctx) => {
     const input = ctx.step.input as unknown as SearchInput;
     const sources = mockSearch(input.topic, input.k ?? 5);
@@ -72,10 +116,21 @@ export function register(runtime: WorkflowRuntime, _client: Plinth): void {
     return { fetched_count: fetched, snapshot_id: snap.id };
   });
 
+  // `extract` uses the LLM facade (`ctx.client.llm`) to pull short
+  // fact lists from each fetched source. Provider configuration lives
+  // in `start-workflow.ts` so the handler stays portable across mock
+  // and real providers.
   runtime.register("research-pipeline", "extract", async (ctx) => {
     const topic = (await ctx.workspace.kv.get("topic")) as string;
     const sourcesIdx = (await ctx.workspace.kv.get("sources/index")) as string[];
+    const stepInput = (ctx.step.input ?? {}) as { model?: string };
+    const model = stepInput.model ?? "claude-sonnet-4-5";
+
     let extracted = 0;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+    let totalCostUsd = 0;
+
     for (const url of sourcesIdx) {
       const path = `sources/${slugify(url)}.txt`;
       let content: string;
@@ -84,15 +139,47 @@ export function register(runtime: WorkflowRuntime, _client: Plinth): void {
       } catch {
         continue;
       }
-      const facts = mockExtract(content, topic);
-      await ctx.workspace.kv.set(`facts/${url}`, facts);
+
+      const response = await ctx.client.llm.complete({
+        model,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a careful research assistant. Extract 3-5 short, " +
+              "verifiable facts as a bulleted list. No commentary.",
+          },
+          {
+            role: "user",
+            content: `Topic: ${topic}\nSource (${url}):\n${content}`,
+          },
+        ],
+        workspaceId: ctx.workspaceRecord?.id,
+      });
+
+      // Persist the raw LLM output so the synth step can read it. The
+      // existing synth handler expects `string[]` — we wrap the
+      // response in a one-element array to keep the chain working
+      // without coupling synth to LLM-shaped output.
+      await ctx.workspace.kv.set(`facts/${url}`, [response.content] as unknown as JsonValue);
+      totalInputTokens += response.inputTokens;
+      totalOutputTokens += response.outputTokens;
+      totalCostUsd += response.costUsd;
       extracted += 1;
     }
+
     const snap = await ctx.workspace.snapshot(
       `after-extract-${Math.floor(Date.now() / 1000)}`,
-      { message: `extracted from ${extracted} sources` },
+      { message: `extracted from ${extracted} sources via ${model}` },
     );
-    return { extracted_count: extracted, snapshot_id: snap.id };
+    return {
+      extracted_count: extracted,
+      input_tokens: totalInputTokens,
+      output_tokens: totalOutputTokens,
+      cost_usd: totalCostUsd,
+      model,
+      snapshot_id: snap.id,
+    };
   });
 
   runtime.register("research-pipeline", "synth", async (ctx) => {

@@ -1,0 +1,26 @@
+---
+interface Props {
+  lang?: string;
+  filename?: string;
+  /** Optional class for outer container. */
+  class?: string;
+}
+
+const { lang, filename, class: className = "" } = Astro.props;
+---
+
+<figure
+  class={`my-5 overflow-hidden rounded-xl border border-rock-800 bg-rock-950 shadow-sm ${className}`}
+>
+  {
+    (filename || lang) && (
+      <figcaption class="flex items-center justify-between bg-rock-900/80 border-b border-rock-800 px-4 py-2 text-[11px] font-mono uppercase tracking-wider text-rock-400">
+        {filename && <span class="text-rock-200">{filename}</span>}
+        {lang && <span>{lang}</span>}
+      </figcaption>
+    )
+  }
+  <div class="p-4 overflow-x-auto text-rock-100 text-[13.5px] leading-relaxed font-mono">
+    <slot />
+  </div>
+</figure>

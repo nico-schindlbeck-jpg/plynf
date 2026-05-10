@@ -1,0 +1,113 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getCollection } from "astro:content";
+
+const docs = await getCollection("docs");
+
+const SECTION_ORDER = [
+  { id: "overview", label: "Get Started", desc: "What Plinth is and how it fits together." },
+  { id: "guides", label: "Guides", desc: "Run Plinth, build with the SDK, ship demos." },
+  { id: "api", label: "API", desc: "The v1 contract — stability promises and the deprecation policy." },
+  { id: "operations", label: "Operations", desc: "SLOs, compliance posture, threat model — for production." },
+] as const;
+
+const grouped = SECTION_ORDER.map((sec) => ({
+  ...sec,
+  items: docs
+    .filter((d) => d.data.section === sec.id)
+    .sort((a, b) => a.data.order - b.data.order || a.data.title.localeCompare(b.data.title)),
+}));
+---
+
+<BaseLayout
+  title="Documentation"
+  description="Plinth documentation — overview, quickstart, architecture, SDKs, API stability, SLOs, compliance, threat model."
+>
+  <section class="bg-rock-50 border-b border-rock-200">
+    <div class="container-narrow py-12 md:py-16">
+      <div class="max-w-3xl">
+        <div class="text-[12px] font-bold uppercase tracking-[0.1em] text-amber-700">Documentation</div>
+        <h1 class="mt-3 text-4xl md:text-5xl font-extrabold tracking-tight text-rock-900">
+          Everything you need to ship on Plinth.
+        </h1>
+        <p class="mt-4 text-rock-600 text-lg leading-relaxed">
+          Concise, up-to-date with v1.5. Each page maps back to a source-of-truth file in the repository — search
+          works at build time without any external service.
+        </p>
+
+        {/* Pagefind search box */}
+        <div class="mt-6">
+          <div id="search" class="rounded-lg border border-rock-200 bg-white p-3 shadow-sm"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-rock-50">
+    <div class="container-narrow py-12 md:py-16 grid gap-10 md:grid-cols-2">
+      {
+        grouped.map(
+          (sec) =>
+            sec.items.length > 0 && (
+              <div>
+                <div class="text-[12px] font-bold uppercase tracking-[0.1em] text-amber-700">{sec.label}</div>
+                <p class="mt-2 text-rock-700 text-sm">{sec.desc}</p>
+                <ul class="mt-4 space-y-3">
+                  {sec.items.map((item) => (
+                    <li>
+                      <a class="block card hover:border-amber-300 hover:shadow-md" href={`/docs/${item.slug}`}>
+                        <div class="font-semibold text-rock-900 group-hover:text-amber-700">{item.data.title}</div>
+                        {item.data.description && (
+                          <p class="mt-1 text-sm text-rock-600 leading-relaxed">{item.data.description}</p>
+                        )}
+                        {item.data.sourceFile && (
+                          <p class="mt-2 text-[11px] font-mono uppercase tracking-wider text-rock-400">
+                            source · {item.data.sourceFile}
+                          </p>
+                        )}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+        )
+      }
+    </div>
+  </section>
+
+  {/* Pagefind UI loader */}
+  <link rel="stylesheet" href="/pagefind/pagefind-ui.css" />
+  <script>
+    // Lazy-init Pagefind UI. Pagefind generates `/pagefind/pagefind-ui.js` at build time.
+    // In `astro dev` the index isn't built — search is then a no-op.
+    function init() {
+      // @ts-ignore
+      const target = document.getElementById("search");
+      if (!target) return;
+      const script = document.createElement("script");
+      script.src = "/pagefind/pagefind-ui.js";
+      script.onload = () => {
+        // @ts-ignore
+        if (window.PagefindUI) {
+          // @ts-ignore
+          new window.PagefindUI({
+            element: "#search",
+            showSubResults: true,
+            showImages: false,
+            placeholder: "Search the docs…",
+          });
+        }
+      };
+      script.onerror = () => {
+        target.innerHTML = `<div class="px-3 py-2 text-sm text-rock-500">Search index not built — run <code>npm run build</code> to enable search.</div>`;
+      };
+      document.head.appendChild(script);
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init);
+    } else {
+      init();
+    }
+  </script>
+</BaseLayout>

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fafaf7"/>
+      <stop offset="1" stop-color="#f4f3ec"/>
+    </linearGradient>
+    <linearGradient id="rock" x1="0" y1="0" x2="220" y2="220" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7a7466"/>
+      <stop offset="1" stop-color="#1f1d18"/>
+    </linearGradient>
+    <pattern id="grid" x="0" y="0" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M60 0 L0 0 0 60" fill="none" stroke="rgba(122,116,102,0.08)" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  <g transform="translate(120 200)">
+    <path d="M14 122 L40 42 L92 14 L168 28 L188 102 L150 188 L60 188 Z" fill="url(#rock)" stroke="#1f1d18" stroke-width="2" stroke-linejoin="round"/>
+    <circle cx="156" cy="42" r="8" fill="#f59e0b"/>
+  </g>
+  <g transform="translate(380 220)" font-family="Inter, sans-serif" fill="#1f1d18">
+    <text x="0" y="0" font-size="68" font-weight="800" letter-spacing="-0.02em">Plinth</text>
+    <text x="0" y="60" font-size="28" font-weight="500" fill="#5c5749">The runtime where production AI</text>
+    <text x="0" y="98" font-size="28" font-weight="500" fill="#5c5749">agents actually work.</text>
+    <text x="0" y="170" font-size="22" font-weight="700" fill="#d97706">71% fewer tokens · 5 SDKs · v1.5 stable</text>
+  </g>
+  <g transform="translate(120 540)" font-family="JetBrains Mono, monospace" font-size="18" fill="#7a7466">
+    <text>plinth.dev</text>
+  </g>
+</svg>

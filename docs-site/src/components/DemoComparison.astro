@@ -1,0 +1,152 @@
+---
+const rows = [
+  { topic: "renewable energy", baseline: 23704, plinth: 6795, baselineCost: 0.081, plinthCost: 0.0345 },
+  { topic: "ai agents", baseline: 25329, plinth: 7092, baselineCost: 0.0858, plinthCost: 0.0348 },
+  { topic: "climate policy", baseline: 26292, plinth: 7601, baselineCost: 0.0884, plinthCost: 0.0376 },
+];
+const maxTokens = Math.max(...rows.map((r) => r.baseline));
+const totalBaseline = rows.reduce((s, r) => s + r.baseline, 0);
+const totalPlinth = rows.reduce((s, r) => s + r.plinth, 0);
+const reduction = (((totalBaseline - totalPlinth) / totalBaseline) * 100).toFixed(1);
+---
+
+<section class="relative bg-gradient-to-b from-rock-50 to-rock-100/40 border-y border-rock-200">
+  <div class="container-narrow py-20 md:py-24">
+    <div class="grid lg:grid-cols-12 gap-10 lg:gap-14 items-start">
+      <div class="lg:col-span-4 lg:sticky lg:top-24">
+        <div class="text-[12px] font-bold uppercase tracking-[0.1em] text-amber-700">Headline result</div>
+        <h2 class="mt-3 text-3xl md:text-4xl font-bold text-rock-900 tracking-tight">
+          71% fewer tokens.
+          <br />
+          Measured, not theoretical.
+        </h2>
+        <p class="mt-5 text-rock-600 leading-relaxed">
+          A 5-source research-and-report task running with and without Plinth, on three independent topics.
+          Token counts are exact (<code>cl100k_base</code> via tiktoken). Cost estimates use Anthropic Sonnet
+          pricing ($3 / M input, $15 / M output).
+        </p>
+        <p class="mt-3 text-rock-600 leading-relaxed">
+          Reproducible from a clean clone:
+        </p>
+        <pre class="mt-3 overflow-x-auto rounded-lg border border-rock-300 bg-rock-950 p-3 text-rock-100 text-[12.5px] font-mono leading-relaxed"><code>cd examples/01-research-agent
+python compare.py --topic "renewable energy"</code></pre>
+        <a class="mt-6 inline-flex items-center gap-1 text-amber-700 font-semibold hover:text-amber-800" href="/docs/quickstart">
+          Run the demo yourself
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M3 10a.75.75 0 0 1 .75-.75h10.638L10.23 5.29a.75.75 0 1 1 1.04-1.08l5.5 5.25a.75.75 0 0 1 0 1.08l-5.5 5.25a.75.75 0 1 1-1.04-1.08l4.158-3.96H3.75A.75.75 0 0 1 3 10Z" clip-rule="evenodd" />
+          </svg>
+        </a>
+      </div>
+
+      <div class="lg:col-span-8">
+        <div class="rounded-xl border border-rock-200 bg-white p-6 shadow-sm" data-bench>
+          <div class="flex items-baseline justify-between mb-6">
+            <div>
+              <div class="text-[11px] font-mono uppercase tracking-wider text-rock-500">total across 3 topics</div>
+              <div class="mt-1 flex items-baseline gap-3">
+                <span class="text-5xl font-extrabold text-rock-900 tracking-tight tabular-nums">
+                  {reduction}<span class="text-amber-600">%</span>
+                </span>
+                <span class="text-sm text-rock-600">reduction</span>
+              </div>
+            </div>
+            <div class="hidden sm:flex flex-col items-end text-[12px] font-mono">
+              <div class="flex items-center gap-2 text-rock-500">
+                <span class="inline-block h-2 w-3 rounded-sm bg-rock-300"></span> baseline
+              </div>
+              <div class="flex items-center gap-2 text-rock-700 mt-1.5">
+                <span class="inline-block h-2 w-3 rounded-sm bg-amber-500"></span> with Plinth
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-6">
+            {
+              rows.map((r) => {
+                const baselinePct = (r.baseline / maxTokens) * 100;
+                const plinthPct = (r.plinth / maxTokens) * 100;
+                const saved = (((r.baseline - r.plinth) / r.baseline) * 100).toFixed(1);
+                return (
+                  <div data-row>
+                    <div class="flex items-baseline justify-between text-[13px] font-mono mb-2">
+                      <span class="text-rock-700 font-semibold tracking-tight uppercase">{r.topic}</span>
+                      <span class="text-amber-700 font-bold">{saved}% saved</span>
+                    </div>
+                    <div class="space-y-1.5">
+                      <div class="flex items-center gap-3">
+                        <span class="w-16 text-[11px] font-mono uppercase text-rock-500">baseline</span>
+                        <div class="flex-1 h-6 bg-rock-100 rounded-md overflow-hidden">
+                          <div
+                            class="h-full bg-rock-300 transition-all duration-1000 ease-out origin-left"
+                            data-bar
+                            data-target-width={baselinePct}
+                            style="width:0%;"
+                          ></div>
+                        </div>
+                        <span class="w-24 text-right text-[12px] font-mono tabular-nums text-rock-600">
+                          {r.baseline.toLocaleString()}
+                        </span>
+                      </div>
+                      <div class="flex items-center gap-3">
+                        <span class="w-16 text-[11px] font-mono uppercase text-amber-700 font-semibold">plinth</span>
+                        <div class="flex-1 h-6 bg-rock-100 rounded-md overflow-hidden">
+                          <div
+                            class="h-full bg-amber-500 transition-all duration-1000 ease-out origin-left"
+                            data-bar
+                            data-target-width={plinthPct}
+                            style="width:0%;"
+                          ></div>
+                        </div>
+                        <span class="w-24 text-right text-[12px] font-mono tabular-nums text-amber-700 font-semibold">
+                          {r.plinth.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            }
+          </div>
+
+          <div class="mt-6 pt-5 border-t border-rock-200 flex flex-wrap gap-x-8 gap-y-3 text-[12px] font-mono text-rock-500">
+            <span>baseline tokens: <strong class="text-rock-800 tabular-nums">{totalBaseline.toLocaleString()}</strong></span>
+            <span>plinth tokens: <strong class="text-amber-700 tabular-nums">{totalPlinth.toLocaleString()}</strong></span>
+            <span>saved: <strong class="text-rock-800 tabular-nums">{(totalBaseline - totalPlinth).toLocaleString()}</strong></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Animate bars on scroll-into-view
+  const root = document.querySelector("[data-bench]");
+  if (root) {
+    const animate = () => {
+      root.querySelectorAll<HTMLElement>("[data-bar]").forEach((el, idx) => {
+        const w = el.dataset.targetWidth ?? "0";
+        el.style.transitionDelay = `${idx * 80}ms`;
+        requestAnimationFrame(() => {
+          el.style.width = `${w}%`;
+        });
+      });
+    };
+    if ("IntersectionObserver" in window) {
+      const obs = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((e) => {
+            if (e.isIntersecting) {
+              animate();
+              obs.disconnect();
+            }
+          });
+        },
+        { threshold: 0.25 }
+      );
+      obs.observe(root);
+    } else {
+      animate();
+    }
+  }
+</script>

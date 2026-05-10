@@ -1,0 +1,52 @@
+---
+const year = new Date().getFullYear();
+---
+
+<footer class="mt-16 border-t border-rock-200 bg-rock-100/30">
+  <div class="container-narrow py-12 grid gap-10 md:grid-cols-4 text-sm">
+    <div class="md:col-span-2">
+      <div class="flex items-center gap-2">
+        <span class="text-2xl">🪨</span>
+        <span class="font-bold text-rock-900 text-lg">Plinth</span>
+      </div>
+      <p class="mt-3 max-w-md text-rock-600 leading-relaxed">
+        The runtime where production AI agents actually work. A versioned workspace + tool gateway + multi-agent channels —
+        designed for AI agents, not retrofitted from human UIs.
+      </p>
+      <p class="mt-3 text-rock-500 text-[13px] font-mono">
+        Apache 2.0 · API v1 stable · v1.5
+      </p>
+    </div>
+    <div>
+      <div class="text-[12px] font-bold uppercase tracking-[0.08em] text-rock-500 mb-3">Docs</div>
+      <ul class="space-y-2">
+        <li><a class="text-rock-700 hover:text-rock-900" href="/docs/overview">Overview</a></li>
+        <li><a class="text-rock-700 hover:text-rock-900" href="/docs/quickstart">Quickstart</a></li>
+        <li><a class="text-rock-700 hover:text-rock-900" href="/docs/architecture">Architecture</a></li>
+        <li><a class="text-rock-700 hover:text-rock-900" href="/docs/sdks">SDKs</a></li>
+        <li><a class="text-rock-700 hover:text-rock-900" href="/docs/api-stability">API Stability</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="text-[12px] font-bold uppercase tracking-[0.08em] text-rock-500 mb-3">Operations</div>
+      <ul class="space-y-2">
+        <li><a class="text-rock-700 hover:text-rock-900" href="/docs/slos">SLOs</a></li>
+        <li><a class="text-rock-700 hover:text-rock-900" href="/docs/compliance">Compliance</a></li>
+        <li><a class="text-rock-700 hover:text-rock-900" href="/docs/threat-model">Threat model</a></li>
+        <li>
+          <a
+            class="text-rock-700 hover:text-rock-900"
+            href="https://github.com/nico-schindlbeck-jpg/plinth"
+            target="_blank"
+            rel="noopener noreferrer">GitHub</a>
+        </li>
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-rock-200 py-5">
+    <div class="container-narrow flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[12px] text-rock-500">
+      <p>© {year} Plinth maintainers. Built static, no analytics, no trackers.</p>
+      <p class="font-mono">plinth.dev</p>
+    </div>
+  </div>
+</footer>

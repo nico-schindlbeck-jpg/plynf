@@ -1,0 +1,19 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="Not found" description="That page rolled away." noindex={true}>
+  <section class="bg-rock-50 min-h-[60vh] flex items-center">
+    <div class="container-narrow py-20 text-center">
+      <div class="text-7xl select-none">🪨</div>
+      <h1 class="mt-6 text-4xl md:text-5xl font-extrabold text-rock-900 tracking-tight">404 — That rock rolled away.</h1>
+      <p class="mt-4 text-rock-600 text-lg max-w-md mx-auto">
+        We couldn't find the page you asked for. It probably moved, or never existed in the first place.
+      </p>
+      <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+        <a class="btn-primary" href="/">Go home</a>
+        <a class="btn-ghost" href="/docs/overview">Browse the docs</a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

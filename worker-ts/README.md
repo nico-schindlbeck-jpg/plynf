@@ -95,6 +95,45 @@ const search = runtime.handler("research-pipeline", "search")(async (ctx) => {
 Each `(workflow, step)` key may be registered exactly once. Re-registering
 throws so deployment-time typos surface immediately.
 
+## LLM-Using Step Handlers
+
+Handlers receive a `HandlerContext` with `client` exposed — including the LLM
+facade shipped in v1.2.1. Configure the provider once on the client; every
+handler can call it.
+
+```typescript
+import { Plinth, AnthropicProvider } from "@plinth/sdk";
+import { WorkflowRuntime, Worker } from "@plinth/workflow-worker";
+
+const client = new Plinth({ workspaceUrl: "...", gatewayUrl: "...", apiKey: "..." });
+client.llm.useProvider("anthropic", { apiKey: process.env.ANTHROPIC_API_KEY! });
+
+const runtime = new WorkflowRuntime();
+runtime.register("my-pipeline", "extract", async (ctx) => {
+  const response = await ctx.client.llm.complete({
+    model: "claude-sonnet-4-5",
+    messages: [{ role: "user", content: ctx.step.input.prompt }],
+  });
+  return { content: response.content, costUsd: response.costUsd };
+});
+
+await new Worker({ client, runtime }).run();
+```
+
+Cost is auto-tracked via the gateway's `/v1/audit/record-llm` endpoint
+(audit row appears with `tool_id="llm.<provider>"`). Retry + backoff is
+handled by the SDK; handler code stays clean.
+
+For tests: use `MockProvider` so handler tests run offline:
+
+```typescript
+import { MockProvider } from "@plinth/sdk";
+
+client.llm.useCustomProvider(new MockProvider({
+  responses: ["First reply", "Second reply"]
+}));
+```
+
 ## CLI flags
 
 All flags can also be set via environment variables (`PLINTH_*`). CLI

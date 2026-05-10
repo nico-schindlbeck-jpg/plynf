@@ -1,0 +1,220 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/inter/800.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+@import "@fontsource/jetbrains-mono/700.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-rock-50 text-rock-800 font-sans;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  ::selection {
+    @apply bg-amber-200 text-rock-900;
+  }
+
+  *:focus-visible {
+    @apply outline-none ring-2 ring-amber-500 ring-offset-2 ring-offset-rock-50 rounded-sm;
+  }
+
+  /* Anchor offset for sticky header */
+  :target {
+    scroll-margin-top: 6rem;
+  }
+
+  pre code.astro-code,
+  pre code {
+    @apply font-mono text-[13.5px] leading-relaxed;
+  }
+}
+
+@layer components {
+  .container-narrow {
+    @apply mx-auto w-full max-w-container px-6 lg:px-8;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center gap-2 rounded-md bg-rock-900 px-5 py-2.5 text-sm font-semibold text-rock-50 shadow-sm
+           transition-all duration-150 hover:bg-rock-800 hover:shadow-md
+           active:scale-[0.98];
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 rounded-md border border-rock-300 bg-rock-50/60 backdrop-blur px-5 py-2.5
+           text-sm font-semibold text-rock-800 transition-all duration-150
+           hover:bg-rock-100 hover:border-rock-400;
+  }
+
+  .btn-amber {
+    @apply inline-flex items-center gap-2 rounded-md bg-amber-500 px-5 py-2.5 text-sm font-semibold text-rock-950 shadow-sm
+           transition-all duration-150 hover:bg-amber-400 active:scale-[0.98];
+  }
+
+  /* Card */
+  .card {
+    @apply rounded-xl border border-rock-200 bg-white p-6 shadow-sm transition-shadow duration-200 hover:shadow-md;
+  }
+
+  /* Inline code */
+  :not(pre) > code {
+    @apply rounded bg-rock-100 border border-rock-200 px-1.5 py-0.5 font-mono text-[0.875em] text-rock-900;
+  }
+
+  /* Prose styling (custom — no @tailwindcss/typography needed) */
+  .prose-doc {
+    @apply text-rock-700 text-[16px] leading-7;
+  }
+
+  .prose-doc h1 {
+    @apply text-3xl font-bold tracking-tight text-rock-900 mb-4 mt-2;
+  }
+
+  .prose-doc h2 {
+    @apply mt-12 mb-4 text-2xl font-bold tracking-tight text-rock-900 scroll-mt-24
+           border-b border-rock-200 pb-2;
+  }
+
+  .prose-doc h3 {
+    @apply mt-8 mb-3 text-xl font-semibold tracking-tight text-rock-900 scroll-mt-24;
+  }
+
+  .prose-doc h4 {
+    @apply mt-6 mb-2 text-lg font-semibold text-rock-900;
+  }
+
+  .prose-doc p {
+    @apply my-4;
+  }
+
+  .prose-doc a {
+    @apply text-amber-700 underline decoration-amber-300 underline-offset-2 hover:text-amber-800 hover:decoration-amber-500;
+  }
+
+  .prose-doc ul {
+    @apply my-4 list-disc pl-6 space-y-1.5;
+  }
+
+  .prose-doc ol {
+    @apply my-4 list-decimal pl-6 space-y-1.5;
+  }
+
+  .prose-doc li > p {
+    @apply my-1;
+  }
+
+  .prose-doc strong {
+    @apply font-semibold text-rock-900;
+  }
+
+  .prose-doc blockquote {
+    @apply my-6 border-l-4 border-amber-500 bg-amber-50/40 pl-5 pr-4 py-3 text-rock-800 italic;
+  }
+
+  .prose-doc blockquote p {
+    @apply my-1;
+  }
+
+  .prose-doc hr {
+    @apply my-10 border-rock-200;
+  }
+
+  .prose-doc table {
+    @apply my-6 w-full border-collapse text-sm;
+  }
+
+  .prose-doc thead {
+    @apply border-b-2 border-rock-300 text-left;
+  }
+
+  .prose-doc th {
+    @apply px-3 py-2 font-semibold text-rock-900;
+  }
+
+  .prose-doc tbody tr {
+    @apply border-b border-rock-200;
+  }
+
+  .prose-doc tbody tr:last-child {
+    @apply border-b-0;
+  }
+
+  .prose-doc td {
+    @apply px-3 py-2 align-top;
+  }
+
+  .prose-doc pre {
+    @apply my-5 overflow-x-auto rounded-lg border border-rock-800 bg-rock-950 p-4 text-rock-100 shadow-sm;
+  }
+
+  .prose-doc pre code {
+    @apply text-rock-100 bg-transparent border-0 p-0;
+  }
+
+  .prose-doc img {
+    @apply my-6 rounded-lg border border-rock-200;
+  }
+
+  /* Sidebar nav active state */
+  .sidebar-link {
+    @apply block rounded-md px-3 py-1.5 text-[13.5px] text-rock-600 hover:text-rock-900 hover:bg-rock-100 transition-colors;
+  }
+
+  .sidebar-link.active {
+    @apply bg-rock-100 text-rock-900 font-semibold;
+  }
+
+  .sidebar-section-title {
+    @apply px-3 mt-5 mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-rock-500;
+  }
+
+  /* TOC */
+  .toc-link {
+    @apply block py-1 text-[13px] text-rock-500 hover:text-rock-900 transition-colors;
+  }
+
+  .toc-link.active {
+    @apply text-amber-700 font-medium;
+  }
+
+  /* Animated grid background */
+  .hero-grid {
+    background-image:
+      linear-gradient(rgba(122, 116, 102, 0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(122, 116, 102, 0.07) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 80%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 80%);
+  }
+}
+
+/* Pagefind UI overrides — keep brand-aligned */
+:root {
+  --pagefind-ui-scale: 0.85;
+  --pagefind-ui-primary: #d97706;
+  --pagefind-ui-text: #1f1d18;
+  --pagefind-ui-background: #ffffff;
+  --pagefind-ui-border: #e7e5d9;
+  --pagefind-ui-tag: #f4f3ec;
+  --pagefind-ui-border-radius: 8px;
+  --pagefind-ui-border-width: 1px;
+  --pagefind-ui-font: 'Inter', sans-serif;
+}
