@@ -364,6 +364,140 @@ export class CostCapExceededError extends RateLimitedError {
 }
 
 // ---------------------------------------------------------------------------
+// v1.2 — LLM layer
+// ---------------------------------------------------------------------------
+
+/**
+ * Base class for every LLM-layer failure.
+ *
+ * All LLM-specific exceptions subclass this so application code can
+ * write `catch (e) { if (e instanceof LLMError) ... }` to handle any
+ * provider/retry/wiring failure in one place.
+ */
+export class LLMError extends PlinthError {
+  constructor(message: string, code = "LLM_ERROR", status?: number, details?: Record<string, unknown>) {
+    super(message, code, status, details);
+    this.name = "LLMError";
+  }
+}
+
+/**
+ * No LLM provider has been configured.
+ *
+ * Call {@link LLMClient.useProvider} (or {@link LLMClient.useCustomProvider})
+ * before invoking any of the `complete` / `stream` methods.
+ */
+export class LLMProviderNotConfiguredError extends LLMError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, "LLM_PROVIDER_NOT_CONFIGURED", undefined, details);
+    this.name = "LLMProviderNotConfiguredError";
+  }
+}
+
+/**
+ * The provider's optional vendor SDK is not installed.
+ *
+ * Raised when a built-in provider (`anthropic`, `openai`) is requested
+ * but the corresponding peer dependency is missing. The message embeds
+ * the install hint so the fix is immediate.
+ */
+export class LLMProviderNotInstalledError extends LLMError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, "LLM_PROVIDER_NOT_INSTALLED", undefined, details);
+    this.name = "LLMProviderNotInstalledError";
+  }
+}
+
+/**
+ * The provider returned an error response.
+ *
+ * Subclassed by {@link LLMRateLimitedError} for the 429 special case.
+ * For 5xx errors callers usually want to inspect `statusCode` and rely
+ * on the SDK's retry loop; for 4xx the call is non-retryable and
+ * surfaces directly.
+ */
+export class LLMProviderError extends LLMError {
+  /** HTTP status from the provider, if known. */
+  readonly statusCode: number | undefined;
+  /** Raw response body (string or parsed object), best-effort. */
+  readonly body: unknown;
+  /** Provider name (`"anthropic"`, `"openai"`, ...). */
+  readonly provider: string | undefined;
+
+  constructor(
+    message: string,
+    opts: {
+      statusCode?: number;
+      body?: unknown;
+      provider?: string;
+      code?: string;
+      details?: Record<string, unknown>;
+    } = {},
+  ) {
+    super(message, opts.code ?? "LLM_PROVIDER_ERROR", opts.statusCode, opts.details);
+    this.name = "LLMProviderError";
+    this.statusCode = opts.statusCode;
+    this.body = opts.body;
+    this.provider = opts.provider;
+  }
+}
+
+/**
+ * The provider rate-limited the request (HTTP 429).
+ *
+ * `retryAfterSeconds` is the provider's hint for back-off. When unset
+ * (or `null`), the SDK falls back to its own exponential schedule.
+ */
+export class LLMRateLimitedError extends LLMProviderError {
+  /** The provider's hint, in seconds. */
+  readonly retryAfterSeconds: number | null;
+
+  constructor(
+    message: string,
+    opts: {
+      retryAfterSeconds?: number | null;
+      statusCode?: number;
+      body?: unknown;
+      provider?: string;
+      details?: Record<string, unknown>;
+    } = {},
+  ) {
+    super(message, {
+      ...opts,
+      statusCode: opts.statusCode ?? 429,
+      code: "LLM_RATE_LIMITED",
+    });
+    this.name = "LLMRateLimitedError";
+    this.retryAfterSeconds = opts.retryAfterSeconds ?? null;
+  }
+}
+
+/**
+ * The retry budget was exhausted before the request succeeded.
+ *
+ * Wraps the last underlying error on `cause` (also exposed as the
+ * `lastError` property for ergonomic access).
+ */
+export class LLMRetryExhaustedError extends LLMError {
+  /** Number of attempts performed (including the final failed one). */
+  readonly attempts: number;
+  /** The last error raised before the budget expired. */
+  readonly lastError: Error | undefined;
+
+  constructor(message: string, attempts: number, lastError?: Error) {
+    super(message, "LLM_RETRY_EXHAUSTED", undefined, { attempts });
+    this.name = "LLMRetryExhaustedError";
+    this.attempts = attempts;
+    this.lastError = lastError;
+    if (lastError !== undefined) {
+      // ES2022 supports `cause` on Error; it's discoverable via the
+      // standard chain so consumers don't need our extension to debug.
+      Object.defineProperty(this, "cause", { value: lastError, enumerable: false });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Tool failures
 // ---------------------------------------------------------------------------
 

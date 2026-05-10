@@ -36,6 +36,28 @@ export type {
 // v0.5 — durable workflow workers
 export { WorkersClient } from "./workers.js";
 
+// v1.2 — LLM facade
+export { LLMClient } from "./llm.js";
+export type { LLMClientHost, RetryConfig as LLMRetryConfig } from "./llm.js";
+
+export {
+  AnthropicProvider,
+  ANTHROPIC_PRICING,
+  buildProvider as buildLLMProvider,
+  MockProvider,
+  MOCK_PRICING,
+  OpenAIProvider,
+  OPENAI_PRICING,
+} from "./llm-providers/index.js";
+
+export type {
+  AnthropicProviderConfig,
+  LLMProvider,
+  LLMProviderRequest,
+  MockProviderConfig,
+  OpenAIProviderConfig,
+} from "./llm-providers/index.js";
+
 // v0.3 — identity
 export { IdentityClient } from "./identity.js";
 export type { IssueTokenOptions } from "./identity.js";
@@ -87,6 +109,13 @@ export {
   LeaseNotHeldError,
   WorkerNotFoundError,
   NoHandlerError,
+  // v1.2 — LLM layer
+  LLMError,
+  LLMProviderError,
+  LLMProviderNotConfiguredError,
+  LLMProviderNotInstalledError,
+  LLMRateLimitedError,
+  LLMRetryExhaustedError,
 } from "./errors.js";
 
 export type {
@@ -152,4 +181,12 @@ export type {
   WorkerRecord,
   WorkerRegistration,
   WorkerStatus,
+  // v1.2 — LLM types
+  LLMMessage,
+  LLMProviderConfig,
+  LLMProviderName,
+  LLMRequest,
+  LLMResponse,
+  LLMRole,
+  LLMStreamChunk,
 } from "./types.js";

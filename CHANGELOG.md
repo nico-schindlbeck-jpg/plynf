@@ -2,6 +2,33 @@
 
 All notable changes to Plinth are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [SemVer](https://semver.org).
 
+## [1.2.1] — 2026-05-10
+
+Patch release: TypeScript SDK reaches full LLM-layer parity with the Python SDK + CI hotfix.
+
+### Added
+- **`@plinth/sdk` LLM namespace** (TypeScript) — `client.llm.complete()` / `stream()` with provider abstraction. Mirrors the Python surface shipped in v1.2.
+  - `AnthropicProvider` / `OpenAIProvider` / `MockProvider` with the same pricing tables.
+  - Vendor SDKs as optional peer-dependencies (`@anthropic-ai/sdk`, `openai`) — base package unaffected.
+  - Auto-detect from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` env.
+  - Retry+backoff on 429 + 5xx with `Retry-After` honoring.
+  - Cost tracking via the gateway's `POST /v1/audit/record-llm` endpoint.
+- TS SDK: 194 tests (was 144), +50 LLM tests.
+
+### Fixed
+- **CI**: Postgres-driver tests were failing with `ModuleNotFoundError: asyncpg` because CI installed only `[dev]` extra. Now installs `[dev,postgres]` for workspace + gateway + identity so live-Postgres tests against the service container actually run.
+- **CI contract test**: `test_workspace_documented_status_codes_exist_in_app` flagged 401/500 as missing because they're emitted by middleware/exception-handlers, not router decorators. Now treats those two codes as middleware-emitted and skips them.
+
+### Changed
+- TypeScript SDK: 194 tests (was 144)
+- Total: **2406 Python + 194 TS-SDK + 29 TS-Worker = 2629 tests passing** (was 2579)
+
+### Backwards compatibility
+- All v1.2 endpoints unchanged
+- TS `client.llm` is a new namespace
+- LLM peer-deps are opt-in (`npm install @plinth/sdk @anthropic-ai/sdk`)
+- API v1 contract preserved
+
 ## [1.2.0] — 2026-05-10
 
 LLM Layer in the Python SDK — closes the #1 functional gap. Today every example used a mock LLM. v1.2 adds `client.llm` with provider abstraction (Anthropic, OpenAI, Mock), streaming, retry+backoff, cost tracking integrated into the existing audit pipeline.
@@ -366,6 +393,7 @@ Initial proof-of-concept release. Working end-to-end slice of the agent-native s
 ### Stack
 Python 3.11+ for services + Python SDK; TypeScript 5.4+ for the TS SDK; FastAPI + uvicorn + aiosqlite + pydantic v2 + tiktoken; vitest for TS tests.
 
+[1.2.1]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.2.1
 [1.2.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.2.0
 [1.1.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.1.0
 [1.0.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.0.0

@@ -24,6 +24,14 @@
   "dependencies": {
     "gpt-tokenizer": "^2.5.0"
   },
+  "peerDependencies": {
+    "@anthropic-ai/sdk": ">=0.30.0",
+    "openai": ">=4.40.0"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/sdk": { "optional": true },
+    "openai": { "optional": true }
+  },
   "devDependencies": {
     "typescript": "^5.4.0",
     "vitest": "^1.6.0",

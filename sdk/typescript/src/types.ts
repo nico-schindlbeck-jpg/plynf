@@ -616,6 +616,98 @@ export interface SigningKey {
   active: boolean;
 }
 
+// --- v1.2: LLM layer ---
+
+/**
+ * Role of a message in an LLM conversation.
+ *
+ * Mirrors the OpenAI-style chat schema. Each provider adapter is
+ * responsible for translating into its native shape (e.g. Anthropic
+ * splits the system prompt out of the messages array).
+ */
+export type LLMRole = "system" | "user" | "assistant" | "tool";
+
+/** A single message in an LLM conversation. */
+export interface LLMMessage {
+  role: LLMRole;
+  content: string;
+  /** Optional sender name (OpenAI's `name` slot for `tool` / `function`). */
+  name?: string;
+  /** OpenAI-style tool call id, when responding to a tool call. */
+  toolCallId?: string;
+}
+
+/**
+ * The result of a non-streaming LLM completion.
+ *
+ * The provider-specific raw response is preserved on `raw` so callers
+ * needing provider-only fields (structured tool calls, system fingerprints,
+ * etc.) can reach for them.
+ */
+export interface LLMResponse {
+  content: string;
+  model: string;
+  finishReason: string;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  /** Wall-clock duration measured by the SDK across the full call. */
+  durationMs: number;
+  provider: string;
+  /** Audit id from `/v1/audit/record-llm`, populated on best-effort success. */
+  auditId?: string;
+  raw: Record<string, unknown>;
+}
+
+/**
+ * A single chunk from an LLM streaming response.
+ *
+ * `delta` carries incremental text; the final chunk produced by the
+ * Plinth wrapper carries `finishReason` so callers can stop iterating
+ * without having to inspect `raw`.
+ */
+export interface LLMStreamChunk {
+  delta: string;
+  finishReason?: string;
+  raw: Record<string, unknown>;
+}
+
+/** A request to the LLM facade. */
+export interface LLMRequest {
+  model: string;
+  messages: LLMMessage[];
+  maxTokens?: number;
+  temperature?: number;
+  topP?: number;
+  stopSequences?: string[];
+  /** Workspace context, surfaced in the audit row when present. */
+  workspaceId?: string;
+  /** Agent context, surfaced in the audit row when present. */
+  agentId?: string;
+  /**
+   * Provider-specific extras passed through verbatim. Use sparingly —
+   * each provider adapter is responsible for normalising the rest.
+   */
+  extra?: Record<string, unknown>;
+}
+
+/** Built-in provider names accepted by `LLMClient.useProvider`. */
+export type LLMProviderName = "anthropic" | "openai" | "mock";
+
+/** Configuration accepted by `LLMClient.useProvider`. */
+export interface LLMProviderConfig {
+  apiKey?: string;
+  baseUrl?: string;
+  /** Mock-only: ordered list of canned response strings. */
+  responses?: string[];
+  /** Mock-only: model name reported in `LLMResponse`. */
+  defaultModel?: string;
+  /** Mock-only: chunk size in characters for streaming. */
+  chunkSize?: number;
+  /** Mock-only: `finishReason` on responses (default `"stop"`). */
+  finishReason?: string;
+}
+
 // --- Client config ---
 
 export interface PlinthConfig {

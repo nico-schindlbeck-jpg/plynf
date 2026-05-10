@@ -11,6 +11,7 @@
 
 import { HttpClient } from "./http.js";
 import { IdentityClient } from "./identity.js";
+import { LLMClient } from "./llm.js";
 import { count as countTokensImpl, estimateCost as estimateCostImpl } from "./tokens.js";
 import { ToolsClient } from "./tools.js";
 import type { JsonValue, PlinthConfig, Workspace as WorkspaceModel } from "./types.js";
@@ -50,6 +51,16 @@ export class Plinth {
   readonly workers: WorkersClient;
 
   /**
+   * v1.2 — LLM facade.
+   *
+   * Wraps a pluggable provider (`anthropic`, `openai`, or `mock`) with a
+   * retry loop and gateway audit recording. Configure via
+   * `client.llm.useProvider(name, config)` before calling
+   * `complete` / `stream`. See {@link LLMClient}.
+   */
+  readonly llm: LLMClient;
+
+  /**
    * v0.3 identity client.
    *
    * Throws on access when `identityUrl` was not configured — callers who
@@ -65,6 +76,17 @@ export class Plinth {
     }
     return this.identityClient;
   }
+
+  /**
+   * Gateway base URL — exposed (read-only) so the {@link LLMClient}
+   * audit hook can post to `/v1/audit/record-llm` without a second
+   * `HttpClient`. Trailing slashes are stripped.
+   */
+  readonly gatewayUrl: string;
+  /** Bearer-token used for `Authorization` headers on direct fetches. */
+  readonly apiKey: string;
+  /** The fetch implementation chosen at construction (for sub-clients). */
+  readonly fetch: typeof fetch;
 
   private readonly workspaceHttp: HttpClient;
   private readonly gatewayHttp: HttpClient;
@@ -97,6 +119,10 @@ export class Plinth {
     const gwFallbacks = pickFallbackUrls(fallbackRegions, config.fallbackGatewayUrls);
     const idFallbacks = pickFallbackUrls(fallbackRegions, config.fallbackIdentityUrls);
 
+    this.gatewayUrl = gatewayUrl.replace(/\/+$/, "");
+    this.apiKey = config.apiKey;
+    this.fetch = fetchImpl;
+
     this.workspaceHttp = new HttpClient({
       baseUrl: workspaceUrl,
       apiKey: config.apiKey,
@@ -115,6 +141,11 @@ export class Plinth {
     });
     this.tools = new ToolsClient(this.gatewayHttp);
     this.workers = new WorkersClient(this.workspaceHttp);
+    this.llm = new LLMClient({
+      gatewayUrl: this.gatewayUrl,
+      apiKey: this.apiKey,
+      fetch: this.fetch,
+    });
 
     if (config.identityUrl) {
       this.identityHttp = new HttpClient({
