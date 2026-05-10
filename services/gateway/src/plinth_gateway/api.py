@@ -62,6 +62,8 @@ from .models import (
     InvokeRequest,
     InvokeResponse,
     LimitsStatus,
+    LLMAuditRecordRequest,
+    LLMAuditRecordResponse,
     RollbackBody,
     RollbackResult,
     RolledBackMigrationModel,
@@ -991,6 +993,87 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     details={"since": since},
                 ) from exc
         return await audit.verify_chain(since=since_dt, limit=int(limit))
+
+    @app.post(
+        "/v1/audit/record-llm",
+        response_model=LLMAuditRecordResponse,
+        status_code=201,
+        tags=["audit"],
+        dependencies=[Depends(auth_dep)],
+    )
+    async def record_llm_audit(
+        payload: LLMAuditRecordRequest,
+        request: Request,
+        audit: AuditLog = Depends(get_audit),
+    ) -> LLMAuditRecordResponse:
+        """Record a direct LLM call from the Plinth Python SDK (v1.2).
+
+        The SDK's ``client.llm`` namespace bypasses the gateway's tool
+        registry — there's no proxy involved — but cost still needs to
+        flow into the audit log so dashboards and metrics pick it up.
+        This endpoint synthesises an ``audit_events`` row with
+        ``tool_id="llm.<provider>"`` (e.g. ``"llm.anthropic"``) and the
+        usage / cost fields populated from the SDK's local accounting.
+
+        Cached/duration semantics:
+
+        * ``cached`` is always False — direct LLM calls don't go through
+          the gateway cache.
+        * ``duration_ms`` is the SDK-side wall-clock; intermediate retry
+          attempts aren't broken out (they're invisible to dashboards).
+        """
+
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        # Build a small "arguments" dict purely for hashing — we don't
+        # want to store the actual prompt (PII risk + audit log size),
+        # so we fold the model + token counts into the hash. This still
+        # gives downstream consumers a stable handle for grouping.
+        args_for_hash = {
+            "model": payload.model,
+            "input_tokens": int(payload.input_tokens),
+            "output_tokens": int(payload.output_tokens),
+        }
+        args_hash = hash_args(args_for_hash)
+        args_preview = AuditLog.make_preview(
+            {
+                "model": payload.model,
+                "finish_reason": payload.finish_reason,
+            }
+        )
+        event = await audit.record(
+            AuditRecord(
+                tool_id=payload.tool_id,
+                arguments=args_for_hash,
+                workspace_id=payload.workspace_id,
+                agent_id=payload.agent_id,
+                tenant_id=tenant_id,
+                arguments_hash=args_hash,
+                arguments_preview=args_preview,
+                cached=False,
+                duration_ms=int(payload.duration_ms),
+                cost_estimate_usd=float(payload.cost_usd),
+                # No proxy result to hash; null is fine.
+                result_hash=None,
+            )
+        )
+        log.info(
+            "audit.record_llm",
+            tool_id=payload.tool_id,
+            model=payload.model,
+            cost=payload.cost_usd,
+            audit_id=event.id,
+        )
+        # Surface this on Prometheus too — same code path tool invokes use.
+        _record_invocation_metrics(
+            request.app,
+            tool_id=payload.tool_id,
+            tenant_id=tenant_id,
+            cached=False,
+            result_ok=True,
+            duration_ms=int(payload.duration_ms),
+            cost=float(payload.cost_usd),
+        )
+        return LLMAuditRecordResponse(audit_id=event.id)
 
     # ---- cache -------------------------------------------------------------
 

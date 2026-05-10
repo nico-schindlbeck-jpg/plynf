@@ -2,6 +2,36 @@
 
 All notable changes to Plinth are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [SemVer](https://semver.org).
 
+## [1.2.0] — 2026-05-10
+
+LLM Layer in the Python SDK — closes the #1 functional gap. Today every example used a mock LLM. v1.2 adds `client.llm` with provider abstraction (Anthropic, OpenAI, Mock), streaming, retry+backoff, cost tracking integrated into the existing audit pipeline.
+
+### Added
+- **`plinth.llm` namespace** — `LLMClient` facade wrapping a provider, retry loop, cost tracking, audit recording. `client.llm.complete(...)` / `stream(...)` / `acomplete(...)` / `astream(...)`.
+- **`MockProvider`** — pure-Python, deterministic, used by all SDK tests + bundled demo. No real API calls in tests.
+- **`AnthropicProvider`** — wraps `anthropic` package conditionally (opt-in via `pip install plinth[anthropic]`). Hardcoded pricing for `claude-sonnet-4-5`, `claude-opus-4-5`, `claude-haiku-4-5`. Streaming via `messages.stream()`.
+- **`OpenAIProvider`** — wraps `openai` package conditionally (`pip install plinth[openai]`). Pricing for gpt-5, gpt-5-mini, gpt-5-nano. Streaming via `chat.completions.create(stream=True)`.
+- **Auto-detection** — if `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` is set and no provider is explicitly configured, first call lazy-builds the matching provider.
+- **Retry logic** — exponential backoff on 429 (rate-limited) + 5xx; honors `Retry-After` header. Never retries 4xx-other (auth, invalid request).
+- **Cost tracking** — every successful LLM call records to `POST /v1/audit/record-llm` (NEW gateway endpoint). Audit row has `tool_id="llm.<provider>"`, `cost_estimate_usd` populated → existing Prometheus metrics + dashboard cost rollups pick up direct-LLM spend automatically.
+- **Demo 06 — `llm-research-agent`** — version of demo 01 using `client.llm` (MockProvider default; `--mode=live` switches to AnthropicProvider with `ANTHROPIC_API_KEY`).
+- **`pip install plinth[anthropic]` / `[openai]` / `[all]` extras** — opt-in vendor SDKs (no base-dep bloat).
+- **`POST /v1/audit/record-llm` endpoint** on Gateway — synthesises audit row for direct-LLM calls (no tool proxy involved).
+
+### Changed
+- python SDK: 368 tests (was 301) — +67 LLM tests
+- gateway: 520 tests (was 517) — +3 LLM-audit endpoint tests
+- Total: **2406 Python + 144 TS-SDK + 29 TS-Worker = 2579 tests passing** (was 2312 in v1.1)
+
+### Backwards compatibility
+- All v1.1 endpoints unchanged
+- `client.llm` is a new namespace — code that doesn't use it is unaffected
+- LLM extras are opt-in (`plinth[anthropic]` / `[openai]`)
+- Audit endpoint addition is purely additive
+- API v1 contract preserved
+
+All v0.1–v1.1 demos produce unchanged output.
+
 ## [1.1.0] — 2026-05-10
 
 Engineering-debt sweep + strategic adds. v1.1 is purely additive on v1.0 GA — the API v1 contract is fully preserved.
@@ -336,6 +366,7 @@ Initial proof-of-concept release. Working end-to-end slice of the agent-native s
 ### Stack
 Python 3.11+ for services + Python SDK; TypeScript 5.4+ for the TS SDK; FastAPI + uvicorn + aiosqlite + pydantic v2 + tiktoken; vitest for TS tests.
 
+[1.2.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.2.0
 [1.1.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.1.0
 [1.0.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.0.0
 [0.6.1]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v0.6.1

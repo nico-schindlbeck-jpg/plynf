@@ -31,6 +31,13 @@ dev = [
     "ruff>=0.3",
     "black>=24.1",
 ]
+# v1.2 — LLM provider extras. Users opt into the providers they need:
+#   pip install 'plinth[anthropic]'
+#   pip install 'plinth[openai]'
+#   pip install 'plinth[all]'  # both
+anthropic = ["anthropic>=0.30"]
+openai = ["openai>=1.40"]
+all = ["anthropic>=0.30", "openai>=1.40"]
 
 [project.urls]
 Homepage = "https://github.com/your-org/plinth"

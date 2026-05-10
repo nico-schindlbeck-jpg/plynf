@@ -142,6 +142,42 @@ class ChainVerifyResult(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# v1.2 — LLM audit recording
+# ---------------------------------------------------------------------------
+
+
+class LLMAuditRecordRequest(BaseModel):
+    """Body for ``POST /v1/audit/record-llm``.
+
+    The Plinth Python SDK posts this after every successful direct LLM
+    call (i.e. via ``client.llm.complete()`` rather than a registered
+    gateway tool). The endpoint synthesises an ``audit_events`` row with
+    ``tool_id="llm.<provider>"`` so existing dashboards keying on the
+    audit log automatically pick up direct LLM cost too.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    tool_id: str
+    model: str
+    input_tokens: int = Field(0, ge=0)
+    output_tokens: int = Field(0, ge=0)
+    cost_usd: float = Field(0.0, ge=0)
+    duration_ms: int = Field(0, ge=0)
+    workspace_id: str | None = None
+    agent_id: str | None = None
+    finish_reason: str | None = None
+
+
+class LLMAuditRecordResponse(BaseModel):
+    """Response for ``POST /v1/audit/record-llm`` — just the new audit ID."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    audit_id: str
+
+
+# ---------------------------------------------------------------------------
 # Cache
 # ---------------------------------------------------------------------------
 

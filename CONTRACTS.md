@@ -2191,3 +2191,97 @@ OAuth: Google OAuth2 flow with incremental authorization scopes.
 - API v1 contract preserved; deprecation policy unchanged
 
 All v0.1–v1.0 demos produce unchanged output.
+
+# v1.2 Additions — LLM Layer (Python SDK)
+
+The Python SDK gains a first-class `client.llm` namespace so agents
+no longer need to bring their own LLM library. v1.2 ships:
+
+- A provider abstraction (`plinth.llm.LLMProvider` protocol) covering
+  sync + async `complete` / `stream` and a `estimate_cost_usd` helper.
+- Built-in providers for Anthropic and OpenAI behind opt-in pip extras
+  (`pip install 'plinth[anthropic]'`, `pip install 'plinth[openai]'`),
+  plus a `MockProvider` that ships unconditionally for tests/demos.
+- Retry-with-back-off on 429 (honours `Retry-After`) and 5xx; no retry
+  on other 4xx.
+- Cost-tracking integrated with the gateway audit log via a new
+  `POST /v1/audit/record-llm` endpoint.
+
+## SDK surface
+
+```python
+from plinth import Plinth, LLMMessage
+
+client = Plinth(api_key="local-dev")
+
+# Anthropic auto-configures from ANTHROPIC_API_KEY when no provider is
+# explicitly set; otherwise:
+client.llm.use_provider("anthropic", api_key="sk-ant-...")
+# or
+client.llm.use_provider("openai", api_key="sk-...")
+# or for tests / offline demos:
+client.llm.use_provider("mock", responses=["First response", "Second"])
+
+# Synchronous completion
+response = client.llm.complete(
+    model="claude-sonnet-4-5",
+    messages=[{"role": "user", "content": "Hello"}],
+    max_tokens=1024,
+    temperature=0.7,
+    workspace_id=ws.id,        # for audit attribution
+    agent_id="my-agent",
+)
+# response.content : str
+# response.input_tokens / output_tokens / cost_usd
+# response.duration_ms / model / finish_reason
+# response.audit_id (set when audit recording succeeds)
+# response.raw (provider-native dict)
+
+# Streaming
+for chunk in client.llm.stream(model="...", messages=[...]):
+    print(chunk.delta, end="", flush=True)
+
+# Async equivalents
+response = await client.llm.acomplete(model="...", messages=[...])
+async for chunk in client.llm.astream(model="...", messages=[...]):
+    ...
+```
+
+## Audit endpoint
+
+```
+POST /v1/audit/record-llm
+{
+  "tool_id": "llm.<provider>",       # synthesised by the SDK
+  "model": "<provider model name>",
+  "input_tokens": int,
+  "output_tokens": int,
+  "cost_usd": float,
+  "duration_ms": int,
+  "workspace_id": str | null,
+  "agent_id": str | null,
+  "finish_reason": str | null
+}
+→ 201 { "audit_id": "evt_..." }
+```
+
+The endpoint synthesises an `audit_events` row with `tool_id="llm.<provider>"`
+so existing dashboards keying on the audit log automatically pick up
+direct-LLM cost. Audit failure never breaks the LLM call (the SDK
+swallows the POST failure).
+
+## Pricing tables
+
+`plinth.llm_providers.anthropic.ANTHROPIC_PRICING` covers
+`claude-sonnet-4-5`, `claude-opus-4-5`, `claude-haiku-4-5`.
+`plinth.llm_providers.openai.OPENAI_PRICING` covers `gpt-5`,
+`gpt-5-mini`, `gpt-5-nano`. Unknown models fall back to a sensible
+mid-tier rate so cost estimates stay non-zero during model rollouts.
+
+## Backwards compatibility (v1.2)
+
+- All v1.0/v1.1 endpoints unchanged.
+- `client.llm` is a new namespace — no existing call sites are touched.
+- LLM extras are opt-in: `pip install plinth` keeps the dependency tree
+  identical to v1.1.
+- The TypeScript SDK does not gain an LLM layer in v1.2.

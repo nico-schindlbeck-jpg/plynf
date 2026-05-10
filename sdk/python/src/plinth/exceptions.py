@@ -419,6 +419,117 @@ class LockNotFound(NotFoundError):
     code = "LOCK_NOT_FOUND"
 
 
+# ---------------------------------------------------------------------------
+# v1.2 — LLM layer
+# ---------------------------------------------------------------------------
+
+
+class LLMError(PlinthError):
+    """Base class for every LLM-layer failure.
+
+    All LLM-specific exceptions subclass this, so application code can
+    write ``except LLMError:`` to catch any provider/retry/wiring failure
+    in one place.
+    """
+
+    code = "LLM_ERROR"
+
+
+class LLMProviderNotConfigured(LLMError):
+    """No LLM provider has been configured.
+
+    Call :meth:`plinth.llm.LLMClient.use_provider` (or
+    :meth:`use_custom_provider`) before invoking any of the
+    ``complete``/``stream`` methods.
+    """
+
+    code = "LLM_PROVIDER_NOT_CONFIGURED"
+
+
+class LLMProviderNotInstalled(LLMError):
+    """The provider's optional dependency is not installed.
+
+    Raised when a built-in provider (``anthropic``, ``openai``) is
+    requested but the corresponding pip extra is missing. The message
+    embeds the install hint so the fix is immediate.
+    """
+
+    code = "LLM_PROVIDER_NOT_INSTALLED"
+
+
+class LLMProviderError(LLMError):
+    """The provider returned an error response.
+
+    Subclassed by :class:`LLMRateLimited` for the 429 special-case.
+    For 5xx errors callers usually want to inspect ``status_code`` and
+    rely on the SDK's retry loop; for 4xx the call is non-retryable and
+    surfaces directly.
+
+    Attributes:
+        status_code: The HTTP status from the provider, if known.
+        body: The raw response body (string or parsed dict), best-effort.
+        provider: The provider name (``"anthropic"``, ``"openai"`` …).
+    """
+
+    code = "LLM_PROVIDER_ERROR"
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        body: Any = None,
+        provider: str | None = None,
+        **kw: Any,
+    ) -> None:
+        super().__init__(message, **kw)
+        self._status_code = status_code
+        self.body = body
+        self.provider = provider
+
+    @property
+    def status_code(self) -> int | None:  # type: ignore[override]
+        # ``PlinthError.status_code`` reads from the ``response`` attribute,
+        # which doesn't apply to provider SDKs. Provide our own.
+        if self._status_code is not None:
+            return self._status_code
+        if self.response is not None:
+            return self.response.status_code
+        return None
+
+
+class LLMRateLimited(LLMProviderError):
+    """The provider rate-limited the request (HTTP 429).
+
+    Attributes:
+        retry_after_seconds: The provider's hint (in seconds) for how
+            long to wait before retrying. ``None`` when no hint was
+            available — the SDK falls back to exponential back-off.
+    """
+
+    code = "LLM_RATE_LIMITED"
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        retry_after_seconds: float | None = None,
+        **kw: Any,
+    ) -> None:
+        super().__init__(message, **kw)
+        self.retry_after_seconds = retry_after_seconds
+
+
+class LLMRetryExhausted(LLMError):
+    """The retry budget was exhausted before the request succeeded.
+
+    Wraps the last underlying error so callers can introspect the actual
+    cause via ``__cause__`` (raise-from-) chains.
+    """
+
+    code = "LLM_RETRY_EXHAUSTED"
+
+
 __all__ = [
     "BranchNotFound",
     "ChannelNotFound",
@@ -429,6 +540,12 @@ __all__ = [
     "InvalidToken",
     "InvalidWorkflowStep",
     "KeyNotFound",
+    "LLMError",
+    "LLMProviderError",
+    "LLMProviderNotConfigured",
+    "LLMProviderNotInstalled",
+    "LLMRateLimited",
+    "LLMRetryExhausted",
     "LeaseConflict",
     "LeaseNotHeld",
     "LockConflict",

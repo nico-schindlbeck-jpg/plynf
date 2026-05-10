@@ -766,6 +766,64 @@ class Lock(BaseModel):
     waiters: int = 0
 
 
+# ---------------------------------------------------------------------------
+# v1.2 — LLM layer models
+# ---------------------------------------------------------------------------
+
+
+class LLMMessage(BaseModel):
+    """A single message in an LLM conversation.
+
+    Mirrors the OpenAI-style chat schema. Each provider adapter is
+    responsible for translating into its native message shape (e.g.
+    Anthropic splits the system prompt out of the messages array).
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    role: Literal["system", "user", "assistant", "tool"]
+    content: str
+    name: Optional[str] = None  # noqa: UP045
+    tool_call_id: Optional[str] = None  # noqa: UP045
+
+
+class LLMResponse(BaseModel):
+    """The result of a non-streaming LLM completion.
+
+    The provider-specific raw response is preserved on ``raw`` so callers
+    that need provider-only fields (e.g. structured tool calls, system
+    fingerprints) can reach for them.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    content: str
+    model: str
+    finish_reason: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float = 0.0
+    duration_ms: int = 0
+    provider: str
+    audit_id: Optional[str] = None  # noqa: UP045
+    raw: Dict[str, Any] = Field(default_factory=dict)  # noqa: UP006
+
+
+class LLMStreamChunk(BaseModel):
+    """A single chunk from an LLM streaming response.
+
+    ``delta`` contains incremental text. The final chunk emitted by the
+    Plinth wrapper carries ``finish_reason`` so callers can stop
+    iterating without having to inspect ``raw``.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    delta: str = ""
+    finish_reason: Optional[str] = None  # noqa: UP045
+    raw: Dict[str, Any] = Field(default_factory=dict)  # noqa: UP006
+
+
 __all__ = [
     "AgentLimits",
     "AuditEvent",
@@ -781,6 +839,9 @@ __all__ = [
     "InvokeRequest",
     "InvokeResponse",
     "KVEntry",
+    "LLMMessage",
+    "LLMResponse",
+    "LLMStreamChunk",
     "Lease",
     "LimitsStatus",
     "Lock",

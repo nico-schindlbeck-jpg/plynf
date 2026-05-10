@@ -398,6 +398,60 @@ async def test_audit_stats(client, make_tool) -> None:
     assert body["by_tool"][0]["count"] == 2
 
 
+async def test_record_llm_audit_creates_event(client) -> None:
+    """v1.2 — direct LLM audit endpoint synthesises audit_events row."""
+    payload = {
+        "tool_id": "llm.anthropic",
+        "model": "claude-sonnet-4-5",
+        "input_tokens": 100,
+        "output_tokens": 50,
+        "cost_usd": 0.0009,
+        "duration_ms": 250,
+        "workspace_id": "ws_llm",
+        "agent_id": "agent_x",
+        "finish_reason": "end_turn",
+    }
+    r = await client.post("/v1/audit/record-llm", json=payload)
+    assert r.status_code == 201
+    body = r.json()
+    assert body["audit_id"].startswith("evt_")
+
+    # The new row shows up in the regular audit query.
+    r2 = await client.get(
+        "/v1/audit",
+        params={"tool_id": "llm.anthropic", "workspace_id": "ws_llm"},
+    )
+    events = r2.json()["events"]
+    assert len(events) == 1
+    assert events[0]["tool_id"] == "llm.anthropic"
+    assert events[0]["cost_estimate_usd"] == 0.0009
+    assert events[0]["duration_ms"] == 250
+    assert events[0]["agent_id"] == "agent_x"
+
+
+async def test_record_llm_audit_minimal_payload(client) -> None:
+    """All audit-record fields except tool_id+model are optional."""
+    payload = {
+        "tool_id": "llm.openai",
+        "model": "gpt-5-mini",
+    }
+    r = await client.post("/v1/audit/record-llm", json=payload)
+    assert r.status_code == 201
+    audit_id = r.json()["audit_id"]
+    assert audit_id.startswith("evt_")
+
+
+async def test_record_llm_audit_rejects_extra_fields(client) -> None:
+    """``extra='forbid'`` keeps the surface tight."""
+    payload = {
+        "tool_id": "llm.anthropic",
+        "model": "claude-sonnet-4-5",
+        "bogus_field": "nope",
+    }
+    r = await client.post("/v1/audit/record-llm", json=payload)
+    assert r.status_code == 422
+
+
 async def test_cache_stats_endpoint(client, make_tool) -> None:
     await client.post("/v1/tools/register", json=make_tool())
 

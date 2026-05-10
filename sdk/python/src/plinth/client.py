@@ -18,6 +18,7 @@ from . import tokens as tokens_module
 from ._http import HTTPClient
 from .agent import agent_decorator
 from .identity import IdentityClient
+from .llm import LLMClient
 from .models import Workspace as WorkspaceModel
 from .tools import ToolGateway
 from .workers import WorkersClient
@@ -157,6 +158,13 @@ class Plinth:
                 fallback_urls=self._identity_fallbacks,
                 primary_region=region,
             )
+
+        # v1.2 — LLM facade. Lazy-attached to the client; users configure a
+        # provider via ``client.llm.use_provider("anthropic" | "openai" |
+        # "mock")`` before issuing any completion. The facade's audit
+        # recorder reaches back into ``self._gateway_http`` so cost shows
+        # up on the existing Prometheus + dashboard pipeline.
+        self.llm = LLMClient(self)
 
     # ------------------------------------------------------------------
     # Lifecycle
