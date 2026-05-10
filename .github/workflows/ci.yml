@@ -60,14 +60,17 @@ jobs:
       - name: Install component
         run: |
           set -e
+          # Postgres extra is included for services that have it — CI runs
+          # against a live Postgres container so asyncpg-driven tests must
+          # be runnable, not skipped.
           case "${{ matrix.suite }}" in
-            workspace)    pip install -e "./services/workspace[dev]" ;;
-            gateway)      pip install -e "./services/gateway[dev]" ;;
-            identity)     pip install -e "./services/identity[dev]" ;;
+            workspace)    pip install -e "./services/workspace[dev,postgres]" ;;
+            gateway)      pip install -e "./services/gateway[dev,postgres]" ;;
+            identity)     pip install -e "./services/identity[dev,postgres]" ;;
             sdk-python)
-              pip install -e "./services/workspace[dev]"
-              pip install -e "./services/gateway[dev]"
-              pip install -e "./services/identity[dev]"
+              pip install -e "./services/workspace[dev,postgres]"
+              pip install -e "./services/gateway[dev,postgres]"
+              pip install -e "./services/identity[dev,postgres]"
               pip install -e "./sdk/python[dev]"
               ;;
             mock-mcp)     pip install -e "./mock-mcp-server[dev]" ;;
