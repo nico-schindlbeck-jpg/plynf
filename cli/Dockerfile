@@ -11,7 +11,7 @@
 # is equivalent to running ``plinth health`` on the host. The volume
 # mount keeps the user's profile config in sync.
 
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /build
 
@@ -32,7 +32,7 @@ RUN pip install --upgrade pip build && \
 
 # ---------------------------------------------------------------------------
 
-FROM python:3.12-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 LABEL org.opencontainers.image.title="plinth-cli"
 LABEL org.opencontainers.image.description="Unified Plinth operator CLI."
