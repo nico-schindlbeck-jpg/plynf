@@ -1,5 +1,14 @@
 version: 2
 
+# Notes for reviewers:
+# - GitHub Actions: minor + patch only auto-PRed; majors require manual ignore-removal
+#   (actions occasionally introduce breaking input changes on majors).
+# - Docker Python base image: pinned to 3.11 family — we explicitly ignore 3.12+
+#   majors here because Plinth code targets 3.11+ but production images stay on
+#   3.11-slim for stability. Lift this when we decide to upgrade.
+# - npm major bumps (vitest, prettier, etc): allowed but require human review
+#   before merge.
+
 updates:
   # ───────── GitHub Actions ─────────
   - package-ecosystem: "github-actions"
@@ -10,6 +19,10 @@ updates:
       time: "06:00"
     open-pull-requests-limit: 5
     labels: ["deps", "ci"]
+    ignore:
+      # GHA majors require human review; minor + patch only via automation
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   # ───────── Python services ─────────
   - package-ecosystem: "pip"
@@ -203,6 +216,11 @@ updates:
       day: "monday"
       time: "06:00"
     labels: ["deps", "docker"]
+    ignore:
+      # Python base-image stays on 3.11 family — major bumps require human review
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major"]
+
 
   - package-ecosystem: "docker"
     directory: "/services/gateway"
@@ -211,6 +229,11 @@ updates:
       day: "monday"
       time: "06:00"
     labels: ["deps", "docker"]
+    ignore:
+      # Python base-image stays on 3.11 family — major bumps require human review
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major"]
+
 
   - package-ecosystem: "docker"
     directory: "/services/identity"
@@ -219,6 +242,11 @@ updates:
       day: "monday"
       time: "06:00"
     labels: ["deps", "docker"]
+    ignore:
+      # Python base-image stays on 3.11 family — major bumps require human review
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major"]
+
 
   - package-ecosystem: "docker"
     directory: "/services/dashboard"
@@ -245,6 +273,11 @@ updates:
       day: "monday"
       time: "06:00"
     labels: ["deps", "docker"]
+    ignore:
+      # Python base-image stays on 3.11 family — major bumps require human review
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major"]
+
 
   - package-ecosystem: "docker"
     directory: "/mcp-servers/slack"
@@ -253,6 +286,11 @@ updates:
       day: "monday"
       time: "06:00"
     labels: ["deps", "docker"]
+    ignore:
+      # Python base-image stays on 3.11 family — major bumps require human review
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major"]
+
 
   - package-ecosystem: "docker"
     directory: "/mcp-servers/linear"
@@ -270,6 +308,11 @@ updates:
       day: "monday"
       time: "06:00"
     labels: ["deps", "docker"]
+    ignore:
+      # Python base-image stays on 3.11 family — major bumps require human review
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major"]
+
 
   - package-ecosystem: "docker"
     directory: "/cli"
@@ -278,3 +321,8 @@ updates:
       day: "monday"
       time: "06:00"
     labels: ["deps", "docker"]
+    ignore:
+      # Python base-image stays on 3.11 family — major bumps require human review
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major"]
+
