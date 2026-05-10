@@ -39,6 +39,14 @@ _log = structlog.get_logger(__name__)
 
 # Lazy imports — the OTel SDK is only loaded when ``enabled=True`` so the
 # disabled path stays import-light and v0.3 behaviour is unchanged.
+#
+# v1.1 — public ``logs`` API migration. Upstream OTel kept the public path
+# under ``opentelemetry.sdk._logs`` even after the 1.30 cut (see
+# python-contrib repo issues #4045/#4055 — "Logs SDK is now stable but the
+# top-level public path was not added"). To stay forward-compatible and
+# unblock the ``<1.30`` pin lift we use a try-import pattern: the public
+# name wins when present, the underscore name is the fallback. See
+# CONTRACTS.md v1.1 — "OTel — public ``logs`` API".
 
 
 class _ExporterLike(Protocol):
@@ -49,6 +57,36 @@ class _ExporterLike(Protocol):
 
 
 _PREVIEW_LIMIT = 500
+
+
+def _import_otel_logs() -> tuple[Any, Any, Any]:
+    """Return ``(LoggerProvider, BatchLogRecordProcessor, LogRecord)``.
+
+    Tries the public ``opentelemetry.sdk.logs`` namespace first (target end
+    state once upstream promotes the module) and falls back to the legacy
+    ``opentelemetry.sdk._logs`` underscore path which remains the canonical
+    location through at least 1.41. Importers should call this helper in
+    place of writing the import directly so the migration stays in one
+    spot.
+    """
+
+    try:  # pragma: no cover — depends on installed OTel version
+        from opentelemetry.sdk.logs import (  # type: ignore[import-not-found]
+            LoggerProvider,
+            LogRecord,
+        )
+        from opentelemetry.sdk.logs.export import (  # type: ignore[import-not-found]
+            BatchLogRecordProcessor,
+        )
+    except ImportError:
+        from opentelemetry.sdk._logs import (
+            LoggerProvider,
+            LogRecord,
+        )
+        from opentelemetry.sdk._logs.export import (
+            BatchLogRecordProcessor,
+        )
+    return LoggerProvider, BatchLogRecordProcessor, LogRecord
 
 
 def _flatten_attributes(
@@ -327,10 +365,9 @@ class OTLPEmitter:
             return
 
         try:
-            from opentelemetry.sdk._logs import LoggerProvider
-            from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
             from opentelemetry.sdk.resources import Resource
 
+            LoggerProvider, BatchLogRecordProcessor, _ = _import_otel_logs()
             resource = Resource.create({"service.name": self.service_name})
             self._provider = LoggerProvider(resource=resource)
 
@@ -413,7 +450,7 @@ class OTLPEmitter:
         if not self.enabled or self._logger is None:
             return
         try:
-            from opentelemetry.sdk._logs import LogRecord
+            _, _, LogRecord = _import_otel_logs()
 
             severity_number, severity_text = _event_severity(event)
             # Provide explicit zero trace/span IDs + trace_flags — without
@@ -472,5 +509,6 @@ __all__ = [
     "_build_attributes",
     "_flatten_attributes",
     "_event_severity",
+    "_import_otel_logs",
     "_parse_event_timestamp",
 ]

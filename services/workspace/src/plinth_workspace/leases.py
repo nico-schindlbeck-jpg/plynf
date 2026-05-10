@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -51,7 +52,7 @@ from .exceptions import (
     WorkspaceNotFound,
 )
 from .models import Lease, Worker
-from .workflows import WorkflowStore
+from .workflows import WorkflowStore, compute_retry_delay
 
 log = structlog.get_logger("plinth_workspace.leases")
 
@@ -565,6 +566,39 @@ class LeaseStore:
                 snapshot_id if snapshot_id is not None else step_row["snapshot_id"]
             )
 
+            # v1.1 — when releasing with status='failed', honour the
+            # step's retry policy. Lifted from the same logic in
+            # `WorkflowStore.update_step` so the two paths stay
+            # consistent.
+            keys = (
+                set(step_row.keys()) if hasattr(step_row, "keys") else set()
+            )
+            attempt = int(step_row["attempt"])
+            max_attempts = int(
+                (step_row["max_attempts"] if "max_attempts" in keys else 1) or 1
+            )
+            policy = (
+                step_row["retry_policy"] if "retry_policy" in keys else "none"
+            ) or "none"
+            initial = float(
+                (step_row["retry_initial_delay_seconds"]
+                 if "retry_initial_delay_seconds" in keys else 1.0) or 0.0
+            )
+            cap = float(
+                (step_row["retry_max_delay_seconds"]
+                 if "retry_max_delay_seconds" in keys else 60.0) or 0.0
+            )
+            jitter_flag = bool(int(
+                (step_row["retry_jitter"]
+                 if "retry_jitter" in keys else 1) or 0
+            ))
+
+            should_retry = (
+                step_status == "failed"
+                and policy != "none"
+                and attempt < max_attempts
+            )
+
             if step_status == "pending":
                 # Re-queue: keep the snapshot/output blanks intact, but
                 # rewind the started_at so we don't double-count time.
@@ -573,11 +607,27 @@ class LeaseStore:
                     "started_at=NULL, error=? WHERE id=?",
                     (error, step_id),
                 )
+            elif should_retry:
+                delay = compute_retry_delay(
+                    attempt=attempt,
+                    policy=policy,
+                    initial=initial,
+                    max_delay=cap,
+                    jitter=jitter_flag,
+                )
+                next_retry = ts + timedelta(seconds=delay)
+                await conn.execute(
+                    "UPDATE workflow_steps SET status='pending', "
+                    "started_at=NULL, finished_at=NULL, error=?, "
+                    "attempt=?, next_retry_at=? WHERE id=?",
+                    (error, attempt + 1, iso(next_retry), step_id),
+                )
             else:
                 await conn.execute(
                     "UPDATE workflow_steps SET status=?, output=?, "
                     "error=?, snapshot_id=?, "
-                    "finished_at=COALESCE(?, finished_at) WHERE id=?",
+                    "finished_at=COALESCE(?, finished_at), "
+                    "next_retry_at=NULL WHERE id=?",
                     (
                         step_status,
                         json.dumps(output) if output is not None else None,
@@ -587,6 +637,19 @@ class LeaseStore:
                         step_id,
                     ),
                 )
+
+                # Terminal failure → DLQ row for the operator.
+                if step_status == "failed":
+                    await WorkflowStore(self.db_path)._copy_step_to_dlq(
+                        conn,
+                        step_id=step_id,
+                        workflow_id=workflow_id,
+                        workspace_id=workspace_id,
+                        step_row=step_row,
+                        attempts=attempt,
+                        last_error=error,
+                        failed_at=ts,
+                    )
 
             # Mark the lease released regardless of step status so the
             # row history accurately reflects "this worker stopped working
@@ -622,14 +685,22 @@ class LeaseStore:
         self,
         workspace_id: str,
         workflow_id: str,
+        *,
+        now: datetime | None = None,
     ) -> list[aiosqlite.Row]:
         """Return all pending step rows for a workflow.
+
+        v1.1: rows whose ``next_retry_at`` is in the future are excluded.
+        This keeps a step that just failed (and is awaiting its
+        exponential-backoff window) from being immediately re-leased.
 
         The store returns ``aiosqlite.Row`` objects rather than
         :class:`WorkflowStep` instances so the API layer can apply the
         same row-to-model translation it uses elsewhere; cleaner than
         importing a step parser here.
         """
+
+        ts = now or now_utc()
 
         async with connect(self.db_path) as conn:
             await WorkflowStore._assert_workspace(conn, workspace_id)
@@ -640,10 +711,15 @@ class LeaseStore:
             if wf_row is None:
                 raise WorkflowNotFound(workflow_id)
 
+            # ``next_retry_at IS NULL`` is the v1.0 baseline (no retry
+            # scheduled). The OR-clause matches retry-scheduled rows
+            # whose timer has elapsed.
             cur = await conn.execute(
                 "SELECT * FROM workflow_steps WHERE workflow_id=? "
-                "AND status='pending' ORDER BY created_at ASC, id ASC",
-                (workflow_id,),
+                "AND status='pending' "
+                "AND (next_retry_at IS NULL OR next_retry_at <= ?) "
+                "ORDER BY created_at ASC, id ASC",
+                (workflow_id, iso(ts)),
             )
             rows = await cur.fetchall()
             await cur.close()
@@ -758,6 +834,38 @@ class LeaseStore:
 # ---------------------------------------------------------------------------
 
 
+def jittered_interval(
+    base: float,
+    *,
+    jitter_fraction: float = 0.25,
+    rng: random.Random | None = None,
+) -> float:
+    """Apply ±``jitter_fraction`` uniform jitter to ``base``.
+
+    For ``base=30`` and the default ±25% range, returns a value in
+    ``[22.5, 37.5]`` seconds. Used by the lease reaper to spread
+    wake-ups across replicas so multiple workspace processes booting
+    in lockstep don't hammer the database at the same wall-clock
+    second.
+
+    The distribution is *uniform* over the multiplier range. ``rng``
+    can be passed by tests to pin the random stream for determinism;
+    production callers omit it and pick up the module-level
+    :func:`random.random`.
+    """
+    if base <= 0:
+        return 0.0
+    if jitter_fraction < 0 or jitter_fraction >= 1:
+        # Out-of-range jitter: behave as no-jitter so the loop still
+        # makes forward progress.
+        return float(base)
+    r = rng.random() if rng is not None else random.random()
+    # Multiplier in ``[1 - jitter_fraction, 1 + jitter_fraction]`` —
+    # uniformly distributed because ``r`` is.
+    multiplier = (1.0 - jitter_fraction) + (2.0 * jitter_fraction) * r
+    return float(base) * multiplier
+
+
 async def lease_reaper_loop(
     store: LeaseStore,
     *,
@@ -765,6 +873,8 @@ async def lease_reaper_loop(
     inactive_timeout_seconds: int,
     stop_event: asyncio.Event,
     resource_locks: "ResourceLockStore | None" = None,
+    jitter_fraction: float = 0.25,
+    rng: random.Random | None = None,
 ) -> None:
     """Run the lease reaper until ``stop_event`` is set.
 
@@ -777,6 +887,11 @@ async def lease_reaper_loop(
     sweeps the ``resource_locks`` table — a single background task
     keeps both the workflow-step lease primitive and the generic
     resource-lock primitive tidy on the same cadence.
+
+    v1.1: each iteration's sleep is jittered by ±``jitter_fraction``
+    (default ±25%) so replicas don't all wake up on the same wall-clock
+    second. ``jitter_fraction=0`` reverts to the v1.0 fixed-cadence
+    behaviour.
     """
 
     while not stop_event.is_set():
@@ -801,8 +916,11 @@ async def lease_reaper_loop(
 
         # ``wait_for`` returns False on timeout — that's our pacing knob;
         # ``True`` means stop_event fired.
+        delay = jittered_interval(
+            interval_seconds, jitter_fraction=jitter_fraction, rng=rng
+        )
         try:
-            await asyncio.wait_for(stop_event.wait(), timeout=interval_seconds)
+            await asyncio.wait_for(stop_event.wait(), timeout=delay)
             return
         except asyncio.TimeoutError:
             continue
@@ -819,5 +937,6 @@ __all__ = [
     "LeaseNotHeld",
     "LeaseStore",
     "WorkerNotFound",
+    "jittered_interval",
     "lease_reaper_loop",
 ]

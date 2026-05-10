@@ -28,24 +28,51 @@ import {
 } from "./errors.js";
 import { encodePath, type HttpClient } from "./http.js";
 import type {
+  DLQEntry,
+  DLQReplayResult,
   JsonValue,
   Lease,
   ResumeInfo,
   Workflow,
+  WorkflowRetryPolicy,
   WorkflowStatus,
   WorkflowStep,
 } from "./types.js";
 
+/**
+ * v1.1 — per-step retry config that can be supplied either at workflow
+ * create time (via {@link WorkflowCreateOptions.steps}) or at step
+ * start time (via {@link StartStepOptions}).
+ *
+ * Defaults preserve v1.0 behaviour: ``maxAttempts: 1`` (no retry).
+ */
+export interface StepRetryConfig {
+  maxAttempts?: number;
+  retryPolicy?: WorkflowRetryPolicy;
+  retryInitialDelaySeconds?: number;
+  retryMaxDelaySeconds?: number;
+  retryJitter?: boolean;
+}
+
+/** A manifest entry: either a bare step name or a name + retry config. */
+export type WorkflowStepSpec = string | ({ name: string } & StepRetryConfig);
+
 /** Options accepted by {@link WorkflowsClient.create} / `getOrCreate`. */
 export interface WorkflowCreateOptions {
-  /** Ordered list of expected step names — the manifest. */
-  steps: string[];
+  /**
+   * Ordered list of step specs — the manifest. Either a list of
+   * strings (v1.0 behaviour) or an array of `{ name, ...retry }`
+   * objects (v1.1) where the retry config is forwarded to each step
+   * automatically when {@link WorkflowHandle.startStep} is called for
+   * that name.
+   */
+  steps: ReadonlyArray<WorkflowStepSpec>;
   /** Optional free-form metadata (topic, parent run ID, etc.). */
   metadata?: Record<string, JsonValue>;
 }
 
 /** Options accepted by {@link WorkflowHandle.startStep}. */
-export interface StartStepOptions {
+export interface StartStepOptions extends StepRetryConfig {
   /** Optional input payload to record on the step. */
   input?: JsonValue;
   /** Optional snapshot taken before the step ran. */
@@ -77,13 +104,24 @@ export interface CompleteStepOptions {
  */
 export class WorkflowHandle {
   private wf: Workflow;
+  /**
+   * v1.1 — per-step retry config supplied at workflow create time.
+   * Looked up by step name in {@link startStep} so callers don't have
+   * to repeat the config on every call. Empty for v1.0-style
+   * `string[]` manifests.
+   */
+  private readonly retryConfig: Map<string, StepRetryConfig> = new Map();
 
   constructor(
     private readonly http: HttpClient,
     private readonly workspaceId: string,
     model: Workflow,
+    retryConfig?: ReadonlyMap<string, StepRetryConfig>,
   ) {
     this.wf = model;
+    if (retryConfig !== undefined) {
+      retryConfig.forEach((cfg, name) => this.retryConfig.set(name, cfg));
+    }
   }
 
   /** Workflow ID (`wf_<ulid>`). */
@@ -139,10 +177,38 @@ export class WorkflowHandle {
       );
     }
 
+    // v1.1 — resolve retry config: explicit opts > workflow-level
+    // cached config > server defaults (omitted from the request body).
+    const cached = this.retryConfig.get(name) ?? {};
+    const maxAttempts = opts.maxAttempts ?? cached.maxAttempts;
+    const retryPolicy = opts.retryPolicy ?? cached.retryPolicy;
+    const retryInitial =
+      opts.retryInitialDelaySeconds ?? cached.retryInitialDelaySeconds;
+    const retryMax =
+      opts.retryMaxDelaySeconds ?? cached.retryMaxDelaySeconds;
+    const retryJitter = opts.retryJitter ?? cached.retryJitter;
+
     const body: Record<string, JsonValue> = { name };
     if (opts.input !== undefined) body.input = opts.input;
     if (opts.snapshotId !== undefined) body.snapshot_id = opts.snapshotId;
     if (opts.initialStatus !== undefined) body.initial_status = opts.initialStatus;
+    // Only forward retry params that diverge from the v1.0 defaults so
+    // the body stays compact for callers that haven't opted in.
+    if (maxAttempts !== undefined && maxAttempts !== 1) {
+      body.max_attempts = maxAttempts;
+    }
+    if (retryPolicy !== undefined && retryPolicy !== "none") {
+      body.retry_policy = retryPolicy;
+    }
+    if (retryInitial !== undefined && retryInitial !== 1.0) {
+      body.retry_initial_delay_seconds = retryInitial;
+    }
+    if (retryMax !== undefined && retryMax !== 60.0) {
+      body.retry_max_delay_seconds = retryMax;
+    }
+    if (retryJitter !== undefined && retryJitter !== true) {
+      body.retry_jitter = retryJitter;
+    }
 
     const step = await this.http.requestJson<WorkflowStep>({
       method: "POST",
@@ -328,6 +394,52 @@ export class WorkflowHandle {
     return lease;
   }
 
+  // -- v1.1: dead-letter queue ----------------------------------------
+
+  /**
+   * List every {@link DLQEntry} recorded for this workflow.
+   *
+   * Entries are returned newest-first by ``failed_at``. An empty array
+   * means no step has yet exhausted its retries.
+   */
+  async dlq(): Promise<DLQEntry[]> {
+    const res = await this.http.requestJson<{ entries: DLQEntry[] }>({
+      method: "GET",
+      path: `${this.workflowPath()}/dlq`,
+    });
+    return res.entries ?? [];
+  }
+
+  /**
+   * Replay ``dlqId`` as a fresh attempt of the same step name.
+   *
+   * The server creates a new step row in ``pending`` status (so a
+   * worker can immediately lease it) and deletes the DLQ entry in the
+   * same transaction. Returns the new {@link WorkflowStep}.
+   */
+  async replayDlq(dlqId: string): Promise<WorkflowStep | null> {
+    const res = await this.http.requestJson<DLQReplayResult>({
+      method: "POST",
+      path: `${this.workflowPath()}/dlq/${encodePath(dlqId)}/replay`,
+    });
+    // Refresh the cached workflow so the new step lands in the
+    // handle's step log.
+    try {
+      await this.refresh();
+    } catch {
+      // Best-effort: a refresh failure shouldn't mask a successful replay.
+    }
+    return res.replayed_step;
+  }
+
+  /** Delete a DLQ entry without replaying it (operator dismissal). */
+  async deleteDlq(dlqId: string): Promise<void> {
+    await this.http.requestVoid({
+      method: "DELETE",
+      path: `${this.workflowPath()}/dlq/${encodePath(dlqId)}`,
+    });
+  }
+
   // -- internal --------------------------------------------------------
 
   private async patchStep(
@@ -376,11 +488,41 @@ export class WorkflowsClient {
     private readonly workspaceId: string,
   ) {}
 
-  /** Create a new workflow with the given step manifest. */
+  /**
+   * Create a new workflow with the given step manifest.
+   *
+   * v1.1: ``opts.steps`` may be a list of dicts carrying per-step retry
+   * configuration. The server still receives a list of step names; the
+   * retry config is cached on the returned handle so subsequent
+   * {@link WorkflowHandle.startStep} calls forward it automatically.
+   */
   async create(name: string, opts: WorkflowCreateOptions): Promise<WorkflowHandle> {
+    // Normalise ``string | { name, ...retry }`` into a server-friendly
+    // ``string[]`` plus a name → retry-config map for the handle.
+    const stepNames: string[] = [];
+    const retryConfig = new Map<string, StepRetryConfig>();
+    for (const entry of opts.steps) {
+      if (typeof entry === "string") {
+        stepNames.push(entry);
+        continue;
+      }
+      stepNames.push(entry.name);
+      const cfg: StepRetryConfig = {};
+      if (entry.maxAttempts !== undefined) cfg.maxAttempts = entry.maxAttempts;
+      if (entry.retryPolicy !== undefined) cfg.retryPolicy = entry.retryPolicy;
+      if (entry.retryInitialDelaySeconds !== undefined) {
+        cfg.retryInitialDelaySeconds = entry.retryInitialDelaySeconds;
+      }
+      if (entry.retryMaxDelaySeconds !== undefined) {
+        cfg.retryMaxDelaySeconds = entry.retryMaxDelaySeconds;
+      }
+      if (entry.retryJitter !== undefined) cfg.retryJitter = entry.retryJitter;
+      if (Object.keys(cfg).length > 0) retryConfig.set(entry.name, cfg);
+    }
+
     const body: Record<string, JsonValue> = {
       name,
-      steps: [...opts.steps],
+      steps: stepNames,
     };
     if (opts.metadata !== undefined) body.metadata = opts.metadata;
 
@@ -389,7 +531,7 @@ export class WorkflowsClient {
       path: this.basePath(),
       json: body,
     });
-    return new WorkflowHandle(this.http, this.workspaceId, wf);
+    return new WorkflowHandle(this.http, this.workspaceId, wf, retryConfig);
   }
 
   /**

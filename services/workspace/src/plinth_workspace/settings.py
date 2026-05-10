@@ -158,6 +158,14 @@ class Settings(BaseSettings):
     quotas_cache_ttl_seconds: int = Field(default=60, ge=0)
     quotas_fetch_timeout_seconds: float = Field(default=2.0, ge=0.1)
 
+    # v1.1 — pluggable coordination backend (see ``coordination.py``).
+    # ``memory`` (default) keeps v1.0 single-process behaviour. Switch to
+    # ``redis`` for cluster-shared lease coordination + a shared
+    # revocation cache across workspace replicas.
+    coordination_backend: Literal["memory", "redis"] = Field(default="memory")
+    coordination_redis_url: str = Field(default="redis://localhost:6379/0")
+    coordination_key_prefix: str = Field(default="plinth")
+
     @field_validator("region_peers", mode="before")
     @classmethod
     def _coerce_region_peers(cls, value: object) -> object:

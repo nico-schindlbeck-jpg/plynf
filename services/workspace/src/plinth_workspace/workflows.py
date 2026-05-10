@@ -22,6 +22,8 @@ should I restore from?"
 from __future__ import annotations
 
 import json
+import random
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -32,13 +34,93 @@ from .db import connect, iso, now_utc, parse_ts
 from .exceptions import (
     InvalidArguments,
     InvalidWorkflowStep,
+    PlinthError,
     WorkflowNotFound,
     WorkflowStepNotFound,
     WorkspaceNotFound,
 )
-from .models import ResumeInfo, Workflow, WorkflowStep
+from .models import DLQEntry, ResumeInfo, Workflow, WorkflowStep
 
 TERMINAL_STEP_STATUSES = {"completed", "failed", "cancelled"}
+
+
+# ---------------------------------------------------------------------------
+# Errors
+# ---------------------------------------------------------------------------
+
+
+class DLQEntryNotFound(PlinthError):
+    """Raised when a DLQ entry id does not match any row."""
+
+    code = "DLQ_ENTRY_NOT_FOUND"
+    status_code = 404
+    message = "DLQ entry not found"
+
+    def __init__(self, dlq_id: str) -> None:
+        super().__init__(
+            f"DLQ entry {dlq_id} not found",
+            details={"dlq_id": dlq_id},
+        )
+
+
+# ---------------------------------------------------------------------------
+# Retry helpers
+# ---------------------------------------------------------------------------
+
+
+def _new_dlq_id() -> str:
+    return f"dlqstep_{ULID()}"
+
+
+def compute_retry_delay(
+    *,
+    attempt: int,
+    policy: str,
+    initial: float,
+    max_delay: float,
+    jitter: bool,
+    rng: random.Random | None = None,
+) -> float:
+    """Compute the delay before the *next* retry of a failing step.
+
+    ``attempt`` is the just-finished attempt number (1-indexed). The
+    returned value is the seconds to wait before the next attempt may
+    run.
+
+    * ``policy="none"`` → returns 0 (caller should not be retrying).
+    * ``policy="fixed"`` → ``initial`` (capped at ``max_delay``).
+    * ``policy="exponential"`` → ``initial * 2^(attempt-1)`` capped at
+      ``max_delay``.
+
+    Jitter (when enabled) multiplies the result by a uniform random
+    factor in ``[0.75, 1.25]``. The ``rng`` parameter exists so tests
+    can pin the random stream for determinism; production callers omit
+    it and pick up the module-level :func:`random.random`.
+    """
+
+    if policy == "none":
+        return 0.0
+    if attempt < 1:
+        attempt = 1
+    if policy == "fixed":
+        base = initial
+    elif policy == "exponential":
+        # 2^(attempt-1). Cap the exponent so we don't overflow on
+        # absurd attempt counts; max_delay is the real ceiling.
+        exp = max(0, attempt - 1)
+        # ``min`` after the multiplication so a small initial doesn't
+        # mask the cap.
+        base = initial * (2 ** min(exp, 30))
+    else:
+        # Unknown policy → behave like fixed initial.
+        base = initial
+
+    capped = min(base, max_delay)
+    if jitter and capped > 0:
+        r = rng.random() if rng is not None else random.random()
+        # Uniform multiplier in [0.75, 1.25].
+        capped = capped * (0.75 + 0.5 * r)
+    return float(capped)
 
 
 def _new_workflow_id() -> str:
@@ -50,6 +132,18 @@ def _new_step_id() -> str:
 
 
 def _row_to_step(row: aiosqlite.Row) -> WorkflowStep:
+    # v1.1 retry columns are read defensively so older test fixtures that
+    # build rows without the new columns still work — `aiosqlite.Row`
+    # supports `__contains__` on the underlying description, but legacy
+    # tests using sqlite3.Row may not. Using a try/except around column
+    # access keeps the helper resilient.
+    keys = set(row.keys()) if hasattr(row, "keys") else set()
+
+    def _opt(col: str, default: Any = None) -> Any:
+        if col in keys:
+            return row[col]
+        return default
+
     return WorkflowStep(
         id=row["id"],
         workflow_id=row["workflow_id"],
@@ -63,6 +157,32 @@ def _row_to_step(row: aiosqlite.Row) -> WorkflowStep:
         error=row["error"],
         snapshot_id=row["snapshot_id"],
         created_at=parse_ts(row["created_at"]),  # type: ignore[arg-type]
+        max_attempts=int(_opt("max_attempts", 1) or 1),
+        retry_policy=_opt("retry_policy", "none") or "none",
+        retry_initial_delay_seconds=float(
+            _opt("retry_initial_delay_seconds", 1.0) or 1.0
+        ),
+        retry_max_delay_seconds=float(
+            _opt("retry_max_delay_seconds", 60.0) or 60.0
+        ),
+        retry_jitter=bool(int(_opt("retry_jitter", 1) or 0)),
+        next_retry_at=parse_ts(_opt("next_retry_at")),
+    )
+
+
+def _row_to_dlq_entry(row: aiosqlite.Row) -> DLQEntry:
+    snapshot_str = row["step_snapshot"]
+    snapshot = json.loads(snapshot_str) if snapshot_str else {}
+    return DLQEntry(
+        id=row["id"],
+        step_id=row["step_id"],
+        workflow_id=row["workflow_id"],
+        workspace_id=row["workspace_id"],
+        step_name=row["step_name"],
+        attempts=int(row["attempts"]),
+        last_error=row["last_error"],
+        failed_at=parse_ts(row["failed_at"]),  # type: ignore[arg-type]
+        step_snapshot=snapshot,
     )
 
 
@@ -233,6 +353,11 @@ class WorkflowStore:
         snapshot_id: str | None = None,
         input_: Any | None = None,
         initial_status: str = "running",
+        max_attempts: int = 1,
+        retry_policy: str = "none",
+        retry_initial_delay_seconds: float = 1.0,
+        retry_max_delay_seconds: float = 60.0,
+        retry_jitter: bool = True,
     ) -> WorkflowStep:
         """Create a new step row.
 
@@ -240,6 +365,11 @@ class WorkflowStore:
         flow where the agent starts work immediately). Pass ``pending``
         to create a step in the durable-executor pool that workers will
         pick up via :py:meth:`LeaseStore.acquire_lease`.
+
+        v1.1: ``max_attempts`` / ``retry_policy`` / ``retry_initial_delay_seconds``
+        / ``retry_max_delay_seconds`` / ``retry_jitter`` configure the
+        per-step retry policy. Defaults preserve v1.0 behaviour
+        (``max_attempts=1``).
         """
 
         if initial_status not in {"running", "pending"}:
@@ -247,6 +377,17 @@ class WorkflowStore:
                 f"initial_status must be 'running' or 'pending', "
                 f"got {initial_status!r}"
             )
+        if max_attempts < 1:
+            raise InvalidArguments("max_attempts must be >= 1")
+        if retry_policy not in {"none", "exponential", "fixed"}:
+            raise InvalidArguments(
+                f"retry_policy must be 'none', 'exponential', or 'fixed', "
+                f"got {retry_policy!r}"
+            )
+        if retry_initial_delay_seconds < 0:
+            raise InvalidArguments("retry_initial_delay_seconds must be >= 0")
+        if retry_max_delay_seconds < 0:
+            raise InvalidArguments("retry_max_delay_seconds must be >= 0")
 
         async with connect(self.db_path) as conn:
             await self._assert_workspace(conn, workspace_id)
@@ -273,8 +414,11 @@ class WorkflowStore:
             await conn.execute(
                 "INSERT INTO workflow_steps "
                 "(id, workflow_id, name, status, attempt, started_at, "
-                " finished_at, input, output, error, snapshot_id, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, NULL, ?, NULL, NULL, ?, ?)",
+                " finished_at, input, output, error, snapshot_id, created_at, "
+                " max_attempts, retry_policy, retry_initial_delay_seconds, "
+                " retry_max_delay_seconds, retry_jitter, next_retry_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, NULL, ?, NULL, NULL, ?, ?, "
+                " ?, ?, ?, ?, ?, NULL)",
                 (
                     step_id,
                     workflow_id,
@@ -285,6 +429,11 @@ class WorkflowStore:
                     json.dumps(input_) if input_ is not None else None,
                     snapshot_id,
                     iso(ts),
+                    int(max_attempts),
+                    retry_policy,
+                    float(retry_initial_delay_seconds),
+                    float(retry_max_delay_seconds),
+                    1 if retry_jitter else 0,
                 ),
             )
 
@@ -312,6 +461,12 @@ class WorkflowStore:
                 error=None,
                 snapshot_id=snapshot_id,
                 created_at=ts,
+                max_attempts=int(max_attempts),
+                retry_policy=retry_policy,  # type: ignore[arg-type]
+                retry_initial_delay_seconds=float(retry_initial_delay_seconds),
+                retry_max_delay_seconds=float(retry_max_delay_seconds),
+                retry_jitter=bool(retry_jitter),
+                next_retry_at=None,
             )
 
     # ------------------------------------------------------------------ update step
@@ -326,7 +481,18 @@ class WorkflowStore:
         output: Any | None = None,
         error: str | None = None,
         snapshot_id: str | None = None,
+        rng: random.Random | None = None,
     ) -> WorkflowStep:
+        """Patch a step row to a new ``status`` (and optional output/error).
+
+        v1.1: when ``status='failed'`` and the step has more attempts
+        remaining (``attempt < max_attempts`` AND policy != 'none'), the
+        step row is reverted to ``pending`` with ``next_retry_at`` set
+        ``now + delay``. The ``pending_steps`` query honours
+        ``next_retry_at`` so workers won't pick up a retry-pending row
+        until the timer has elapsed. When the final attempt fails, the
+        step is copied to ``workflow_dlq`` in the same transaction.
+        """
         if status not in {"running", "completed", "failed", "cancelled"}:
             raise InvalidArguments(f"invalid status {status!r}")
 
@@ -347,27 +513,94 @@ class WorkflowStore:
                 raise WorkflowStepNotFound(workflow_id, step_id)
 
             ts = now_utc()
-            terminal = status in TERMINAL_STEP_STATUSES
-            new_finished = iso(ts) if terminal else None
 
             # Preserve existing snapshot_id if caller didn't pass one.
             new_snapshot = (
                 snapshot_id if snapshot_id is not None else step_row["snapshot_id"]
             )
 
-            await conn.execute(
-                "UPDATE workflow_steps SET status=?, output=?, error=?, "
-                " snapshot_id=?, finished_at=COALESCE(?, finished_at) "
-                "WHERE id=?",
-                (
-                    status,
-                    json.dumps(output) if output is not None else None,
-                    error,
-                    new_snapshot,
-                    new_finished,
-                    step_id,
-                ),
+            # v1.1 — retry routing for `failed`.
+            keys = set(step_row.keys()) if hasattr(step_row, "keys") else set()
+            attempt = int(step_row["attempt"])
+            max_attempts = int(
+                (step_row["max_attempts"] if "max_attempts" in keys else 1) or 1
             )
+            policy = (
+                step_row["retry_policy"] if "retry_policy" in keys else "none"
+            ) or "none"
+            initial = float(
+                (step_row["retry_initial_delay_seconds"]
+                 if "retry_initial_delay_seconds" in keys else 1.0)
+                or 0.0
+            )
+            cap = float(
+                (step_row["retry_max_delay_seconds"]
+                 if "retry_max_delay_seconds" in keys else 60.0)
+                or 0.0
+            )
+            jitter = bool(int(
+                (step_row["retry_jitter"]
+                 if "retry_jitter" in keys else 1) or 0
+            ))
+
+            should_retry = (
+                status == "failed"
+                and policy != "none"
+                and attempt < max_attempts
+            )
+
+            if should_retry:
+                delay = compute_retry_delay(
+                    attempt=attempt,
+                    policy=policy,
+                    initial=initial,
+                    max_delay=cap,
+                    jitter=jitter,
+                    rng=rng,
+                )
+                next_retry = ts + timedelta(seconds=delay)
+                # Revert to pending. The next pending_steps poll will
+                # exclude this row until next_retry_at <= now. We bump
+                # the attempt counter so the next failure correctly
+                # tracks position toward max_attempts.
+                await conn.execute(
+                    "UPDATE workflow_steps SET status='pending', "
+                    "started_at=NULL, finished_at=NULL, error=?, "
+                    "attempt=?, next_retry_at=? WHERE id=?",
+                    (error, attempt + 1, iso(next_retry), step_id),
+                )
+            else:
+                terminal = status in TERMINAL_STEP_STATUSES
+                new_finished = iso(ts) if terminal else None
+
+                await conn.execute(
+                    "UPDATE workflow_steps SET status=?, output=?, error=?, "
+                    " snapshot_id=?, finished_at=COALESCE(?, finished_at), "
+                    " next_retry_at=NULL "
+                    "WHERE id=?",
+                    (
+                        status,
+                        json.dumps(output) if output is not None else None,
+                        error,
+                        new_snapshot,
+                        new_finished,
+                        step_id,
+                    ),
+                )
+
+                # On the *terminal* failure (attempts exhausted, or no
+                # retry policy), copy the step row into the DLQ.
+                if status == "failed":
+                    await self._copy_step_to_dlq(
+                        conn,
+                        step_id=step_id,
+                        workflow_id=workflow_id,
+                        workspace_id=workspace_id,
+                        step_row=step_row,
+                        attempts=attempt,
+                        last_error=error,
+                        failed_at=ts,
+                    )
 
             # Now derive workflow status from the updated step set.
             await self._maybe_update_workflow_status(
@@ -387,6 +620,182 @@ class WorkflowStore:
             await cur.close()
             assert updated is not None  # we just updated it
             return _row_to_step(updated)
+
+    # ------------------------------------------------------------------ DLQ
+
+    async def _copy_step_to_dlq(
+        self,
+        conn: aiosqlite.Connection,
+        *,
+        step_id: str,
+        workflow_id: str,
+        workspace_id: str,
+        step_row: aiosqlite.Row,
+        attempts: int,
+        last_error: str | None,
+        failed_at,
+    ) -> str:
+        """Insert a workflow_dlq row for the failing step.
+
+        Builds a JSON snapshot from the step row's columns so the DLQ
+        entry survives subsequent mutations to the step table. Caller
+        owns the transaction.
+        """
+        snapshot = {
+            "id": step_row["id"],
+            "workflow_id": step_row["workflow_id"],
+            "name": step_row["name"],
+            "status": "failed",
+            "attempt": attempts,
+            "input": json.loads(step_row["input"]) if step_row["input"] else None,
+            "output": json.loads(step_row["output"]) if step_row["output"] else None,
+            "error": last_error,
+            "snapshot_id": step_row["snapshot_id"],
+            "started_at": step_row["started_at"],
+            "finished_at": iso(failed_at),
+            "created_at": step_row["created_at"],
+        }
+        dlq_id = _new_dlq_id()
+        await conn.execute(
+            "INSERT INTO workflow_dlq "
+            "(id, step_id, workflow_id, workspace_id, step_name, attempts, "
+            " last_error, failed_at, step_snapshot) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                dlq_id,
+                step_id,
+                workflow_id,
+                workspace_id,
+                step_row["name"],
+                int(attempts),
+                last_error,
+                iso(failed_at),
+                json.dumps(snapshot, sort_keys=True),
+            ),
+        )
+        return dlq_id
+
+    async def list_dlq(
+        self,
+        workspace_id: str,
+        workflow_id: str,
+    ) -> list[DLQEntry]:
+        """List all DLQ entries for a workflow (failed_at desc)."""
+
+        async with connect(self.db_path) as conn:
+            await self._assert_workspace(conn, workspace_id)
+            wf_row = await self._workflow_row(conn, workspace_id, workflow_id)
+            if wf_row is None:
+                raise WorkflowNotFound(workflow_id)
+            cur = await conn.execute(
+                "SELECT * FROM workflow_dlq WHERE workflow_id=? "
+                "ORDER BY failed_at DESC, id DESC",
+                (workflow_id,),
+            )
+            rows = await cur.fetchall()
+            await cur.close()
+            return [_row_to_dlq_entry(r) for r in rows]
+
+    async def replay_dlq(
+        self,
+        workspace_id: str,
+        workflow_id: str,
+        dlq_id: str,
+    ) -> WorkflowStep:
+        """Re-queue a DLQ entry as a fresh attempt of the same step name.
+
+        Reads the DLQ row's ``step_snapshot``, creates a new step in the
+        workflow with ``attempts=0`` (the existing attempt counter logic
+        derives ``attempt`` from the running max), then deletes the DLQ
+        row. The new step inherits the original step's ``input`` and
+        ``snapshot_id`` so the worker that picks it up can resume from
+        the same checkpoint.
+
+        The new step starts with ``status='pending'`` so a worker can
+        immediately lease it.
+        """
+
+        async with connect(self.db_path) as conn:
+            await self._assert_workspace(conn, workspace_id)
+            wf_row = await self._workflow_row(conn, workspace_id, workflow_id)
+            if wf_row is None:
+                raise WorkflowNotFound(workflow_id)
+
+            cur = await conn.execute(
+                "SELECT * FROM workflow_dlq WHERE id=? AND workflow_id=?",
+                (dlq_id, workflow_id),
+            )
+            dlq_row = await cur.fetchone()
+            await cur.close()
+            if dlq_row is None:
+                raise DLQEntryNotFound(dlq_id)
+
+        snapshot = json.loads(dlq_row["step_snapshot"])
+        # Recreate the step using the standard create_step path so the
+        # attempt counter and workflow-status logic stay in sync. We
+        # request ``initial_status='pending'`` because a replay is
+        # explicitly handing the step back to a worker.
+        return await self.create_step(
+            workspace_id,
+            workflow_id,
+            dlq_row["step_name"],
+            snapshot_id=snapshot.get("snapshot_id"),
+            input_=snapshot.get("input"),
+            initial_status="pending",
+            # Replays default to no retry — the operator is in the loop.
+            # If they want retries on the replay, they can re-send via
+            # the SDK's `replay_dlq(...)` with retry params (future).
+            max_attempts=1,
+            retry_policy="none",
+        )
+
+    async def delete_dlq(
+        self,
+        workspace_id: str,
+        workflow_id: str,
+        dlq_id: str,
+    ) -> None:
+        """Delete a DLQ row (no replay). Idempotent: re-call → 404."""
+
+        async with connect(self.db_path) as conn:
+            await self._assert_workspace(conn, workspace_id)
+            wf_row = await self._workflow_row(conn, workspace_id, workflow_id)
+            if wf_row is None:
+                raise WorkflowNotFound(workflow_id)
+
+            cur = await conn.execute(
+                "SELECT id FROM workflow_dlq WHERE id=? AND workflow_id=?",
+                (dlq_id, workflow_id),
+            )
+            row = await cur.fetchone()
+            await cur.close()
+            if row is None:
+                raise DLQEntryNotFound(dlq_id)
+
+            await conn.execute(
+                "DELETE FROM workflow_dlq WHERE id=?",
+                (dlq_id,),
+            )
+            await conn.commit()
+
+    async def delete_replayed_dlq(
+        self,
+        workflow_id: str,
+        dlq_id: str,
+    ) -> None:
+        """Internal: delete a DLQ row after a successful replay.
+
+        Distinct from :meth:`delete_dlq` so the public API can
+        differentiate "operator dismissed" from "replayed". The two are
+        identical at the SQL level today, but keeping the seam open
+        leaves room for an audit trail later.
+        """
+        async with connect(self.db_path) as conn:
+            await conn.execute(
+                "DELETE FROM workflow_dlq WHERE id=? AND workflow_id=?",
+                (dlq_id, workflow_id),
+            )
+            await conn.commit()
 
     async def _maybe_update_workflow_status(
         self,

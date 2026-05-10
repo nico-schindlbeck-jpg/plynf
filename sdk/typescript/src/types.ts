@@ -306,6 +306,9 @@ export type WorkflowStatus =
   | "failed"
   | "cancelled";
 
+/** v1.1 retry policy applied to a workflow step on failure. */
+export type WorkflowRetryPolicy = "none" | "exponential" | "fixed";
+
 /** A single step in a workflow's log. */
 export interface WorkflowStep {
   id: string;
@@ -320,6 +323,40 @@ export interface WorkflowStep {
   error: string | null;
   snapshot_id: string | null;
   created_at: ISODateTime | null;
+  // v1.1 — retries
+  max_attempts?: number;
+  retry_policy?: WorkflowRetryPolicy;
+  retry_initial_delay_seconds?: number;
+  retry_max_delay_seconds?: number;
+  retry_jitter?: boolean;
+  next_retry_at?: ISODateTime | null;
+}
+
+/**
+ * v1.1 — a workflow step that exhausted its retries and landed in the DLQ.
+ *
+ * Mirrors `plinth_workspace.models.DLQEntry`. ``step_snapshot`` is the
+ * frozen JSON view of the step row at failure time so the operator can
+ * inspect the exact attempt that failed terminally — useful for both
+ * debugging and replay (where the snapshot drives the new step's
+ * input / snapshot_id).
+ */
+export interface DLQEntry {
+  id: string;
+  step_id: string;
+  workflow_id: string;
+  workspace_id: string;
+  step_name: string;
+  attempts: number;
+  last_error: string | null;
+  failed_at: ISODateTime;
+  step_snapshot: Record<string, JsonValue>;
+}
+
+/** Result of `WorkflowHandle.replayDlq`. */
+export interface DLQReplayResult {
+  dlq_id: string;
+  replayed_step: WorkflowStep | null;
 }
 
 /** A workflow: a manifest of expected steps + a log of completed ones. */

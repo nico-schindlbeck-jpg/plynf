@@ -17,6 +17,7 @@ from . import __version__
 from .audit import AuditLog, AuditRecord
 from .auth import check_inbound_auth
 from .cache import Cache, hash_args, hash_result
+from .coordination import CoordinationBackend, make_coordination_backend
 from .db import Database
 from .encryption import load_or_generate_key
 from .exceptions import (
@@ -214,7 +215,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.otlp = otlp
         app.state.audit = AuditLog(db, otlp=otlp)
         app.state.proxy = proxy
-        app.state.limits = LimitsRegistry(db, settings)
+        # v1.1 — pluggable coordination backend. Default ``MemoryBackend``
+        # keeps single-replica behaviour identical to v1.0; flip to
+        # ``redis`` via ``PLINTH_COORDINATION_BACKEND=redis`` for shared
+        # rate-limit/cost-cap state across replicas.
+        coordination: CoordinationBackend = make_coordination_backend(settings)
+        app.state.coordination = coordination
+        app.state.limits = LimitsRegistry(db, settings, coordination=coordination)
         # v1.0 — tenant-level quotas. Always constructed so the admin
         # endpoints + ``check_invoke`` calls can rely on its presence;
         # ``enabled`` comes from ``settings.quotas_enabled`` (default
@@ -227,6 +234,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ),
             db=db,
             enabled=settings.quotas_enabled,
+            coordination=coordination,
+            coordination_prefix=settings.coordination_key_prefix,
         )
         app.state.oauth_encryption_key = encryption_key
         app.state.oauth_connections = OAuthConnectionStore(
@@ -289,6 +298,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             except Exception as exc:  # noqa: BLE001 - never break shutdown
                 log.warning(
                     "gateway.revocation_cache.stop_failed",
+                    error=str(exc),
+                )
+            try:
+                await coordination.aclose()
+            except Exception as exc:  # noqa: BLE001 - never break shutdown
+                log.warning(
+                    "gateway.coordination.close_failed",
                     error=str(exc),
                 )
             await db.close()

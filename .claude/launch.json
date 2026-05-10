@@ -48,6 +48,18 @@
       "runtimeExecutable": "bash",
       "runtimeArgs": ["-c", "cd /tmp && exec /Users/nico/Code/plinth/.venv/bin/python -m linear_mcp"],
       "port": 7428
+    },
+    {
+      "name": "notion-mcp",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /tmp && exec /Users/nico/Code/plinth/.venv/bin/python -m notion_mcp"],
+      "port": 7429
+    },
+    {
+      "name": "google-workspace-mcp",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /tmp && exec /Users/nico/Code/plinth/.venv/bin/python -m google_workspace_mcp"],
+      "port": 7430
     }
   ]
 }

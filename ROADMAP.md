@@ -107,7 +107,22 @@ A living document. Reorder by community pull and demo data.
 - [x] **Formal SLOs** — 26 SLOs across services, burn-rate alerts, page-vs-ticket policy
 - [x] All test suites green: **1901 Python + 136 TS-SDK + 29 TS-Worker = 2066 tests**
 
-## post-1.0 — Continuous improvement
+## v1.1 — Engineering-Debt Sweep + Strategic Adds ✅ (released 2026-05-10)
+
+**Goal**: pay down engineering debt accumulated through GA + ship two strategic OAuth providers.
+
+- [x] **OTel public-logs migration** — try-import wrapper + `<1.30` pin lifted
+- [x] **Pluggable CoordinationBackend** (memory + Redis) — cluster-shared rate-limits + cost-caps + revocation
+- [x] **Workflow retries with exponential backoff + jitter + DLQ** — `max_attempts`, `next_retry_at`, dead-letter queue endpoints
+- [x] **Migration rollback files** for every existing migration — workspace + gateway + identity
+- [x] **Lease-reaper jitter** — ±25% to prevent thundering herd
+- [x] **Notion MCP server** (port 7429, 7 tools)
+- [x] **Google Workspace MCP server** (port 7430, 8 tools — Drive, Docs, Sheets, Calendar, Gmail)
+- [x] **CI hardening**: 12-suite Python matrix × 2 versions, Postgres service container, CodeQL, Dependabot, issue/PR templates, CODEOWNERS
+- [x] **Real benchmark numbers** populated in README from `baseline-v1.1.json`
+- [x] **2312 tests passing** (2139 Python + 144 TS-SDK + 29 TS-Worker)
+
+## post-1.1 — Continuous improvement
 
 **Goal**: harden, optimize, expand. v1.0 is stable; we iterate without breaking the API contract.
 

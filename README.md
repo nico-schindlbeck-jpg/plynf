@@ -8,9 +8,10 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Status](https://img.shields.io/badge/status-v1.0%20GA-brightgreen.svg)](#status)
-[![Tests](https://img.shields.io/badge/tests-2066%20passing-brightgreen.svg)](#status)
+[![Status](https://img.shields.io/badge/status-v1.1%20stable-brightgreen.svg)](#status)
+[![Tests](https://img.shields.io/badge/tests-2312%20passing-brightgreen.svg)](#status)
 [![API](https://img.shields.io/badge/API-v1%20stable-blue.svg)](docs/API_STABILITY.md)
+[![Coordination](https://img.shields.io/badge/coordination-Redis%20opt--in-orange.svg)](#status)
 
 </div>
 
@@ -133,20 +134,22 @@ Measured across all three bundled topics:
 
 Token counts are exact (cl100k_base via tiktoken). Cost estimates use Anthropic Sonnet pricing ($3/M input, $15/M output).
 
-## Performance (v0.5)
+## Performance (v1.1)
 
-Measured on a single MacBook M2 (10-core), `make serve` running all services on localhost. Numbers below are placeholders until the first real run; commit fresh JSON to `benchmarks/results/baseline.json` and update this table accordingly.
+Measured on a single MacBook (Apple M4, 10-core, 16 GB RAM, macOS 25.0.0, Python 3.9.6) with `make serve` running all services on localhost. Each workload ramps from 10 → 500 RPS over 10 s, holds at 500 RPS for 20 s, then cools down for 5 s (35 s total per workload). Cold start: data dir wiped before the run. Gateway rate limiting disabled (`PLINTH_RATE_LIMITS_ENABLED=false`) for stable saturation. The full machine-readable run lives in `benchmarks/results/baseline-v1.1.json`.
 
-| Workload              | RPS  | p50      | p95      | p99      | error_rate |
-|-----------------------|-----:|---------:|---------:|---------:|-----------:|
-| workspace_kv          |  500 | 4.2 ms   | 18.7 ms  | 42.1 ms  | 0.5%       |
-| workspace_files       |  200 | 8.5 ms   | 28.1 ms  | 65.4 ms  | 0.0%       |
-| workspace_snapshot    |  100 | 12.4 ms  | 41.0 ms  | 89.7 ms  | 0.1%       |
-| gateway_invoke_cached | 1000 | 2.1 ms   | 9.4 ms   | 22.0 ms  | 0.0%       |
-| gateway_invoke_cold   |  300 | 14.8 ms  | 52.6 ms  | 110.3 ms | 0.2%       |
-| identity_token_issue  |  500 | 3.5 ms   | 12.1 ms  | 28.0 ms  | 0.0%       |
+| Workload              | RPS  | p50       | p95        | p99        | error_rate |
+|-----------------------|-----:|----------:|-----------:|-----------:|-----------:|
+| workspace_kv          |  500 |   8.34 ms |   39.41 ms |  113.36 ms |       0.00 % |
+| workspace_files       |  500 |   8.09 ms |   38.60 ms |  181.48 ms |       0.00 % |
+| workspace_snapshot    |  500 | 998.41 ms | 1347.30 ms | 1677.29 ms |       0.01 % |
+| gateway_invoke_cached |  500 | 203.10 ms |  294.54 ms |  320.88 ms |       0.00 % |
+| gateway_invoke_cold   |  500 | 491.42 ms |  766.80 ms |  945.62 ms |       0.00 % |
+| identity_token_issue  |  500 |   8.73 ms |   12.91 ms |   31.48 ms |       0.00 % |
 
-Reproduce: `make bench`, or `make bench-quick` for a 100-RPS / 10-second sanity sweep. The harness lives in `benchmarks/` and is built on `httpx[http2]` + `asyncio` (no locust/k6 dependency). It also pairs with the new **load-shedding middleware** (workspace + gateway) so a service over its `PLINTH_LOAD_SHED_MAX_INFLIGHT` cap returns `503 Retry-After` instead of grinding to a halt.
+> Run captured at `2026-05-10T11:44:39Z` from git `912bfa5` (services v1.1.0). Single-uvicorn-worker localhost saturation — comparative trends across versions on the same hardware, **not** absolute production-grade numbers. For production targets see [`docs/slos.md`](docs/slos.md). Workspace KV/files and identity hot paths comfortably handle 500 RPS in single-digit ms; `workspace_snapshot` (PUT + create-snapshot per request) and `gateway_invoke_*` (full proxy → mock-mcp roundtrip) saturate well below 500 RPS at this concurrency, which is why their tail latencies dominate the table.
+
+Reproduce: `make bench`, or `make bench-quick` for a 100-RPS / 10-second sanity sweep. The harness lives in `benchmarks/` and is built on `httpx[http2]` + `asyncio` (no locust/k6 dependency). It also pairs with the **load-shedding middleware** (workspace + gateway) so a service over its `PLINTH_LOAD_SHED_MAX_INFLIGHT` cap returns `503 Retry-After` instead of grinding to a halt.
 
 ## Architecture
 

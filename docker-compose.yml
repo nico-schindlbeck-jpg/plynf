@@ -190,6 +190,44 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  notion-mcp:
+    build:
+      context: ./mcp-servers/notion
+      dockerfile: Dockerfile
+    image: plinth/notion-mcp:1.1.0
+    container_name: plinth-notion-mcp
+    ports:
+      - "${PLINTH_NOTION_MCP_PORT:-7429}:7429"
+    environment:
+      PLINTH_NOTION_MCP_PORT: "7429"
+      PLINTH_NOTION_MCP_LOG_LEVEL: "${PLINTH_LOG_LEVEL:-INFO}"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7429/healthz\").read()'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  google-workspace-mcp:
+    build:
+      context: ./mcp-servers/google-workspace
+      dockerfile: Dockerfile
+    image: plinth/google-workspace-mcp:1.1.0
+    container_name: plinth-google-workspace-mcp
+    ports:
+      - "${PLINTH_GOOGLE_MCP_PORT:-7430}:7430"
+    environment:
+      PLINTH_GOOGLE_MCP_PORT: "7430"
+      PLINTH_GOOGLE_MCP_LOG_LEVEL: "${PLINTH_LOG_LEVEL:-INFO}"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7430/healthz\").read()'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
 volumes:
   plinth_data:
     name: plinth_data

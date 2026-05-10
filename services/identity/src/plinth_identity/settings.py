@@ -114,6 +114,16 @@ class Settings(BaseSettings):
     workspace_url: str = Field(default="")
     gateway_url: str = Field(default="")
 
+    # v1.1 — pluggable coordination backend (see ``coordination.py``).
+    # ``memory`` (default) keeps v1.0 behaviour exactly: the revocation
+    # cache is per-process. Flip to ``redis`` to share revoked-JTI state
+    # across identity replicas; gateway + workspace pick up the same
+    # cluster-shared set via Redis or via the existing
+    # ``GET /v1/revocations`` polling endpoint.
+    coordination_backend: Literal["memory", "redis"] = Field(default="memory")
+    coordination_redis_url: str = Field(default="redis://localhost:6379/0")
+    coordination_key_prefix: str = Field(default="plinth")
+
     # v1.0 — multi-region scaffolding (see ``docs/multi-region.md``).
     # Identity's cross-region propagation lever — token revocation polling
     # — is already in v0.6. Region settings here are mostly for the

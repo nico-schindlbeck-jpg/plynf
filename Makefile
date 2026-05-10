@@ -20,13 +20,15 @@ PLINTH_IDENTITY_PORT ?= 7425
 PLINTH_GITHUB_MCP_PORT ?= 7426
 PLINTH_SLACK_MCP_PORT ?= 7427
 PLINTH_LINEAR_MCP_PORT ?= 7428
+PLINTH_NOTION_MCP_PORT ?= 7429
+PLINTH_GOOGLE_MCP_PORT ?= 7430
 
 LOG_DIR := /tmp/plinth-logs
 PID_DIR := /tmp/plinth-pids
 
-.PHONY: help install install-services install-sdk install-examples install-mock install-dashboard install-identity install-github-mcp install-slack-mcp install-linear-mcp install-bench \
-        test test-workspace test-gateway test-sdk test-mock test-dashboard test-identity test-github-mcp test-slack-mcp test-linear-mcp test-ts test-bench \
-        serve serve-workspace serve-gateway serve-mock serve-dashboard serve-identity serve-github-mcp serve-slack-mcp serve-linear-mcp stop healthcheck \
+.PHONY: help install install-services install-sdk install-examples install-mock install-dashboard install-identity install-github-mcp install-slack-mcp install-linear-mcp install-notion-mcp install-google-mcp install-bench \
+        test test-workspace test-gateway test-sdk test-mock test-dashboard test-identity test-github-mcp test-slack-mcp test-linear-mcp test-notion-mcp test-google-mcp test-ts test-bench \
+        serve serve-workspace serve-gateway serve-mock serve-dashboard serve-identity serve-github-mcp serve-slack-mcp serve-linear-mcp serve-notion-mcp serve-google-mcp stop healthcheck \
         demo demo-handoff demo-resume demo-triage \
         bench bench-quick bench-compare \
         clean clean-data lint format ci tree
@@ -47,7 +49,7 @@ $(VENV)/bin/activate:
 	@$(PIP) install --upgrade pip wheel >/dev/null
 	@touch $@
 
-install: $(VENV)/bin/activate install-services install-mock install-sdk install-dashboard install-identity install-github-mcp install-slack-mcp install-linear-mcp install-examples  ## Install everything
+install: $(VENV)/bin/activate install-services install-mock install-sdk install-dashboard install-identity install-github-mcp install-slack-mcp install-linear-mcp install-notion-mcp install-google-mcp install-examples  ## Install everything
 	@echo ""
 	@echo "✔ Plinth installed. Try: make test, make serve, make demo"
 
@@ -109,6 +111,22 @@ install-linear-mcp: $(VENV)/bin/activate  ## Install Linear MCP server
 		echo "  (linear-mcp not built yet — skipping)"; \
 	fi
 
+install-notion-mcp: $(VENV)/bin/activate  ## Install Notion MCP server
+	@echo "→ Installing Notion MCP server"
+	@if [ -d ./mcp-servers/notion ]; then \
+		$(PIP) install -e "./mcp-servers/notion[dev]" >/dev/null; \
+	else \
+		echo "  (notion-mcp not built yet — skipping)"; \
+	fi
+
+install-google-mcp: $(VENV)/bin/activate  ## Install Google Workspace MCP server
+	@echo "→ Installing Google Workspace MCP server"
+	@if [ -d ./mcp-servers/google-workspace ]; then \
+		$(PIP) install -e "./mcp-servers/google-workspace[dev]" >/dev/null; \
+	else \
+		echo "  (google-workspace-mcp not built yet — skipping)"; \
+	fi
+
 install-examples: $(VENV)/bin/activate  ## Install example agents
 	@echo "→ Installing research-agent example"
 	@$(PIP) install -e "./examples/01-research-agent" >/dev/null
@@ -127,7 +145,7 @@ install-examples: $(VENV)/bin/activate  ## Install example agents
 
 # ───────── tests ─────────
 
-test: test-workspace test-gateway test-sdk test-mock test-dashboard test-identity test-github-mcp test-slack-mcp test-linear-mcp  ## Run all Python test suites
+test: test-workspace test-gateway test-sdk test-mock test-dashboard test-identity test-github-mcp test-slack-mcp test-linear-mcp test-notion-mcp test-google-mcp  ## Run all Python test suites
 	@echo ""
 	@echo "✔ All test suites passed"
 
@@ -191,6 +209,22 @@ test-linear-mcp:  ## Run Linear MCP server tests
 		echo "  (linear-mcp not built yet — skipping)"; \
 	fi
 
+test-notion-mcp:  ## Run Notion MCP server tests
+	@echo "→ Notion MCP tests"
+	@if [ -d ./mcp-servers/notion ]; then \
+		cd mcp-servers/notion && $(abspath $(VENV_BIN))/pytest -q --cov=notion_mcp --cov-report=term-missing:skip-covered; \
+	else \
+		echo "  (notion-mcp not built yet — skipping)"; \
+	fi
+
+test-google-mcp:  ## Run Google Workspace MCP server tests
+	@echo "→ Google Workspace MCP tests"
+	@if [ -d ./mcp-servers/google-workspace ]; then \
+		cd mcp-servers/google-workspace && $(abspath $(VENV_BIN))/pytest -q --cov=google_workspace_mcp --cov-report=term-missing:skip-covered; \
+	else \
+		echo "  (google-workspace-mcp not built yet — skipping)"; \
+	fi
+
 test-ts:  ## Run TypeScript SDK tests (requires npm)
 	@echo "→ TypeScript SDK tests"
 	@cd sdk/typescript && npm install --silent && npm run build && npm test
@@ -215,17 +249,19 @@ $(LOG_DIR):
 $(PID_DIR):
 	@mkdir -p $(PID_DIR)
 
-serve: $(LOG_DIR) $(PID_DIR) serve-workspace serve-gateway serve-mock serve-dashboard serve-identity serve-github-mcp serve-slack-mcp serve-linear-mcp  ## Start all services in the background
+serve: $(LOG_DIR) $(PID_DIR) serve-workspace serve-gateway serve-mock serve-dashboard serve-identity serve-github-mcp serve-slack-mcp serve-linear-mcp serve-notion-mcp serve-google-mcp  ## Start all services in the background
 	@echo ""
 	@echo "✔ Services started:"
-	@echo "  • Workspace  : http://localhost:$(PLINTH_WORKSPACE_PORT)/healthz   (logs: $(LOG_DIR)/workspace.log)"
-	@echo "  • Gateway    : http://localhost:$(PLINTH_GATEWAY_PORT)/healthz     (logs: $(LOG_DIR)/gateway.log)"
-	@echo "  • Mock MCP   : http://localhost:$(PLINTH_MOCK_MCP_PORT)/healthz    (logs: $(LOG_DIR)/mock-mcp.log)"
-	@echo "  • Dashboard  : http://localhost:$(PLINTH_DASHBOARD_PORT)/          (logs: $(LOG_DIR)/dashboard.log)"
-	@echo "  • Identity   : http://localhost:$(PLINTH_IDENTITY_PORT)/healthz    (logs: $(LOG_DIR)/identity.log)"
-	@echo "  • GitHub MCP : http://localhost:$(PLINTH_GITHUB_MCP_PORT)/healthz  (logs: $(LOG_DIR)/github-mcp.log)"
-	@echo "  • Slack MCP  : http://localhost:$(PLINTH_SLACK_MCP_PORT)/healthz   (logs: $(LOG_DIR)/slack-mcp.log)"
-	@echo "  • Linear MCP : http://localhost:$(PLINTH_LINEAR_MCP_PORT)/healthz  (logs: $(LOG_DIR)/linear-mcp.log)"
+	@echo "  • Workspace        : http://localhost:$(PLINTH_WORKSPACE_PORT)/healthz   (logs: $(LOG_DIR)/workspace.log)"
+	@echo "  • Gateway          : http://localhost:$(PLINTH_GATEWAY_PORT)/healthz     (logs: $(LOG_DIR)/gateway.log)"
+	@echo "  • Mock MCP         : http://localhost:$(PLINTH_MOCK_MCP_PORT)/healthz    (logs: $(LOG_DIR)/mock-mcp.log)"
+	@echo "  • Dashboard        : http://localhost:$(PLINTH_DASHBOARD_PORT)/          (logs: $(LOG_DIR)/dashboard.log)"
+	@echo "  • Identity         : http://localhost:$(PLINTH_IDENTITY_PORT)/healthz    (logs: $(LOG_DIR)/identity.log)"
+	@echo "  • GitHub MCP       : http://localhost:$(PLINTH_GITHUB_MCP_PORT)/healthz  (logs: $(LOG_DIR)/github-mcp.log)"
+	@echo "  • Slack MCP        : http://localhost:$(PLINTH_SLACK_MCP_PORT)/healthz   (logs: $(LOG_DIR)/slack-mcp.log)"
+	@echo "  • Linear MCP       : http://localhost:$(PLINTH_LINEAR_MCP_PORT)/healthz  (logs: $(LOG_DIR)/linear-mcp.log)"
+	@echo "  • Notion MCP       : http://localhost:$(PLINTH_NOTION_MCP_PORT)/healthz  (logs: $(LOG_DIR)/notion-mcp.log)"
+	@echo "  • Google Wrkspc MCP: http://localhost:$(PLINTH_GOOGLE_MCP_PORT)/healthz  (logs: $(LOG_DIR)/google-workspace-mcp.log)"
 	@echo ""
 	@echo "Stop with: make stop"
 
@@ -346,8 +382,38 @@ serve-linear-mcp: $(LOG_DIR) $(PID_DIR)  ## Start Linear MCP server
 		echo "  • Linear MCP started (pid $$pid)"; \
 	fi
 
+serve-notion-mcp: $(LOG_DIR) $(PID_DIR)  ## Start Notion MCP server
+	@if [ ! -d ./mcp-servers/notion ]; then \
+		echo "  • notion-mcp not built — skipping"; \
+		exit 0; \
+	fi
+	@if [ -f $(PID_DIR)/notion-mcp.pid ] && kill -0 $$(cat $(PID_DIR)/notion-mcp.pid) 2>/dev/null; then \
+		echo "  • Notion MCP already running (pid $$(cat $(PID_DIR)/notion-mcp.pid))"; \
+	else \
+		pid=$$($(PY) scripts/_spawn.py \
+			$(PID_DIR)/notion-mcp.pid $(LOG_DIR)/notion-mcp.log \
+			PLINTH_NOTION_MCP_PORT=$(PLINTH_NOTION_MCP_PORT) \
+			-- $(PY) -m notion_mcp); \
+		echo "  • Notion MCP started (pid $$pid)"; \
+	fi
+
+serve-google-mcp: $(LOG_DIR) $(PID_DIR)  ## Start Google Workspace MCP server
+	@if [ ! -d ./mcp-servers/google-workspace ]; then \
+		echo "  • google-workspace-mcp not built — skipping"; \
+		exit 0; \
+	fi
+	@if [ -f $(PID_DIR)/google-workspace-mcp.pid ] && kill -0 $$(cat $(PID_DIR)/google-workspace-mcp.pid) 2>/dev/null; then \
+		echo "  • Google Workspace MCP already running (pid $$(cat $(PID_DIR)/google-workspace-mcp.pid))"; \
+	else \
+		pid=$$($(PY) scripts/_spawn.py \
+			$(PID_DIR)/google-workspace-mcp.pid $(LOG_DIR)/google-workspace-mcp.log \
+			PLINTH_GOOGLE_MCP_PORT=$(PLINTH_GOOGLE_MCP_PORT) \
+			-- $(PY) -m google_workspace_mcp); \
+		echo "  • Google Workspace MCP started (pid $$pid)"; \
+	fi
+
 stop:  ## Stop all background services
-	@for svc in workspace gateway mock-mcp dashboard identity github-mcp slack-mcp linear-mcp; do \
+	@for svc in workspace gateway mock-mcp dashboard identity github-mcp slack-mcp linear-mcp notion-mcp google-workspace-mcp; do \
 		if [ -f $(PID_DIR)/$$svc.pid ]; then \
 			pid=$$(cat $(PID_DIR)/$$svc.pid); \
 			if kill -0 $$pid 2>/dev/null; then \

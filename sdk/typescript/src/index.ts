@@ -28,7 +28,9 @@ export { WorkflowsClient, WorkflowHandle } from "./workflows.js";
 export type {
   CompleteStepOptions,
   StartStepOptions,
+  StepRetryConfig,
   WorkflowCreateOptions,
+  WorkflowStepSpec,
 } from "./workflows.js";
 
 // v0.5 — durable workflow workers
@@ -125,8 +127,12 @@ export type {
   SchemaCheckResult,
   SchemaValidationError,
   Workflow,
+  WorkflowRetryPolicy,
   WorkflowStatus,
   WorkflowStep,
+  // v1.1 — workflow retries + DLQ
+  DLQEntry,
+  DLQReplayResult,
   // v0.3
   TokenClaims,
   TokenInfo,

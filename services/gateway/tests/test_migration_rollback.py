@@ -473,23 +473,41 @@ async def test_endpoint_rollback_locked_returns_409(
 
 @pytest.mark.asyncio
 async def test_endpoint_rollback_missing_file_returns_400(
-    app_client: httpx.AsyncClient,
+    tmp_path: Path,
 ) -> None:
-    """Rolling through a migration that lacks a rollback file returns 400."""
+    """Rolling through a migration that lacks a rollback file returns 400.
 
-    await app_client.post("/v1/admin/migrations/apply")
+    v1.1 ships rollback files for every gateway migration so the original
+    "0001 → 0002 missing" assumption no longer holds. This test now
+    constructs a synthetic two-migration set whose intermediate file
+    deliberately has no rollback sibling, then drives the runner end-to-
+    end.
+    """
 
-    # 0001_initial → 0002_limits has no rollback file shipped, so trying
-    # to roll back to 0001_initial requires it and must fail.
-    resp = await app_client.post(
-        "/v1/admin/migrations/rollback",
-        json={"to": "0001_initial", "dry_run": False},
+    mig_dir = tmp_path / "migrations"
+    mig_dir.mkdir()
+    (mig_dir / "0001_a.sql").write_text(
+        "CREATE TABLE a (id INTEGER PRIMARY KEY);", encoding="utf-8"
     )
-    assert resp.status_code == 400, resp.text
-    body = resp.json()
-    assert body["error"]["code"] == "MIGRATION_ROLLBACK_MISSING"
-    missing = body["error"]["details"].get("missing_ids", [])
-    assert "0002_limits" in missing
+    (mig_dir / "0001_a_rollback.sql").write_text(
+        "DROP TABLE IF EXISTS a;", encoding="utf-8"
+    )
+    # 0002 has no rollback file — that's the missing file the test
+    # exercises.
+    (mig_dir / "0002_b.sql").write_text(
+        "CREATE TABLE b (id INTEGER PRIMARY KEY);", encoding="utf-8"
+    )
+
+    from plinth_gateway.migration_runner import (
+        MigrationRollbackMissing,
+        MigrationRunner,
+    )
+
+    runner = MigrationRunner(tmp_path / "gw.db", mig_dir)
+    await runner.apply_pending()
+    with pytest.raises(MigrationRollbackMissing) as exc_info:
+        await runner.rollback_to("0001_a")
+    assert "0002_b" in str(exc_info.value)
 
 
 # Catch the unused-import warning — ``MigrationLockError`` is exported so

@@ -27,6 +27,7 @@ from fastapi import (
 from fastapi.responses import FileResponse, JSONResponse
 
 from . import __service__, __version__
+from .coordination import CoordinationBackend, make_coordination_backend
 from .exceptions import (
     InvalidArguments,
     InvalidToken,
@@ -194,9 +195,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 key_store=key_store,
             )
 
+        # v1.1 — pluggable coordination backend (see ``coordination.py``).
+        # Constructed before the token store so revocations issued during
+        # this lifespan immediately push into the cluster-shared set.
+        coordination: CoordinationBackend = make_coordination_backend(settings)
+        app.state.coordination = coordination
+
         app.state.token_manager = manager
         app.state.key_store = key_store
-        app.state.store = TokenStore(settings.db_path)
+        app.state.store = TokenStore(settings.db_path, coordination=coordination)
         app.state.tenants = TenantStore(settings.db_path)
         app.state.quotas = QuotaStore(settings.db_path)
         # Warm the revocation cache so the first verify doesn't pay disk cost.
@@ -229,6 +236,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 except (asyncio.CancelledError, Exception):
                     # Cancellation is expected; any other exception we log.
                     pass
+            try:
+                await coordination.aclose()
+            except Exception as exc:  # noqa: BLE001 — never break shutdown
+                log.warning(
+                    "identity.coordination.close_failed", error=str(exc)
+                )
             log.info("identity.shutdown")
 
     app = FastAPI(

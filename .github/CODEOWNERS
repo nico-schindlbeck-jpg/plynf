@@ -1,0 +1,28 @@
+# Default — repo owner reviews everything not otherwise specified
+*                            @nico-schindlbeck-jpg
+
+# Areas of expertise — when defined add specific reviewers
+/services/workspace/         @nico-schindlbeck-jpg
+/services/gateway/           @nico-schindlbeck-jpg
+/services/identity/          @nico-schindlbeck-jpg
+/services/dashboard/         @nico-schindlbeck-jpg
+
+/sdk/python/                 @nico-schindlbeck-jpg
+/sdk/typescript/             @nico-schindlbeck-jpg
+
+/worker/                     @nico-schindlbeck-jpg
+/worker-ts/                  @nico-schindlbeck-jpg
+
+/cli/                        @nico-schindlbeck-jpg
+
+/mcp-servers/                @nico-schindlbeck-jpg
+/mock-mcp-server/            @nico-schindlbeck-jpg
+
+/deploy/                     @nico-schindlbeck-jpg
+/.github/                    @nico-schindlbeck-jpg
+
+# Docs require reviewer + the maintainer
+/docs/                       @nico-schindlbeck-jpg
+/CONTRACTS.md                @nico-schindlbeck-jpg
+/CHANGELOG.md                @nico-schindlbeck-jpg
+/ROADMAP.md                  @nico-schindlbeck-jpg

@@ -37,6 +37,7 @@ from .exceptions import (
 )
 from .gc import GCEngine, RetentionStore
 from .leases import LeaseStore, lease_reaper_loop
+from .coordination import CoordinationBackend, make_coordination_backend
 from .load_shed import LoadShedder, load_shed_middleware
 from .logging_config import configure_logging, get_logger
 from .metrics import (
@@ -67,6 +68,9 @@ from .models import (
     ChannelSchemaSetBody,
     ChannelSendBody,
     DiffResult,
+    DLQEntry,
+    DLQEntryList,
+    DLQReplayResult,
     FileEntry,
     FileList,
     GCResult,
@@ -142,6 +146,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         settings.blobs_dir.mkdir(parents=True, exist_ok=True)
         await init_db(settings.db_path)
+
+        # v1.1 — pluggable coordination backend (see ``coordination.py``).
+        # Constructed eagerly so any code path that wants to share
+        # state across replicas (lease coordination, revocation cache,
+        # etc.) has a backend to call. Default ``MemoryBackend`` keeps
+        # behaviour identical to v1.0; flip to ``redis`` via
+        # ``PLINTH_COORDINATION_BACKEND=redis``.
+        coordination: CoordinationBackend = make_coordination_backend(settings)
+        app.state.coordination = coordination
 
         # v1.0 — replication log table. Idempotent (CREATE IF NOT EXISTS)
         # so standalone deployments pay zero cost beyond a single empty
@@ -288,6 +301,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             log.warning(
                 "workspace.revocation_cache.stop_failed",
                 error=str(exc),
+            )
+
+        try:
+            await coordination.aclose()
+        except Exception as exc:  # noqa: BLE001 - never break shutdown
+            log.warning(
+                "workspace.coordination.close_failed", error=str(exc)
             )
 
         log.info("workspace.shutdown")
@@ -1598,6 +1618,11 @@ def _register_routes(app: FastAPI) -> None:
             snapshot_id=body.snapshot_id,
             input_=body.input,
             initial_status=body.initial_status,
+            max_attempts=body.max_attempts,
+            retry_policy=body.retry_policy,
+            retry_initial_delay_seconds=body.retry_initial_delay_seconds,
+            retry_max_delay_seconds=body.retry_max_delay_seconds,
+            retry_jitter=body.retry_jitter,
         )
         get_logger().info(
             "workspace.workflow.step.started",
@@ -1606,6 +1631,8 @@ def _register_routes(app: FastAPI) -> None:
             step_id=step.id,
             step_name=step.name,
             attempt=step.attempt,
+            max_attempts=step.max_attempts,
+            retry_policy=step.retry_policy,
         )
         return step
 
@@ -1656,6 +1683,67 @@ def _register_routes(app: FastAPI) -> None:
             workflow_id=wf_id,
         )
         return wf
+
+    # ------------------------------------------------------------------ DLQ (v1.1)
+
+    @app.get(
+        "/v1/workspaces/{ws_id}/workflows/{wf_id}/dlq",
+        response_model=DLQEntryList,
+        tags=["workflows"],
+    )
+    async def list_workflow_dlq(
+        ws_id: str,
+        wf_id: str,
+        workflows: WorkflowsDep,
+    ) -> DLQEntryList:
+        entries = await workflows.list_dlq(ws_id, wf_id)
+        return DLQEntryList(entries=entries)
+
+    @app.post(
+        "/v1/workspaces/{ws_id}/workflows/{wf_id}/dlq/{dlq_id}/replay",
+        response_model=DLQReplayResult,
+        tags=["workflows"],
+    )
+    async def replay_workflow_dlq(
+        ws_id: str,
+        wf_id: str,
+        dlq_id: str,
+        workflows: WorkflowsDep,
+    ) -> DLQReplayResult:
+        step = await workflows.replay_dlq(ws_id, wf_id, dlq_id)
+        # Replay is two phases: create the new step, then drop the DLQ
+        # row. If create_step raised we never reach this line and the
+        # DLQ row stays — operator can re-try the replay.
+        await workflows.delete_replayed_dlq(wf_id, dlq_id)
+        get_logger().info(
+            "workspace.workflow.dlq.replayed",
+            workspace_id=ws_id,
+            workflow_id=wf_id,
+            dlq_id=dlq_id,
+            new_step_id=step.id,
+            step_name=step.name,
+        )
+        return DLQReplayResult(dlq_id=dlq_id, replayed_step=step)
+
+    @app.delete(
+        "/v1/workspaces/{ws_id}/workflows/{wf_id}/dlq/{dlq_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+        tags=["workflows"],
+    )
+    async def delete_workflow_dlq(
+        ws_id: str,
+        wf_id: str,
+        dlq_id: str,
+        workflows: WorkflowsDep,
+    ) -> Response:
+        await workflows.delete_dlq(ws_id, wf_id, dlq_id)
+        get_logger().info(
+            "workspace.workflow.dlq.deleted",
+            workspace_id=ws_id,
+            workflow_id=wf_id,
+            dlq_id=dlq_id,
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     # ------------------------------------------------------------------ leases (v0.5)
 

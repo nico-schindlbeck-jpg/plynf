@@ -22,6 +22,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime, timezone
 
+from .coordination import CoordinationBackend, MemoryBackend
 from .cost_caps import calls_in_window_seconds, cost_used_in_window
 from .db import Database
 from .models import AgentLimits, AgentLimitsBody
@@ -82,10 +83,21 @@ class LimitsRegistry:
         settings: Settings,
         *,
         time_fn: Callable[[], float] | None = None,
+        coordination: CoordinationBackend | None = None,
     ) -> None:
         self._db = db
         self._settings = settings
         self._limiter = RateLimiter(time_fn=time_fn)
+        # v1.1 — coordination backend. Defaults to ``MemoryBackend`` so
+        # callers that don't pass one (older test setups) get v1.0
+        # behaviour. The backend is consulted on every ``check_rate`` to
+        # share the per-second invocation counter across replicas; the
+        # in-memory ``RateLimiter`` remains the per-process fast path
+        # so no round-trip is added for the common case.
+        self._coordination: CoordinationBackend = coordination or MemoryBackend()
+        self._key_prefix = (
+            getattr(settings, "coordination_key_prefix", "plinth") or "plinth"
+        )
 
     # ----- public access to the underlying limiter ------------------------
 
@@ -93,6 +105,25 @@ class LimitsRegistry:
     def rate_limiter(self) -> RateLimiter:
         """Expose the rate-limiter — useful for status endpoints / tests."""
         return self._limiter
+
+    @property
+    def coordination(self) -> CoordinationBackend:
+        """Expose the coordination backend — useful for tests."""
+        return self._coordination
+
+    async def cluster_invocations(self, agent_id: str) -> int:
+        """Return the cluster-wide invocations-in-the-last-minute counter.
+
+        Read-only helper for status endpoints. Best-effort: a Redis outage
+        returns ``0``.
+        """
+
+        key = f"{self._key_prefix}:rate:{agent_id}:rpm"
+        value = await self._coordination.get(key)
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0
 
     # ----- defaults --------------------------------------------------------
 
@@ -237,10 +268,20 @@ class LimitsRegistry:
                 )
 
     async def assert_within_rate(self, agent_id: str) -> None:
-        """Raise :class:`RateLimited` on bucket-empty."""
+        """Raise :class:`RateLimited` on bucket-empty.
+
+        With the v1.1 coordination backend, the cluster-shared counter is
+        consulted *first* — when ``coordination_backend=redis`` the counter
+        sums calls across all replicas so a single hot agent can't exceed
+        the cluster limit by exploiting per-replica isolation. The local
+        in-memory bucket is still consulted as a second guard rail (and a
+        fast cache when memory backend is in use).
+        """
+
         from .exceptions import RateLimited
 
         limits = await self.get_limits(agent_id)
+        # 1. Per-process token bucket — fast path, single process correctness.
         ok, retry_after = await self._limiter.check(
             agent_id, limits.rpm, limits.burst
         )
@@ -251,3 +292,29 @@ class LimitsRegistry:
                 current=limits.rpm,
                 limit=limits.rpm,
             )
+        # 2. Cluster-shared counter — only meaningful when the coordination
+        # backend reaches across processes (Redis). For ``MemoryBackend``
+        # the per-process limiter already enforced the limit, so we skip
+        # the second incr to keep behaviour identical to v1.0. Best-effort
+        # in both cases — a Redis outage logs and falls through.
+        if isinstance(self._coordination, MemoryBackend):
+            return
+        try:
+            key = f"{self._key_prefix}:rate:{agent_id}:rpm"
+            cluster_count = await self._coordination.incr(
+                key,
+                amount=1,
+                ttl_seconds=60,
+            )
+            if cluster_count > limits.rpm and limits.rpm > 0:
+                # We over-counted — the agent is at the cluster limit.
+                raise RateLimited(
+                    reason="rpm",
+                    retry_after=60.0,
+                    current=int(cluster_count),
+                    limit=int(limits.rpm),
+                )
+        except RateLimited:
+            raise
+        except Exception:  # noqa: BLE001 — never crash the request path
+            return

@@ -2015,3 +2015,179 @@ Documented attribute set in `docs/observability.md`. All services emit the same 
 - CLI is a separate package — no impact on services
 
 All v0.1–v0.6 demos must produce unchanged output.
+
+---
+
+# v1.1 Additions — Engineering-Debt Sweep + Notion / Google Workspace
+
+v1.1 is purely additive on top of v1.0 GA. API v1 contract is fully preserved. The release lands engineering-debt cleanups (Redis coordination, OTel migration, workflow retries, CI hardening) and two new OAuth providers (Notion + Google Workspace) with their MCP servers.
+
+## OTel — public `logs` API
+
+Migrate from `opentelemetry.sdk._logs` (internal) to the public `opentelemetry.sdk.logs` API in OTel SDK ≥ 1.30. Lift the `<1.30` pin in `services/gateway/pyproject.toml`. Behavior unchanged from caller's perspective.
+
+## Cluster-Aware Coordination — Redis Backend
+
+A new pluggable backend interface for distributed state previously held in single-process memory:
+
+- **Revocation cache** (Identity → polled by Workspace + Gateway)
+- **Rate-limit token buckets** (Gateway)
+- **Cost-cap rolling windows** (Gateway, per-tenant)
+- **Lease coordination** (Workspace, currently fcntl/SQLite-only)
+
+### Settings
+
+```
+PLINTH_COORDINATION_BACKEND=memory|redis        # default memory (back-compat)
+PLINTH_COORDINATION_REDIS_URL=redis://localhost:6379/0
+PLINTH_COORDINATION_KEY_PREFIX=plinth           # multi-tenant cluster sharing
+```
+
+### Backend interface
+
+Each service has a `coordination.py` module exposing:
+
+```python
+class CoordinationBackend(Protocol):
+    async def get(self, key: str) -> str | None: ...
+    async def set(self, key: str, value: str, ttl_seconds: int | None = None) -> None: ...
+    async def delete(self, key: str) -> None: ...
+    async def incr(self, key: str, amount: int = 1, ttl_seconds: int | None = None) -> int: ...
+    async def add_to_set(self, key: str, value: str, ttl_seconds: int | None = None) -> None: ...
+    async def members(self, key: str) -> set[str]: ...
+    async def acquire_lock(self, key: str, holder: str, ttl_seconds: int) -> bool: ...
+    async def release_lock(self, key: str, holder: str) -> bool: ...
+
+class MemoryBackend(CoordinationBackend): ...
+class RedisBackend(CoordinationBackend): ...
+```
+
+When `coordination_backend=memory`: behavior identical to v1.0 (per-process). When `redis`: rate-limits/cost-caps/revocation are cluster-shared.
+
+Behavior:
+- Rate-limits: token bucket implemented with Redis Lua script for race-safety
+- Cost-caps: sorted-set + ZADD/ZREMRANGEBYSCORE for rolling windows
+- Revocation: `revoked_jtis` set + 60s TTL; pub/sub channel for instant-propagation (best-effort)
+- Lease coordination: SET NX EX pattern, replaces fcntl lock for multi-replica
+
+### Backwards compatibility
+
+Default is `memory` — v1.0 deployments unchanged. Redis backend opt-in via env var.
+
+## Workflow Retries + Dead-Letter Queue
+
+Each workflow step gains a retry policy; failed steps that exceed `max_attempts` go to a per-workflow DLQ.
+
+### Step model additions
+
+```python
+class WorkflowStep(BaseModel):
+    # ... existing v0.5 fields ...
+    max_attempts: int = 1                # default: no retry (v0.5 behavior)
+    retry_policy: Literal["none", "exponential", "fixed"] = "none"
+    retry_initial_delay_seconds: float = 1.0
+    retry_max_delay_seconds: float = 60.0
+    retry_jitter: bool = True
+    next_retry_at: datetime | None = None  # set when status=failed but attempt < max_attempts
+```
+
+Behavior:
+- `max_attempts=1`: identical to v1.0
+- `max_attempts>1`: on failure, increment `attempt` counter, compute `next_retry_at = now + delay(attempt)` where delay is `initial × 2^(attempt-1)` capped at `max`, optionally with ±25% jitter
+- Worker poll-pending excludes steps where `next_retry_at > now`
+- After `attempt == max_attempts` failure: route to DLQ
+
+### DLQ for workflows
+
+```sql
+CREATE TABLE IF NOT EXISTS workflow_dlq (
+  id TEXT PRIMARY KEY,                  -- dlqstep_<ulid>
+  step_id TEXT NOT NULL,
+  workflow_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  step_name TEXT NOT NULL,
+  attempts INTEGER NOT NULL,
+  last_error TEXT,
+  failed_at TIMESTAMP NOT NULL,
+  step_snapshot TEXT NOT NULL           -- JSON of the WorkflowStep at failure
+);
+```
+
+### Endpoints
+
+```
+GET  /v1/workspaces/{ws}/workflows/{wf}/dlq                  → list[DLQEntry]
+POST /v1/workspaces/{ws}/workflows/{wf}/dlq/{id}/replay      → 200 (re-queues with attempts=0)
+DELETE /v1/workspaces/{ws}/workflows/{wf}/dlq/{id}            → 204
+```
+
+## Migration Rollback Files
+
+Every existing migration gets a paired `<id>_rollback.sql`. Schema_migrations table tracks rollback_checksum for tamper detection.
+
+## Lease Reaper Jitter
+
+Lease reaper pass adds ±25% jitter to interval to prevent thundering-herd when multiple workspace replicas wake at the same wall-clock second.
+
+## Notion MCP Server (NEW — port 7429)
+
+Provides agent access to Notion via OAuth.
+
+Tools:
+- `notion.search` — search across workspace pages/databases
+- `notion.get_page` — fetch a page by ID with content
+- `notion.create_page` — create a new page (in a database or as a child)
+- `notion.update_page` — update properties or content
+- `notion.append_block` — append blocks to existing page
+- `notion.list_databases` — list accessible databases
+- `notion.query_database` — query a database with filter/sort
+
+OAuth: standard Notion OAuth2 flow. Scopes documented in operator guide.
+
+## Google Workspace MCP Server (NEW — port 7430)
+
+Provides agent access to Drive, Docs, Sheets, Calendar, Gmail (read-only by default).
+
+Tools (initial set, read-only + safe writes):
+- `google.drive_search` — list files matching query
+- `google.drive_read` — read a file's content (Doc/Sheet/PDF)
+- `google.docs_create` — create a new Doc with content
+- `google.docs_append` — append content to existing Doc
+- `google.sheets_read` — read a range from a Sheet
+- `google.sheets_append_row` — append a row to a Sheet
+- `google.calendar_list_events` — read upcoming events
+- `google.gmail_list_messages` — read inbox messages (`labelIds=INBOX`)
+
+OAuth: Google OAuth2 flow with incremental authorization scopes.
+
+## CI Hardening
+
+`.github/workflows/ci.yml` extended:
+- Run ALL test suites (was: workspace + gateway + sdk + mock-mcp; v1.1: also identity + dashboard + github-mcp + slack-mcp + linear-mcp + worker + cli + benchmarks + contract)
+- Postgres service container, run skipped Postgres tests with `PLINTH_TEST_POSTGRES_URL` set
+- New: CodeQL workflow for security scanning
+- New: Dependabot config for npm + pip + GitHub Actions
+- New: Issue templates (bug, feature, question)
+- New: PR template
+
+## Real Benchmark Numbers
+
+`benchmarks/results/baseline-v1.1.json` populated with actual measurements against `make serve` stack. README "Performance" table updated with real numbers.
+
+## Stack additions (v1.1)
+
+- `redis>=5.0` — coordination backend
+- `aioredis` (or `redis.asyncio` from `redis>=5.0`) — async client
+- `opentelemetry-sdk>=1.30` — public logs API (pin lifted)
+- `opentelemetry-exporter-otlp-proto-http>=1.30`
+
+## Backwards compatibility (v1.1)
+
+- All v1.0 endpoints unchanged
+- `coordination_backend=memory` default — existing deployments behave identically
+- Workflow retries opt-in via `max_attempts>1`
+- DLQ endpoints additive
+- Notion + Google Workspace are new MCP servers (separate ports)
+- API v1 contract preserved; deprecation policy unchanged
+
+All v0.1–v1.0 demos produce unchanged output.

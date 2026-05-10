@@ -30,6 +30,7 @@ from typing import Any
 
 import httpx
 
+from .coordination import CoordinationBackend, MemoryBackend
 from .db import Database
 from .exceptions import GatewayError
 from .logging_config import get_logger
@@ -294,11 +295,21 @@ class TenantQuotaEnforcer:
         *,
         bucket: TenantInvocationBucket | None = None,
         enabled: bool = False,
+        coordination: CoordinationBackend | None = None,
+        coordination_prefix: str = "plinth",
     ) -> None:
         self._cache = cache
         self._db = db
         self._bucket = bucket or TenantInvocationBucket()
         self.enabled = bool(enabled)
+        # v1.1 — coordination backend. Default ``MemoryBackend`` keeps
+        # cost-cap enforcement on the v1.0 audit-table-rolling-sum path;
+        # when ``RedisBackend`` is configured, ``record_invoke`` *also*
+        # bumps a cost counter so cluster-wide caps surface immediately
+        # without waiting for the next audit-events query (saves the
+        # "noisy neighbour" race during a tenant's first burst).
+        self._coordination: CoordinationBackend = coordination or MemoryBackend()
+        self._key_prefix = (coordination_prefix or "plinth").rstrip(":")
 
     @property
     def cache(self) -> QuotaCache:
@@ -307,6 +318,16 @@ class TenantQuotaEnforcer:
     @property
     def bucket(self) -> TenantInvocationBucket:
         return self._bucket
+
+    @property
+    def coordination(self) -> CoordinationBackend:
+        return self._coordination
+
+    def _rpm_key(self, tenant_id: str) -> str:
+        return f"{self._key_prefix}:tenant:{tenant_id}:invocations"
+
+    def _cost_key(self, tenant_id: str, window: str) -> str:
+        return f"{self._key_prefix}:tenant:{tenant_id}:cost:{window}"
 
     async def aclose(self) -> None:
         await self._cache.aclose()
@@ -323,7 +344,11 @@ class TenantQuotaEnforcer:
             return
         quotas = await self._cache.get(tenant_id)
 
-        # 1) Invocations per minute (cluster-wide-keyed but in-process).
+        # 1) Invocations per minute. Local sliding-window bucket is the
+        # fast path; the cluster-shared counter (Redis-only) is checked
+        # on top so a multi-replica deployment sees true cluster-wide
+        # rate-limits. ``MemoryBackend`` short-circuits the second check
+        # because the local bucket already covers it.
         if quotas.max_invocations_per_minute > 0:
             current_rpm = await self._bucket.count_in_window(tenant_id)
             if current_rpm >= quotas.max_invocations_per_minute:
@@ -333,6 +358,23 @@ class TenantQuotaEnforcer:
                     current=current_rpm,
                     limit=quotas.max_invocations_per_minute,
                 )
+            if not isinstance(self._coordination, MemoryBackend):
+                try:
+                    cluster_value = await self._coordination.get(
+                        self._rpm_key(tenant_id)
+                    )
+                    cluster_rpm = int(cluster_value or 0)
+                    if cluster_rpm >= quotas.max_invocations_per_minute:
+                        raise QuotaExceeded(
+                            "max_invocations_per_minute",
+                            tenant_id=tenant_id,
+                            current=cluster_rpm,
+                            limit=quotas.max_invocations_per_minute,
+                        )
+                except QuotaExceeded:
+                    raise
+                except Exception:  # noqa: BLE001 — never block on Redis
+                    pass
 
         # 2) Rolling 24h cost.
         if quotas.max_cost_usd_day > 0:
@@ -367,6 +409,43 @@ class TenantQuotaEnforcer:
         """
 
         await self._bucket.record(tenant_id)
+        # v1.1 — also bump the cluster-shared counter when Redis is in use
+        # so peer replicas see this invocation immediately. Best-effort.
+        if not isinstance(self._coordination, MemoryBackend):
+            try:
+                await self._coordination.incr(
+                    self._rpm_key(tenant_id),
+                    amount=1,
+                    ttl_seconds=60,
+                )
+            except Exception:  # noqa: BLE001
+                pass
+
+    async def record_cost(
+        self,
+        tenant_id: str,
+        cost_micros: int,
+        *,
+        window_seconds: int = 3600,
+    ) -> None:
+        """Record cost in the cluster-shared rolling window.
+
+        ``cost_micros`` is the cost in micro-USD (i.e. ``cost_usd * 1e6``)
+        so the counter stays integer-valued. Best-effort — a Redis outage
+        falls through silently and the audit-table sum (the canonical
+        billing source) is unaffected.
+        """
+
+        if isinstance(self._coordination, MemoryBackend):
+            return
+        try:
+            await self._coordination.incr(
+                self._cost_key(tenant_id, "hour"),
+                amount=int(cost_micros),
+                ttl_seconds=int(window_seconds),
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
 
 __all__ = [

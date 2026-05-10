@@ -418,6 +418,11 @@ class WorkflowStepCreate(BaseModel):
     (the v0.2 in-process flow where the agent starts work immediately).
     Set to ``pending`` for the durable workflow executor: the step will
     be visible via the ``/pending`` endpoint and a worker can lease it.
+
+    v1.1: ``max_attempts`` / ``retry_policy`` / ``retry_initial_delay_seconds``
+    / ``retry_max_delay_seconds`` / ``retry_jitter`` configure the per-step
+    retry policy. Defaults preserve v1.0 behaviour: a single attempt with
+    no delay (i.e. ``max_attempts=1``).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -426,6 +431,12 @@ class WorkflowStepCreate(BaseModel):
     snapshot_id: str | None = None
     input: Any | None = None
     initial_status: Literal["running", "pending"] = "running"
+    # v1.1 — retries
+    max_attempts: int = Field(default=1, ge=1, le=100)
+    retry_policy: Literal["none", "exponential", "fixed"] = "none"
+    retry_initial_delay_seconds: float = Field(default=1.0, ge=0.0, le=3600.0)
+    retry_max_delay_seconds: float = Field(default=60.0, ge=0.0, le=86400.0)
+    retry_jitter: bool = True
 
 
 class WorkflowStepUpdate(BaseModel):
@@ -440,7 +451,16 @@ class WorkflowStepUpdate(BaseModel):
 
 
 class WorkflowStep(BaseModel):
-    """One attempt at one step of a workflow."""
+    """One attempt at one step of a workflow.
+
+    v1.1: ``max_attempts`` / ``retry_policy`` / ``retry_initial_delay_seconds``
+    / ``retry_max_delay_seconds`` / ``retry_jitter`` / ``next_retry_at``
+    carry the per-step retry policy. Defaults preserve v1.0 behaviour
+    (single attempt, no delay). When a step is failing but still has
+    attempts remaining, the worker's ``fail_step`` call sets
+    ``next_retry_at`` and reverts the row to ``pending`` so a worker can
+    pick it up again once the delay elapses.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -456,6 +476,13 @@ class WorkflowStep(BaseModel):
     error: str | None = None
     snapshot_id: str | None = None
     created_at: datetime
+    # v1.1 — retries
+    max_attempts: int = 1
+    retry_policy: Literal["none", "exponential", "fixed"] = "none"
+    retry_initial_delay_seconds: float = 1.0
+    retry_max_delay_seconds: float = 60.0
+    retry_jitter: bool = True
+    next_retry_at: datetime | None = None
 
 
 class Workflow(BaseModel):
@@ -477,6 +504,53 @@ class Workflow(BaseModel):
 
 class WorkflowList(BaseModel):
     workflows: list[Workflow]
+
+
+class DLQEntry(BaseModel):
+    """A workflow-step that exhausted its retries and landed in the DLQ.
+
+    Mirrors ``CONTRACTS.md → Workflow Retries + Dead-Letter Queue``. Each
+    row carries a JSON snapshot of the failing :class:`WorkflowStep` (in
+    ``step_snapshot``) so the operator can inspect the exact attempt that
+    failed terminally — useful both for debugging and for replay, where
+    the snapshot drives the new step's input/snapshot_id.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    step_id: str
+    workflow_id: str
+    workspace_id: str
+    step_name: str
+    attempts: int
+    last_error: str | None = None
+    failed_at: datetime
+    step_snapshot: dict[str, Any] = Field(default_factory=dict)
+
+
+class DLQEntryList(BaseModel):
+    """Wrapper for ``GET .../workflows/{wf}/dlq``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    entries: list[DLQEntry] = Field(default_factory=list)
+
+
+class DLQReplayResult(BaseModel):
+    """Result of ``POST .../workflows/{wf}/dlq/{id}/replay``.
+
+    Returns the new step row created from the snapshot; the DLQ row is
+    deleted in the same transaction so the entry never lives in both
+    places at once. ``replayed_step`` is ``None`` only when the response
+    is being constructed by code paths that handed off the step lookup
+    elsewhere (kept optional for forward compatibility).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    dlq_id: str
+    replayed_step: WorkflowStep | None = None
 
 
 class ResumeInfo(BaseModel):

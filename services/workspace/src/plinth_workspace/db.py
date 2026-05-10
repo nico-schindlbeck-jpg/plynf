@@ -160,6 +160,15 @@ CREATE TABLE IF NOT EXISTS workflow_steps (
   error TEXT,
   snapshot_id TEXT,
   created_at TIMESTAMP NOT NULL,
+  -- v1.1 — per-step retry policy + scheduled retry timestamp.
+  -- Defaults match v1.0 behaviour (single attempt, no delay) so existing
+  -- rows inserted before the column was added stay compatible.
+  max_attempts INTEGER NOT NULL DEFAULT 1,
+  retry_policy TEXT NOT NULL DEFAULT 'none',
+  retry_initial_delay_seconds REAL NOT NULL DEFAULT 1.0,
+  retry_max_delay_seconds REAL NOT NULL DEFAULT 60.0,
+  retry_jitter INTEGER NOT NULL DEFAULT 1,
+  next_retry_at TIMESTAMP,
   FOREIGN KEY (workflow_id) REFERENCES workflows(id)
 );
 
@@ -254,6 +263,29 @@ CREATE TABLE IF NOT EXISTS resource_locks (
 );
 CREATE INDEX IF NOT EXISTS idx_resource_locks_expiry
   ON resource_locks(expires_at);
+
+-- v1.1 -------------------------------------------- workflow dead-letter queue
+
+-- Per-workflow DLQ for steps that exhausted ``max_attempts``. Each row is
+-- a frozen snapshot of the failing :class:`WorkflowStep` (serialized as
+-- JSON) so an operator can inspect, replay, or discard the entry without
+-- mutating the underlying step row. The reaper does not touch this
+-- table; entries persist until ``DELETE`` or replay.
+CREATE TABLE IF NOT EXISTS workflow_dlq (
+  id TEXT PRIMARY KEY,
+  step_id TEXT NOT NULL,
+  workflow_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  step_name TEXT NOT NULL,
+  attempts INTEGER NOT NULL,
+  last_error TEXT,
+  failed_at TIMESTAMP NOT NULL,
+  step_snapshot TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_workflow_dlq_workflow
+  ON workflow_dlq(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_dlq_failed_at
+  ON workflow_dlq(failed_at);
 """
 
 
@@ -291,6 +323,35 @@ async def _migrate(conn: aiosqlite.Connection) -> None:
     # Index creation runs after the column is guaranteed to exist.
     await conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_workspaces_tenant ON workspaces(tenant_id)"
+    )
+
+    # v1.1 — per-step retry policy. Adding to legacy DBs is idempotent
+    # because ``_ensure_column`` reads ``PRAGMA table_info`` first. Default
+    # values match the v1.0 single-attempt behaviour so untouched rows
+    # don't suddenly start retrying.
+    await _ensure_column(
+        conn, "workflow_steps", "max_attempts", "INTEGER NOT NULL DEFAULT 1"
+    )
+    await _ensure_column(
+        conn, "workflow_steps", "retry_policy", "TEXT NOT NULL DEFAULT 'none'"
+    )
+    await _ensure_column(
+        conn,
+        "workflow_steps",
+        "retry_initial_delay_seconds",
+        "REAL NOT NULL DEFAULT 1.0",
+    )
+    await _ensure_column(
+        conn,
+        "workflow_steps",
+        "retry_max_delay_seconds",
+        "REAL NOT NULL DEFAULT 60.0",
+    )
+    await _ensure_column(
+        conn, "workflow_steps", "retry_jitter", "INTEGER NOT NULL DEFAULT 1"
+    )
+    await _ensure_column(
+        conn, "workflow_steps", "next_retry_at", "TIMESTAMP"
     )
 
 

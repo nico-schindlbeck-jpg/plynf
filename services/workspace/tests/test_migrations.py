@@ -80,6 +80,7 @@ def test_discover_migrations_returns_sorted_list() -> None:
         "0004_tenancy",
         "0005_retention",
         "0006_resource_locks",
+        "0007_workflow_retries",
     ]
 
 
@@ -112,6 +113,7 @@ async def test_apply_pending_on_fresh_db(runner: MigrationRunner) -> None:
         "0004_tenancy",
         "0005_retention",
         "0006_resource_locks",
+        "0007_workflow_retries",
     ]
     # Idempotency: a second run does nothing.
     applied2 = await runner.apply_pending()
@@ -121,15 +123,15 @@ async def test_apply_pending_on_fresh_db(runner: MigrationRunner) -> None:
         cur = await conn.execute("SELECT COUNT(*) FROM schema_migrations")
         row = await cur.fetchone()
         await cur.close()
-    assert row[0] == 6
+    assert row[0] == 7
 
 
 @pytest.mark.asyncio
 async def test_status_after_fresh_apply(runner: MigrationRunner) -> None:
     await runner.apply_pending()
     status = await runner.status()
-    assert status.current == "0006_resource_locks"
-    assert len(status.applied) == 6
+    assert status.current == "0007_workflow_retries"
+    assert len(status.applied) == 7
     assert status.pending == []
     assert status.mismatches == []
 
@@ -178,7 +180,7 @@ async def test_legacy_db_marks_migrations_applied(
     runner = MigrationRunner(fresh_db_path, MIGRATIONS_DIR)
     applied = await runner.apply_pending()
     # All migrations recorded.
-    assert len(applied) == 6
+    assert len(applied) == 7
     # Each "duration_ms" is small (heuristic skip path); the legacy DB
     # already had the tables so the inner SQL never executed.
     for mig in applied:
@@ -218,7 +220,7 @@ async def test_partial_legacy_db_applies_only_missing(
 
     # All migrations recorded as applied.
     status = await runner.status()
-    assert status.current == "0006_resource_locks"
+    assert status.current == "0007_workflow_retries"
 
     # New tables created by the later migrations.
     async with aiosqlite.connect(fresh_db_path) as conn:
@@ -310,6 +312,7 @@ async def test_apply_to_partial(runner: MigrationRunner) -> None:
         "0004_tenancy",
         "0005_retention",
         "0006_resource_locks",
+        "0007_workflow_retries",
     ]
 
 
@@ -398,12 +401,12 @@ async def test_apply_endpoint_runs_pending(app_client: httpx.AsyncClient) -> Non
     # auto_migrate=False so all of them are pending.
     pre = await app_client.get("/v1/admin/migrations")
     pre_body = pre.json()
-    assert len(pre_body["pending"]) == 6
+    assert len(pre_body["pending"]) == 7
 
     resp = await app_client.post("/v1/admin/migrations/apply")
     assert resp.status_code == 201, resp.text
     body = resp.json()
-    assert len(body["applied"]) == 6
+    assert len(body["applied"]) == 7
 
     post = await app_client.get("/v1/admin/migrations")
     assert len(post.json()["pending"]) == 0
@@ -492,7 +495,7 @@ async def test_auto_migrate_false_does_not_apply_during_lifespan(
     )
     # Sanity: nothing applied, all pending.
     pending = await runner.list_pending()
-    assert len(pending) == 6
+    assert len(pending) == 7
 
     app = create_app(settings)
     async with app.router.lifespan_context(app):
@@ -520,7 +523,7 @@ async def test_auto_migrate_true_applies_during_lifespan(tmp_path: Path) -> None
     async with app.router.lifespan_context(app):
         runner: MigrationRunner = app.state.migration_runner
         applied = await runner.list_applied()
-        assert len(applied) == 6
+        assert len(applied) == 7
 
 
 # ---------------------------------------------------------------------------
@@ -790,12 +793,15 @@ async def test_rollback_records_rollback_checksum_on_apply(
         rows = await cur.fetchall()
         await cur.close()
     by_id = {r[0]: r[1] for r in rows}
-    # 0004 + 0005 ship rollback files (we created them); the others don't.
+    # v1.1 — every migration ships a rollback file, so each entry in
+    # schema_migrations carries a non-null rollback_checksum.
+    assert by_id["0001_initial"] is not None
+    assert by_id["0002_channels"] is not None
+    assert by_id["0003_workflows"] is not None
     assert by_id["0004_tenancy"] is not None
     assert by_id["0005_retention"] is not None
-    assert by_id["0001_initial"] is None
-    assert by_id["0002_channels"] is None
-    assert by_id["0003_workflows"] is None
+    assert by_id["0006_resource_locks"] is not None
+    assert by_id["0007_workflow_retries"] is not None
 
 
 @pytest.mark.asyncio
@@ -824,11 +830,14 @@ async def test_status_shows_rollback_availability(
     await runner.apply_pending()
     applied = await runner.list_applied()
     by_id = {a.id: a for a in applied}
+    # v1.1 — every migration ships a paired rollback file.
+    assert by_id["0001_initial"].rollback_available is True
+    assert by_id["0002_channels"].rollback_available is True
+    assert by_id["0003_workflows"].rollback_available is True
     assert by_id["0004_tenancy"].rollback_available is True
     assert by_id["0005_retention"].rollback_available is True
-    assert by_id["0001_initial"].rollback_available is False
-    assert by_id["0002_channels"].rollback_available is False
-    assert by_id["0003_workflows"].rollback_available is False
+    assert by_id["0006_resource_locks"].rollback_available is True
+    assert by_id["0007_workflow_retries"].rollback_available is True
 
 
 @pytest.mark.asyncio
@@ -1043,29 +1052,39 @@ async def test_rollback_endpoint_dry_run(
 
 @pytest.mark.asyncio
 async def test_rollback_endpoint_missing_file_returns_400(
-    app_client: httpx.AsyncClient,
+    tmp_path: Path,
 ) -> None:
-    """Targeting a migration whose intermediate step lacks a rollback fails 400."""
+    """Targeting a migration whose intermediate step lacks a rollback fails 400.
 
-    await app_client.post("/v1/admin/migrations/apply")
-    # 0002_channels has no rollback file shipped, so rolling back to
-    # 0001_initial requires it and should fail.
-    resp = await app_client.post(
-        "/v1/admin/migrations/rollback",
-        json={"to": "0001_initial", "dry_run": False},
+    v1.1: every shipped workspace migration carries a rollback sibling,
+    so this test now uses a synthetic migration set where the second
+    forward file deliberately ships without one. Verifies the
+    ``MIGRATION_ROLLBACK_MISSING`` envelope shape end-to-end.
+    """
+
+    mig_dir = tmp_path / "migrations"
+    mig_dir.mkdir()
+    (mig_dir / "0001_a.sql").write_text(
+        "CREATE TABLE a (id INTEGER PRIMARY KEY);", encoding="utf-8"
     )
-    assert resp.status_code == 400, resp.text
-    body = resp.json()
-    assert body["error"]["code"] == "MIGRATION_ROLLBACK_MISSING"
-    # The endpoint returns the missing IDs under "missing_ids" so callers
-    # can cite specific files. (Older revisions used "missing".)
-    details = body["error"]["details"]
-    missing_blob = (
-        details.get("missing_ids")
-        or details.get("missing")
-        or []
+    (mig_dir / "0001_a_rollback.sql").write_text(
+        "DROP TABLE IF EXISTS a;", encoding="utf-8"
     )
-    assert "0002_channels" in missing_blob
+    # 0002 ships no rollback file — that's the "intermediate step lacks
+    # a rollback" condition the test exercises.
+    (mig_dir / "0002_b.sql").write_text(
+        "CREATE TABLE b (id INTEGER PRIMARY KEY);", encoding="utf-8"
+    )
+
+    db_path = tmp_path / "ws.db"
+    runner = MigrationRunner(db_path, mig_dir)
+    await runner.apply_pending()
+
+    from plinth_workspace.migration_runner import MigrationRollbackMissing
+
+    with pytest.raises(MigrationRollbackMissing) as exc_info:
+        await runner.rollback_to("0001_a")
+    assert "0002_b" in str(exc_info.value)
 
 
 # ---------------------------------------------------------------------------

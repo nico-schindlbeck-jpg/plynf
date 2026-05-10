@@ -24,12 +24,18 @@ dependencies = [
     # the RS256 path because PyJWT defers RSA support to ``cryptography``.
     "pyjwt[crypto]>=2.8",
     # v0.4 — OTLP/HTTP log emission for the audit event stream.
-    # Pinned <1.30 because 1.30 changed the internal _logs API and broke
-    # our LoggerProvider/BatchLogRecordProcessor wiring. Re-pin once we
-    # migrate to the public logs API.
-    "opentelemetry-api>=1.25,<1.30",
-    "opentelemetry-sdk>=1.25,<1.30",
-    "opentelemetry-exporter-otlp-proto-http>=1.25,<1.30",
+    # v1.1 — pin lifted. The emitter now uses a try-import wrapper
+    # (``otlp_emitter._import_otel_logs``) that prefers
+    # ``opentelemetry.sdk.logs`` when upstream promotes the public path
+    # and falls back to ``opentelemetry.sdk._logs`` (still canonical
+    # through 1.41). See CONTRACTS.md v1.1 — "OTel — public logs API".
+    "opentelemetry-api>=1.25",
+    "opentelemetry-sdk>=1.25",
+    "opentelemetry-exporter-otlp-proto-http>=1.25",
+    # v1.1 — pluggable coordination backend. The MemoryBackend is the
+    # default; ``redis`` is opt-in via ``PLINTH_COORDINATION_BACKEND=redis``
+    # but the dependency is light enough to ship as a base import.
+    "redis>=5.0",
 ]
 
 [project.optional-dependencies]
@@ -40,6 +46,8 @@ dev = [
     "respx>=0.21",
     "ruff>=0.3",
     "black>=24.1",
+    # v1.1 — pure-Python redis emulator for the coordination backend tests.
+    "fakeredis>=2.20",
 ]
 postgres = [
     "asyncpg>=0.29",

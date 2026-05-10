@@ -31,6 +31,9 @@ dependencies = [
     # Schema. Keep the version floor at 4.20 so we get the Draft 2020-12
     # validator + the new ``check_schema`` static helper.
     "jsonschema>=4.20",
+    # v1.1 — pluggable coordination backend. The MemoryBackend is the
+    # default; ``redis`` is opt-in via ``PLINTH_COORDINATION_BACKEND=redis``.
+    "redis>=5.0",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +44,8 @@ dev = [
     "httpx>=0.27",
     "ruff>=0.3",
     "black>=24.1",
+    # v1.1 — pure-Python redis emulator for the coordination backend tests.
+    "fakeredis>=2.20",
 ]
 postgres = [
     "asyncpg>=0.29",

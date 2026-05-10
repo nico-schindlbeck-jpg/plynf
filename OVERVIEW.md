@@ -25,10 +25,12 @@
 
 | | |
 |--|--|
-| **Latest milestone** | **v1.0.0 — General Availability** *(May 8, 2026)* |
-| **Repo size** | ~120 000 lines of source + docs |
-| **Tests passing** | **2 066** *(1 901 Python + 136 TS SDK + 29 TS Worker)* |
+| **Latest milestone** | **v1.1.0 — Engineering-Debt Sweep + Notion / Google Workspace** *(May 10, 2026)* |
+| **Repo size** | ~125 000 lines of source + docs |
+| **Tests passing** | **2 312** *(2 139 Python + 144 TS SDK + 29 TS Worker)* |
 | **API stability** | `v1` stable — see `docs/API_STABILITY.md` |
+| **Coordination** | memory (default) or Redis (cluster-shared) — opt-in via `PLINTH_COORDINATION_BACKEND=redis` |
+| **OAuth providers** | GitHub, Slack, Linear, Notion, Google Workspace |
 | **Deployable units** | 9 *(4 services, 3 real MCP tool servers, 1 mock tool server, 1 worker, 1 benchmark suite)* |
 | **End-to-end demos** | 5 *(all run from a clean clone)* |
 | **License** | Apache 2.0 |

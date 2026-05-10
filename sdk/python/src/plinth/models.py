@@ -308,7 +308,12 @@ class ReplayBatchResult(BaseModel):
 
 
 class WorkflowStep(BaseModel):
-    """A single step in a workflow's log."""
+    """A single step in a workflow's log.
+
+    v1.1 adds the optional retry-policy fields. Defaults preserve v1.0
+    behaviour (single attempt, no retry delay) so v1.0 servers' rows
+    deserialise cleanly.
+    """
 
     model_config = ConfigDict(extra="ignore")
 
@@ -324,6 +329,36 @@ class WorkflowStep(BaseModel):
     error: Optional[str] = None  # noqa: UP045
     snapshot_id: Optional[str] = None  # noqa: UP045
     created_at: Optional[datetime] = None  # noqa: UP045
+    # v1.1 — retries
+    max_attempts: int = 1
+    retry_policy: str = "none"  # "none" | "exponential" | "fixed"
+    retry_initial_delay_seconds: float = 1.0
+    retry_max_delay_seconds: float = 60.0
+    retry_jitter: bool = True
+    next_retry_at: Optional[datetime] = None  # noqa: UP045
+
+
+class DLQEntry(BaseModel):
+    """A workflow step that exhausted ``max_attempts`` and landed in the DLQ.
+
+    Mirrors :class:`plinth_workspace.models.DLQEntry`. ``step_snapshot``
+    is the JSON-decoded view of the step row at failure time so the
+    operator can inspect the exact attempt that failed terminally —
+    useful both for debugging and for replay, where the snapshot drives
+    the new step's input/snapshot_id.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    step_id: str
+    workflow_id: str
+    workspace_id: str
+    step_name: str
+    attempts: int
+    last_error: Optional[str] = None  # noqa: UP045
+    failed_at: datetime
+    step_snapshot: Dict[str, Any] = Field(default_factory=dict)  # noqa: UP006
 
 
 class Workflow(BaseModel):
@@ -739,6 +774,7 @@ __all__ = [
     "ChannelMessage",
     "ChannelSchema",
     "CompensationSpec",
+    "DLQEntry",
     "DiffResult",
     "DryRunResponse",
     "FileEntry",

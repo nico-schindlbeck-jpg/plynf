@@ -128,10 +128,57 @@ LINEAR = OAuthProvider(
 )
 
 
+# v1.1 — Notion provider. Notion uses workspace-scoped integrations rather
+# than per-call scopes, and its OAuth flow does NOT support PKCE. The
+# ``userinfo_url`` points at ``/v1/users/me`` which returns the bot user
+# associated with the integration.
+NOTION = OAuthProvider(
+    name="notion",
+    authorize_url="https://api.notion.com/v1/oauth/authorize",
+    token_url="https://api.notion.com/v1/oauth/token",
+    userinfo_url="https://api.notion.com/v1/users/me",
+    userinfo_id_field="id",
+    userinfo_login_field="name",
+    # Notion's OAuth grants are workspace-level — no per-call scopes are sent
+    # in the authorize URL.
+    default_scopes=[],
+    pkce=False,
+)
+
+
+# v1.1 — Google provider. Google's OAuth supports PKCE and incremental
+# authorization. We default to a read-mostly scope set covering Drive,
+# Docs, Sheets, Calendar, Gmail; operators can override via
+# ``oauth_google_scopes``.
+GOOGLE = OAuthProvider(
+    name="google",
+    authorize_url="https://accounts.google.com/o/oauth2/v2/auth",
+    token_url="https://oauth2.googleapis.com/token",
+    userinfo_url="https://www.googleapis.com/oauth2/v3/userinfo",
+    # The userinfo endpoint returns a top-level ``sub`` (subject) and ``email``;
+    # we use ``sub`` as the stable identifier and ``email`` as the login.
+    userinfo_id_field="sub",
+    userinfo_login_field="email",
+    default_scopes=[
+        "openid",
+        "email",
+        "profile",
+        "https://www.googleapis.com/auth/drive.file",
+        "https://www.googleapis.com/auth/documents",
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/gmail.readonly",
+    ],
+    pkce=True,
+)
+
+
 _PROVIDERS: dict[str, OAuthProvider] = {
     GITHUB.name: GITHUB,
     SLACK.name: SLACK,
     LINEAR.name: LINEAR,
+    NOTION.name: NOTION,
+    GOOGLE.name: GOOGLE,
 }
 
 
@@ -235,6 +282,33 @@ _PROVIDER_SETTINGS: dict[str, dict[str, Any]] = {
             "and 'write' scopes, then export PLINTH_OAUTH_LINEAR_CLIENT_ID "
             "and PLINTH_OAUTH_LINEAR_CLIENT_SECRET before starting the "
             "gateway."
+        ),
+    },
+    "notion": {
+        "client_id_attr": "oauth_notion_client_id",
+        "client_secret_attr": "oauth_notion_client_secret",
+        "redirect_uri_attr": "oauth_notion_redirect_uri",
+        "client_id_env": "PLINTH_OAUTH_NOTION_CLIENT_ID",
+        "client_secret_env": "PLINTH_OAUTH_NOTION_CLIENT_SECRET",
+        "hint": (
+            "Create a Notion integration at "
+            "https://www.notion.so/my-integrations, enable the public OAuth "
+            "flow, then export PLINTH_OAUTH_NOTION_CLIENT_ID and "
+            "PLINTH_OAUTH_NOTION_CLIENT_SECRET before starting the gateway."
+        ),
+    },
+    "google": {
+        "client_id_attr": "oauth_google_client_id",
+        "client_secret_attr": "oauth_google_client_secret",
+        "redirect_uri_attr": "oauth_google_redirect_uri",
+        "client_id_env": "PLINTH_OAUTH_GOOGLE_CLIENT_ID",
+        "client_secret_env": "PLINTH_OAUTH_GOOGLE_CLIENT_SECRET",
+        "hint": (
+            "Create OAuth credentials at "
+            "https://console.cloud.google.com/apis/credentials, enable the "
+            "Drive/Docs/Sheets/Calendar/Gmail APIs, then export "
+            "PLINTH_OAUTH_GOOGLE_CLIENT_ID and "
+            "PLINTH_OAUTH_GOOGLE_CLIENT_SECRET before starting the gateway."
         ),
     },
 }
@@ -884,6 +958,8 @@ async def fetch_user_info(
     ``api.linear.app/graphql``. The GraphQL response shape is unwrapped here so
     callers see a flat ``{id, name, email}`` dict, identical to the userinfo
     contract for the other providers.
+    Notion: ``GET /v1/users/me`` — requires the ``Notion-Version`` header.
+    Google: ``GET /oauth2/v3/userinfo`` — returns ``{sub, email, name, ...}``.
     """
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -892,6 +968,9 @@ async def fetch_user_info(
     if provider.name == "github":
         # GitHub's API recommends the X-GitHub-Api-Version pin.
         headers["X-GitHub-Api-Version"] = "2022-11-28"
+    elif provider.name == "notion":
+        # Notion's API requires this header on every call.
+        headers["Notion-Version"] = "2022-06-28"
 
     if provider.name == "linear":
         # Linear has no REST userinfo endpoint — it's GraphQL only. Fetch the

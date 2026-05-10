@@ -2,6 +2,54 @@
 
 All notable changes to Plinth are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [SemVer](https://semver.org).
 
+## [1.1.0] — 2026-05-10
+
+Engineering-debt sweep + strategic adds. v1.1 is purely additive on v1.0 GA — the API v1 contract is fully preserved.
+
+### Added
+
+- **Pluggable `CoordinationBackend`** (memory + Redis) used by Identity revocation cache, Gateway rate-limits + tenant cost-caps. Single env var (`PLINTH_COORDINATION_BACKEND=redis`) flips multiple replicas to cluster-shared state. `MemoryBackend` is the default → v1.0 behavior unchanged. 88 new coordination tests across workspace + gateway + identity.
+- **OTel public-logs migration** — try-import wrapper prefers `opentelemetry.sdk.logs`, falls back to `opentelemetry.sdk._logs` (still canonical through 1.41). `<1.30` pin lifted across all 3 OTel deps in gateway. 43/43 OTel tests green post-migration.
+- **Workflow retries with exponential backoff + DLQ** — `WorkflowStep` gains `max_attempts`, `retry_policy`, `retry_initial_delay_seconds`, `retry_max_delay_seconds`, `retry_jitter`, `next_retry_at`. New `workflow_dlq` table + 3 DLQ endpoints (list, replay, delete). Failed steps that exhaust attempts route to per-workflow DLQ.
+- **Migration rollback files for every existing migration** across workspace + gateway + identity. 8 new `<id>_rollback.sql` files. Rollback CLI + endpoint can now actually execute reversal.
+- **Lease-reaper jitter** — ±25% uniform random jitter on the periodic lease-reaper loop prevents thundering-herd when multiple workspace replicas wake at the same wall-clock second.
+- **Notion MCP server** (port 7429) with 7 tools: `notion.search`, `get_page`, `create_page`, `update_page`, `append_block`, `list_databases`, `query_database`. 46 tests.
+- **Google Workspace MCP server** (port 7430) with 8 tools: `google.drive_search`, `drive_read`, `docs_create`, `docs_append`, `sheets_read`, `sheets_append_row`, `calendar_list_events`, `gmail_list_messages`. PKCE-correct OAuth flow. 53 tests.
+- **Gateway OAuth providers extended** — Notion (no PKCE) + Google Workspace (PKCE + refresh tokens). Existing GitHub/Slack/Linear flows unchanged. 22 new gateway OAuth tests.
+- **CI hardening**:
+  - `python` matrix expanded from 4 → 12 suites × 2 Python versions (workspace, gateway, identity, sdk-python, mock-mcp, dashboard, github-mcp, slack-mcp, linear-mcp, worker, benchmarks, cli)
+  - Postgres service container in CI with `PLINTH_TEST_POSTGRES_URL` set — Postgres tests now execute (no longer skip)
+  - New `typescript-worker` job for `worker-ts/`
+  - New CodeQL workflow (Python + JS/TS, security-extended queries, weekly schedule)
+  - New Dependabot config (26 update entries: pip + npm + docker + github-actions)
+  - Issue templates (bug, feature, question), PR template, CODEOWNERS
+- **Real benchmark numbers** — `benchmarks/results/baseline-v1.1.json` populated against running stack on Apple M4. README "Performance" table replaced with measured p50/p95/p99 across 6 workloads. Per-second buckets persisted to `benchmarks/results/raw-v1.1/`.
+
+### Changed
+- workspace: 576 tests (was 532 in v1.0): +retry +DLQ +coordination
+- gateway: 517 tests (was 452): +Notion/Google OAuth +coordination +OTel
+- identity: 239 tests (was 218): +coordination
+- python SDK: 301 tests (was 292): +retry config + DLQ access
+- typescript SDK: 144 tests (was 136): +retry config + DLQ access
+- mcp-servers/notion: NEW, 46 tests
+- mcp-servers/google-workspace: NEW, 53 tests
+- Total: **2139 Python + 144 TS-SDK + 29 TS-Worker = 2312 tests passing** (was 2066 in v1.0)
+
+### Stack additions
+- `redis>=5.0` — coordination backend (pure-Python, base dep across services)
+- `fakeredis>=2.20` — dev dep for cluster-shared coordination tests
+- `opentelemetry-*>=1.25` — pin lifted (`<1.30` removed)
+
+### Backwards compatibility
+- All v1.0 endpoints unchanged
+- `coordination_backend=memory` default → v1.0 deployments behave identically
+- Workflow retries opt-in (`max_attempts=1` is the default and identical to v1.0)
+- DLQ endpoints are additive
+- Notion + Google MCP servers are new ports — existing infra unchanged
+- API v1 contract preserved; deprecation policy unchanged
+
+All v0.1–v1.0 demos produce unchanged output (verified — research-agent: 70.4% reduction, multi-agent: 8737 tokens, resume: 5841 saved, triage: 10 issues classified).
+
 ## [1.0.0] — 2026-05-08
 
 **General Availability release.** Compresses the v0.7–v0.9 trajectory into one coherent ship: stable API guarantees, multi-region scaffolding, per-tenant resource quotas, GDPR compliance scaffolding, tamper-evident audit chain, unified operator CLI, comprehensive Prometheus + OTLP observability, production deployment artifacts (k8s + Helm + Terraform), threat model.
@@ -288,6 +336,7 @@ Initial proof-of-concept release. Working end-to-end slice of the agent-native s
 ### Stack
 Python 3.11+ for services + Python SDK; TypeScript 5.4+ for the TS SDK; FastAPI + uvicorn + aiosqlite + pydantic v2 + tiktoken; vitest for TS tests.
 
+[1.1.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.1.0
 [1.0.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.0.0
 [0.6.1]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v0.6.1
 [0.6.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v0.6.0

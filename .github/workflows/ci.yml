@@ -11,13 +11,40 @@ permissions:
 
 jobs:
   python:
-    name: Python (services + SDK)
+    name: Python (${{ matrix.suite }}) on Py${{ matrix.python-version }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
-
+        suite:
+          - workspace
+          - gateway
+          - identity
+          - sdk-python
+          - mock-mcp
+          - dashboard
+          - github-mcp
+          - slack-mcp
+          - linear-mcp
+          - worker
+          - benchmarks
+          - cli
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: plinth_test
+          POSTGRES_PASSWORD: plinth_test
+          POSTGRES_DB: plinth_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PLINTH_TEST_POSTGRES_URL: postgresql://plinth_test:plinth_test@localhost:5432/plinth_test
     steps:
       - uses: actions/checkout@v4
 
@@ -27,41 +54,55 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Install dev dependencies
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip wheel
+
+      - name: Install component
         run: |
-          python -m pip install --upgrade pip wheel
-          pip install -e "./services/workspace[dev]"
-          pip install -e "./services/gateway[dev]"
-          pip install -e "./sdk/python[dev]"
-          pip install -e "./examples/01-research-agent"
-          if [ -d "./mock-mcp-server" ]; then
-            pip install -e "./mock-mcp-server[dev]"
-          fi
+          set -e
+          case "${{ matrix.suite }}" in
+            workspace)    pip install -e "./services/workspace[dev]" ;;
+            gateway)      pip install -e "./services/gateway[dev]" ;;
+            identity)     pip install -e "./services/identity[dev]" ;;
+            sdk-python)
+              pip install -e "./services/workspace[dev]"
+              pip install -e "./services/gateway[dev]"
+              pip install -e "./services/identity[dev]"
+              pip install -e "./sdk/python[dev]"
+              ;;
+            mock-mcp)     pip install -e "./mock-mcp-server[dev]" ;;
+            dashboard)    pip install -e "./services/dashboard[dev]" ;;
+            github-mcp)   pip install -e "./mcp-servers/github[dev]" ;;
+            slack-mcp)    pip install -e "./mcp-servers/slack[dev]" ;;
+            linear-mcp)   pip install -e "./mcp-servers/linear[dev]" ;;
+            worker)
+              pip install -e "./sdk/python[dev]"
+              pip install -e "./worker[dev]"
+              ;;
+            benchmarks)   pip install -e "./benchmarks[dev]" ;;
+            cli)
+              pip install -e "./sdk/python[dev]"
+              pip install -e "./cli[dev]"
+              ;;
+          esac
 
-      - name: Lint
+      - name: Test
         run: |
-          ruff check services sdk/python examples/01-research-agent || true
-          if [ -d "./mock-mcp-server" ]; then ruff check mock-mcp-server || true; fi
-
-      - name: Test workspace service
-        run: cd services/workspace && pytest -q --cov=plinth_workspace
-
-      - name: Test gateway service
-        run: cd services/gateway && pytest -q --cov=plinth_gateway
-
-      - name: Test Python SDK
-        run: cd sdk/python && pytest -q --cov=plinth
-
-      - name: Test mock-mcp server
-        run: |
-          if [ -d "./mock-mcp-server" ]; then
-            cd mock-mcp-server && pytest -q --cov=mock_mcp
-          else
-            echo "mock-mcp-server not present; skipping"
-          fi
-
-      - name: Run headline demo (simulation)
-        run: python examples/01-research-agent/compare.py --topic "renewable energy" --mode simulation
+          set -e
+          case "${{ matrix.suite }}" in
+            workspace)    cd services/workspace && pytest -q --cov=plinth_workspace ;;
+            gateway)      cd services/gateway && pytest -q --cov=plinth_gateway ;;
+            identity)     cd services/identity && pytest -q --cov=plinth_identity ;;
+            sdk-python)   cd sdk/python && pytest -q --cov=plinth ;;
+            mock-mcp)     cd mock-mcp-server && pytest -q --cov=mock_mcp ;;
+            dashboard)    cd services/dashboard && pytest -q --cov=plinth_dashboard ;;
+            github-mcp)   cd mcp-servers/github && pytest -q --cov=github_mcp ;;
+            slack-mcp)    cd mcp-servers/slack && pytest -q --cov=slack_mcp ;;
+            linear-mcp)   cd mcp-servers/linear && pytest -q --cov=linear_mcp ;;
+            worker)       cd worker && pytest -q --cov=plinth_workflow_worker ;;
+            benchmarks)   cd benchmarks && pytest -q ;;
+            cli)          cd cli && pytest -q --cov=plinth_cli ;;
+          esac
 
   typescript:
     name: TypeScript SDK
@@ -85,6 +126,32 @@ jobs:
 
       - name: Test
         run: cd sdk/typescript && npm test
+
+  typescript-worker:
+    name: TypeScript Worker
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: worker-ts/package-lock.json
+
+      - name: Build SDK
+        run: cd sdk/typescript && npm install && npm run build
+
+      - name: Install worker
+        run: cd worker-ts && npm install
+
+      - name: Build worker
+        run: cd worker-ts && npm run build
+
+      - name: Test worker
+        run: cd worker-ts && npm test
 
   specs:
     name: API specs
@@ -112,7 +179,6 @@ jobs:
   contract:
     name: API contract tests
     runs-on: ubuntu-latest
-    needs: python
 
     steps:
       - uses: actions/checkout@v4
@@ -128,12 +194,8 @@ jobs:
           python -m pip install --upgrade pip wheel
           pip install -e "./services/workspace[dev]"
           pip install -e "./services/gateway[dev]"
-          if [ -d "./services/identity" ]; then
-            pip install -e "./services/identity[dev]" || true
-          fi
-          if [ -d "./mock-mcp-server" ]; then
-            pip install -e "./mock-mcp-server[dev]" || true
-          fi
+          pip install -e "./services/identity[dev]"
+          pip install -e "./mock-mcp-server[dev]"
           pip install -e "./tests/contract[dev]"
 
       - name: Run contract tests (in-process FastAPI apps)

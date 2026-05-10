@@ -1,0 +1,280 @@
+version: 2
+
+updates:
+  # ───────── GitHub Actions ─────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["deps", "ci"]
+
+  # ───────── Python services ─────────
+  - package-ecosystem: "pip"
+    directory: "/services/workspace"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["deps", "python"]
+    groups:
+      python-dev:
+        dependency-type: "development"
+
+  - package-ecosystem: "pip"
+    directory: "/services/gateway"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["deps", "python"]
+    groups:
+      python-dev:
+        dependency-type: "development"
+
+  - package-ecosystem: "pip"
+    directory: "/services/identity"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["deps", "python"]
+    groups:
+      python-dev:
+        dependency-type: "development"
+
+  - package-ecosystem: "pip"
+    directory: "/services/dashboard"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["deps", "python"]
+    groups:
+      python-dev:
+        dependency-type: "development"
+
+  # ───────── Python SDK ─────────
+  - package-ecosystem: "pip"
+    directory: "/sdk/python"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["deps", "python"]
+    groups:
+      python-dev:
+        dependency-type: "development"
+
+  # ───────── Mock MCP server ─────────
+  - package-ecosystem: "pip"
+    directory: "/mock-mcp-server"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["deps", "python"]
+    groups:
+      python-dev:
+        dependency-type: "development"
+
+  # ───────── MCP servers ─────────
+  - package-ecosystem: "pip"
+    directory: "/mcp-servers/github"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["deps", "python"]
+    groups:
+      python-dev:
+        dependency-type: "development"
+
+  - package-ecosystem: "pip"
+    directory: "/mcp-servers/slack"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["deps", "python"]
+    groups:
+      python-dev:
+        dependency-type: "development"
+
+  - package-ecosystem: "pip"
+    directory: "/mcp-servers/linear"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["deps", "python"]
+    groups:
+      python-dev:
+        dependency-type: "development"
+
+  # ───────── Worker (Python) ─────────
+  - package-ecosystem: "pip"
+    directory: "/worker"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["deps", "python"]
+    groups:
+      python-dev:
+        dependency-type: "development"
+
+  # ───────── Benchmarks ─────────
+  - package-ecosystem: "pip"
+    directory: "/benchmarks"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["deps", "python"]
+    groups:
+      python-dev:
+        dependency-type: "development"
+
+  # ───────── CLI ─────────
+  - package-ecosystem: "pip"
+    directory: "/cli"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["deps", "python"]
+    groups:
+      python-dev:
+        dependency-type: "development"
+
+  # ───────── Contract tests ─────────
+  - package-ecosystem: "pip"
+    directory: "/tests/contract"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["deps", "python"]
+    groups:
+      python-dev:
+        dependency-type: "development"
+
+  # ───────── NPM (TypeScript SDK) ─────────
+  - package-ecosystem: "npm"
+    directory: "/sdk/typescript"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["deps", "typescript"]
+
+  # ───────── NPM (TypeScript Worker) ─────────
+  - package-ecosystem: "npm"
+    directory: "/worker-ts"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    labels: ["deps", "typescript"]
+
+  # ───────── Docker (services) ─────────
+  - package-ecosystem: "docker"
+    directory: "/services/workspace"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    labels: ["deps", "docker"]
+
+  - package-ecosystem: "docker"
+    directory: "/services/gateway"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    labels: ["deps", "docker"]
+
+  - package-ecosystem: "docker"
+    directory: "/services/identity"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    labels: ["deps", "docker"]
+
+  - package-ecosystem: "docker"
+    directory: "/services/dashboard"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    labels: ["deps", "docker"]
+
+  # ───────── Docker (mock MCP) ─────────
+  - package-ecosystem: "docker"
+    directory: "/mock-mcp-server"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    labels: ["deps", "docker"]
+
+  # ───────── Docker (MCP servers) ─────────
+  - package-ecosystem: "docker"
+    directory: "/mcp-servers/github"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    labels: ["deps", "docker"]
+
+  - package-ecosystem: "docker"
+    directory: "/mcp-servers/slack"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    labels: ["deps", "docker"]
+
+  - package-ecosystem: "docker"
+    directory: "/mcp-servers/linear"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    labels: ["deps", "docker"]
+
+  # ───────── Docker (worker + cli) ─────────
+  - package-ecosystem: "docker"
+    directory: "/worker"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    labels: ["deps", "docker"]
+
+  - package-ecosystem: "docker"
+    directory: "/cli"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    labels: ["deps", "docker"]

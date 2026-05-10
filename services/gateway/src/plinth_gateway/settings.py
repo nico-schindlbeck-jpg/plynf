@@ -101,6 +101,37 @@ class Settings(BaseSettings):
     )
     oauth_linear_scopes: str = Field(default="read,write")
 
+    # v1.1 — Notion OAuth. Notion's flow is workspace-scoped (no per-call
+    # scopes) and does NOT support PKCE. Empty client_id means the authorize
+    # endpoint returns 503 with ``OAUTH_NOT_CONFIGURED`` (same pattern as the
+    # other providers).
+    oauth_notion_client_id: str = Field(default="")
+    oauth_notion_client_secret: str = Field(default="")
+    oauth_notion_redirect_uri: str = Field(
+        default="http://localhost:7422/v1/oauth/notion/callback"
+    )
+    oauth_notion_scopes: str = Field(default="")
+
+    # v1.1 — Google Workspace OAuth. PKCE-enabled, refresh-token-aware.
+    # Default scopes cover Drive (file-scoped), Docs, Sheets, Calendar
+    # (read-only), Gmail (read-only). Operators tighten or broaden via the
+    # ``oauth_google_scopes`` env var.
+    oauth_google_client_id: str = Field(default="")
+    oauth_google_client_secret: str = Field(default="")
+    oauth_google_redirect_uri: str = Field(
+        default="http://localhost:7422/v1/oauth/google/callback"
+    )
+    oauth_google_scopes: str = Field(
+        default=(
+            "openid,email,profile,"
+            "https://www.googleapis.com/auth/drive.file,"
+            "https://www.googleapis.com/auth/documents,"
+            "https://www.googleapis.com/auth/spreadsheets,"
+            "https://www.googleapis.com/auth/calendar.readonly,"
+            "https://www.googleapis.com/auth/gmail.readonly"
+        )
+    )
+
     oauth_state_ttl_seconds: int = Field(default=600)
 
     # v0.4 — OTLP observability event stream.
@@ -167,6 +198,16 @@ class Settings(BaseSettings):
     quotas_enabled: bool = Field(default=False)
     quotas_cache_ttl_seconds: int = Field(default=60, ge=0)
     quotas_fetch_timeout_seconds: float = Field(default=2.0, ge=0.1)
+
+    # v1.1 — pluggable coordination backend (see ``coordination.py``).
+    # ``memory`` (default) keeps v1.0 behaviour exactly: rate-limits, cost
+    # caps, and revocation cache are per-process. Flip to ``redis`` to
+    # share state across replicas; the gateway, identity, and workspace
+    # services all read this same triplet so a multi-replica deployment
+    # can flip everything at once.
+    coordination_backend: Literal["memory", "redis"] = Field(default="memory")
+    coordination_redis_url: str = Field(default="redis://localhost:6379/0")
+    coordination_key_prefix: str = Field(default="plinth")
 
     @field_validator("region_peers", mode="before")
     @classmethod

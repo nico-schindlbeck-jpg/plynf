@@ -209,13 +209,29 @@ class TokenStore:
     the verify path off the disk for the hot read.
     """
 
-    def __init__(self, db_path: Path) -> None:
+    def __init__(self, db_path: Path, *, coordination: Any | None = None) -> None:
         self._db_path = db_path
         self._revoked_cache: set[str] | None = None
+        # v1.1 — coordination backend. When supplied (typically a
+        # ``RedisBackend``) every revoke pushes the JTI into a shared
+        # ``revoked_jtis`` set so peer replicas see it immediately
+        # without waiting for the polling cycle. Reads still hit the
+        # local cache first for speed; the coordination set is the
+        # propagation channel, not the authority.
+        self._coordination = coordination
 
     @property
     def db_path(self) -> Path:
         return self._db_path
+
+    @property
+    def coordination(self) -> Any | None:
+        return self._coordination
+
+    def attach_coordination(self, coordination: Any) -> None:
+        """Late-bind the coordination backend (used by ``api.create_app``)."""
+
+        self._coordination = coordination
 
     async def insert(
         self,
@@ -326,6 +342,24 @@ class TokenStore:
         if self._revoked_cache is not None:
             self._revoked_cache.add(jti)
 
+        # v1.1 — push to the coordination set so peer replicas + downstream
+        # services (gateway, workspace) pick it up via Redis without
+        # waiting for the next polling cycle. TTL = expiry-since-now so
+        # entries don't accumulate forever.
+        if self._coordination is not None:
+            try:
+                ttl = max(
+                    1,
+                    int((info.expires_at - datetime.now(UTC)).total_seconds()),
+                )
+                await self._coordination.add_to_set(
+                    "revoked_jtis",
+                    jti,
+                    ttl_seconds=ttl,
+                )
+            except Exception:  # noqa: BLE001 — propagation is best-effort
+                pass
+
         return TokenInfo(
             jti=info.jti,
             agent_id=info.agent_id,
@@ -340,15 +374,30 @@ class TokenStore:
         )
 
     async def is_revoked(self, jti: str) -> bool:
-        """True if ``jti`` is revoked (uses the in-memory cache).
+        """True if ``jti`` is revoked.
 
-        First call lazily populates the cache from SQLite. Subsequent calls
-        are pure in-memory lookups.
+        First call lazily populates the local cache from SQLite. Subsequent
+        calls hit the in-memory cache.
+
+        v1.1 — when a coordination backend is attached (typically Redis),
+        we *also* consult the cluster-shared set on a cache miss so a
+        revocation issued on a peer replica is honoured here within one
+        request rather than one polling cycle. Best-effort: a Redis
+        outage falls through to the local cache only.
         """
 
         if self._revoked_cache is None:
             self._revoked_cache = await self._load_revoked()
-        return jti in self._revoked_cache
+        if jti in self._revoked_cache:
+            return True
+        if self._coordination is not None:
+            try:
+                if await self._coordination.is_member("revoked_jtis", jti):
+                    self._revoked_cache.add(jti)
+                    return True
+            except Exception:  # noqa: BLE001
+                pass
+        return False
 
     async def revoked_jtis(self) -> set[str]:
         """Return the in-memory set of revoked JTIs (populating if needed)."""
