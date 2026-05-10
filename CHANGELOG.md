@@ -2,6 +2,36 @@
 
 All notable changes to Plinth are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [SemVer](https://semver.org).
 
+## [1.5.2] — 2026-05-10
+
+Studio v2: real drag-drop replaces v1.5's click-to-insert.
+
+### Added
+- **Plinth Studio v2** drag-drop in Dashboard:
+  - Toolbox tiles are `draggable="true"` with custom MIME types (`application/x-plinth-step-{type|id}`)
+  - Canvas insertion-line indicators between every row (drop here to insert at position)
+  - Existing rows draggable for reorder
+  - Trash zone in toolbar; expands when dragging a row, drop deletes
+  - Undo banner with 5s countdown + Undo button — restores at original index
+  - Keyboard accessibility preserved: up/down/edit/× buttons, `Delete`/`Backspace` on focused row, full Tab order through toolbox → rows → trash → save
+  - Vanilla JS — no React, no external libs, +20 KB across html/js/css
+  - Stable per-step `__id` for race-safe reorder; stripped on save (WorkflowDefinition JSON byte-identical to v1.5)
+- 11 new dashboard tests for v2 markup + drag-drop event listeners.
+
+### Changed
+- Dashboard tests: 132 → **143**
+- v1.5 click-to-insert flow replaced with v2; `tpl-studio` template renamed to `tpl-studio-v2`. Click-on-tile still appends (keyboard/touch fallback).
+
+### Backwards compatibility
+- Save/Load/Export endpoints unchanged
+- `WorkflowDefinition` schema unchanged
+- `window.PlinthStudio` API surface preserved + extended (insertNewStep, reorderStep, deleteStep, undoLastDelete)
+
+### Browser compat notes
+- Firefox: setData fallback to `text/plain` for cross-MIME drag start
+- Safari: try/catch around custom MIME setData; body-class state as fallback signal
+- All standard drag-drop quirks handled (dragend cleanup, dataTransfer.types casing)
+
 ## [1.5.1] — 2026-05-10
 
 Patch release: docs site, TS-worker LLM parity, CI cost reduction.
@@ -528,6 +558,7 @@ Initial proof-of-concept release. Working end-to-end slice of the agent-native s
 ### Stack
 Python 3.11+ for services + Python SDK; TypeScript 5.4+ for the TS SDK; FastAPI + uvicorn + aiosqlite + pydantic v2 + tiktoken; vitest for TS tests.
 
+[1.5.2]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.5.2
 [1.5.1]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.5.1
 [1.5.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.5.0
 [1.4.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.4.0

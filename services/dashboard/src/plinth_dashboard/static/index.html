@@ -430,14 +430,14 @@
       </section>
     </template>
 
-    <!-- v1.5 — Plinth Studio (visual workflow builder). -->
-    <template id="tpl-studio">
+    <!-- v2 — Plinth Studio (visual workflow builder, drag-drop edition). -->
+    <template id="tpl-studio-v2">
       <a class="back-link" href="#/" id="studio-back">&larr; Back to overview</a>
 
       <section class="card studio-head">
         <div>
           <h1>Plinth Studio</h1>
-          <p class="muted">Compose a workflow by adding steps to the canvas. Save to import as a runnable workflow.</p>
+          <p class="muted">Drag a step from the toolbox onto the canvas to compose a workflow. Drag rows to reorder, or drag onto the trash to delete.</p>
         </div>
         <div class="studio-actions">
           <label class="studio-ws-picker">
@@ -446,6 +446,13 @@
               <option value="">— choose —</option>
             </select>
           </label>
+          <div class="studio-trash" id="studio-trash"
+               role="button"
+               tabindex="0"
+               aria-label="trash — drop a step here or focus a row and press Delete">
+            <span class="studio-trash-icon" aria-hidden="true">🗑</span>
+            <span class="studio-trash-label">Trash</span>
+          </div>
           <button class="btn small" type="button" id="studio-load">Load</button>
           <button class="btn small" type="button" id="studio-export">Export JSON</button>
           <button class="btn small primary" type="button" id="studio-save">Save</button>
@@ -455,24 +462,52 @@
       <div class="studio-grid">
         <aside class="card studio-toolbox" aria-labelledby="studio-toolbox-h">
           <div class="card-head"><h2 id="studio-toolbox-h">Toolbox</h2></div>
+          <p class="studio-toolbox-hint muted" id="studio-toolbox-hint">
+            Drag a tile onto the canvas to insert. Keyboard: focus a tile and press Enter to append.
+          </p>
           <ul class="studio-tools" id="studio-tools">
-            <li><button class="studio-tool" type="button" data-step-type="tool">
+            <li><button class="studio-tool"
+                       type="button"
+                       data-step-type="tool"
+                       draggable="true"
+                       aria-grabbed="false"
+                       aria-describedby="studio-toolbox-hint">
               <span class="studio-tool-name">Tool call</span>
               <span class="studio-tool-desc">Invoke a registered tool via gateway.</span>
             </button></li>
-            <li><button class="studio-tool" type="button" data-step-type="llm">
+            <li><button class="studio-tool"
+                       type="button"
+                       data-step-type="llm"
+                       draggable="true"
+                       aria-grabbed="false"
+                       aria-describedby="studio-toolbox-hint">
               <span class="studio-tool-name">LLM call</span>
               <span class="studio-tool-desc">Call client.llm.complete with a model + prompt template.</span>
             </button></li>
-            <li><button class="studio-tool" type="button" data-step-type="channel_send">
+            <li><button class="studio-tool"
+                       type="button"
+                       data-step-type="channel_send"
+                       draggable="true"
+                       aria-grabbed="false"
+                       aria-describedby="studio-toolbox-hint">
               <span class="studio-tool-name">Channel send</span>
               <span class="studio-tool-desc">Post a message to a workspace channel.</span>
             </button></li>
-            <li><button class="studio-tool" type="button" data-step-type="channel_receive">
+            <li><button class="studio-tool"
+                       type="button"
+                       data-step-type="channel_receive"
+                       draggable="true"
+                       aria-grabbed="false"
+                       aria-describedby="studio-toolbox-hint">
               <span class="studio-tool-name">Channel receive</span>
               <span class="studio-tool-desc">Wait on a workspace channel.</span>
             </button></li>
-            <li><button class="studio-tool" type="button" data-step-type="manual">
+            <li><button class="studio-tool"
+                       type="button"
+                       data-step-type="manual"
+                       draggable="true"
+                       aria-grabbed="false"
+                       aria-describedby="studio-toolbox-hint">
               <span class="studio-tool-name">Manual approval</span>
               <span class="studio-tool-desc">Human-in-loop placeholder (post-v1.5).</span>
             </button></li>
@@ -485,12 +520,27 @@
             <span class="muted" id="studio-canvas-summary">no steps yet</span>
           </div>
           <ol class="studio-canvas" id="studio-canvas"
-              aria-label="workflow steps in execution order">
-            <li class="studio-canvas-empty muted">
-              Click a tool on the left to add a step.
+              aria-label="workflow steps in execution order"
+              aria-describedby="studio-canvas-keyboard-hint">
+            <li class="studio-canvas-empty muted" data-empty-state>
+              Drop a step here to start.
             </li>
           </ol>
+          <p class="studio-keyboard-hint muted" id="studio-canvas-keyboard-hint">
+            Keyboard: focus a row, use ↑/↓ buttons to reorder, Enter to edit, Delete to remove.
+          </p>
           <p class="studio-status muted" id="studio-status"></p>
+          <div class="studio-undo-banner"
+               id="studio-undo-banner"
+               role="status"
+               aria-live="polite"
+               hidden>
+            <span id="studio-undo-text">Step deleted.</span>
+            <button class="studio-undo-btn"
+                    type="button"
+                    id="studio-undo-btn">Undo</button>
+            <span class="studio-undo-timer" id="studio-undo-timer">(5s)</span>
+          </div>
         </section>
 
         <aside class="card studio-properties" aria-labelledby="studio-props-h">

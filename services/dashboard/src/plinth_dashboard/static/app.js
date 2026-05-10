@@ -267,7 +267,7 @@
       stopPolling();
       void loadWorkflowReplay();
     } else if (route.name === "studio") {
-      mountTemplate("tpl-studio");
+      mountTemplate("tpl-studio-v2");
       stopPolling();
       void loadStudio();
     } else if (route.name === "tenants") {
@@ -3174,12 +3174,27 @@
   }
 
   // ====================================================================
-  // v1.5 — Plinth Studio (visual workflow builder)
+  // v2 — Plinth Studio (visual workflow builder, drag-drop edition)
   // ====================================================================
 
-  // Studio state. Drag-drop is hard without a library; we use a
-  // click-to-insert + reorder-buttons approach instead, per the spec
-  // fallback. Steps live in an array and the canvas re-renders from it.
+  // Studio state. v2 supports proper HTML5 drag-and-drop: tiles from the
+  // toolbox can be dropped on insertion zones between rows; rows can be
+  // dragged to reorder; rows can be dragged onto the trash to delete (with
+  // a 5s undo banner). The up/down/edit/delete row buttons remain as the
+  // keyboard-accessible fallback.
+  //
+  // Every step is stamped with a stable string `__id` (in-memory only, not
+  // persisted) so drag-and-drop can refer to rows regardless of their
+  // current index.
+  let studioIdCounter = 0;
+  function nextStudioStepId() {
+    studioIdCounter += 1;
+    return "s" + studioIdCounter + "_" + Math.random().toString(36).slice(2, 8);
+  }
+  const STUDIO_TYPE_MIME = "application/x-plinth-step-type";
+  const STUDIO_ID_MIME = "application/x-plinth-step-id";
+  const STUDIO_UNDO_MS = 5000;
+
   const studioState = {
     workflow: {
       name: "",
@@ -3192,6 +3207,10 @@
     selectedWsId: "",
     editingIndex: null,
     loadedFromId: null,
+    // Drag-drop scratch state.
+    draggingRowId: null,
+    // Undo-banner state — when a row is deleted via trash or Delete-key.
+    undo: null, // { step, index, timerId, deadline }
   };
 
   const STUDIO_STEP_DEFAULTS = {
@@ -3297,27 +3316,80 @@
     return true;
   }
 
+  // ---- helpers: identify and find steps regardless of index ----------
+
+  function ensureStudioStepId(step) {
+    if (step && !step.__id) step.__id = nextStudioStepId();
+    return step;
+  }
+
+  function studioFindIndexById(id) {
+    return studioState.workflow.steps.findIndex((s) => s && s.__id === id);
+  }
+
+  // Build a fresh step for a given type. Used by drag-drop insert + the
+  // keyboard-fallback Enter handler.
+  function makeStudioStep(type) {
+    const defaults = STUDIO_STEP_DEFAULTS[type] || { type };
+    const step = {
+      name: `step_${studioState.workflow.steps.length + 1}`,
+      ...JSON.parse(JSON.stringify(defaults)),
+      max_attempts: studioState.workflow.max_attempts_default,
+    };
+    ensureStudioStepId(step);
+    return step;
+  }
+
+  // ---- canvas render -------------------------------------------------
+
   function renderStudioCanvas() {
     const root = $("#studio-canvas");
     const summary = $("#studio-canvas-summary");
     if (!root) return;
     const steps = studioState.workflow.steps;
+    steps.forEach(ensureStudioStepId);
     if (summary) {
       summary.textContent = steps.length
         ? `${steps.length} step${steps.length === 1 ? "" : "s"}`
         : "no steps yet";
     }
+
+    // Empty state: still render a single drop zone (index 0) so the user
+    // has somewhere to drop a tile. The visible empty-state placeholder
+    // sits inside the zone.
     if (!steps.length) {
-      root.innerHTML = `<li class="studio-canvas-empty muted">
-        Click a tool on the left to add a step.
-      </li>`;
+      root.innerHTML = `
+        <li class="studio-zone studio-zone-only"
+            data-index="0"
+            aria-hidden="true">
+          <div class="studio-zone-line"></div>
+        </li>
+        <li class="studio-canvas-empty muted" data-empty-state>
+          Drop a step here to start.
+        </li>`;
+      wireStudioCanvasZones();
       return;
     }
-    root.innerHTML = steps
-      .map((step, idx) => {
-        const valid = studioStepValid(step);
-        return `
-          <li class="studio-step ${valid ? "" : "invalid"}" data-index="${idx}">
+
+    // Render: [zone 0][row 0][zone 1][row 1]…[zone N].
+    const parts = [];
+    parts.push(
+      `<li class="studio-zone" data-index="0" aria-hidden="true">
+         <div class="studio-zone-line"></div>
+       </li>`,
+    );
+    steps.forEach((step, idx) => {
+      const valid = studioStepValid(step);
+      parts.push(`
+          <li class="studio-step ${valid ? "" : "invalid"}"
+              data-index="${idx}"
+              data-step-id="${escapeHtml(step.__id)}"
+              draggable="true"
+              tabindex="0"
+              role="listitem"
+              aria-grabbed="false"
+              aria-label="step ${idx + 1}: ${escapeHtml(step.name || "(unnamed)")}, type ${escapeHtml(step.type || "")}">
+            <span class="studio-step-grip" aria-hidden="true">⋮⋮</span>
             <span class="studio-step-index">${idx + 1}</span>
             <div class="studio-step-body">
               <span class="studio-step-name">
@@ -3330,69 +3402,341 @@
             </div>
             <span class="studio-step-actions">
               <button class="btn small" type="button" data-step-up
-                ${idx === 0 ? "disabled" : ""}>↑</button>
+                ${idx === 0 ? "disabled" : ""}
+                aria-label="move step up">↑</button>
               <button class="btn small" type="button" data-step-down
-                ${idx === steps.length - 1 ? "disabled" : ""}>↓</button>
-              <button class="btn small" type="button" data-step-edit>edit</button>
-              <button class="btn small" type="button" data-step-remove>×</button>
+                ${idx === steps.length - 1 ? "disabled" : ""}
+                aria-label="move step down">↓</button>
+              <button class="btn small" type="button" data-step-edit
+                aria-label="edit step">edit</button>
+              <button class="btn small" type="button" data-step-remove
+                aria-label="delete step">×</button>
             </span>
           </li>
-        `;
-      })
-      .join("");
+        `);
+      parts.push(
+        `<li class="studio-zone" data-index="${idx + 1}" aria-hidden="true">
+           <div class="studio-zone-line"></div>
+         </li>`,
+      );
+    });
+    root.innerHTML = parts.join("");
+    wireStudioCanvasZones();
+    wireStudioRowDrag();
+  }
+
+  // ---- drag-drop helpers --------------------------------------------
+
+  function studioInsertNewStep(stepType, insertIndex) {
+    if (!STUDIO_STEP_DEFAULTS[stepType] && stepType !== "manual") {
+      // Unknown type → no-op. (Defends against weird MIME values.)
+      return;
+    }
+    const step = makeStudioStep(stepType);
+    const arr = studioState.workflow.steps;
+    const idx = Math.max(0, Math.min(arr.length, insertIndex));
+    arr.splice(idx, 0, step);
+    renderStudioCanvas();
+    // Open the editor immediately so the user can fill in required fields.
+    openStudioStepEditor(idx);
+  }
+
+  function studioReorderStep(movingStepId, insertIndex) {
+    const arr = studioState.workflow.steps;
+    const from = studioFindIndexById(movingStepId);
+    if (from < 0) return;
+    // Convert insertIndex from "gap" semantics to a final array index.
+    // Gap k means "before row k" in the BEFORE state. If we're moving a
+    // row from `from` to gap `k`, the resulting index is k when k <= from,
+    // otherwise k - 1 (because removing `from` shifts later gaps left by 1).
+    let to = insertIndex;
+    if (to > from) to -= 1;
+    if (to === from) return; // No-op: dropped on its own slot.
+    if (to < 0 || to > arr.length - 1) return;
+    const [moved] = arr.splice(from, 1);
+    arr.splice(to, 0, moved);
+    renderStudioCanvas();
+  }
+
+  function studioDeleteStep(stepId, opts) {
+    const arr = studioState.workflow.steps;
+    const idx = studioFindIndexById(stepId);
+    if (idx < 0) return;
+    const [removed] = arr.splice(idx, 1);
+    renderStudioCanvas();
+    if (opts && opts.showUndo) {
+      studioShowUndoBanner(removed, idx);
+    }
+  }
+
+  // ---- undo banner ---------------------------------------------------
+
+  function studioShowUndoBanner(step, index) {
+    studioClearUndoBanner({ keepStateForRestore: false });
+    const banner = $("#studio-undo-banner");
+    const text = $("#studio-undo-text");
+    const timer = $("#studio-undo-timer");
+    const btn = $("#studio-undo-btn");
+    if (!banner || !text || !timer || !btn) return;
+    const label = step && step.name ? step.name : step && step.type ? step.type : "step";
+    text.textContent = `Step "${label}" deleted.`;
+    const deadline = Date.now() + STUDIO_UNDO_MS;
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      timer.textContent = `(${remaining}s)`;
+      if (remaining <= 0) {
+        studioClearUndoBanner({ keepStateForRestore: false });
+      }
+    };
+    tick();
+    const timerId = setInterval(tick, 250);
+    studioState.undo = { step, index, timerId, deadline };
+    banner.hidden = false;
+    btn.onclick = studioUndoLastDelete;
+  }
+
+  function studioUndoLastDelete() {
+    const u = studioState.undo;
+    if (!u) return;
+    const arr = studioState.workflow.steps;
+    const idx = Math.max(0, Math.min(arr.length, u.index));
+    arr.splice(idx, 0, u.step);
+    studioClearUndoBanner({ keepStateForRestore: false });
+    renderStudioCanvas();
+  }
+
+  function studioClearUndoBanner(opts) {
+    const banner = $("#studio-undo-banner");
+    if (studioState.undo) {
+      if (studioState.undo.timerId) clearInterval(studioState.undo.timerId);
+      if (!opts || !opts.keepStateForRestore) studioState.undo = null;
+    }
+    if (banner) banner.hidden = true;
+  }
+
+  // ---- canvas zones: drop-target wiring ------------------------------
+
+  function wireStudioCanvasZones() {
+    const root = $("#studio-canvas");
+    if (!root) return;
+    const zones = root.querySelectorAll(".studio-zone");
+    zones.forEach((zone) => {
+      zone.addEventListener("dragover", studioZoneDragOver);
+      zone.addEventListener("dragleave", studioZoneDragLeave);
+      zone.addEventListener("drop", studioZoneDrop);
+    });
+  }
+
+  function studioZoneDragOver(ev) {
+    // Accept either a fresh-tile insert or a row-reorder.
+    const types = Array.from(ev.dataTransfer.types || []);
+    const isInsert =
+      types.includes(STUDIO_TYPE_MIME) ||
+      document.body.classList.contains("studio-dragging-from-toolbox");
+    const isReorder =
+      types.includes(STUDIO_ID_MIME) ||
+      document.body.classList.contains("studio-dragging-row");
+    if (!isInsert && !isReorder) return;
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = isInsert ? "copy" : "move";
+    ev.currentTarget.classList.add("studio-zone-active");
+  }
+
+  function studioZoneDragLeave(ev) {
+    ev.currentTarget.classList.remove("studio-zone-active");
+  }
+
+  function studioZoneDrop(ev) {
+    ev.preventDefault();
+    const zone = ev.currentTarget;
+    zone.classList.remove("studio-zone-active");
+    const stepType = ev.dataTransfer.getData(STUDIO_TYPE_MIME);
+    const movingId = ev.dataTransfer.getData(STUDIO_ID_MIME);
+    const insertIndex = parseInt(zone.dataset.index, 10);
+    if (Number.isNaN(insertIndex)) return;
+    if (stepType) {
+      studioInsertNewStep(stepType, insertIndex);
+    } else if (movingId) {
+      studioReorderStep(movingId, insertIndex);
+    }
+    document.body.classList.remove("studio-dragging-from-toolbox");
+    document.body.classList.remove("studio-dragging-row");
+    studioState.draggingRowId = null;
+  }
+
+  // ---- row dragging --------------------------------------------------
+
+  function wireStudioRowDrag() {
+    const root = $("#studio-canvas");
+    if (!root) return;
+    const rows = root.querySelectorAll(".studio-step");
+    rows.forEach((row) => {
+      row.addEventListener("dragstart", studioRowDragStart);
+      row.addEventListener("dragend", studioRowDragEnd);
+    });
+  }
+
+  function studioRowDragStart(ev) {
+    const row = ev.currentTarget;
+    const id = row.dataset.stepId;
+    if (!id) return;
+    try {
+      ev.dataTransfer.setData(STUDIO_ID_MIME, id);
+      // Some browsers (Firefox) refuse drag without text/plain payload.
+      ev.dataTransfer.setData("text/plain", id);
+      ev.dataTransfer.effectAllowed = "move";
+    } catch (_err) {
+      // Old Safari sometimes throws on setData with custom MIME; degrade.
+    }
+    row.classList.add("studio-row-dragging");
+    row.setAttribute("aria-grabbed", "true");
+    document.body.classList.add("studio-dragging-row");
+    studioState.draggingRowId = id;
+  }
+
+  function studioRowDragEnd(ev) {
+    const row = ev.currentTarget;
+    row.classList.remove("studio-row-dragging");
+    row.setAttribute("aria-grabbed", "false");
+    document.body.classList.remove("studio-dragging-row");
+    studioState.draggingRowId = null;
+    // Clean up any zone that might have kept its "active" class on
+    // browsers that swallow dragleave on drop-cancel.
+    $$(".studio-zone-active").forEach((z) =>
+      z.classList.remove("studio-zone-active"),
+    );
+  }
+
+  // ---- toolbox tiles -------------------------------------------------
+
+  function wireStudioToolboxTiles() {
+    $$(".studio-tool").forEach((tile) => {
+      tile.addEventListener("dragstart", studioTileDragStart);
+      tile.addEventListener("dragend", studioTileDragEnd);
+      // Keyboard fallback: click / Enter appends at end (v1.5 parity).
+      tile.onclick = () => {
+        const t = tile.dataset.stepType;
+        if (!t) return;
+        studioInsertNewStep(t, studioState.workflow.steps.length);
+      };
+    });
+  }
+
+  function studioTileDragStart(ev) {
+    const tile = ev.currentTarget;
+    const t = tile.dataset.stepType;
+    if (!t) return;
+    try {
+      ev.dataTransfer.setData(STUDIO_TYPE_MIME, t);
+      // Firefox requires a non-empty text/* payload to actually start a drag.
+      ev.dataTransfer.setData("text/plain", t);
+      ev.dataTransfer.effectAllowed = "copy";
+    } catch (_err) {
+      // ignore
+    }
+    tile.classList.add("studio-tool-dragging");
+    tile.setAttribute("aria-grabbed", "true");
+    document.body.classList.add("studio-dragging-from-toolbox");
+  }
+
+  function studioTileDragEnd(ev) {
+    const tile = ev.currentTarget;
+    tile.classList.remove("studio-tool-dragging");
+    tile.setAttribute("aria-grabbed", "false");
+    document.body.classList.remove("studio-dragging-from-toolbox");
+    $$(".studio-zone-active").forEach((z) =>
+      z.classList.remove("studio-zone-active"),
+    );
+  }
+
+  // ---- trash zone ----------------------------------------------------
+
+  function wireStudioTrash() {
+    const trash = $("#studio-trash");
+    if (!trash) return;
+    trash.addEventListener("dragover", (ev) => {
+      const types = Array.from(ev.dataTransfer.types || []);
+      if (
+        !types.includes(STUDIO_ID_MIME) &&
+        !document.body.classList.contains("studio-dragging-row")
+      ) {
+        return;
+      }
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = "move";
+      trash.classList.add("studio-trash-active");
+    });
+    trash.addEventListener("dragleave", () => {
+      trash.classList.remove("studio-trash-active");
+    });
+    trash.addEventListener("drop", (ev) => {
+      ev.preventDefault();
+      trash.classList.remove("studio-trash-active");
+      const stepId =
+        ev.dataTransfer.getData(STUDIO_ID_MIME) || studioState.draggingRowId;
+      if (stepId) studioDeleteStep(stepId, { showUndo: true });
+      document.body.classList.remove("studio-dragging-row");
+      studioState.draggingRowId = null;
+    });
+    // Keyboard: activating the trash button doesn't make sense without a
+    // selected row, so ignore Enter/Space here. The Delete-on-row binding
+    // is the keyboard path.
+  }
+
+  // ---- canvas row interactions (click + keyboard) --------------------
+
+  function wireStudioCanvasInteractions() {
+    const canvas = $("#studio-canvas");
+    if (!canvas) return;
+    canvas.onclick = (ev) => {
+      const target = ev.target;
+      if (!(target instanceof HTMLElement)) return;
+      const li = target.closest(".studio-step");
+      if (!li) return;
+      const idx = Number(li.dataset.index);
+      if (Number.isNaN(idx)) return;
+      if (target.matches("[data-step-up]")) {
+        if (idx > 0) {
+          const arr = studioState.workflow.steps;
+          [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+          renderStudioCanvas();
+        }
+      } else if (target.matches("[data-step-down]")) {
+        const arr = studioState.workflow.steps;
+        if (idx < arr.length - 1) {
+          [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+          renderStudioCanvas();
+        }
+      } else if (target.matches("[data-step-remove]")) {
+        const id = li.dataset.stepId;
+        if (id) studioDeleteStep(id, { showUndo: true });
+      } else if (target.matches("[data-step-edit]")) {
+        openStudioStepEditor(idx);
+      }
+    };
+    canvas.onkeydown = (ev) => {
+      const target = ev.target;
+      if (!(target instanceof HTMLElement)) return;
+      const li = target.closest(".studio-step");
+      if (!li) return;
+      if (ev.key === "Delete" || ev.key === "Backspace") {
+        ev.preventDefault();
+        const id = li.dataset.stepId;
+        if (id) studioDeleteStep(id, { showUndo: true });
+      } else if (ev.key === "Enter") {
+        // Enter on the row (not on a child button) opens the editor.
+        if (target === li) {
+          ev.preventDefault();
+          openStudioStepEditor(Number(li.dataset.index));
+        }
+      }
+    };
   }
 
   function wireStudioControls() {
-    // Toolbox: clicking a tool appends a fresh step at the end of the
-    // canvas. The step is in invalid state until the user fills out the
-    // config modal.
-    $$(".studio-tool").forEach((btn) => {
-      btn.onclick = () => {
-        const t = btn.dataset.stepType;
-        if (!t) return;
-        const defaults = STUDIO_STEP_DEFAULTS[t] || { type: t };
-        const step = {
-          name: `step_${studioState.workflow.steps.length + 1}`,
-          ...JSON.parse(JSON.stringify(defaults)),
-          max_attempts: studioState.workflow.max_attempts_default,
-        };
-        studioState.workflow.steps.push(step);
-        renderStudioCanvas();
-        // Open the editor immediately so the user can fill in required fields.
-        openStudioStepEditor(studioState.workflow.steps.length - 1);
-      };
-    });
-
-    // Canvas: row controls (up/down/edit/remove).
-    const canvas = $("#studio-canvas");
-    if (canvas) {
-      canvas.onclick = (ev) => {
-        const target = ev.target;
-        if (!(target instanceof HTMLElement)) return;
-        const li = target.closest(".studio-step");
-        if (!li) return;
-        const idx = Number(li.dataset.index);
-        if (Number.isNaN(idx)) return;
-        if (target.matches("[data-step-up]")) {
-          if (idx > 0) {
-            const arr = studioState.workflow.steps;
-            [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
-            renderStudioCanvas();
-          }
-        } else if (target.matches("[data-step-down]")) {
-          const arr = studioState.workflow.steps;
-          if (idx < arr.length - 1) {
-            [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
-            renderStudioCanvas();
-          }
-        } else if (target.matches("[data-step-remove]")) {
-          studioState.workflow.steps.splice(idx, 1);
-          renderStudioCanvas();
-        } else if (target.matches("[data-step-edit]")) {
-          openStudioStepEditor(idx);
-        }
-      };
-    }
+    wireStudioToolboxTiles();
+    wireStudioCanvasInteractions();
+    wireStudioTrash();
 
     // Workspace picker.
     const sel = $("#studio-ws-select");
@@ -3593,20 +3937,33 @@
   function deleteStudioStepFromEditor() {
     const idx = studioState.editingIndex;
     if (idx == null) return;
-    studioState.workflow.steps.splice(idx, 1);
+    const step = studioState.workflow.steps[idx];
+    const id = step && step.__id;
     closeStudioStepEditor();
-    renderStudioCanvas();
+    if (id) {
+      studioDeleteStep(id, { showUndo: true });
+    } else {
+      // Fallback: no id (shouldn't happen post-v2) — splice + re-render.
+      studioState.workflow.steps.splice(idx, 1);
+      renderStudioCanvas();
+    }
   }
 
   function studioWorkflowToDefinition() {
     readStudioPropertiesForm();
     const wf = studioState.workflow;
+    // Strip the in-memory `__id` so the persisted definition stays clean.
+    const steps = wf.steps.map((s) => {
+      const out = Object.assign({}, s);
+      delete out.__id;
+      return out;
+    });
     return {
       name: wf.name,
       description: wf.description || "",
       retry_policy: wf.retry_policy,
       max_attempts_default: wf.max_attempts_default,
-      steps: wf.steps.slice(),
+      steps,
     };
   }
 
@@ -3748,6 +4105,8 @@
         })),
       };
     }
+    // Stamp every loaded step with a fresh in-memory id for drag-drop.
+    studioState.workflow.steps.forEach(ensureStudioStepId);
     studioState.loadedFromId = wf.id;
     if (status) {
       status.textContent = "loaded " + wf.id;
@@ -3758,11 +4117,19 @@
     renderStudioCanvas();
   }
 
-  // Expose a tiny surface for tests / power-users.
+  // Expose a tiny surface for tests / power-users. v2 adds drag-drop
+  // helpers (insertNew / reorder / delete / undo) so callers can simulate
+  // drops without dispatching synthetic DragEvents (which is fiddly across
+  // browser engines).
   window.PlinthStudio = {
     state: studioState,
     canvasToDefinition: studioWorkflowToDefinition,
     save: saveStudioWorkflow,
+    insertNewStep: studioInsertNewStep,
+    reorderStep: studioReorderStep,
+    deleteStep: studioDeleteStep,
+    undoLastDelete: studioUndoLastDelete,
+    render: renderStudioCanvas,
   };
   window.PlinthReplay = {
     state: replayState,
