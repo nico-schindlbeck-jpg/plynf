@@ -70,23 +70,36 @@ def _import_otel_logs() -> tuple[Any, Any, Any]:
     spot.
     """
 
-    try:  # pragma: no cover — depends on installed OTel version
-        from opentelemetry.sdk.logs import (  # type: ignore[import-not-found]
-            LoggerProvider,
-            LogRecord,
-        )
-        from opentelemetry.sdk.logs.export import (  # type: ignore[import-not-found]
-            BatchLogRecordProcessor,
-        )
-    except ImportError:
-        from opentelemetry.sdk._logs import (
-            LoggerProvider,
-            LogRecord,
-        )
-        from opentelemetry.sdk._logs.export import (
-            BatchLogRecordProcessor,
-        )
-    return LoggerProvider, BatchLogRecordProcessor, LogRecord
+    # Try four candidate locations in order of preference:
+    #   1. public namespace, both names in __init__         (future-canonical)
+    #   2. public namespace, LogRecord in _internal         (some 1.30+ versions)
+    #   3. legacy underscore, both names in __init__        (1.25-1.29 canonical)
+    #   4. legacy underscore, LogRecord in _internal        (1.30+ where LogRecord moved)
+    LoggerProvider = None
+    BatchLogRecordProcessor = None
+    LogRecord = None
+    last_exc: ImportError | None = None
+    for logs_mod, internal_mod, export_mod in [
+        ("opentelemetry.sdk.logs", "opentelemetry.sdk.logs._internal", "opentelemetry.sdk.logs.export"),
+        ("opentelemetry.sdk._logs", "opentelemetry.sdk._logs._internal", "opentelemetry.sdk._logs.export"),
+    ]:
+        try:
+            import importlib
+            logs = importlib.import_module(logs_mod)
+            export = importlib.import_module(export_mod)
+            LoggerProvider = getattr(logs, "LoggerProvider")
+            BatchLogRecordProcessor = getattr(export, "BatchLogRecordProcessor")
+            # LogRecord may live in module __init__ or in _internal depending on version
+            try:
+                LogRecord = getattr(logs, "LogRecord")
+            except AttributeError:
+                internal = importlib.import_module(internal_mod)
+                LogRecord = getattr(internal, "LogRecord")
+            return LoggerProvider, BatchLogRecordProcessor, LogRecord
+        except (ImportError, AttributeError) as e:
+            last_exc = ImportError(str(e))
+            continue
+    raise last_exc or ImportError("opentelemetry.sdk logs module not found in any known location")
 
 
 def _flatten_attributes(

@@ -313,6 +313,11 @@ updates:
       - dependency-name: "python"
         update-types: ["version-update:semver-major"]
 
+    ignore:
+      # Python base-image stays on 3.11 family — major bumps require human review
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major"]
+
 
   - package-ecosystem: "docker"
     directory: "/cli"
@@ -321,6 +326,11 @@ updates:
       day: "monday"
       time: "06:00"
     labels: ["deps", "docker"]
+    ignore:
+      # Python base-image stays on 3.11 family — major bumps require human review
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major"]
+
     ignore:
       # Python base-image stays on 3.11 family — major bumps require human review
       - dependency-name: "python"
