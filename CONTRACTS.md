@@ -2353,3 +2353,216 @@ PLINTH_COORDINATION_KEY_PREFIX=plinth-prod
 Without Redis, multiple replicas will race in the database layer only —
 race-safe per-row but not coordinated across replicas; recommended only
 for read-replicas + a single primary writer.
+
+# v1.4 Additions — Per-Agent Cost & Anomaly Detection
+
+v1.4 introduces two new read-only views over the gateway's audit log:
+
+1. **Per-agent cost rollup** — aggregate cost / invocations / tools by
+   agent over a window.
+2. **Anomaly detection** — detector-driven scan of the audit log for
+   cost spikes, rate spikes, error spikes, new-tool first uses, and
+   unusual sequences.
+
+Both surfaces are additive — no existing endpoint changes shape, no
+schema migrations, no new tables. The detector runs in-process over
+the existing `audit_events` table.
+
+## Endpoints (gateway)
+
+### `GET /v1/audit/cost-by-agent`
+
+Aggregate cost + invocations + per-tool breakdown by agent over a
+window.
+
+**Query parameters:**
+
+- `window` (default `"24h"`) — one of `"1h"`, `"24h"`, `"7d"`, `"30d"`
+  or any matching shape (`"30m"`, `"60s"` etc. accepted by
+  `parse_window`). Anything else returns `400 INVALID_ARGUMENTS`.
+- `tenant_id` (optional) — only respected in permissive mode; strict
+  auth modes always pin to the caller's tenant.
+- `top` (default `10`, range `1..200`) — maximum number of agent rows
+  returned.
+
+**Response:** `200 CostByAgentReport`
+
+```json
+{
+  "window": "24h",
+  "window_start": "2026-05-09T12:00:00+00:00",
+  "window_end": "2026-05-10T12:00:00+00:00",
+  "agents": [
+    {
+      "agent_id": "ag_a",
+      "tenant_id": "default",
+      "invocations": 42,
+      "cached_invocations": 12,
+      "total_cost_usd": 0.42,
+      "avg_duration_ms": 132.5,
+      "top_tools": [
+        {"tool_id": "web.fetch", "invocations": 30, "cost_usd": 0.30},
+        {"tool_id": "web.search", "invocations": 12, "cost_usd": 0.12}
+      ]
+    }
+  ],
+  "total_agents": 1,
+  "total_cost_usd": 0.42,
+  "fetched_at": "2026-05-10T12:00:00+00:00"
+}
+```
+
+`AgentCost` rows where `agent_id IS NULL` are bucketed under the
+sentinel `agent_id="(unknown)"` so the row stays visible in
+dashboards. `total_agents` is the unfiltered distinct agent count over
+the window (so dashboards can show "showing top N of M");
+`total_cost_usd` is the sum across ALL agents — not just the top-N
+returned.
+
+### `GET /v1/audit/anomalies`
+
+Run the detector suite over the audit log.
+
+**Query parameters:**
+
+- `window` (default `"1h"`) — same parser as cost-by-agent. Governs
+  the focus span; the detector always uses a fixed 60-minute baseline.
+- `min_severity` (default `"info"`) — `"info" | "warning" |
+  "critical"`. Lower severities are dropped from the response.
+- `type` (optional) — restrict to one of `cost_spike`, `rate_spike`,
+  `error_spike`, `new_tool`, `unusual_pattern`. Anything else returns
+  `400 INVALID_ARGUMENTS`.
+- `agent_id` (optional) — restrict the focus window to one agent.
+
+**Response:** `200 AnomalyReport`
+
+```json
+{
+  "detected_at": "2026-05-10T12:00:00+00:00",
+  "window": "1h",
+  "anomalies": [
+    {
+      "id": "anom_01HZ...",
+      "type": "cost_spike",
+      "severity": "critical",
+      "agent_id": "ag_a",
+      "tenant_id": "default",
+      "tool_id": null,
+      "detected_at": "2026-05-10T12:00:00+00:00",
+      "window_start": "2026-05-10T11:00:00+00:00",
+      "window_end": "2026-05-10T12:01:00+00:00",
+      "description": "agent ag_a cost $5.0000 in 1-minute window vs baseline $0.0001±$0.0000",
+      "metric_name": "cost_usd_per_minute",
+      "metric_value": 5.0,
+      "baseline_mean": 0.0001,
+      "baseline_stddev": 0.0,
+      "z_score": 100.0,
+      "raw_data": {
+        "minute": "2026-05-10T11:59:00+00:00",
+        "baseline_samples": [0.0, 0.0, 0.0]
+      }
+    }
+  ],
+  "total_anomalies": 1,
+  "by_severity": {"critical": 1}
+}
+```
+
+Results are cached in-process for **30 seconds** keyed by
+`(window, type, min_severity, agent_id, tenant_id)`. Dashboard polling
+(every 30s) hits the cache exactly once per refresh cycle.
+
+## Detector tunables (defaults)
+
+These constants live in `services/gateway/src/plinth_gateway/anomaly.py`.
+Operators tune by editing the module, not via env vars (yet) — they're
+chosen conservatively to balance noise vs detection latency.
+
+| Constant | Default | Meaning |
+|---|---|---|
+| `Z_WARNING` | `2.0` | z-score threshold for `warning` (cost / rate). |
+| `Z_CRITICAL` | `3.0` | z-score threshold for `critical` (cost / rate). |
+| `ERR_MULT_WARNING` | `5.0` | error_spike: focus errors / baseline mean ≥ 5x. |
+| `ERR_MULT_CRITICAL` | `10.0` | error_spike: ≥ 10x. |
+| `MIN_ERRORS` | `5` | error_spike floor — fewer errors → no fire. |
+| `FOCUS_MINUTES` | `1` | Width of the most-recent slice scored. |
+| `BASELINE_MINUTES` | `60` | Trailing window used for mean/stddev. |
+| `LOOKBACK_HOURS` | `24` | Trailing window for new_tool / unusual_pattern. |
+| `CACHE_TTL_SECONDS` | `30.0` | In-process anomaly-report cache lifetime. |
+
+## Detector specification (informational)
+
+- **`cost_spike`** — per-(agent, minute) sum of `cost_estimate_usd`.
+  Baseline = same agent's per-minute costs over the trailing
+  `BASELINE_MINUTES`, padded with zeros for missing minutes. Severity
+  derived from |z|.
+- **`rate_spike`** — per-(agent, minute) `COUNT(*)`. Same baseline +
+  thresholds as cost_spike.
+- **`error_spike`** — per-(tool, minute) `SUM(error IS NOT NULL)`.
+  Multiplicative threshold against baseline mean; minimum
+  `MIN_ERRORS` errors required to even consider firing.
+- **`new_tool`** — emit `info` for any (agent, tool) pair appearing in
+  the focus window but absent from the trailing 24h.
+- **`unusual_pattern`** — emit `info` when an agent's per-minute
+  `sha256("|".join(sorted(tool_ids)))` differs from every prior minute
+  in the trailing 24h.
+
+## SDK additions (Python)
+
+```python
+client = Plinth(api_key="local-dev")
+
+# Per-agent cost rollup over the last 24h.
+report = client.gateway.cost_by_agent(window="24h", top=10)
+for agent in report.agents:
+    print(agent.agent_id, agent.total_cost_usd)
+
+# Anomalies in the last hour, warning+ only.
+anoms = client.gateway.anomalies(window="1h", min_severity="warning")
+for a in anoms.anomalies:
+    print(a.type, a.severity, a.description)
+```
+
+Both methods round-trip through `client.tools` and `client.gateway`
+(the v0.5 alias). New typed models exported from `plinth`:
+
+- `AgentCost`, `ToolUsage`, `CostByAgentReport`
+- `Anomaly`, `AnomalyReport`
+
+## Dashboard additions
+
+Two new panels on the overview page (`#/`):
+
+- **Cost by agent** — top 10 agents in the last 24h, sortable by
+  cost / invocations / avg duration. Each row shows a stacked bar of
+  the top 5 tools. "Audit" button opens a modal with the agent's
+  recent invocations.
+- **Anomalies** — collapsible list of anomalies with severity glyph,
+  metric + z-score, agent/tenant/tool dimensions, and a small SVG
+  sparkline of the baseline window (when available in `raw_data`).
+
+Both panels poll their respective `/api/cost-by-agent` and
+`/api/anomalies` proxies every **30 seconds** — independent from the
+5-second overview poll so the heavier queries don't compete with the
+main refresh.
+
+## Backwards compatibility (v1.4)
+
+- Every existing endpoint is byte-for-byte unchanged.
+- No schema migration — the detector reads `audit_events` only.
+- `client.tools` / `client.gateway` get two new methods; existing
+  methods unchanged.
+- `__all__` in `plinth.__init__` gains 5 new symbols (additive).
+- Dashboard SPA: existing panels untouched. New panels render even
+  when zero agents / zero anomalies are returned.
+
+## Operator note
+
+The detector's tunables are deliberately conservative. If you see a
+flood of `info` anomalies on a busy gateway (most likely
+`unusual_pattern` from genuinely diverse traffic), raise the
+`min_severity` filter on the dashboard URL or call the SDK with
+`min_severity="warning"`. To tune the underlying thresholds, edit
+`anomaly.py` and redeploy the gateway — changes take effect on the
+next request after the 30-second cache TTL elapses.
+

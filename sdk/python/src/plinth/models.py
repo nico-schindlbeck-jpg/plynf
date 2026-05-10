@@ -824,14 +824,105 @@ class LLMStreamChunk(BaseModel):
     raw: Dict[str, Any] = Field(default_factory=dict)  # noqa: UP006
 
 
+# ---------------------------------------------------------------------------
+# v1.4 — Per-agent cost rollup + anomaly detection
+# ---------------------------------------------------------------------------
+
+
+class ToolUsage(BaseModel):
+    """One tool's usage breakdown for a single agent (v1.4)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    tool_id: str
+    invocations: int = 0
+    cost_usd: float = 0.0
+
+
+class AgentCost(BaseModel):
+    """Per-agent cost roll-up over a window (v1.4).
+
+    NULL ``agent_id`` rows arrive bucketed under the sentinel
+    ``agent_id="(unknown)"`` so the row stays visible without leaking
+    the absence-vs-presence distinction.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    agent_id: str
+    tenant_id: str
+    invocations: int = 0
+    cached_invocations: int = 0
+    total_cost_usd: float = 0.0
+    avg_duration_ms: float = 0.0
+    top_tools: List[ToolUsage] = Field(default_factory=list)  # noqa: UP006
+
+
+class CostByAgentReport(BaseModel):
+    """Response of ``GET /v1/audit/cost-by-agent`` (v1.4)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    window: str
+    window_start: datetime
+    window_end: datetime
+    agents: List[AgentCost] = Field(default_factory=list)  # noqa: UP006
+    total_agents: int = 0
+    total_cost_usd: float = 0.0
+    fetched_at: datetime
+
+
+class Anomaly(BaseModel):
+    """A single detected anomaly (v1.4).
+
+    ``raw_data`` carries detector-specific extras (e.g. baseline
+    samples for the dashboard sparkline).
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    type: str
+    severity: str
+    agent_id: Optional[str] = None  # noqa: UP045
+    tenant_id: Optional[str] = None  # noqa: UP045
+    tool_id: Optional[str] = None  # noqa: UP045
+    detected_at: datetime
+    window_start: datetime
+    window_end: datetime
+    description: str
+    metric_name: str
+    metric_value: float = 0.0
+    baseline_mean: float = 0.0
+    baseline_stddev: float = 0.0
+    z_score: float = 0.0
+    raw_data: Dict[str, Any] = Field(default_factory=dict)  # noqa: UP006
+
+
+class AnomalyReport(BaseModel):
+    """Response of ``GET /v1/audit/anomalies`` (v1.4)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    detected_at: datetime
+    window: str
+    anomalies: List[Anomaly] = Field(default_factory=list)  # noqa: UP006
+    total_anomalies: int = 0
+    by_severity: Dict[str, int] = Field(default_factory=dict)  # noqa: UP006
+
+
 __all__ = [
+    "AgentCost",
     "AgentLimits",
+    "Anomaly",
+    "AnomalyReport",
     "AuditEvent",
     "Branch",
     "Channel",
     "ChannelMessage",
     "ChannelSchema",
     "CompensationSpec",
+    "CostByAgentReport",
     "DLQEntry",
     "DiffResult",
     "DryRunResponse",
@@ -859,6 +950,7 @@ __all__ = [
     "TenantUsage",
     "Tool",
     "ToolRegistration",
+    "ToolUsage",
     "Transaction",
     "TransactionCall",
     "TransactionResult",

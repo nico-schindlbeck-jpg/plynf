@@ -17,8 +17,10 @@ from ._http import HTTPClient
 from .exceptions import InvalidArguments, ToolNotFound
 from .models import (
     AgentLimits,
+    AnomalyReport,
     AuditEvent,
     ChainVerifyResult,
+    CostByAgentReport,
     DryRunResponse,
     InvokeResponse,
     LimitsStatus,
@@ -397,6 +399,62 @@ class ToolGateway:
     def reset_limits(self, agent_id: str) -> None:
         """Delete the per-agent override (revert to gateway defaults)."""
         self._http.delete(f"/v1/limits/{agent_id}")
+
+    # -- v1.4 — per-agent cost rollup + anomaly detection --------------
+
+    def cost_by_agent(
+        self,
+        *,
+        window: str = "24h",
+        tenant_id: str | None = None,
+        top: int = 10,
+    ) -> CostByAgentReport:
+        """Fetch the per-agent cost rollup over ``window``.
+
+        Args:
+            window: One of ``"1h"``, ``"24h"``, ``"7d"``, ``"30d"`` (or
+                any other shape the gateway accepts via
+                :func:`plinth_gateway.anomaly.parse_window`).
+            tenant_id: Optional tenant scope (only respected by
+                permissive-mode gateways; strict modes always pin to
+                the caller's tenant).
+            top: Maximum agent rows to return (sorted by total cost).
+        """
+
+        params: dict[str, Any] = {"window": window, "top": int(top)}
+        if tenant_id is not None:
+            params["tenant_id"] = tenant_id
+        data = self._http.get_json("/v1/audit/cost-by-agent", params=params)
+        return CostByAgentReport.model_validate(data)
+
+    def anomalies(
+        self,
+        *,
+        window: str = "1h",
+        min_severity: str = "info",
+        type: str | None = None,  # noqa: A002 - mirror URL spec
+        agent_id: str | None = None,
+    ) -> AnomalyReport:
+        """Fetch the latest anomaly report.
+
+        Args:
+            window: Detector window (``"1h"`` etc.).
+            min_severity: ``"info" | "warning" | "critical"``.
+            type: Optional filter for one anomaly family
+                (``"cost_spike"`` etc.).
+            agent_id: Optional agent filter.
+        """
+
+        params: dict[str, Any] = {
+            "window": window,
+            "min_severity": min_severity,
+        }
+        if type is not None:
+            params["type"] = type
+        if agent_id is not None:
+            params["agent_id"] = agent_id
+        data = self._http.get_json("/v1/audit/anomalies", params=params)
+        return AnomalyReport.model_validate(data)
 
 
 __all__ = ["ToolGateway"]

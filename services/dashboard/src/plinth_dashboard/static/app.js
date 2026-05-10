@@ -221,6 +221,8 @@
     // v1.0 — stop tile polling whenever we leave overview; restart in the
     // overview branch below.
     stopTimeseriesTiles();
+    // v1.4 — same for cost-by-agent + anomalies.
+    stopCostAnomalyPolling();
     if (route.name === "workspace") {
       mountTemplate("tpl-workspace");
       stopPolling();
@@ -922,6 +924,339 @@
     }).join("");
   }
 
+  // ---- v1.4 cost-by-agent + anomalies ---------------------------------
+  //
+  // These two panels each have their own 30-second polling cadence — both
+  // queries are heavier than the overview, so they ride on a separate
+  // interval. The state below carries the last-seen sort + the timer
+  // handle so navigation in/out of overview cleans up properly.
+
+  const COST_ANOMALY_REFRESH_MS = 30000;
+  let costByAgentTimer = null;
+  let anomaliesTimer = null;
+  const costByAgentState = {
+    sortKey: "total_cost_usd",
+    sortDir: "desc", // "asc" | "desc"
+  };
+
+  function fmtZ(z) {
+    const n = Number(z || 0);
+    const sign = n >= 0 ? "+" : "";
+    return sign + n.toFixed(2);
+  }
+
+  function severityClass(sev) {
+    if (sev === "critical") return "sev-critical";
+    if (sev === "warning") return "sev-warning";
+    return "sev-info";
+  }
+
+  function severityGlyph(sev) {
+    if (sev === "critical") return "✗";
+    if (sev === "warning") return "!";
+    return "i";
+  }
+
+  function renderTopToolStack(tools) {
+    const arr = (tools || []).slice(0, 5);
+    if (!arr.length) return '<span class="muted">—</span>';
+    const total = arr.reduce((acc, t) => acc + Number(t.cost_usd || 0), 0);
+    if (total <= 0) {
+      // No cost — render as flat tags so the row still shows the tools.
+      return arr
+        .map(
+          (t) =>
+            `<span class="cba-stack-flat" title="${escapeHtml(t.tool_id)}">${escapeHtml(
+              t.tool_id,
+            )}</span>`,
+        )
+        .join("");
+    }
+    const segs = arr
+      .map((t) => {
+        const pct = Math.max(2, Math.round((Number(t.cost_usd || 0) / total) * 100));
+        const tip =
+          `${t.tool_id}: $${Number(t.cost_usd || 0).toFixed(4)} · ` +
+          `${intFmt.format(t.invocations || 0)} calls`;
+        return `<span class="cba-seg" style="width:${pct}%" title="${escapeHtml(tip)}"
+          data-tool="${escapeHtml(t.tool_id)}"></span>`;
+      })
+      .join("");
+    return `<div class="cba-stack">${segs}</div>`;
+  }
+
+  function renderCostByAgent(report) {
+    const body = $("#cost-by-agent-body");
+    const summary = $("#cost-by-agent-summary");
+    if (!body) return;
+    const agents = (report && report.agents) || [];
+    if (summary) {
+      const tot = report ? report.total_agents || 0 : 0;
+      const totCost = report ? report.total_cost_usd || 0 : 0;
+      summary.textContent =
+        `${intFmt.format(tot)} agent${tot === 1 ? "" : "s"} · `
+        + `${fmtUSD(totCost)} total · refresh every 30s`;
+    }
+    if (!agents.length) {
+      body.innerHTML = `<tr class="empty"><td colspan="8">No invocations yet.</td></tr>`;
+      return;
+    }
+    const sorted = agents.slice().sort((a, b) => {
+      const k = costByAgentState.sortKey;
+      const av = Number(a[k] || 0);
+      const bv = Number(b[k] || 0);
+      const cmp = av - bv;
+      return costByAgentState.sortDir === "asc" ? cmp : -cmp;
+    });
+    body.innerHTML = sorted
+      .map((a) => {
+        const tools = renderTopToolStack(a.top_tools);
+        const cached = `${intFmt.format(a.cached_invocations || 0)}/${intFmt.format(a.invocations || 0)}`;
+        return `
+        <tr data-agent-id="${escapeHtml(a.agent_id)}">
+          <td class="id mono" title="${escapeHtml(a.agent_id)}">${escapeHtml(shortId(a.agent_id, 14))}</td>
+          <td class="muted">${escapeHtml(a.tenant_id || "default")}</td>
+          <td class="num">${escapeHtml(intFmt.format(a.invocations || 0))}</td>
+          <td class="num muted">${escapeHtml(cached)}</td>
+          <td class="num">${escapeHtml(fmtMs(Math.round(a.avg_duration_ms || 0)))}</td>
+          <td class="num">${escapeHtml(fmtUSD(a.total_cost_usd || 0))}</td>
+          <td class="cba-tools">${tools}</td>
+          <td class="actions">
+            <a class="btn small cba-drilldown" href="#/" data-agent-id="${escapeHtml(a.agent_id)}">audit</a>
+          </td>
+        </tr>`;
+      })
+      .join("");
+
+    // Wire sort handles + drill-down (dynamic rebind on every render is
+    // fine — the table is small and the listeners are trivial).
+    $$('th.sortable[data-sort]', $('.cost-by-agent-table'))
+      .forEach((th) => {
+        th.onclick = () => {
+          const next = th.dataset.sort;
+          if (costByAgentState.sortKey === next) {
+            costByAgentState.sortDir =
+              costByAgentState.sortDir === "asc" ? "desc" : "asc";
+          } else {
+            costByAgentState.sortKey = next;
+            costByAgentState.sortDir = "desc";
+          }
+          // Trigger a re-render with the cached payload (no fetch).
+          renderCostByAgent(report);
+        };
+      });
+
+    $$('a.cba-drilldown', body).forEach((a) => {
+      a.onclick = (ev) => {
+        ev.preventDefault();
+        const aid = a.dataset.agentId;
+        if (!aid) return;
+        // Drill-down: fetch + dump the per-agent audit into a modal.
+        openCostByAgentDrilldown(aid);
+      };
+    });
+  }
+
+  async function openCostByAgentDrilldown(agentId) {
+    // The drill-down reuses the existing /api/audit proxy which already
+    // accepts agent_id. We open a tiny dialog (vanilla; no template) so
+    // the user can scan the rows without leaving the overview.
+    const existing = document.getElementById("cba-drilldown-modal");
+    if (existing) existing.remove();
+    const modal = document.createElement("div");
+    modal.id = "cba-drilldown-modal";
+    modal.className = "dlq-modal";
+    modal.hidden = false;
+    modal.innerHTML = `
+      <div class="dlq-modal-card">
+        <div class="dlq-modal-head">
+          <h2>Audit · agent ${escapeHtml(agentId)}</h2>
+          <button class="btn small" type="button" data-close>close</button>
+        </div>
+        <div class="dlq-modal-body">
+          <p class="empty muted">loading…</p>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.querySelector("[data-close]").onclick = () => modal.remove();
+
+    try {
+      const data = await api(
+        "/api/audit?limit=100&agent_id=" + encodeURIComponent(agentId),
+      );
+      const events = data.events || [];
+      const body = modal.querySelector(".dlq-modal-body");
+      if (!events.length) {
+        body.innerHTML = `<p class="empty muted">No events for this agent.</p>`;
+        return;
+      }
+      body.innerHTML =
+        '<table class="data-table"><thead><tr>' +
+        '<th>Time</th><th>Tool</th><th>Cached</th>' +
+        '<th class="num">Duration</th><th class="num">Cost</th>' +
+        '</tr></thead><tbody>' +
+        events
+          .map(
+            (e) => `
+            <tr>
+              <td class="time">${escapeHtml(fmtTime(e.timestamp))}</td>
+              <td class="tool">${escapeHtml(e.tool_id || "?")}</td>
+              <td>${e.cached ? '<span class="tag cached">yes</span>' : '<span class="tag fresh">no</span>'}</td>
+              <td class="num">${escapeHtml(fmtMs(e.duration_ms))}</td>
+              <td class="num">${escapeHtml(fmtUSD(e.cost_estimate_usd))}</td>
+            </tr>`,
+          )
+          .join("") +
+        "</tbody></table>";
+    } catch (err) {
+      const body = modal.querySelector(".dlq-modal-body");
+      if (body) body.innerHTML = `<p class="empty err">failed: ${escapeHtml(err.message)}</p>`;
+    }
+  }
+
+  function buildAnomalySparkline(samples) {
+    const arr = (samples || []).map((v) => Number(v || 0));
+    if (!arr.length) return "";
+    const width = 60;
+    const height = 18;
+    const padX = 1;
+    const padY = 1;
+    const innerW = width - padX * 2;
+    const innerH = height - padY * 2;
+    const maxV = Math.max.apply(null, arr);
+    const minV = Math.min.apply(null, arr);
+    const span = Math.max(maxV - minV, 0.000001);
+    function xFor(i) {
+      return padX + (i / Math.max(1, arr.length - 1)) * innerW;
+    }
+    function yFor(v) {
+      const norm = (v - minV) / span;
+      return padY + (1 - norm) * innerH;
+    }
+    let pathD = "";
+    arr.forEach((v, i) => {
+      const x = xFor(i).toFixed(2);
+      const y = yFor(v).toFixed(2);
+      pathD += (i === 0 ? "M" : " L") + x + "," + y;
+    });
+    return (
+      '<svg class="anomaly-spark" viewBox="0 0 ' + width + " " + height + '"' +
+      ' preserveAspectRatio="none">' +
+      '<path class="anomaly-spark-line" d="' + pathD + '" />' +
+      "</svg>"
+    );
+  }
+
+  function renderAnomalies(report) {
+    const root = $("#anomalies-list");
+    const summary = $("#anomalies-summary");
+    if (!root) return;
+    const anomalies = (report && report.anomalies) || [];
+    if (summary) {
+      const total = report ? report.total_anomalies || 0 : 0;
+      const by = (report && report.by_severity) || {};
+      const parts = [];
+      if (by.critical) parts.push(`${by.critical} critical`);
+      if (by.warning) parts.push(`${by.warning} warning`);
+      if (by.info) parts.push(`${by.info} info`);
+      summary.textContent =
+        total === 0
+          ? "no anomalies · refresh every 30s"
+          : `${intFmt.format(total)} (${parts.join(" · ")}) · refresh every 30s`;
+    }
+    if (!anomalies.length) {
+      root.innerHTML = `<p class="empty muted">No anomalies detected.</p>`;
+      return;
+    }
+    root.innerHTML = anomalies
+      .map((a, idx) => {
+        const sevCls = severityClass(a.severity);
+        const sevGlyph = severityGlyph(a.severity);
+        const dims = [];
+        if (a.agent_id) dims.push(`agent ${a.agent_id}`);
+        if (a.tool_id) dims.push(`tool ${a.tool_id}`);
+        if (a.tenant_id) dims.push(`tenant ${a.tenant_id}`);
+        const dimsHtml = dims.length
+          ? `<span class="anomaly-dims muted">${escapeHtml(dims.join(" · "))}</span>`
+          : "";
+        const baselineSamples =
+          (a.raw_data && a.raw_data.baseline_samples) || [];
+        const spark = buildAnomalySparkline(baselineSamples);
+        const valueHtml =
+          `<span class="anomaly-metric">${escapeHtml(a.metric_name || "")}</span> ` +
+          `<strong>${escapeHtml(Number(a.metric_value || 0).toFixed(4))}</strong> ` +
+          `<span class="muted">vs μ=${escapeHtml(Number(a.baseline_mean || 0).toFixed(4))} · z=${escapeHtml(fmtZ(a.z_score))}</span>`;
+        return `
+          <details class="anomaly-row ${sevCls}" data-id="${escapeHtml(a.id)}" ${idx < 3 ? "open" : ""}>
+            <summary>
+              <span class="anomaly-glyph ${sevCls}">${sevGlyph}</span>
+              <span class="anomaly-type">${escapeHtml(a.type)}</span>
+              <span class="anomaly-desc">${escapeHtml(a.description)}</span>
+              <span class="anomaly-time muted">${escapeHtml(fmtTime(a.detected_at))}</span>
+            </summary>
+            <div class="anomaly-detail">
+              <div class="anomaly-line">${valueHtml}</div>
+              ${dimsHtml}
+              <div class="anomaly-spark-wrap">${spark}</div>
+            </div>
+          </details>
+        `;
+      })
+      .join("");
+  }
+
+  async function refreshCostByAgent() {
+    if (currentRoute.name !== "overview") return;
+    try {
+      const data = await api("/api/cost-by-agent?window=24h&top=10");
+      renderCostByAgent(data);
+    } catch (err) {
+      const body = $("#cost-by-agent-body");
+      if (body) {
+        body.innerHTML = `<tr class="empty err"><td colspan="8">fetch failed: ${escapeHtml(
+          err.message,
+        )}</td></tr>`;
+      }
+    }
+  }
+
+  async function refreshAnomalies() {
+    if (currentRoute.name !== "overview") return;
+    try {
+      const data = await api("/api/anomalies?window=1h&min_severity=info");
+      renderAnomalies(data);
+    } catch (err) {
+      const root = $("#anomalies-list");
+      if (root) {
+        root.innerHTML = `<p class="empty err">fetch failed: ${escapeHtml(
+          err.message,
+        )}</p>`;
+      }
+    }
+  }
+
+  function startCostAnomalyPolling() {
+    if (costByAgentTimer) clearInterval(costByAgentTimer);
+    if (anomaliesTimer) clearInterval(anomaliesTimer);
+    void refreshCostByAgent();
+    void refreshAnomalies();
+    costByAgentTimer = setInterval(
+      () => void refreshCostByAgent(),
+      COST_ANOMALY_REFRESH_MS,
+    );
+    anomaliesTimer = setInterval(
+      () => void refreshAnomalies(),
+      COST_ANOMALY_REFRESH_MS,
+    );
+  }
+
+  function stopCostAnomalyPolling() {
+    if (costByAgentTimer) clearInterval(costByAgentTimer);
+    if (anomaliesTimer) clearInterval(anomaliesTimer);
+    costByAgentTimer = null;
+    anomaliesTimer = null;
+  }
+
   // ---- main loop --------------------------------------------------------
 
   async function refresh() {
@@ -949,6 +1284,8 @@
       // own their own 30s polling cadence so they don't compete with the
       // main 5s overview poll.
       if (!tsTilesTimer) startTimeseriesTiles();
+      // v1.4 — same pattern for cost-by-agent + anomalies.
+      if (!costByAgentTimer) startCostAnomalyPolling();
 
       // Tool calls list comes from the audit endpoint directly so we always
       // surface raw recent events with audit IDs etc.

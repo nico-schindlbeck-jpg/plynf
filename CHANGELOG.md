@@ -2,6 +2,41 @@
 
 All notable changes to Plinth are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [SemVer](https://semver.org).
 
+## [1.4.0] — 2026-05-10
+
+Per-Agent cost attribution + anomaly detection scaffolding.
+
+### Added
+- **`GET /v1/audit/cost-by-agent`** (Gateway) — per-agent cost rollup with top-tools-per-agent breakdown. Window: `1h | 24h | 7d | 30d`. Optional tenant_id filter. NULL agent_id bucketed as `(unknown)`.
+- **`GET /v1/audit/anomalies`** (Gateway) — pure-Python detectors over existing `audit_events`:
+  - `cost_spike` — per-agent per-minute cost vs trailing 60-min z-score (>2 warning, >3 critical)
+  - `rate_spike` — per-agent invocations/minute vs trailing 60-min baseline
+  - `error_spike` — per-tool error rate vs trailing 60-min mean (>5x warning + 5 errors min, >10x critical)
+  - `new_tool` — agent uses a tool first time in trailing 24h (info)
+  - `unusual_pattern` — per-agent tool-sequence hash differs from trailing 24h (info)
+- 30-second cache layer to absorb dashboard polling.
+- **Dashboard panels**: `/cost-by-agent` (sortable agent table with tool-stack drill-down) + `/anomalies` (live list with severity + sparkline + z-score detail). Both also rendered as compact panels on overview.
+- **Python SDK**: `client.gateway.cost_by_agent(...)` + `anomalies(...)` typed accessors.
+- 50 new tests across gateway (37) + dashboard (8) + SDK (5).
+
+### Fixed (CI)
+- Contract test middleware-emitted set extended to include `404` (FastAPI HTTPException default).
+- Workspace `[dev]` extras now include `respx>=0.21` (cluster-coordination tests use it).
+- OTel `_import_otel_logs()` helper extended with multi-step fallback covering all four candidate locations: public `opentelemetry.sdk.logs` + legacy `_logs`, both top-level and `_internal` for LogRecord. Resolves OTel 1.30+ where LogRecord moved to `_internal`.
+- Dependabot policy extended to ignore Python base-image major bumps for `/worker` and `/cli` Dockerfiles too.
+
+### Changed
+- Gateway: 557 tests (was 520) — +37 cost/anomaly
+- Dashboard: 119 tests (was 111) — +8 panels
+- Python SDK: 373 tests (was 368) — +5 accessors
+- Total: **2284 Python + 194 TS-SDK + 29 TS-Worker = 2507 tests passing**
+
+### Backwards compatibility
+- All endpoints additive
+- Anomaly detector reads existing audit table — no schema changes
+- Dashboard panels are additive
+- API v1 contract preserved
+
 ## [1.3.0] — 2026-05-10
 
 Cluster-Mode Workspace — closes the v1.1 known-limitation: workspace lease coordination is now cluster-shared via the existing `CoordinationBackend` (memory + Redis). Multiple workspace replicas can safely race for the same workflow step — exactly one wins.
@@ -420,6 +455,7 @@ Initial proof-of-concept release. Working end-to-end slice of the agent-native s
 ### Stack
 Python 3.11+ for services + Python SDK; TypeScript 5.4+ for the TS SDK; FastAPI + uvicorn + aiosqlite + pydantic v2 + tiktoken; vitest for TS tests.
 
+[1.4.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.4.0
 [1.3.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.3.0
 [1.2.1]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.2.1
 [1.2.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.2.0

@@ -733,3 +733,176 @@ async def test_index_html_has_dlq_batch_buttons(client: AsyncClient):
     text = r.text
     assert 'id="dlq-replay-all"' in text
     assert 'id="dlq-purge-old"' in text
+
+
+# ---------------------------------------------------------------------------
+# v1.4 — cost-by-agent + anomalies proxies
+
+
+async def test_proxy_cost_by_agent_aggregates(
+    client: AsyncClient, settings: Settings
+):
+    """Dashboard proxy returns the gateway's cost-by-agent payload verbatim."""
+    payload = {
+        "window": "24h",
+        "window_start": "2026-05-09T12:00:00+00:00",
+        "window_end": "2026-05-10T12:00:00+00:00",
+        "agents": [
+            {
+                "agent_id": "ag_a",
+                "tenant_id": "default",
+                "invocations": 12,
+                "cached_invocations": 4,
+                "total_cost_usd": 0.42,
+                "avg_duration_ms": 132.5,
+                "top_tools": [
+                    {"tool_id": "web.fetch", "invocations": 7, "cost_usd": 0.30},
+                    {"tool_id": "web.search", "invocations": 5, "cost_usd": 0.12},
+                ],
+            }
+        ],
+        "total_agents": 1,
+        "total_cost_usd": 0.42,
+        "fetched_at": "2026-05-10T12:00:00+00:00",
+    }
+    with respx.mock(assert_all_called=False) as router:
+        route = router.get(
+            f"{settings.gateway_url}/v1/audit/cost-by-agent"
+        ).mock(return_value=httpx.Response(200, json=payload))
+        r = await client.get("/api/cost-by-agent?window=24h&top=5")
+    assert r.status_code == 200
+    body = r.json()
+    assert body == payload
+    # Ensure query params were forwarded.
+    called_url = str(route.calls.last.request.url)
+    assert "window=24h" in called_url
+    assert "top=5" in called_url
+
+
+async def test_proxy_cost_by_agent_empty(
+    client: AsyncClient, settings: Settings
+):
+    payload = {
+        "window": "24h",
+        "window_start": "2026-05-09T12:00:00+00:00",
+        "window_end": "2026-05-10T12:00:00+00:00",
+        "agents": [],
+        "total_agents": 0,
+        "total_cost_usd": 0.0,
+        "fetched_at": "2026-05-10T12:00:00+00:00",
+    }
+    with respx.mock(assert_all_called=False) as router:
+        router.get(
+            f"{settings.gateway_url}/v1/audit/cost-by-agent"
+        ).mock(return_value=httpx.Response(200, json=payload))
+        r = await client.get("/api/cost-by-agent")
+    assert r.status_code == 200
+    assert r.json() == payload
+
+
+async def test_proxy_cost_by_agent_gateway_down(
+    client: AsyncClient, settings: Settings
+):
+    """A gateway connection failure becomes a 502 envelope."""
+    with respx.mock(assert_all_called=False) as router:
+        router.get(
+            f"{settings.gateway_url}/v1/audit/cost-by-agent"
+        ).mock(side_effect=httpx.ConnectError("boom"))
+        r = await client.get("/api/cost-by-agent")
+    assert r.status_code == 502
+    assert r.json()["error"]["code"] == "UPSTREAM_UNREACHABLE"
+
+
+async def test_proxy_anomalies_aggregates(
+    client: AsyncClient, settings: Settings
+):
+    payload = {
+        "detected_at": "2026-05-10T12:00:00+00:00",
+        "window": "1h",
+        "anomalies": [
+            {
+                "id": "anom_01TEST",
+                "type": "cost_spike",
+                "severity": "critical",
+                "agent_id": "ag_a",
+                "tenant_id": "default",
+                "tool_id": None,
+                "detected_at": "2026-05-10T12:00:00+00:00",
+                "window_start": "2026-05-10T11:00:00+00:00",
+                "window_end": "2026-05-10T12:00:00+00:00",
+                "description": "agent ag_a cost spike",
+                "metric_name": "cost_usd_per_minute",
+                "metric_value": 5.0,
+                "baseline_mean": 0.0001,
+                "baseline_stddev": 0.0,
+                "z_score": 100.0,
+                "raw_data": {"baseline_samples": [0.0, 0.0]},
+            }
+        ],
+        "total_anomalies": 1,
+        "by_severity": {"critical": 1},
+    }
+    with respx.mock(assert_all_called=False) as router:
+        route = router.get(
+            f"{settings.gateway_url}/v1/audit/anomalies"
+        ).mock(return_value=httpx.Response(200, json=payload))
+        r = await client.get("/api/anomalies?window=1h&min_severity=warning")
+    assert r.status_code == 200
+    assert r.json() == payload
+    called_url = str(route.calls.last.request.url)
+    assert "window=1h" in called_url
+    assert "min_severity=warning" in called_url
+
+
+async def test_proxy_anomalies_empty(
+    client: AsyncClient, settings: Settings
+):
+    payload = {
+        "detected_at": "2026-05-10T12:00:00+00:00",
+        "window": "1h",
+        "anomalies": [],
+        "total_anomalies": 0,
+        "by_severity": {},
+    }
+    with respx.mock(assert_all_called=False) as router:
+        router.get(
+            f"{settings.gateway_url}/v1/audit/anomalies"
+        ).mock(return_value=httpx.Response(200, json=payload))
+        r = await client.get("/api/anomalies")
+    assert r.status_code == 200
+    assert r.json()["total_anomalies"] == 0
+
+
+async def test_proxy_anomalies_gateway_down(
+    client: AsyncClient, settings: Settings
+):
+    with respx.mock(assert_all_called=False) as router:
+        router.get(
+            f"{settings.gateway_url}/v1/audit/anomalies"
+        ).mock(side_effect=httpx.ConnectError("boom"))
+        r = await client.get("/api/anomalies")
+    assert r.status_code == 502
+
+
+async def test_index_html_has_v14_panels(client: AsyncClient):
+    """Overview shell ships the new cost-by-agent + anomalies markup."""
+    r = await client.get("/")
+    assert r.status_code == 200
+    text = r.text
+    assert 'id="cost-by-agent-body"' in text
+    assert 'id="anomalies-list"' in text
+
+
+async def test_static_app_js_has_v14_handlers(client: AsyncClient):
+    r = await client.get("/static/app.js")
+    assert r.status_code == 200
+    js = r.text
+    for needle in (
+        "renderCostByAgent",
+        "renderAnomalies",
+        "refreshCostByAgent",
+        "refreshAnomalies",
+        "/api/cost-by-agent",
+        "/api/anomalies",
+    ):
+        assert needle in js, f"missing {needle!r} in app.js"

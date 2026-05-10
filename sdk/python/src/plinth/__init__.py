@@ -69,13 +69,17 @@ from .identity import (
     TokenIssueResponse,
 )
 from .models import (
+    AgentCost,
     AgentLimits,
+    Anomaly,
+    AnomalyReport,
     AuditEvent,
     Branch,
     Channel,
     ChannelMessage,
     ChannelSchema,
     CompensationSpec,
+    CostByAgentReport,
     DiffResult,
     DryRunResponse,
     FileEntry,
@@ -100,6 +104,7 @@ from .models import (
     Tenant,
     Tool,
     ToolRegistration,
+    ToolUsage,
     Transaction,
     TransactionCall,
     TransactionResult,
@@ -121,8 +126,11 @@ __version__ = "0.3.0"
 
 __all__ = [
     # Models
+    "AgentCost",
     "AgentLimits",
     "AgentContext",
+    "Anomaly",
+    "AnomalyReport",
     "AuditEvent",
     "Branch",
     # Exceptions
@@ -133,6 +141,7 @@ __all__ = [
     "ChannelSchema",
     "ChannelsProxy",
     "CompensationSpec",
+    "CostByAgentReport",
     "CostCapExceeded",
     "DLQEntry",
     "DiffResult",
@@ -202,6 +211,7 @@ __all__ = [
     "ToolInvocationError",
     "ToolNotFound",
     "ToolRegistration",
+    "ToolUsage",
     "Tools",
     "Transaction",
     "TransactionBuilder",

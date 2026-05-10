@@ -372,6 +372,25 @@ def _register_routes(app: FastAPI, settings: Settings) -> None:
     async def api_audit_stats(request: Request) -> JSONResponse:
         return await _proxy(request, f"{gw_url}/v1/audit/stats", forward_query=True)
 
+    # v1.4 — per-agent cost rollup. Forwards window/tenant_id/top params
+    # straight to the gateway so the dashboard stays a thin proxy.
+    @app.get("/api/cost-by-agent", tags=["api"])
+    async def api_cost_by_agent(request: Request) -> JSONResponse:
+        return await _proxy(
+            request,
+            f"{gw_url}/v1/audit/cost-by-agent",
+            forward_query=True,
+        )
+
+    # v1.4 — anomaly detection results.
+    @app.get("/api/anomalies", tags=["api"])
+    async def api_anomalies(request: Request) -> JSONResponse:
+        return await _proxy(
+            request,
+            f"{gw_url}/v1/audit/anomalies",
+            forward_query=True,
+        )
+
     @app.get("/api/cache-stats", tags=["api"])
     async def api_cache_stats(request: Request) -> JSONResponse:
         return await _proxy(request, f"{gw_url}/v1/cache/stats")

@@ -8,8 +8,8 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Status](https://img.shields.io/badge/status-v1.3%20cluster--mode%20workspace-brightgreen.svg)](#status)
-[![Tests](https://img.shields.io/badge/tests-2438%20passing-brightgreen.svg)](#status)
+[![Status](https://img.shields.io/badge/status-v1.4%20cost--per--agent%20%2B%20anomaly-brightgreen.svg)](#status)
+[![Tests](https://img.shields.io/badge/tests-2507%20passing-brightgreen.svg)](#status)
 [![API](https://img.shields.io/badge/API-v1%20stable-blue.svg)](docs/API_STABILITY.md)
 [![Coordination](https://img.shields.io/badge/coordination-Redis%20opt--in-orange.svg)](#status)
 

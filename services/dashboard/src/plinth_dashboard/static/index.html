@@ -207,6 +207,44 @@
           <p class="empty muted">No cost data yet.</p>
         </div>
       </section>
+
+      <!-- v1.4 — per-agent cost rollup. -->
+      <section class="card">
+        <div class="card-head">
+          <h2>Cost by agent</h2>
+          <span class="muted" id="cost-by-agent-summary">last 24h · refresh every 30s</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table cost-by-agent-table">
+            <thead>
+              <tr>
+                <th>Agent</th>
+                <th>Tenant</th>
+                <th class="num sortable" data-sort="invocations">Invocations</th>
+                <th class="num">Cached</th>
+                <th class="num sortable" data-sort="avg_duration_ms">Avg dur</th>
+                <th class="num sortable" data-sort="total_cost_usd">Cost</th>
+                <th>Top tools</th>
+                <th class="actions-col">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="cost-by-agent-body">
+              <tr class="empty"><td colspan="8">No invocations yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- v1.4 — anomalies panel. -->
+      <section class="card">
+        <div class="card-head">
+          <h2>Anomalies</h2>
+          <span class="muted" id="anomalies-summary">last 1h · refresh every 30s</span>
+        </div>
+        <div class="anomalies-list" id="anomalies-list">
+          <p class="empty muted">No anomalies detected.</p>
+        </div>
+      </section>
     </template>
 
     <template id="tpl-workspace">

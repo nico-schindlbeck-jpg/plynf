@@ -20,7 +20,14 @@ from ulid import ULID
 
 from .cache import canonical_json
 from .db import Database
-from .models import AuditEvent, AuditStats, AuditToolStat, ChainVerifyResult
+from .models import (
+    AgentCost,
+    AuditEvent,
+    AuditStats,
+    AuditToolStat,
+    ChainVerifyResult,
+    ToolUsage,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from .otlp_emitter import OTLPEmitter
@@ -330,6 +337,131 @@ class AuditLog:
             total_cost_usd=total_cost,
             by_tool=by_tool,
         )
+
+    async def cost_by_agent(
+        self,
+        *,
+        since: datetime,
+        tenant_id: str | None = None,
+        top: int = 10,
+        per_agent_top_tools: int = 5,
+    ) -> tuple[list[AgentCost], int, float]:
+        """Aggregate cost + invocations per agent over a window.
+
+        Args:
+            since: Lower-bound timestamp; rows with ``timestamp >= since``
+                are aggregated.
+            tenant_id: Optional tenant filter. ``None`` = all tenants.
+            top: Maximum number of agent rows to return (sorted by total
+                cost desc).
+            per_agent_top_tools: Maximum tools to include in each agent's
+                ``top_tools`` list.
+
+        Returns:
+            ``(agents, total_agents, total_cost_usd)`` where:
+              * ``agents`` is the sorted, top-N list of :class:`AgentCost`.
+              * ``total_agents`` is the *unfiltered* distinct count of
+                agent rows in the window (so dashboards can show
+                "showing top N of M").
+              * ``total_cost_usd`` is the cost sum across ALL agents in
+                the window, not just the top-N.
+
+        NULL ``agent_id`` rows are bucketed under the sentinel
+        ``"(unknown)"``.
+        """
+
+        if top <= 0:
+            return [], 0, 0.0
+
+        clauses: list[str] = ["timestamp >= ?"]
+        params: list[Any] = [since.isoformat()]
+        if tenant_id is not None:
+            clauses.append("(tenant_id = ? OR (tenant_id IS NULL AND ? = 'default'))")
+            params.append(tenant_id)
+            params.append(tenant_id)
+        where = "WHERE " + " AND ".join(clauses)
+
+        # Aggregate by (agent_id, tenant_id). COALESCE folds NULL agent_id
+        # into the "(unknown)" bucket so dashboards always have a label.
+        agent_rows = await self._db.fetchall(
+            f"""
+            SELECT COALESCE(agent_id, '(unknown)') AS agent_id,
+                   COALESCE(tenant_id, 'default') AS tenant_id,
+                   COUNT(*) AS invocations,
+                   COALESCE(SUM(cached), 0) AS cached_invocations,
+                   COALESCE(SUM(cost_estimate_usd), 0) AS total_cost_usd,
+                   COALESCE(AVG(duration_ms), 0) AS avg_duration_ms
+            FROM audit_events
+            {where}
+            GROUP BY COALESCE(agent_id, '(unknown)'),
+                     COALESCE(tenant_id, 'default')
+            ORDER BY total_cost_usd DESC, invocations DESC
+            """,
+            tuple(params),
+        )
+
+        total_agents = len(agent_rows)
+        total_cost_usd = float(
+            sum(float(row["total_cost_usd"] or 0.0) for row in agent_rows)
+        )
+
+        agent_rows = list(agent_rows)[: int(top)]
+        if not agent_rows:
+            return [], 0, 0.0
+
+        # Build the top-N tool breakdown for each agent in one go. Doing
+        # it per-agent in a loop keeps each statement small + parameterised
+        # and avoids a window-function dialect dependency that SQLite older
+        # than 3.25 doesn't support.
+        agents: list[AgentCost] = []
+        for row in agent_rows:
+            ag_id = row["agent_id"]
+            ten_id = row["tenant_id"]
+
+            tool_clauses = list(clauses)
+            tool_params = list(params)
+            # ``ag_id`` may be the synthetic "(unknown)" bucket — match
+            # NULL agent_id rows in that case, otherwise filter exact.
+            if ag_id == "(unknown)":
+                tool_clauses.append("agent_id IS NULL")
+            else:
+                tool_clauses.append("agent_id = ?")
+                tool_params.append(ag_id)
+            tool_where = "WHERE " + " AND ".join(tool_clauses)
+
+            tool_rows = await self._db.fetchall(
+                f"""
+                SELECT tool_id,
+                       COUNT(*) AS invocations,
+                       COALESCE(SUM(cost_estimate_usd), 0) AS cost_usd
+                FROM audit_events
+                {tool_where}
+                GROUP BY tool_id
+                ORDER BY cost_usd DESC, invocations DESC
+                LIMIT ?
+                """,
+                tuple(tool_params + [int(per_agent_top_tools)]),
+            )
+            top_tools = [
+                ToolUsage(
+                    tool_id=t["tool_id"],
+                    invocations=int(t["invocations"]),
+                    cost_usd=float(t["cost_usd"] or 0.0),
+                )
+                for t in tool_rows
+            ]
+            agents.append(
+                AgentCost(
+                    agent_id=ag_id,
+                    tenant_id=ten_id,
+                    invocations=int(row["invocations"]),
+                    cached_invocations=int(row["cached_invocations"]),
+                    total_cost_usd=float(row["total_cost_usd"] or 0.0),
+                    avg_duration_ms=float(row["avg_duration_ms"] or 0.0),
+                    top_tools=top_tools,
+                )
+            )
+        return agents, total_agents, total_cost_usd
 
     async def list_tenants(self) -> list[dict[str, Any]]:
         """Distinct tenant IDs visible across audit events + tools.

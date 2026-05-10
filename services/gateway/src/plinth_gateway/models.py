@@ -481,3 +481,106 @@ class RollbackResult(BaseModel):
     failed: str | None = None
     error_message: str | None = None
     dry_run: bool = False
+
+
+# ---------------------------------------------------------------------------
+# v1.4 — Per-agent cost rollup + anomaly detection
+# ---------------------------------------------------------------------------
+
+
+class ToolUsage(BaseModel):
+    """One tool's usage breakdown for a single agent.
+
+    Used inside :class:`AgentCost.top_tools` to give dashboards a
+    "cost by tool" stack within each agent row.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    tool_id: str
+    invocations: int = 0
+    cost_usd: float = 0.0
+
+
+class AgentCost(BaseModel):
+    """Per-agent cost roll-up over a window.
+
+    Bucketing rule: rows with ``agent_id IS NULL`` are grouped under the
+    sentinel ``agent_id="(unknown)"`` so the row stays visible without
+    leaking the absence-vs-presence distinction into the response shape.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    agent_id: str
+    tenant_id: str
+    invocations: int = 0
+    cached_invocations: int = 0
+    total_cost_usd: float = 0.0
+    avg_duration_ms: float = 0.0
+    top_tools: list[ToolUsage] = Field(default_factory=list)
+
+
+class CostByAgentReport(BaseModel):
+    """Response of ``GET /v1/audit/cost-by-agent``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    window: str
+    window_start: datetime
+    window_end: datetime
+    agents: list[AgentCost] = Field(default_factory=list)
+    total_agents: int = 0
+    total_cost_usd: float = 0.0
+    fetched_at: datetime
+
+
+AnomalyType = Literal[
+    "cost_spike",
+    "rate_spike",
+    "error_spike",
+    "new_tool",
+    "unusual_pattern",
+]
+AnomalySeverity = Literal["info", "warning", "critical"]
+
+
+class Anomaly(BaseModel):
+    """A single detected anomaly.
+
+    ``raw_data`` carries detector-specific extras (e.g. the per-minute
+    baseline samples used to compute the z-score). The dashboard's
+    sparkline reads these straight off the response so detection is the
+    single source of truth.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    type: AnomalyType
+    severity: AnomalySeverity
+    agent_id: str | None = None
+    tenant_id: str | None = None
+    tool_id: str | None = None
+    detected_at: datetime
+    window_start: datetime
+    window_end: datetime
+    description: str
+    metric_name: str
+    metric_value: float = 0.0
+    baseline_mean: float = 0.0
+    baseline_stddev: float = 0.0
+    z_score: float = 0.0
+    raw_data: dict[str, Any] = Field(default_factory=dict)
+
+
+class AnomalyReport(BaseModel):
+    """Response of ``GET /v1/audit/anomalies``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    detected_at: datetime
+    window: str
+    anomalies: list[Anomaly] = Field(default_factory=list)
+    total_anomalies: int = 0
+    by_severity: dict[str, int] = Field(default_factory=dict)

@@ -14,6 +14,7 @@ from fastapi import Depends, FastAPI, Header, Query, Request, Response
 from fastapi.responses import JSONResponse
 
 from . import __version__
+from .anomaly import AnomalyDetector, parse_window
 from .audit import AuditLog, AuditRecord
 from .auth import check_inbound_auth
 from .cache import Cache, hash_args, hash_result
@@ -51,10 +52,12 @@ from .migration_runner import (
 from .models import (
     AgentLimits,
     AgentLimitsBody,
+    AnomalyReport,
     AuditListResponse,
     AuditStatsResponse,
     CacheStats,
     ChainVerifyResult,
+    CostByAgentReport,
     DryRunResponse,
     ErrorBody,
     ErrorResponse,
@@ -1074,6 +1077,117 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             cost=float(payload.cost_usd),
         )
         return LLMAuditRecordResponse(audit_id=event.id)
+
+    # ---- v1.4 — per-agent cost rollup + anomaly detection -----------------
+
+    @app.get(
+        "/v1/audit/cost-by-agent",
+        response_model=CostByAgentReport,
+        tags=["audit"],
+        dependencies=[Depends(auth_dep)],
+    )
+    async def audit_cost_by_agent(
+        request: Request,
+        window: str = Query(default="24h"),
+        tenant_id: str | None = Query(default=None),
+        top: int = Query(default=10, ge=1, le=200),
+        audit: AuditLog = Depends(get_audit),
+    ) -> CostByAgentReport:
+        """Aggregate cost by agent over the requested ``window``.
+
+        ``window`` accepts ``"1h"``, ``"24h"``, ``"7d"``, ``"30d"`` (and
+        any equivalent shape parsed by :func:`anomaly.parse_window`).
+        Tenant scoping kicks in two ways:
+
+        * In ``permissive`` auth mode, the caller may pass an explicit
+          ``tenant_id`` to scope the rollup; without it, every tenant is
+          summed.
+        * In ``verify_local`` / ``verify_remote``, the caller's tenant is
+          enforced regardless of ``tenant_id`` so cross-tenant cost
+          inspection is impossible.
+        """
+
+        try:
+            window_td = parse_window(window)
+        except ValueError as exc:
+            raise InvalidArguments(str(exc), details={"window": window}) from exc
+
+        # In strict-auth modes, the scoped tenant always wins. ``permissive``
+        # honours the explicit query argument if given.
+        scope_tenant = _scope_tenant(request)
+        effective_tenant = scope_tenant if scope_tenant is not None else tenant_id
+
+        now = datetime.now(timezone.utc)
+        since = now - window_td
+
+        agents, total_agents, total_cost = await audit.cost_by_agent(
+            since=since,
+            tenant_id=effective_tenant,
+            top=int(top),
+        )
+        return CostByAgentReport(
+            window=window,
+            window_start=since,
+            window_end=now,
+            agents=agents,
+            total_agents=total_agents,
+            total_cost_usd=total_cost,
+            fetched_at=now,
+        )
+
+    @app.get(
+        "/v1/audit/anomalies",
+        response_model=AnomalyReport,
+        tags=["audit"],
+        dependencies=[Depends(auth_dep)],
+    )
+    async def audit_anomalies(
+        request: Request,
+        window: str = Query(default="1h"),
+        min_severity: str = Query(default="info"),
+        type: str | None = Query(default=None),  # noqa: A002 — match URL spec
+        agent_id: str | None = Query(default=None),
+    ) -> AnomalyReport:
+        """Run the audit-log anomaly detectors and return any hits.
+
+        Window parsing is identical to ``/v1/audit/cost-by-agent``.
+        ``min_severity`` filters the response — useful for the dashboard's
+        "show only critical" toggle. Results are cached in-process for 30
+        seconds to avoid hammering the DB on dashboard refreshes.
+        """
+
+        try:
+            parse_window(window)
+        except ValueError as exc:
+            raise InvalidArguments(str(exc), details={"window": window}) from exc
+        if min_severity not in {"info", "warning", "critical"}:
+            raise InvalidArguments(
+                f"Invalid min_severity {min_severity!r}",
+                details={"min_severity": min_severity},
+            )
+        valid_types = {
+            "cost_spike",
+            "rate_spike",
+            "error_spike",
+            "new_tool",
+            "unusual_pattern",
+        }
+        if type is not None and type not in valid_types:
+            raise InvalidArguments(
+                f"Invalid type {type!r}",
+                details={"type": type, "expected": sorted(valid_types)},
+            )
+
+        scope_tenant = _scope_tenant(request)
+
+        detector = AnomalyDetector(request.app.state.db)
+        return await detector.detect(
+            window=window,
+            min_severity=min_severity,
+            type_filter=type,
+            agent_id=agent_id,
+            tenant_id=scope_tenant,
+        )
 
     # ---- cache -------------------------------------------------------------
 
