@@ -1,10 +1,10 @@
-FROM python:3.11-slim AS builder
+FROM python:3.14-slim AS builder
 WORKDIR /build
 COPY pyproject.toml README.md ./
 COPY src ./src
 RUN pip install --no-cache-dir --upgrade pip wheel && pip install --no-cache-dir .
 
-FROM python:3.11-slim
+FROM python:3.14-slim
 RUN useradd -m -u 1001 plinth
 WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
