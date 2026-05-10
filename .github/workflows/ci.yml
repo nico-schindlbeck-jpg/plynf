@@ -71,7 +71,8 @@ jobs:
               pip install -e "./services/workspace[dev,postgres]"
               pip install -e "./services/gateway[dev,postgres]"
               pip install -e "./services/identity[dev,postgres]"
-              pip install -e "./sdk/python[dev]"
+              # LLM-provider tests need anthropic + openai SDKs
+              pip install -e "./sdk/python[dev,all]"
               ;;
             mock-mcp)     pip install -e "./mock-mcp-server[dev]" ;;
             dashboard)    pip install -e "./services/dashboard[dev]" ;;

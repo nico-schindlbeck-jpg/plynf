@@ -35,12 +35,13 @@ def test_workspace_documented_methods_exist_in_app() -> None:
 def test_workspace_documented_status_codes_exist_in_app() -> None:
     """Every documented response status code exists in the app's OpenAPI.
 
-    Caveat: 401 and 500 are emitted by FastAPI middleware / exception handlers,
-    not by individual route decorators, so they don't appear in app.openapi()
-    even though the spec correctly documents them. We treat those two codes as
-    middleware-emitted and skip them in the divergence check.
+    Caveat: 400, 401, 422, 500 are emitted by FastAPI middleware / exception
+    handlers / Pydantic validation, not by individual route decorators, so
+    they don't appear in app.openapi() even though the spec correctly
+    documents them. We treat those codes as middleware-emitted and skip
+    them in the divergence check.
     """
-    middleware_emitted = {"401", "500"}
+    middleware_emitted = {"400", "401", "422", "500"}
     expected = workspace.expected_paths()
     actual = workspace.actual_paths()
     diffs: list[str] = []

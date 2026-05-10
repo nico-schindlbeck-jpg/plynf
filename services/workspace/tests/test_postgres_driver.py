@@ -86,11 +86,11 @@ def ephemeral_db_url() -> str:
     """Yield a freshly-created Postgres DB URL; drops it on teardown."""
 
     name = _ephemeral_db_name()
-    asyncio.get_event_loop().run_until_complete(_create_db(name))
+    asyncio.run(_create_db(name))
     try:
         yield _url_for(name)
     finally:
-        asyncio.get_event_loop().run_until_complete(_drop_db(name))
+        asyncio.run(_drop_db(name))
 
 
 @pytest.mark.asyncio()
