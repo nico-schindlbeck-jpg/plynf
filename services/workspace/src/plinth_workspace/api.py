@@ -1584,6 +1584,52 @@ def _register_routes(app: FastAPI) -> None:
         )
         return wf
 
+    @app.post(
+        "/v1/workspaces/{ws_id}/workflows/import",
+        response_model=Workflow,
+        status_code=status.HTTP_201_CREATED,
+        tags=["workflows"],
+    )
+    async def import_workflow_definition(
+        ws_id: str,
+        request: Request,
+        workflows: WorkflowsDep,
+        quotas: QuotaEnforcerDep,
+    ) -> Workflow:
+        """v1.5 — Import a Plinth Studio workflow definition (JSON).
+
+        The body is the workflow definition emitted by the Studio canvas.
+        We accept the JSON verbatim (no fixed Pydantic schema) so the
+        editor can evolve its step types without forcing every workspace
+        deployment to redeploy. Validation lives inside
+        :py:meth:`WorkflowStore.import_workflow` (envelope-only — step
+        types are checked against the v1.5 enum, but tool_id references
+        are NOT resolved against the gateway registry).
+
+        Returns the freshly-created :class:`Workflow` (no steps started).
+        """
+
+        try:
+            payload = await request.json()
+        except ValueError as exc:
+            raise InvalidArguments(
+                "request body must be valid JSON",
+                details={"reason": str(exc)},
+            ) from exc
+
+        tenant_id = getattr(request.state, "tenant_id", "default")
+        await quotas.check_workflow_create(tenant_id, ws_id)
+        wf = await workflows.import_workflow(ws_id, payload)
+        get_logger().info(
+            "workspace.workflow.imported",
+            workspace_id=ws_id,
+            workflow_id=wf.id,
+            name=wf.name,
+            steps=wf.steps_manifest,
+            source="plinth-studio",
+        )
+        return wf
+
     @app.get(
         "/v1/workspaces/{ws_id}/workflows",
         response_model=WorkflowList,

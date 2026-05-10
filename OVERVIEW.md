@@ -25,9 +25,11 @@
 
 | | |
 |--|--|
-| **Latest milestone** | **v1.4.0 — Per-Agent Cost + Anomaly Detection** *(May 10, 2026)* |
-| **Repo size** | ~131 000 lines of source + docs |
-| **Tests passing** | **2 507** *(2 284 Python + 194 TS SDK + 29 TS Worker)* |
+| **Latest milestone** | **v1.5.0 — Tier-2 Sweep (Studio, 3 OAuth, Go + Swift + Kotlin SDKs)** *(May 10, 2026)* |
+| **Repo size** | ~140 000 lines of source + docs |
+| **Tests passing** | **~2 867** *(across 7 SDKs: Python, TypeScript, Go, Swift, Kotlin)* |
+| **SDK languages** | Python, TypeScript, Go, Swift (iOS/macOS), Kotlin (Android/JVM) |
+| **OAuth providers** | GitHub, Slack, Linear, Notion, Google Workspace, Atlassian, Salesforce, Asana |
 | **API stability** | `v1` stable — see `docs/API_STABILITY.md` |
 | **Coordination** | memory (default) or Redis (cluster-shared) — opt-in via `PLINTH_COORDINATION_BACKEND=redis` |
 | **OAuth providers** | GitHub, Slack, Linear, Notion, Google Workspace |

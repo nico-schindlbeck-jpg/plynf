@@ -2,6 +2,56 @@
 
 All notable changes to Plinth are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [SemVer](https://semver.org).
 
+## [1.5.0] — 2026-05-10
+
+Tier-2 sweep: closes the remaining Tier-2 items from the post-v1.0 audit. Visual workflow tools, three more OAuth providers, Go SDK, and mobile SDKs (Swift + Kotlin).
+
+### Added
+
+**Workflow Visualization v2 + Plinth Studio MVP** (Dashboard):
+- `/workflows/{id}/replay` — historical timeline scrubber + per-step state reconstruction + error-attribution graph + restore-to-snapshot helper
+- `/studio` — visual workflow builder. Click-to-insert toolbox (Tool / LLM / Channel / Manual-Approval steps) → canvas → save → POST `/v1/workspaces/{ws_id}/workflows/import` creates real workflow
+- `WorkflowDefinition` JSON shape + workspace `import_workflow()` endpoint
+- Python SDK: `ws.workflows.import_definition(definition)` returns WorkflowHandle
+
+**3 new OAuth-backed MCP servers**:
+- **Atlassian** (Jira + Confluence) — port 7431, 8 tools, PKCE OAuth, cloudid metadata flow
+- **Salesforce** — port 7432, 6 tools (SOQL + CRUD + list_objects), `instance_url` metadata flow
+- **Asana** — port 7433, 6 tools (workspaces / projects / tasks)
+- Gateway PROVIDERS extended; per-connection metadata stored (cloudid for Atlassian, instance_url for Salesforce); proxy injects provider-specific headers (`X-Plinth-OAuth-Cloudid`, `X-Plinth-OAuth-InstanceUrl`)
+
+**Go SDK** (new — `sdk/go/`, `github.com/plinth/sdk-go`):
+- Stdlib-only, no external deps for v0.1
+- Coverage: workspaces + KV + files + snapshots + branches + channels + workflows + locks + tools + identity + workers + token counting + cost estimation
+- Idiomatic Go: `context.Context` first, sentinel errors with `errors.Is`, `*PlinthError` everywhere
+- ~2.4k LOC source, ~1.6k LOC tests, 73 test functions, CI job (`go vet` + `go test -race`)
+
+**Mobile SDKs** (new):
+- **Swift** (`sdk/swift/`) — Swift 5.9, iOS 16+/macOS 13+, async/await + Sendable, URLSession-based, 57 XCTest methods, builds clean on Xcode CommandLineTools
+- **Kotlin** (`sdk/kotlin/`) — Kotlin 1.9, JVM 17, kotlinx.coroutines + kotlinx.serialization + OkHttp, 51 JUnit5 tests, MockWebServer-based fixtures
+- Both v0.1 cover: workspace get-or-create, KV set/get/history/delete, files write/read/delete, tools invoke, identity token issue/verify/revoke
+
+### Changed
+- **Test totals: ~2,867 tests passing across 7 SDKs + 12 services** (was 2,507 in v1.4)
+  - Python total: ~2463 (workspace +19 import, dashboard +13 viz/studio, SDK +2 import-definition, 3 new MCP servers +119, gateway +26 OAuth providers)
+  - TypeScript SDK: 194
+  - TypeScript Worker: 29
+  - Go SDK: 73 (CI-verified)
+  - Swift SDK: 57 (locally builds; XCTest needs full Xcode)
+  - Kotlin SDK: 51 (CI-verified)
+
+### Stack additions
+- Atlassian/Salesforce/Asana: pyjwt-extras-style optional install via gateway
+- Go SDK: zero deps
+- Swift: Foundation only
+- Kotlin: kotlinx.serialization + kotlinx.coroutines + OkHttp
+
+### Backwards compatibility
+- All endpoints additive
+- New SDKs don't affect existing ones
+- API v1 contract preserved
+- All v0.1–v1.4 demos still produce unchanged output
+
 ## [1.4.0] — 2026-05-10
 
 Per-Agent cost attribution + anomaly detection scaffolding.
@@ -455,6 +505,7 @@ Initial proof-of-concept release. Working end-to-end slice of the agent-native s
 ### Stack
 Python 3.11+ for services + Python SDK; TypeScript 5.4+ for the TS SDK; FastAPI + uvicorn + aiosqlite + pydantic v2 + tiktoken; vitest for TS tests.
 
+[1.5.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.5.0
 [1.4.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.4.0
 [1.3.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.3.0
 [1.2.1]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.2.1

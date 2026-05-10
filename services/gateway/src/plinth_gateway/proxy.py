@@ -33,6 +33,44 @@ log = get_logger(__name__)
 _REFRESH_LEEWAY = timedelta(seconds=30)
 
 
+# v1.5 — Per-provider connection-metadata → outbound header mappings.
+# When the gateway resolves an OAuth connection for a downstream MCP call,
+# it forwards selected non-secret metadata fields as ``X-Plinth-OAuth-*``
+# headers so the MCP server can target the correct workspace/org without
+# re-running the OAuth flow. The keys here are the provider names; the
+# values map ``metadata`` keys → header names.
+_METADATA_HEADER_MAP: dict[str, dict[str, str]] = {
+    "atlassian": {"cloudid": "X-Plinth-OAuth-Cloudid"},
+    "salesforce": {"instance_url": "X-Plinth-OAuth-InstanceUrl"},
+}
+
+
+def _metadata_headers(decrypted: Any) -> dict[str, str]:
+    """Build the set of ``X-Plinth-OAuth-*`` headers for a connection.
+
+    Returns an empty dict for providers without registered metadata mappings,
+    or when the connection's ``metadata`` dict is empty/missing the relevant
+    key. Values are stringified before emission so a non-string metadata
+    value (defensive — should never happen) doesn't break the proxy.
+    """
+    provider = getattr(decrypted, "provider", None)
+    if not isinstance(provider, str):
+        return {}
+    mapping = _METADATA_HEADER_MAP.get(provider)
+    if not mapping:
+        return {}
+    metadata = getattr(decrypted, "metadata", None) or {}
+    if not isinstance(metadata, dict):
+        return {}
+    headers: dict[str, str] = {}
+    for meta_key, header_name in mapping.items():
+        value = metadata.get(meta_key)
+        if value is None:
+            continue
+        headers[header_name] = str(value)
+    return headers
+
+
 class HttpProxy:
     """Wrap an :class:`httpx.AsyncClient` to call registered HTTP tools."""
 
@@ -95,7 +133,7 @@ class HttpProxy:
         headers = {"Content-Type": "application/json"}
 
         if tool.auth_method == "oauth2" and connection_store is not None:
-            auth_header = await self._resolve_oauth_header(
+            auth_header, metadata_headers = await self._resolve_oauth_header(
                 tool=tool,
                 connection_store=connection_store,
                 settings=settings,
@@ -103,6 +141,11 @@ class HttpProxy:
             )
             if auth_header is not None:
                 headers["Authorization"] = auth_header
+                # v1.5 — propagate per-provider connection metadata as
+                # ``X-Plinth-OAuth-*`` headers so MCP servers (Atlassian,
+                # Salesforce) can address the right cloudid / instance URL
+                # without re-doing the OAuth dance.
+                headers.update(metadata_headers)
             else:
                 # Fall back to legacy mock_token if configured (preserves v0.1
                 # behaviour for tests that haven't migrated yet).
@@ -149,16 +192,20 @@ class HttpProxy:
         connection_store: Any,
         settings: Any | None,
         connection_id_override: str | None,
-    ) -> str | None:
-        """Resolve and return the ``Authorization`` header for an oauth2 tool.
+    ) -> tuple[str | None, dict[str, str]]:
+        """Resolve the ``Authorization`` header + per-connection metadata.
 
-        Returns None when the tool has no usable connection wired (so the
-        caller can fall back to the legacy mock-token path or raise).
+        Returns a ``(auth_header_or_none, metadata_headers_dict)`` tuple.
+        The ``auth_header`` is None when the tool has no usable connection
+        wired so the caller can fall back to legacy mock-token or raise.
+        ``metadata_headers`` is always a dict (possibly empty) — it carries
+        provider-specific data (Atlassian cloudid, Salesforce instance_url)
+        that subsequently the MCP server reads to address per-org bases.
         """
         cfg = tool.auth_config or {}
         connection_id = connection_id_override or cfg.get("connection_id")
         if not connection_id:
-            return None
+            return None, {}
 
         try:
             decrypted = await connection_store.get_decrypted(connection_id)
@@ -167,6 +214,8 @@ class HttpProxy:
                 f"oauth connection lookup failed: {exc}",
                 details={"tool_id": tool.tool_id, "connection_id": connection_id},
             ) from exc
+
+        metadata_headers = _metadata_headers(decrypted)
 
         if decrypted.expires_at is not None and decrypted.refresh_token:
             now = datetime.now(timezone.utc)
@@ -181,9 +230,9 @@ class HttpProxy:
                     tool=tool,
                 )
                 if refreshed is not None:
-                    return f"Bearer {refreshed}"
+                    return f"Bearer {refreshed}", metadata_headers
 
-        return f"Bearer {decrypted.access_token}"
+        return f"Bearer {decrypted.access_token}", metadata_headers
 
     async def _maybe_refresh_token(
         self,

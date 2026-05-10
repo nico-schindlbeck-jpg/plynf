@@ -1,0 +1,12 @@
+{
+  "": {
+    "swift-dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthPackageTests.build/master.swiftdeps"
+  },
+  "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthPackageTests.derived/runner.swift": {
+    "dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthPackageTests.build/runner.d",
+    "object": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthPackageTests.build/runner.swift.o",
+    "swiftmodule": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthPackageTests.build/runner~partial.swiftmodule",
+    "swift-dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthPackageTests.build/runner.swiftdeps",
+    "diagnostics": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthPackageTests.build/runner.dia"
+  }
+}

@@ -2566,3 +2566,385 @@ flood of `info` anomalies on a busy gateway (most likely
 `anomaly.py` and redeploy the gateway — changes take effect on the
 next request after the 30-second cache TTL elapses.
 
+# v1.5 Additions — Workflow Visualization v2 + Plinth Studio MVP
+
+v1.5 ships two related dashboard chunks that build on the existing v1.0
+workflow viz: a historical *replay* view for any workflow, and a
+visual-builder *studio* for composing workflows without code. Both are
+additive — every previous endpoint is byte-for-byte unchanged.
+
+## Workflow Replay (Dashboard route `/workflows/{id}/replay`)
+
+A new SPA route renders three stacked panels for any workflow:
+
+1. **Timeline scrubber** — horizontal SVG axis from the workflow's
+   `created_at` to `finished_at` (or `now` for active workflows). One
+   tick mark per step state-change event derived from the workflow's
+   step rows. Dragging the slider sets a *cursor timestamp*; the SPA
+   reconstructs each step's state by replaying every event with
+   `ts <= cursor`.
+2. **Step state at scrub position** — re-uses the v1.0 graph renderer
+   to show the step nodes coloured as they were at the cursor moment
+   (`pending` / `running` / `completed` / `failed` / `cancelled`). The
+   live `/workflows/{id}` route is unchanged.
+3. **Error attribution** — for any step that failed at least once,
+   shows the failing attempt's `error` message, the input that was
+   passed in, and a per-attempt list (`attempt 1 — failed @ 12:00:07
+   — model timeout`).
+
+A **"Restore workspace to this point"** button surfaces the latest
+snapshot at-or-before the cursor and shows the operator the snapshot
+ID + the workspace API call needed to actually restore it. (The
+restore *itself* is not automated by the dashboard — it would silently
+mutate workspace state.)
+
+### Replay aggregator
+
+```
+GET /api/workflows/{wf_id}/replay?ws=<ws_id>   → 200 ReplayPayload
+```
+
+Aggregates three upstream calls in parallel:
+
+- `GET {workspace}/v1/workspaces/{ws_id}/workflows/{wf_id}` (required)
+- `GET {workspace}/v1/workspaces/{ws_id}/snapshots` (best-effort)
+- `GET {gateway}/v1/audit?workspace_id={ws_id}&limit=1000` (best-effort)
+
+`ReplayPayload`:
+
+```json
+{
+  "workflow":      { /* full Workflow row */ },
+  "snapshots":     [ /* Snapshot rows */ ],
+  "audit_events":  [ /* AuditEvent rows */ ],
+  "timeline": [
+    {
+      "ts": "2026-05-10T12:00:01+00:00",
+      "kind": "workflow.created" | "workflow.started" | "workflow.finished" |
+              "step.created" | "step.started" | "step.finished",
+      "step_name": "search",   // omitted on workflow.* events
+      "step_id":   "step_xxx",
+      "attempt":   1,
+      "status":    "pending" | "running" | "completed" | "failed" | "cancelled",
+      "error":     null
+    }
+  ]
+}
+```
+
+The audit log does *not* track `workflow_id` today, so the timeline
+events are reconstructed from the workflow's own step rows
+(`created_at` / `started_at` / `finished_at` / `attempt` / `status`).
+This keeps the replay view honest: it only shows what the workspace
+itself recorded. The audit array is returned alongside so the SPA can
+correlate tool calls by timestamp if it wants to.
+
+If the snapshot or audit fetch fails, the corresponding array is
+returned empty — the timeline reconstruction never blocks.
+
+### Replay route lifecycle
+
+The replay view *disables auto-refresh* while the user is scrubbing —
+the cached payload is the source of truth, and a 5-second poll would
+either clobber the cursor position or flood the workspace with calls.
+Operators who want a live view click the **"live view"** link in the
+header which navigates to the existing `/workflows/{id}` route.
+
+## Plinth Studio MVP (Dashboard route `/studio`)
+
+A visual workflow builder. Three-pane layout:
+
+- **Toolbox (left)** — five step-type buttons: `tool` / `llm` /
+  `channel_send` / `channel_receive` / `manual`. Clicking a button
+  appends a new step at the end of the canvas and opens the per-step
+  config modal so the user can fill in required fields immediately.
+- **Canvas (center)** — vertical numbered list of steps. Each row has
+  `↑` / `↓` reorder buttons, an `edit` button (re-opens the config
+  modal), and an `×` remove button. Steps are coloured red while they
+  have missing required fields.
+- **Properties panel (right)** — a form for the workflow's `name`,
+  `description`, `retry_policy`, and `max_attempts_default`. The save
+  button writes the canvas + properties as a `WorkflowDefinition`
+  document and POSTs it to the workspace.
+
+> **Spec deviation: drag-drop fallback.** The original spec called for
+> drag-drop between the toolbox and the canvas. With no external libs
+> that's a fragile DOM-event maze; per the spec's own fallback note we
+> ship "click to insert + ↑ ↓ reorder" instead. The serialised JSON
+> definition shape is unchanged.
+
+### `WorkflowDefinition` JSON shape
+
+The definition is the contract between the studio canvas, the import
+endpoint, and the SDK helper. Step schemas are *advisory* — the
+workspace validates only the envelope; tool_id references are NOT
+resolved against the gateway registry (a workflow that names an
+unknown tool is still a valid object — the failure surfaces at run
+time when the worker invokes it).
+
+```json
+{
+  "name": "lead-research-pipeline",
+  "description": "Research a lead and extract facts.",
+  "retry_policy": "exponential",
+  "max_attempts_default": 3,
+  "metadata": { "owner": "alice" },
+  "steps": [
+    {
+      "name": "search",
+      "type": "tool",
+      "tool_id": "web.search",
+      "arguments_template": {"query": "{input.topic}", "k": 5},
+      "max_attempts": 3
+    },
+    {
+      "name": "extract",
+      "type": "llm",
+      "model": "claude-sonnet-4-5",
+      "system": "You are a research assistant.",
+      "prompt_template": "Extract facts from:\n{step.search.output}",
+      "max_attempts": 2
+    },
+    {
+      "name": "publish",
+      "type": "channel_send",
+      "channel": "research-out",
+      "payload_template": {"facts": "{step.extract.output}"},
+      "max_attempts": 1
+    }
+  ]
+}
+```
+
+Recognised step `type` values: `tool`, `llm`, `channel_send`,
+`channel_receive`, `manual`. `manual` is a placeholder for human-in-
+loop (post-v1.5); it has no config fields.
+
+### Studio buttons
+
+- **Save** — POSTs the definition to
+  `/api/workspaces/{ws_id}/workflows/import` (proxy → workspace).
+  On success, redirects to `/#/workflows/{wf_id}/replay?ws=...` so the
+  user can immediately start (or run) the new workflow.
+- **Export JSON** — downloads the canvas as a `.plinth.json` file for
+  offline editing or version control.
+- **Load** — fetches the workspace's existing workflows. Workflows
+  imported via studio carry the full definition under
+  `metadata['definition']` and round-trip cleanly. Legacy workflows
+  (created via `WorkflowsProxy.create`) load as a manual-step skeleton
+  that the user can re-edit.
+
+## Workspace import endpoint
+
+```
+POST /v1/workspaces/{ws_id}/workflows/import
+  body: WorkflowDefinition
+  → 201 Workflow
+  → 400 InvalidArguments
+  → 404 WorkspaceNotFound
+```
+
+Implementation lives at `WorkflowStore.import_workflow(ws_id, def)`.
+The endpoint:
+
+1. Validates the envelope (`name` non-empty, `steps` non-empty array,
+   each step has a non-empty `name` + an optional but recognised
+   `type`, step names are unique within the workflow).
+2. Calls `create_workflow()` with `steps_manifest = [s["name"] for s
+   in definition.steps]`.
+3. Stores the *full* definition in `workflow.metadata["definition"]`
+   plus `workflow.metadata["imported_via"] = "plinth-studio"` so the
+   studio's load button can re-hydrate the canvas.
+4. Returns the freshly-created `Workflow` (no steps started — the
+   caller drives the lifecycle through the usual `create_step` /
+   `update_step` endpoints).
+
+The new endpoint participates in the same per-workspace
+`max_workflows_per_workspace` quota as `create_workflow` — importing
+does not bypass tenant quotas.
+
+## Dashboard endpoints
+
+Two new endpoints in addition to the SPA shell routes:
+
+| Method + path | Purpose |
+|---|---|
+| `GET /api/workflows/{wf_id}/replay?ws=<ws_id>` | Replay aggregator (above). |
+| `POST /api/workspaces/{ws_id}/workflows/import` | Thin proxy to the workspace import endpoint. |
+| `GET /studio` | SPA shell for `/#/studio`. |
+| `GET /workflows/{wf_id}/replay` | SPA shell for `/#/workflows/{id}/replay`. |
+
+The proxy follows the standard `_proxy_mut` pattern: forwards the body
+verbatim, returns the upstream status + body verbatim, surfaces 502 on
+upstream connection errors. The replay aggregator is the only
+endpoint that joins multiple upstreams; failures of the
+audit/snapshot calls degrade the payload (empty arrays) rather than
+failing the whole request.
+
+## Python SDK additions
+
+```python
+# Plinth Studio import — round-trips a JSON definition through the
+# workspace import endpoint and returns a WorkflowHandle ready for the
+# normal step lifecycle.
+wf = ws.workflows.import_definition({
+    "name": "lead-research-pipeline",
+    "retry_policy": "exponential",
+    "max_attempts_default": 3,
+    "steps": [
+        {"name": "search", "type": "tool",
+         "tool_id": "web.search",
+         "arguments_template": {"query": "{input.topic}"}},
+        {"name": "extract", "type": "llm",
+         "model": "claude-sonnet-4-5",
+         "system": "You are a research assistant.",
+         "prompt_template": "Extract from:\n{step.search.output}"},
+    ],
+})
+assert wf.steps_manifest == ["search", "extract"]
+```
+
+The TypeScript SDK is unchanged for v1.5 (Python only).
+
+## Backwards compatibility (v1.5)
+
+- Every previous endpoint is byte-for-byte unchanged.
+- `WorkflowStore.create_workflow()` and the `POST .../workflows`
+  endpoint behave exactly as in v1.4.
+- The new `/import` route is registered before the
+  `GET /workflows/{wf_id}` route in the workspace API; FastAPI's
+  method-aware matcher disambiguates them.
+- `Workflow.metadata` was always a free-form dict; storing the
+  `definition` + `imported_via` keys does not change its schema.
+- Dashboard SPA: existing routes (`/`, `/workspaces/{id}`,
+  `/workflows`, `/workflows/{id}`, `/tenants`, `/tenants/{id}`) all
+  unchanged. The two new routes (`/studio`, `/workflows/{id}/replay`)
+  are added to the topnav but do not affect any existing markup.
+- The 5-second polling cadence on the live workflow detail / list
+  pages is unchanged. The new replay route deliberately *disables*
+  auto-refresh while scrubbing.
+- Python SDK: `WorkflowsProxy` gains one method
+  (`import_definition`); existing methods unchanged. `__all__` of
+  `plinth.workflows` is unchanged (the new method is exposed via the
+  proxy class).
+
+# v1.5 Additions — Atlassian, Salesforce, Asana MCP Servers
+
+Three new OAuth-backed MCP servers ship in v1.5, expanding the catalog
+of first-party integrations to cover ticket tracking, CRM, and project
+management workflows.
+
+## Atlassian MCP Server (NEW — port 7431)
+
+Provides agent access to Jira and Confluence via Atlassian's 3LO OAuth flow.
+
+Tools:
+- `atlassian.jira_search` — JQL search → list of issues
+- `atlassian.jira_get_issue` — full issue with comments
+- `atlassian.jira_create_issue` — new issue with ADF description
+- `atlassian.jira_update_issue` — edit fields on an issue
+- `atlassian.jira_comment` — append a comment
+- `atlassian.confluence_search` — CQL search across pages
+- `atlassian.confluence_get_page` — page with storage-format body
+- `atlassian.confluence_create_page` — create a page in a space
+
+OAuth: standard Atlassian 3LO flow. The authorize URL carries the mandatory
+`audience=api.atlassian.com` parameter. PKCE on. Default scopes:
+`read:jira-work write:jira-work read:confluence-content.summary
+write:confluence-content offline_access`.
+
+After token exchange the gateway calls
+`https://api.atlassian.com/oauth/token/accessible-resources` and stores the
+first workspace's `id` as `connection.metadata.cloudid`. The MCP server reads
+it from the `X-Plinth-OAuth-Cloudid` header that the gateway proxy forwards
+on every invoke and addresses Jira/Confluence via the
+`/ex/jira/{cloudid}/...` and `/ex/confluence/{cloudid}/wiki/...` routes.
+
+## Salesforce MCP Server (NEW — port 7432)
+
+Provides agent access to Salesforce REST.
+
+Tools:
+- `salesforce.soql_query` — run a SOQL query
+- `salesforce.get_record` — fetch a single record
+- `salesforce.create_record` — create Lead/Contact/Opportunity/...
+- `salesforce.update_record` — PATCH fields onto a record
+- `salesforce.delete_record` — delete a record
+- `salesforce.list_objects` — list SObject types + their schema
+
+OAuth: standard Salesforce OAuth (login.salesforce.com). PKCE on. Default
+scopes: `api refresh_token offline_access`.
+
+The token-exchange response includes `instance_url` (the per-org REST API
+base, e.g. `https://acme.my.salesforce.com`). The gateway captures this into
+`connection.metadata.instance_url` and forwards it as
+`X-Plinth-OAuth-InstanceUrl` on every proxied invoke. The MCP server reads
+the header and uses it as the per-call API base
+(`{instance_url}/services/data/{api_version}/...`).
+
+The MCP server validates the inbound `instance_url` is HTTPS and matches a
+known Salesforce-domain suffix (`*.salesforce.com`, `*.force.com`, etc.)
+before using it, blocking malicious header injection.
+
+## Asana MCP Server (NEW — port 7433)
+
+Provides agent access to Asana workspaces, projects, and tasks.
+
+Tools:
+- `asana.list_workspaces` — accessible workspaces
+- `asana.list_projects` — projects in a workspace
+- `asana.list_tasks` — tasks in a project
+- `asana.get_task` — task with project membership
+- `asana.create_task` — task in workspace or projects
+- `asana.update_task` — edit name/notes/completed/assignee/due_on
+
+OAuth: standard Asana OAuth flow. PKCE on. Default scope: `default`.
+
+No per-connection metadata is required — Asana tokens are workspace-scoped
+implicitly via the user.
+
+## Gateway changes
+
+`OAuthConnection` now has a `metadata: dict[str, Any]` field (persisted as
+JSON in the new `oauth_connections.metadata` TEXT column). It is populated
+from provider-specific data captured during OAuth callback (Atlassian's
+cloudid, Salesforce's instance_url) and round-trips through
+`POST/GET /v1/oauth/connections`.
+
+`OAuthProvider` gains an `extra_authorize_params: dict[str, str] | None`
+field for provider-specific authorize-URL query params (Atlassian needs
+`audience=api.atlassian.com`).
+
+The gateway proxy's OAuth resolver returns
+`(auth_header, metadata_headers_dict)` rather than a single header. The
+metadata mapping table is:
+
+| Provider | Connection metadata key | Outbound header           |
+|----------|-------------------------|---------------------------|
+| Atlassian | `cloudid`              | `X-Plinth-OAuth-Cloudid`  |
+| Salesforce | `instance_url`        | `X-Plinth-OAuth-InstanceUrl` |
+
+Other providers emit no extra headers.
+
+## Migration
+
+`migrations/0006_oauth_metadata.sql` adds the `metadata TEXT` column. The
+in-line `db.py` schema bootstrap and `_migrate()` both handle the column
+idempotently for fresh and upgraded databases.
+
+## Stack additions (v1.5 OAuth)
+
+No new runtime dependencies. The three MCP servers reuse the existing
+FastAPI / httpx / structlog stack the other MCP servers use.
+
+## Backwards compatibility (v1.5 OAuth)
+
+- All v1.0–v1.5 endpoints unchanged.
+- `OAuthConnectionPublic.metadata` defaults to `{}` for connections created
+  before v1.5; existing API consumers see the new key in JSON responses but
+  can ignore it.
+- Existing OAuth providers (GitHub, Slack, Linear, Notion, Google) emit no
+  new headers and behave identically to v1.4.
+- The migration is purely additive — the column is nullable so a rollback to
+  v1.4 leaves prior rows readable (the v1.4 code never touches the column).
+

@@ -69,6 +69,8 @@ class OAuthProvider:
         userinfo_login_field: JSON key for the human-readable login.
         default_scopes: Scopes granted when caller doesn't override.
         pkce: Whether to send PKCE code challenge / verifier.
+        extra_authorize_params: Provider-specific query parameters appended to
+            the authorize URL (e.g. Atlassian's mandatory ``audience=api.atlassian.com``).
     """
 
     name: str
@@ -79,6 +81,7 @@ class OAuthProvider:
     userinfo_login_field: str = "login"
     default_scopes: list[str] = field(default_factory=list)
     pkce: bool = True
+    extra_authorize_params: dict[str, str] | None = None
 
 
 GITHUB = OAuthProvider(
@@ -173,12 +176,75 @@ GOOGLE = OAuthProvider(
 )
 
 
+# v1.5 — Atlassian (Jira + Confluence) provider. Atlassian's OAuth requires
+# the ``audience=api.atlassian.com`` parameter in the authorize URL and
+# provides a ``cloudid`` per workspace which the gateway fetches from
+# ``/oauth/token/accessible-resources`` after token exchange and stores in
+# connection.metadata. PKCE-enabled.
+ATLASSIAN = OAuthProvider(
+    name="atlassian",
+    authorize_url="https://auth.atlassian.com/authorize",
+    token_url="https://auth.atlassian.com/oauth/token",
+    userinfo_url="https://api.atlassian.com/me",
+    # ``account_id`` is the canonical stable user identifier in the Atlassian
+    # cloud platform; ``email`` is the human-readable login.
+    userinfo_id_field="account_id",
+    userinfo_login_field="email",
+    default_scopes=[
+        "read:jira-work",
+        "write:jira-work",
+        "read:confluence-content.summary",
+        "write:confluence-content",
+        "offline_access",
+    ],
+    pkce=True,
+    # Atlassian's authorize endpoint requires a fixed audience parameter so it
+    # knows which platform API we're requesting tokens against.
+    extra_authorize_params={"audience": "api.atlassian.com", "prompt": "consent"},
+)
+
+
+# v1.5 — Salesforce provider. The token response includes ``instance_url``,
+# the per-org REST API base URL — captured into connection.metadata so the
+# MCP server can use it as the base for all subsequent API calls. PKCE
+# enabled. Salesforce's userinfo lives under ``services/oauth2/userinfo``
+# and returns ``user_id`` (or ``sub``) + ``email`` / ``preferred_username``.
+SALESFORCE = OAuthProvider(
+    name="salesforce",
+    authorize_url="https://login.salesforce.com/services/oauth2/authorize",
+    token_url="https://login.salesforce.com/services/oauth2/token",
+    userinfo_url="https://login.salesforce.com/services/oauth2/userinfo",
+    userinfo_id_field="user_id",
+    userinfo_login_field="preferred_username",
+    default_scopes=["api", "refresh_token", "offline_access"],
+    pkce=True,
+)
+
+
+# v1.5 — Asana provider. PKCE enabled. The userinfo endpoint
+# ``GET /api/1.0/users/me`` wraps the response in ``{"data": {...}}`` —
+# fetch_user_info unwraps it.
+ASANA = OAuthProvider(
+    name="asana",
+    authorize_url="https://app.asana.com/-/oauth_authorize",
+    token_url="https://app.asana.com/-/oauth_token",
+    userinfo_url="https://app.asana.com/api/1.0/users/me",
+    userinfo_id_field="gid",
+    userinfo_login_field="name",
+    default_scopes=["default"],
+    pkce=True,
+)
+
+
 _PROVIDERS: dict[str, OAuthProvider] = {
     GITHUB.name: GITHUB,
     SLACK.name: SLACK,
     LINEAR.name: LINEAR,
     NOTION.name: NOTION,
     GOOGLE.name: GOOGLE,
+    ATLASSIAN.name: ATLASSIAN,
+    SALESFORCE.name: SALESFORCE,
+    ASANA.name: ASANA,
 }
 
 
@@ -309,6 +375,47 @@ _PROVIDER_SETTINGS: dict[str, dict[str, Any]] = {
             "Drive/Docs/Sheets/Calendar/Gmail APIs, then export "
             "PLINTH_OAUTH_GOOGLE_CLIENT_ID and "
             "PLINTH_OAUTH_GOOGLE_CLIENT_SECRET before starting the gateway."
+        ),
+    },
+    "atlassian": {
+        "client_id_attr": "oauth_atlassian_client_id",
+        "client_secret_attr": "oauth_atlassian_client_secret",
+        "redirect_uri_attr": "oauth_atlassian_redirect_uri",
+        "client_id_env": "PLINTH_OAUTH_ATLASSIAN_CLIENT_ID",
+        "client_secret_env": "PLINTH_OAUTH_ATLASSIAN_CLIENT_SECRET",
+        "hint": (
+            "Create an Atlassian OAuth 2.0 (3LO) app at "
+            "https://developer.atlassian.com/console/myapps/, enable Jira + "
+            "Confluence APIs with read/write scopes, then export "
+            "PLINTH_OAUTH_ATLASSIAN_CLIENT_ID and "
+            "PLINTH_OAUTH_ATLASSIAN_CLIENT_SECRET before starting the gateway."
+        ),
+    },
+    "salesforce": {
+        "client_id_attr": "oauth_salesforce_client_id",
+        "client_secret_attr": "oauth_salesforce_client_secret",
+        "redirect_uri_attr": "oauth_salesforce_redirect_uri",
+        "client_id_env": "PLINTH_OAUTH_SALESFORCE_CLIENT_ID",
+        "client_secret_env": "PLINTH_OAUTH_SALESFORCE_CLIENT_SECRET",
+        "hint": (
+            "Create a Salesforce Connected App in Setup → App Manager → New "
+            "Connected App, enable OAuth with the 'api', 'refresh_token', and "
+            "'offline_access' scopes, then export "
+            "PLINTH_OAUTH_SALESFORCE_CLIENT_ID and "
+            "PLINTH_OAUTH_SALESFORCE_CLIENT_SECRET before starting the gateway."
+        ),
+    },
+    "asana": {
+        "client_id_attr": "oauth_asana_client_id",
+        "client_secret_attr": "oauth_asana_client_secret",
+        "redirect_uri_attr": "oauth_asana_redirect_uri",
+        "client_id_env": "PLINTH_OAUTH_ASANA_CLIENT_ID",
+        "client_secret_env": "PLINTH_OAUTH_ASANA_CLIENT_SECRET",
+        "hint": (
+            "Create an Asana OAuth app at https://app.asana.com/0/my-apps, "
+            "request the 'default' scope, then export "
+            "PLINTH_OAUTH_ASANA_CLIENT_ID and "
+            "PLINTH_OAUTH_ASANA_CLIENT_SECRET before starting the gateway."
         ),
     },
 }
@@ -499,6 +606,13 @@ class OAuthConnection:
     The plaintext access/refresh tokens are populated only when explicitly
     decrypted via :meth:`OAuthConnectionStore.get_decrypted`. The default
     fetchers return public-view dataclasses without secrets.
+
+    The ``metadata`` field carries provider-specific per-connection state:
+    Atlassian's ``cloudid`` (workspace identifier from
+    ``/oauth/token/accessible-resources``) and Salesforce's ``instance_url``
+    (per-org REST API base) live here. The proxy reads it back to populate
+    outgoing headers (``X-Plinth-OAuth-Cloudid`` for Atlassian,
+    ``X-Plinth-OAuth-InstanceUrl`` for Salesforce).
     """
 
     id: str
@@ -512,6 +626,30 @@ class OAuthConnection:
     expires_at: datetime | None
     created_at: datetime
     last_refreshed_at: datetime | None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+def _row_metadata(row) -> dict[str, Any]:
+    """Read the optional ``metadata`` JSON column off a connection row.
+
+    Older rows (and the postgres view that doesn't yet stitch in the column)
+    don't have it — fall back to an empty dict so callers don't have to
+    distinguish "no metadata" from "no column".
+    """
+    raw: Any = None
+    try:
+        raw = row["metadata"]
+    except (KeyError, IndexError, TypeError):
+        raw = None
+    if not raw:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    try:
+        decoded = json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
+    return decoded if isinstance(decoded, dict) else {}
 
 
 def _row_to_public(row) -> OAuthConnectionPublic:
@@ -525,6 +663,7 @@ def _row_to_public(row) -> OAuthConnectionPublic:
         created_at=_parse_ts(row["created_at"]) or _utcnow(),
         expires_at=_parse_ts(row["expires_at"]),
         last_refreshed_at=_parse_ts(row["last_refreshed_at"]),
+        metadata=_row_metadata(row),
     )
 
 
@@ -546,6 +685,7 @@ class OAuthConnectionStore:
         access_token: str,
         refresh_token: str | None = None,
         expires_at: datetime | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> OAuthConnectionPublic:
         conn_id = f"conn_{ULID()}"
         now = _utcnow()
@@ -554,8 +694,8 @@ class OAuthConnectionStore:
             INSERT INTO oauth_connections (
                 id, tenant_id, provider, user_id, user_login, scopes,
                 access_token_encrypted, refresh_token_encrypted, expires_at,
-                created_at, last_refreshed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+                created_at, last_refreshed_at, metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
             """,
             (
                 conn_id,
@@ -568,12 +708,42 @@ class OAuthConnectionStore:
                 encrypt(refresh_token, key_b64=self._key) if refresh_token else None,
                 expires_at.isoformat() if expires_at else None,
                 now.isoformat(),
+                json.dumps(metadata) if metadata else None,
             ),
         )
         public = await self.get_public(conn_id)
         if public is None:
             # Should not happen — we just inserted.
             raise OAuthError("failed to read back oauth connection after insert")
+        return public
+
+    async def update_metadata(
+        self,
+        conn_id: str,
+        *,
+        metadata: dict[str, Any],
+    ) -> OAuthConnectionPublic:
+        """Replace ``metadata`` on a stored connection.
+
+        Used by the OAuth callback handlers to attach provider-specific data
+        (Atlassian cloudid, Salesforce instance_url) after the token exchange
+        completes. Raises :class:`OAuthConnectionNotFound` if no such row.
+        """
+        existing = await self._db.fetchone(
+            "SELECT id FROM oauth_connections WHERE id = ?", (conn_id,)
+        )
+        if existing is None:
+            raise OAuthConnectionNotFound(
+                f"OAuth connection {conn_id!r} not found",
+                details={"connection_id": conn_id},
+            )
+        await self._db.execute(
+            "UPDATE oauth_connections SET metadata = ? WHERE id = ?",
+            (json.dumps(metadata) if metadata else None, conn_id),
+        )
+        public = await self.get_public(conn_id)
+        if public is None:  # pragma: no cover - just updated
+            raise OAuthError("failed to read back oauth connection after metadata update")
         return public
 
     async def get_public(self, conn_id: str) -> OAuthConnectionPublic | None:
@@ -623,6 +793,7 @@ class OAuthConnectionStore:
             expires_at=_parse_ts(row["expires_at"]),
             created_at=_parse_ts(row["created_at"]) or _utcnow(),
             last_refreshed_at=_parse_ts(row["last_refreshed_at"]),
+            metadata=_row_metadata(row),
         )
 
     async def list_public(
@@ -742,7 +913,14 @@ def build_authorize_redirect(
     state: str,
     pkce_challenge: str | None,
 ) -> str:
-    """Construct the provider's authorize URL with all required query params."""
+    """Construct the provider's authorize URL with all required query params.
+
+    Provider-specific tweaks live in :attr:`OAuthProvider.extra_authorize_params`
+    (e.g. Atlassian's mandatory ``audience=api.atlassian.com``). They are
+    merged in after the standard set so they cannot accidentally clobber
+    ``client_id``/``redirect_uri``/``state``/``response_type`` (we keep the
+    base params authoritative for those keys).
+    """
     from urllib.parse import urlencode
 
     params: dict[str, str] = {
@@ -755,6 +933,11 @@ def build_authorize_redirect(
     if pkce_challenge is not None:
         params["code_challenge"] = pkce_challenge
         params["code_challenge_method"] = "S256"
+    if provider.extra_authorize_params:
+        for key, value in provider.extra_authorize_params.items():
+            # Don't allow extra params to override the canonical ones above.
+            if key not in params:
+                params[key] = value
     sep = "&" if "?" in provider.authorize_url else "?"
     return f"{provider.authorize_url}{sep}{urlencode(params)}"
 
@@ -766,13 +949,19 @@ def build_authorize_redirect(
 
 @dataclass
 class TokenGrant:
-    """Result of exchanging an auth code (or refresh token) for tokens."""
+    """Result of exchanging an auth code (or refresh token) for tokens.
+
+    ``instance_url`` is populated only for providers that return a per-org
+    REST API base in the token response (Salesforce). Other providers leave
+    it None.
+    """
 
     access_token: str
     token_type: str
     refresh_token: str | None
     expires_at: datetime | None
     scopes: list[str]
+    instance_url: str | None = None
 
 
 def _parse_token_response(body: Any) -> TokenGrant:
@@ -828,12 +1017,15 @@ def _parse_token_response(body: Any) -> TokenGrant:
             scopes = [s.strip() for s in raw_scope.split() if s.strip()]
     else:
         scopes = []
+    instance_url_raw = body.get("instance_url")
+    instance_url = str(instance_url_raw) if instance_url_raw else None
     return TokenGrant(
         access_token=access,
         token_type=str(body.get("token_type", "bearer")),
         refresh_token=body.get("refresh_token"),
         expires_at=expires_at,
         scopes=scopes,
+        instance_url=instance_url,
     )
 
 
@@ -960,6 +1152,12 @@ async def fetch_user_info(
     contract for the other providers.
     Notion: ``GET /v1/users/me`` — requires the ``Notion-Version`` header.
     Google: ``GET /oauth2/v3/userinfo`` — returns ``{sub, email, name, ...}``.
+    Atlassian: ``GET https://api.atlassian.com/me`` — returns
+    ``{account_id, email, name, ...}``.
+    Salesforce: ``GET .../services/oauth2/userinfo`` —
+    ``{user_id, organization_id, preferred_username, email, ...}``.
+    Asana: ``GET /api/1.0/users/me`` — wraps under ``"data"``; we unwrap so
+    callers see a flat dict like the other providers.
     """
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -1007,7 +1205,61 @@ async def fetch_user_info(
                 f"slack auth.test returned error: {body.get('error') if isinstance(body, dict) else 'unknown'}",
                 details={"provider": "slack", "body": body if isinstance(body, dict) else None},
             )
+
+    if provider.name == "asana":
+        # Asana wraps its responses in {"data": {...}}; flatten so the
+        # ``userinfo_id_field``/``userinfo_login_field`` JSON path lookups
+        # work uniformly across providers.
+        if isinstance(body, dict) and isinstance(body.get("data"), dict):
+            return body["data"]
     return body
+
+
+async def fetch_atlassian_cloudid(
+    *,
+    access_token: str,
+    http_client: httpx.AsyncClient,
+) -> str | None:
+    """Return the first accessible Atlassian cloud workspace's id, or None.
+
+    Atlassian tokens aren't tied to a single workspace — the OAuth grant has
+    to be paired with a ``cloudid`` to address Jira/Confluence APIs. We hit
+    ``/oauth/token/accessible-resources`` once at callback time and pin the
+    first resource. Tenants with multiple workspaces will need to re-run the
+    OAuth flow per workspace; that's the same constraint Atlassian's own
+    sample apps document.
+    """
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/json",
+    }
+    url = "https://api.atlassian.com/oauth/token/accessible-resources"
+    try:
+        resp = await http_client.get(url, headers=headers, timeout=15.0)
+    except httpx.HTTPError as exc:
+        raise OAuthError(
+            f"atlassian accessible-resources request failed: {exc}",
+            details={"provider": "atlassian"},
+        ) from exc
+    if resp.status_code >= 400:
+        raise OAuthError(
+            f"atlassian accessible-resources returned HTTP {resp.status_code}",
+            details={"provider": "atlassian", "status_code": resp.status_code},
+        )
+    try:
+        body = resp.json()
+    except ValueError as exc:
+        raise OAuthError(
+            "atlassian accessible-resources response was not JSON",
+            details={"provider": "atlassian"},
+        ) from exc
+    if not isinstance(body, list) or not body:
+        return None
+    first = body[0]
+    if not isinstance(first, dict):
+        return None
+    cid = first.get("id")
+    return str(cid) if cid else None
 
 
 async def _fetch_linear_viewer(

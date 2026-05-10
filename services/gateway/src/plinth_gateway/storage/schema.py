@@ -86,7 +86,8 @@ CREATE TABLE IF NOT EXISTS oauth_connections (
   refresh_token_encrypted TEXT,
   expires_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL,
-  last_refreshed_at TIMESTAMP
+  last_refreshed_at TIMESTAMP,
+  metadata TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_oauth_tenant ON oauth_connections(tenant_id);
@@ -185,7 +186,8 @@ CREATE TABLE IF NOT EXISTS oauth_connections (
   refresh_token_encrypted TEXT,
   expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL,
-  last_refreshed_at TIMESTAMPTZ
+  last_refreshed_at TIMESTAMPTZ,
+  metadata TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_oauth_tenant ON oauth_connections(tenant_id);

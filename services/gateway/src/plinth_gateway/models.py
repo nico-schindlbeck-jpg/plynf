@@ -286,6 +286,12 @@ class OAuthConnectionPublic(BaseModel):
     The encrypted access/refresh tokens are NEVER returned to API callers.
     The gateway looks them up server-side when a tool with
     ``auth_method=oauth2`` is invoked.
+
+    ``metadata`` carries provider-specific per-connection state captured at
+    OAuth callback time (Atlassian's ``cloudid`` from
+    ``/oauth/token/accessible-resources``; Salesforce's ``instance_url``
+    from the token response). It is non-secret — operators may want to see
+    which workspace a Jira connection is bound to — and is safe to expose.
     """
 
     id: str
@@ -297,6 +303,7 @@ class OAuthConnectionPublic(BaseModel):
     created_at: datetime
     expires_at: datetime | None = None
     last_refreshed_at: datetime | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class OAuthConnectionListResponse(BaseModel):
@@ -317,6 +324,9 @@ class OAuthConnectionCreate(BaseModel):
     Most callers obtain connections via the ``/authorize → /callback`` flow.
     This endpoint exists primarily for tests and ops tooling that need to
     seed a connection from a token already obtained out-of-band.
+
+    ``metadata`` is optional — pass ``{"cloudid": "..."}`` for Atlassian or
+    ``{"instance_url": "..."}`` for Salesforce when seeding manually.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -329,6 +339,7 @@ class OAuthConnectionCreate(BaseModel):
     refresh_token: str | None = None
     expires_at: datetime | None = None
     tenant_id: str = "default"
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class OAuthRefreshResponse(BaseModel):

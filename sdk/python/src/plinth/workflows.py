@@ -557,6 +557,49 @@ class WorkflowsProxy:
         handle._retry_config = retry_cfg  # type: ignore[attr-defined]
         return handle
 
+    def import_definition(
+        self,
+        definition: dict[str, Any],
+    ) -> WorkflowHandle:
+        """v1.5 — Create a workflow from a Plinth Studio JSON definition.
+
+        ``definition`` is the JSON document emitted by the Studio canvas
+        (or any offline editor); see ``CONTRACTS.md → v1.5 Workflow
+        Definition`` for the schema. The workspace service validates the
+        envelope and returns the freshly-created workflow with its
+        ``steps_manifest`` derived from ``definition.steps[].name``. The
+        full definition lands in ``workflow.metadata['definition']`` so
+        the studio can round-trip edits.
+
+        No steps are auto-started — the caller drives the workflow
+        through the usual ``start_step`` / ``complete_step`` lifecycle.
+
+        Example::
+
+            wf = ws.workflows.import_definition({
+                "name": "lead-research-pipeline",
+                "retry_policy": "exponential",
+                "max_attempts_default": 3,
+                "steps": [
+                    {"name": "search", "type": "tool",
+                     "tool_id": "web.search",
+                     "arguments_template": {"query": "{input.topic}"},
+                     "max_attempts": 3},
+                    {"name": "extract", "type": "llm",
+                     "model": "claude-sonnet-4-5",
+                     "system": "You are a research assistant.",
+                     "prompt_template": "Extract facts from:\\n{step.search.output}"},
+                ],
+            })
+        """
+
+        response = self._ws._http.post(
+            f"/v1/workspaces/{self._ws.id}/workflows/import",
+            json=definition,
+            not_found_class=WorkspaceNotFound,
+        )
+        return WorkflowHandle(self._ws, Workflow.model_validate(response.json()))
+
     def get_or_create(
         self,
         name: str,

@@ -8,8 +8,9 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Status](https://img.shields.io/badge/status-v1.4%20cost--per--agent%20%2B%20anomaly-brightgreen.svg)](#status)
-[![Tests](https://img.shields.io/badge/tests-2507%20passing-brightgreen.svg)](#status)
+[![Status](https://img.shields.io/badge/status-v1.5%20Tier--2%20Sweep-brightgreen.svg)](#status)
+[![Tests](https://img.shields.io/badge/tests-2867%20across%207%20SDKs-brightgreen.svg)](#status)
+[![SDKs](https://img.shields.io/badge/SDKs-Python%20%7C%20TypeScript%20%7C%20Go%20%7C%20Swift%20%7C%20Kotlin-blue.svg)](sdk/)
 [![API](https://img.shields.io/badge/API-v1%20stable-blue.svg)](docs/API_STABILITY.md)
 [![Coordination](https://img.shields.io/badge/coordination-Redis%20opt--in-orange.svg)](#status)
 

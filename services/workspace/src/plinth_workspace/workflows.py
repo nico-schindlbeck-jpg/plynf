@@ -306,6 +306,120 @@ class WorkflowStore:
                 finished_at=None,
             )
 
+    # ------------------------------------------------------------------ import (v1.5)
+
+    async def import_workflow(
+        self,
+        workspace_id: str,
+        definition: dict[str, Any],
+    ) -> Workflow:
+        """Create a workflow from a Plinth Studio JSON definition.
+
+        v1.5: Plinth Studio MVP. The dashboard's drag-drop canvas (or any
+        offline editor) emits a ``WorkflowDefinition`` JSON document with
+        the shape::
+
+            {
+              "name": "lead-research-pipeline",
+              "description": "...",
+              "retry_policy": "exponential",
+              "max_attempts_default": 3,
+              "steps": [
+                {"name": "search", "type": "tool", "tool_id": "web.search",
+                 "arguments_template": {...}, "max_attempts": 3},
+                {"name": "extract", "type": "llm",
+                 "model": "claude-sonnet-4-5", "system": "...",
+                 "prompt_template": "...", "max_attempts": 2},
+                ...
+              ]
+            }
+
+        We validate the envelope (name + non-empty steps + each step has a
+        ``name`` + a recognised ``type``), then delegate to
+        :meth:`create_workflow` with ``steps_manifest = [s["name"] for s in
+        definition.steps]``. The full definition is stored verbatim in
+        ``workflow.metadata["definition"]`` so the studio can re-load it
+        for editing later. The endpoint does NOT auto-start any steps —
+        callers drive the workflow through the usual ``create_step`` /
+        ``update_step`` lifecycle.
+
+        Tool-id references are intentionally NOT resolved against a registry
+        here: the workspace service does not own the gateway's tool registry,
+        and a workflow definition that references an unknown tool is still a
+        valid object — the failure surfaces at run time when the worker tries
+        to invoke it. This keeps the import endpoint a pure structural check.
+        """
+        if not isinstance(definition, dict):
+            raise InvalidArguments(
+                "workflow definition must be a JSON object",
+                details={"got": type(definition).__name__},
+            )
+
+        name = definition.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise InvalidArguments(
+                "workflow definition requires a non-empty 'name'",
+                details={},
+            )
+
+        raw_steps = definition.get("steps")
+        if not isinstance(raw_steps, list) or not raw_steps:
+            raise InvalidArguments(
+                "workflow definition requires a non-empty 'steps' array",
+                details={},
+            )
+
+        valid_types = {"tool", "llm", "channel_send", "channel_receive", "manual"}
+        step_names: list[str] = []
+        for idx, raw in enumerate(raw_steps):
+            if not isinstance(raw, dict):
+                raise InvalidArguments(
+                    f"workflow step #{idx} must be an object",
+                    details={"index": idx},
+                )
+            sname = raw.get("name")
+            if not isinstance(sname, str) or not sname.strip():
+                raise InvalidArguments(
+                    f"workflow step #{idx} requires a non-empty 'name'",
+                    details={"index": idx},
+                )
+            stype = raw.get("type")
+            if stype is not None and stype not in valid_types:
+                raise InvalidArguments(
+                    f"workflow step {sname!r} has unknown type {stype!r}",
+                    details={
+                        "name": sname,
+                        "type": stype,
+                        "valid_types": sorted(valid_types),
+                    },
+                )
+            step_names.append(sname)
+
+        if len(set(step_names)) != len(step_names):
+            raise InvalidArguments(
+                "workflow step names must be unique",
+                details={"step_names": step_names},
+            )
+
+        # Stash the full definition under metadata so the studio can
+        # round-trip it. Existing user-supplied metadata is preserved
+        # under its own keys; the definition lives at a reserved key.
+        user_meta = definition.get("metadata") or {}
+        if not isinstance(user_meta, dict):
+            user_meta = {}
+        merged_metadata: dict[str, Any] = {
+            **user_meta,
+            "definition": definition,
+            "imported_via": "plinth-studio",
+        }
+
+        return await self.create_workflow(
+            workspace_id,
+            name,
+            step_names,
+            metadata=merged_metadata,
+        )
+
     # ------------------------------------------------------------------ list / get
 
     async def list_workflows(self, workspace_id: str) -> list[Workflow]:

@@ -228,6 +228,63 @@ services:
       start_period: 5s
     restart: unless-stopped
 
+  atlassian-mcp:
+    build:
+      context: ./mcp-servers/atlassian
+      dockerfile: Dockerfile
+    image: plinth/atlassian-mcp:1.5.0
+    container_name: plinth-atlassian-mcp
+    ports:
+      - "${PLINTH_ATLASSIAN_MCP_PORT:-7431}:7431"
+    environment:
+      PLINTH_ATLASSIAN_MCP_PORT: "7431"
+      PLINTH_ATLASSIAN_MCP_LOG_LEVEL: "${PLINTH_LOG_LEVEL:-INFO}"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7431/healthz\").read()'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  salesforce-mcp:
+    build:
+      context: ./mcp-servers/salesforce
+      dockerfile: Dockerfile
+    image: plinth/salesforce-mcp:1.5.0
+    container_name: plinth-salesforce-mcp
+    ports:
+      - "${PLINTH_SALESFORCE_MCP_PORT:-7432}:7432"
+    environment:
+      PLINTH_SALESFORCE_MCP_PORT: "7432"
+      PLINTH_SALESFORCE_MCP_LOG_LEVEL: "${PLINTH_LOG_LEVEL:-INFO}"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7432/healthz\").read()'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  asana-mcp:
+    build:
+      context: ./mcp-servers/asana
+      dockerfile: Dockerfile
+    image: plinth/asana-mcp:1.5.0
+    container_name: plinth-asana-mcp
+    ports:
+      - "${PLINTH_ASANA_MCP_PORT:-7433}:7433"
+    environment:
+      PLINTH_ASANA_MCP_PORT: "7433"
+      PLINTH_ASANA_MCP_LOG_LEVEL: "${PLINTH_LOG_LEVEL:-INFO}"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7433/healthz\").read()'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
 volumes:
   plinth_data:
     name: plinth_data

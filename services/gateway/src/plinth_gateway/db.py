@@ -97,7 +97,8 @@ CREATE TABLE IF NOT EXISTS oauth_connections (
   refresh_token_encrypted TEXT,
   expires_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL,
-  last_refreshed_at TIMESTAMP
+  last_refreshed_at TIMESTAMP,
+  metadata TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_oauth_tenant ON oauth_connections(tenant_id);
@@ -200,6 +201,9 @@ async def _migrate(conn: aiosqlite.Connection) -> None:
     await conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_audit_chain ON audit_events(id, event_hash)"
     )
+    # v1.5 — per-connection provider metadata (Atlassian cloudid,
+    # Salesforce instance_url). NULL by default for legacy rows.
+    await _ensure_column(conn, "oauth_connections", "metadata", "TEXT")
 
 
 class Database:

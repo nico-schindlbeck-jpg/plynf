@@ -18,6 +18,7 @@
         <nav class="topnav" aria-label="primary">
           <a class="topnav-link" href="#/" data-route="overview">Overview</a>
           <a class="topnav-link" href="#/workflows" data-route="workflows">Workflows</a>
+          <a class="topnav-link" href="#/studio" data-route="studio">Studio</a>
           <a class="topnav-link" href="#/tenants" data-route="tenants">Tenants</a>
         </nav>
         <span class="crumb" id="crumb"></span>
@@ -370,6 +371,184 @@
         </div>
       </section>
     </template>
+
+    <!-- v1.5 — workflow replay (timeline scrubber + per-step state). -->
+    <template id="tpl-workflow-replay">
+      <a class="back-link" href="#/workflows" id="replay-back">&larr; Back to workflows</a>
+
+      <section class="card workflow-detail-head" id="replay-head">
+        <div>
+          <h1 id="replay-name">Workflow replay</h1>
+          <p class="muted mono" id="replay-id"></p>
+        </div>
+        <div class="workflow-detail-meta" id="replay-meta"></div>
+      </section>
+
+      <section class="card replay-card">
+        <div class="card-head">
+          <h2>Timeline scrubber</h2>
+          <span class="muted" id="replay-scrub-summary">drag to inspect past state</span>
+        </div>
+        <div class="replay-scrubber">
+          <div class="replay-svg-wrap" id="replay-svg-wrap">
+            <svg id="replay-svg" viewBox="0 0 800 80" preserveAspectRatio="none"
+                 aria-label="workflow timeline scrubber"></svg>
+          </div>
+          <input type="range" min="0" max="1000" value="1000" step="1"
+                 id="replay-range" aria-label="time position" />
+          <div class="replay-scrub-meta">
+            <span id="replay-pos-time">—</span>
+            <button class="btn small" type="button" id="replay-jump-now">Jump to now</button>
+            <button class="btn small" type="button" id="replay-restore-to-this">
+              Restore workspace to this point
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card replay-card">
+        <div class="card-head">
+          <h2>Step state at scrub position</h2>
+          <span class="muted" id="replay-graph-summary"></span>
+        </div>
+        <div class="wf-graph-wrap">
+          <div class="wf-graph" id="replay-graph" role="list"
+               aria-label="Workflow steps at the selected timeline position">
+            <p class="empty muted">loading&hellip;</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card replay-card">
+        <div class="card-head">
+          <h2>Error attribution</h2>
+          <span class="muted" id="replay-errors-summary"></span>
+        </div>
+        <div id="replay-errors" class="replay-errors">
+          <p class="empty muted">No failures in this workflow.</p>
+        </div>
+      </section>
+    </template>
+
+    <!-- v1.5 — Plinth Studio (visual workflow builder). -->
+    <template id="tpl-studio">
+      <a class="back-link" href="#/" id="studio-back">&larr; Back to overview</a>
+
+      <section class="card studio-head">
+        <div>
+          <h1>Plinth Studio</h1>
+          <p class="muted">Compose a workflow by adding steps to the canvas. Save to import as a runnable workflow.</p>
+        </div>
+        <div class="studio-actions">
+          <label class="studio-ws-picker">
+            <span class="muted">Workspace</span>
+            <select id="studio-ws-select" aria-label="target workspace">
+              <option value="">— choose —</option>
+            </select>
+          </label>
+          <button class="btn small" type="button" id="studio-load">Load</button>
+          <button class="btn small" type="button" id="studio-export">Export JSON</button>
+          <button class="btn small primary" type="button" id="studio-save">Save</button>
+        </div>
+      </section>
+
+      <div class="studio-grid">
+        <aside class="card studio-toolbox" aria-labelledby="studio-toolbox-h">
+          <div class="card-head"><h2 id="studio-toolbox-h">Toolbox</h2></div>
+          <ul class="studio-tools" id="studio-tools">
+            <li><button class="studio-tool" type="button" data-step-type="tool">
+              <span class="studio-tool-name">Tool call</span>
+              <span class="studio-tool-desc">Invoke a registered tool via gateway.</span>
+            </button></li>
+            <li><button class="studio-tool" type="button" data-step-type="llm">
+              <span class="studio-tool-name">LLM call</span>
+              <span class="studio-tool-desc">Call client.llm.complete with a model + prompt template.</span>
+            </button></li>
+            <li><button class="studio-tool" type="button" data-step-type="channel_send">
+              <span class="studio-tool-name">Channel send</span>
+              <span class="studio-tool-desc">Post a message to a workspace channel.</span>
+            </button></li>
+            <li><button class="studio-tool" type="button" data-step-type="channel_receive">
+              <span class="studio-tool-name">Channel receive</span>
+              <span class="studio-tool-desc">Wait on a workspace channel.</span>
+            </button></li>
+            <li><button class="studio-tool" type="button" data-step-type="manual">
+              <span class="studio-tool-name">Manual approval</span>
+              <span class="studio-tool-desc">Human-in-loop placeholder (post-v1.5).</span>
+            </button></li>
+          </ul>
+        </aside>
+
+        <section class="card studio-canvas-card">
+          <div class="card-head">
+            <h2>Canvas</h2>
+            <span class="muted" id="studio-canvas-summary">no steps yet</span>
+          </div>
+          <ol class="studio-canvas" id="studio-canvas"
+              aria-label="workflow steps in execution order">
+            <li class="studio-canvas-empty muted">
+              Click a tool on the left to add a step.
+            </li>
+          </ol>
+          <p class="studio-status muted" id="studio-status"></p>
+        </section>
+
+        <aside class="card studio-properties" aria-labelledby="studio-props-h">
+          <div class="card-head"><h2 id="studio-props-h">Workflow properties</h2></div>
+          <form id="studio-properties-form" class="quotas-form">
+            <label class="qf-row">
+              <span>name</span>
+              <input type="text" name="name" placeholder="research-pipeline"
+                     required maxlength="200" />
+            </label>
+            <label class="qf-row">
+              <span>description</span>
+              <input type="text" name="description"
+                     placeholder="optional one-line description" />
+            </label>
+            <label class="qf-row">
+              <span>retry_policy</span>
+              <select name="retry_policy">
+                <option value="none">none</option>
+                <option value="fixed">fixed</option>
+                <option value="exponential" selected>exponential</option>
+              </select>
+            </label>
+            <label class="qf-row">
+              <span>max_attempts_default</span>
+              <input type="number" min="1" max="100" name="max_attempts_default"
+                     value="3" />
+            </label>
+          </form>
+        </aside>
+      </div>
+    </template>
+
+    <!-- v1.5 — Studio per-step config modal -->
+    <div class="dlq-modal" id="studio-step-modal" hidden>
+      <div class="dlq-modal-card">
+        <div class="dlq-modal-head">
+          <h2 id="studio-step-modal-title">Edit step</h2>
+          <button class="btn small" id="studio-step-modal-close" type="button">close</button>
+        </div>
+        <div class="dlq-modal-body">
+          <form id="studio-step-form" class="quotas-form">
+            <input type="hidden" name="index" />
+            <input type="hidden" name="type" />
+            <label class="qf-row">
+              <span>name</span>
+              <input type="text" name="name" placeholder="search" required />
+            </label>
+            <div id="studio-step-fields"></div>
+            <div class="qf-actions">
+              <button class="btn small primary" type="submit">Save step</button>
+              <button class="btn small" type="button" id="studio-step-delete">Delete</button>
+              <span class="muted" id="studio-step-status"></span>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
 
     <template id="tpl-tenants-list">
       <a class="back-link" href="#/" id="tenants-back">&larr; Back to overview</a>

@@ -1,0 +1,3 @@
+module Plinth {
+    header "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/include/Plinth-Swift.h"
+}

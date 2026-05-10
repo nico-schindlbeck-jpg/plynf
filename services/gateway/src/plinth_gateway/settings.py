@@ -132,6 +132,43 @@ class Settings(BaseSettings):
         )
     )
 
+    # v1.5 — Atlassian (Jira + Confluence) OAuth. PKCE-enabled. The gateway
+    # also fetches the workspace's ``cloudid`` from
+    # ``https://api.atlassian.com/oauth/token/accessible-resources`` after
+    # token exchange and stores it in ``connection.metadata`` so MCP server
+    # can address Jira/Confluence via the cloudid-prefixed REST routes.
+    oauth_atlassian_client_id: str = Field(default="")
+    oauth_atlassian_client_secret: str = Field(default="")
+    oauth_atlassian_redirect_uri: str = Field(
+        default="http://localhost:7422/v1/oauth/atlassian/callback"
+    )
+    oauth_atlassian_scopes: str = Field(
+        default=(
+            "read:jira-work,write:jira-work,"
+            "read:confluence-content.summary,write:confluence-content,"
+            "offline_access"
+        )
+    )
+
+    # v1.5 — Salesforce OAuth. PKCE-enabled. The token response includes
+    # ``instance_url`` (per-org REST API base). The gateway captures this
+    # into ``connection.metadata`` and re-injects it as
+    # ``X-Plinth-OAuth-InstanceUrl`` on every proxied invoke.
+    oauth_salesforce_client_id: str = Field(default="")
+    oauth_salesforce_client_secret: str = Field(default="")
+    oauth_salesforce_redirect_uri: str = Field(
+        default="http://localhost:7422/v1/oauth/salesforce/callback"
+    )
+    oauth_salesforce_scopes: str = Field(default="api,refresh_token,offline_access")
+
+    # v1.5 — Asana OAuth. PKCE-enabled.
+    oauth_asana_client_id: str = Field(default="")
+    oauth_asana_client_secret: str = Field(default="")
+    oauth_asana_redirect_uri: str = Field(
+        default="http://localhost:7422/v1/oauth/asana/callback"
+    )
+    oauth_asana_scopes: str = Field(default="default")
+
     oauth_state_ttl_seconds: int = Field(default=600)
 
     # v0.4 — OTLP observability event stream.

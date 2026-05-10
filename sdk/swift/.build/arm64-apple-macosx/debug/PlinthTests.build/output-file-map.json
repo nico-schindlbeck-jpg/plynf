@@ -1,0 +1,68 @@
+{
+  "": {
+    "swift-dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/master.swiftdeps"
+  },
+  "/Users/nico/Code/plinth/sdk/swift/Tests/PlinthTests/CodableTests.swift": {
+    "dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/CodableTests.d",
+    "object": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/CodableTests.swift.o",
+    "swiftmodule": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/CodableTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/CodableTests.swiftdeps",
+    "diagnostics": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/CodableTests.dia"
+  },
+  "/Users/nico/Code/plinth/sdk/swift/Tests/PlinthTests/ErrorMappingTests.swift": {
+    "dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/ErrorMappingTests.d",
+    "object": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/ErrorMappingTests.swift.o",
+    "swiftmodule": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/ErrorMappingTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/ErrorMappingTests.swiftdeps",
+    "diagnostics": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/ErrorMappingTests.dia"
+  },
+  "/Users/nico/Code/plinth/sdk/swift/Tests/PlinthTests/FilesTests.swift": {
+    "dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/FilesTests.d",
+    "object": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/FilesTests.swift.o",
+    "swiftmodule": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/FilesTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/FilesTests.swiftdeps",
+    "diagnostics": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/FilesTests.dia"
+  },
+  "/Users/nico/Code/plinth/sdk/swift/Tests/PlinthTests/IdentityTests.swift": {
+    "dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/IdentityTests.d",
+    "object": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/IdentityTests.swift.o",
+    "swiftmodule": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/IdentityTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/IdentityTests.swiftdeps",
+    "diagnostics": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/IdentityTests.dia"
+  },
+  "/Users/nico/Code/plinth/sdk/swift/Tests/PlinthTests/KVTests.swift": {
+    "dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/KVTests.d",
+    "object": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/KVTests.swift.o",
+    "swiftmodule": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/KVTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/KVTests.swiftdeps",
+    "diagnostics": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/KVTests.dia"
+  },
+  "/Users/nico/Code/plinth/sdk/swift/Tests/PlinthTests/MockServer.swift": {
+    "dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/MockServer.d",
+    "object": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/MockServer.swift.o",
+    "swiftmodule": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/MockServer~partial.swiftmodule",
+    "swift-dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/MockServer.swiftdeps",
+    "diagnostics": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/MockServer.dia"
+  },
+  "/Users/nico/Code/plinth/sdk/swift/Tests/PlinthTests/PlinthTests.swift": {
+    "dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/PlinthTests.d",
+    "object": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/PlinthTests.swift.o",
+    "swiftmodule": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/PlinthTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/PlinthTests.swiftdeps",
+    "diagnostics": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/PlinthTests.dia"
+  },
+  "/Users/nico/Code/plinth/sdk/swift/Tests/PlinthTests/ToolsTests.swift": {
+    "dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/ToolsTests.d",
+    "object": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/ToolsTests.swift.o",
+    "swiftmodule": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/ToolsTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/ToolsTests.swiftdeps",
+    "diagnostics": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/ToolsTests.dia"
+  },
+  "/Users/nico/Code/plinth/sdk/swift/Tests/PlinthTests/WorkspaceTests.swift": {
+    "dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/WorkspaceTests.d",
+    "object": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/WorkspaceTests.swift.o",
+    "swiftmodule": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/WorkspaceTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/WorkspaceTests.swiftdeps",
+    "diagnostics": "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthTests.build/WorkspaceTests.dia"
+  }
+}

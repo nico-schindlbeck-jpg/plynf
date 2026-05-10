@@ -94,6 +94,74 @@ def test_create_omits_metadata_when_none(
     assert "metadata" not in body
 
 
+def test_import_definition_returns_workflow_handle(
+    ws: Workspace, workspace_mock: respx.MockRouter
+):
+    """v1.5 — ``import_definition`` POSTs to /workflows/import."""
+    definition = {
+        "name": "lead-research-pipeline",
+        "description": "Research a lead and extract facts.",
+        "retry_policy": "exponential",
+        "max_attempts_default": 3,
+        "steps": [
+            {
+                "name": "search",
+                "type": "tool",
+                "tool_id": "web.search",
+                "arguments_template": {"query": "{input.topic}"},
+                "max_attempts": 3,
+            },
+            {
+                "name": "extract",
+                "type": "llm",
+                "model": "claude-sonnet-4-5",
+                "system": "You are a research assistant.",
+                "prompt_template": "Extract facts from:\n{step.search.output}",
+            },
+        ],
+    }
+    payload = make_workflow(
+        wf_id="wf_imp",
+        name="lead-research-pipeline",
+        steps_manifest=["search", "extract"],
+        metadata={"definition": definition, "imported_via": "plinth-studio"},
+    )
+    route = workspace_mock.post(
+        f"/v1/workspaces/{ws.id}/workflows/import"
+    ).mock(return_value=httpx.Response(201, json=payload))
+
+    wf = ws.workflows.import_definition(definition)
+
+    assert isinstance(wf, WorkflowHandle)
+    assert wf.id == "wf_imp"
+    assert wf.steps_manifest == ["search", "extract"]
+    assert wf.metadata["imported_via"] == "plinth-studio"
+
+    sent = json.loads(route.calls.last.request.read())
+    assert sent == definition
+    # The dict round-trips verbatim — the workspace stores the full
+    # definition under ``metadata['definition']`` for studio re-load.
+    assert wf.metadata["definition"]["steps"][0]["tool_id"] == "web.search"
+
+
+def test_import_definition_propagates_400(
+    ws: Workspace, workspace_mock: respx.MockRouter
+):
+    """A bad definition surfaces as a PlinthError (400)."""
+    workspace_mock.post(f"/v1/workspaces/{ws.id}/workflows/import").mock(
+        return_value=httpx.Response(
+            400,
+            json=error_envelope(
+                "INVALID_ARGUMENTS",
+                "workflow definition requires a non-empty 'steps' array",
+            ),
+        )
+    )
+    with pytest.raises(Exception) as exc:
+        ws.workflows.import_definition({"name": "x"})
+    assert "steps" in str(exc.value)
+
+
 def test_get_returns_workflow_handle(
     ws: Workspace, workspace_mock: respx.MockRouter
 ):

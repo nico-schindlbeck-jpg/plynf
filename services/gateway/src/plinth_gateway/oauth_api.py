@@ -26,6 +26,7 @@ from .oauth import (
     assert_provider_configured,
     build_authorize_redirect,
     exchange_code_for_token,
+    fetch_atlassian_cloudid,
     fetch_user_info,
     get_provider,
     parse_scopes,
@@ -182,6 +183,27 @@ def create_oauth_router() -> APIRouter:
         # state's recorded request, fall back to the provider defaults.
         effective_scopes = grant.scopes or record.scopes or list(provider.default_scopes)
 
+        # v1.5 — Per-provider connection metadata. Salesforce returns
+        # ``instance_url`` in the token body itself; Atlassian needs a
+        # follow-up call to ``/oauth/token/accessible-resources`` to learn
+        # the workspace's cloudid. Other providers leave metadata empty.
+        connection_metadata: dict[str, Any] = {}
+        if provider.name == "salesforce" and grant.instance_url:
+            connection_metadata["instance_url"] = grant.instance_url
+        if provider.name == "atlassian":
+            try:
+                cloudid = await fetch_atlassian_cloudid(
+                    access_token=grant.access_token,
+                    http_client=http_client,
+                )
+            except OAuthError:
+                # Re-raise — the caller needs to know the OAuth setup did not
+                # complete. Without a cloudid the Atlassian MCP server has
+                # nothing to address.
+                raise
+            if cloudid:
+                connection_metadata["cloudid"] = cloudid
+
         connections: OAuthConnectionStore = _connection_store(request)
         connection = await connections.create(
             tenant_id=record.tenant_id,
@@ -192,6 +214,7 @@ def create_oauth_router() -> APIRouter:
             access_token=grant.access_token,
             refresh_token=grant.refresh_token,
             expires_at=grant.expires_at,
+            metadata=connection_metadata or None,
         )
 
         log.info(
@@ -200,6 +223,7 @@ def create_oauth_router() -> APIRouter:
             tenant_id=record.tenant_id,
             connection_id=connection.id,
             user_login=user_login,
+            metadata_keys=sorted(connection_metadata.keys()),
         )
 
         # Append the connection_id to the caller's redirect_uri.
@@ -289,6 +313,7 @@ def create_oauth_router() -> APIRouter:
             access_token=body.access_token,
             refresh_token=body.refresh_token,
             expires_at=body.expires_at,
+            metadata=body.metadata or None,
         )
 
     @router.get(

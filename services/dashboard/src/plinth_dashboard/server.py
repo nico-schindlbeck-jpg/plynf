@@ -364,6 +364,108 @@ def _register_routes(app: FastAPI, settings: Settings) -> None:
             f"{ws_url}/v1/workspaces/{ws_id}/workflows/{wf_id}",
         )
 
+    # v1.5 — Plinth Studio: import a workflow definition. The dashboard is
+    # a thin pass-through; the workspace service does all validation. The
+    # SPA POSTs to ``/api/workspaces/{ws}/workflows/import`` so the studio
+    # route lives next to the read endpoints.
+    @app.post(
+        "/api/workspaces/{ws_id}/workflows/import",
+        tags=["api"],
+    )
+    async def api_workspace_workflow_import(
+        ws_id: str,
+        request: Request,
+    ) -> JSONResponse:
+        return await _proxy_mut(
+            request,
+            method="POST",
+            upstream_url=f"{ws_url}/v1/workspaces/{ws_id}/workflows/import",
+            forward_body=True,
+        )
+
+    # v1.5 — Workflow replay. The replay endpoint aggregates the workflow
+    # detail + audit events scoped to the workflow's workspace + the
+    # workspace's snapshots so the SPA can reconstruct step state at any
+    # past timestamp. This is a read-only join that lets the SPA render
+    # the timeline without fanning out three separate XHRs.
+    @app.get(
+        "/api/workflows/{wf_id}/replay",
+        tags=["api"],
+    )
+    async def api_workflow_replay(
+        wf_id: str,
+        request: Request,
+    ) -> JSONResponse:
+        ws_id = (request.query_params.get("ws") or "").strip()
+        if not ws_id:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": {
+                        "code": "INVALID_ARGUMENTS",
+                        "message": "Provide ?ws=<workspace_id>",
+                        "details": {},
+                    }
+                },
+            )
+        builder: OverviewBuilder = request.app.state.overview
+        try:
+            request.app.state.metrics.counter(
+                "plinth_dashboard_polls_total",
+                {"endpoint": request.url.path},
+            ).inc(1)
+        except Exception:  # noqa: BLE001
+            pass
+
+        wf_url = f"{ws_url}/v1/workspaces/{ws_id}/workflows/{wf_id}"
+        snap_url = f"{ws_url}/v1/workspaces/{ws_id}/snapshots"
+        audit_url = f"{gw_url}/v1/audit"
+
+        async def _fetch_json(url, params=None):
+            try:
+                resp = await builder.client.get(url, params=params)
+                if resp.status_code >= 400:
+                    return None, resp.status_code
+                return resp.json(), 200
+            except (httpx.HTTPError, ValueError):
+                return None, 502
+
+        wf_payload, wf_status = await _fetch_json(wf_url)
+        if wf_payload is None:
+            return JSONResponse(
+                status_code=wf_status if wf_status >= 400 else 502,
+                content={
+                    "error": {
+                        "code": "WORKFLOW_NOT_FOUND"
+                        if wf_status == 404
+                        else "UPSTREAM_ERROR",
+                        "message": (
+                            "Workflow not found"
+                            if wf_status == 404
+                            else "Failed to fetch workflow."
+                        ),
+                        "details": {"workflow_id": wf_id, "ws_id": ws_id},
+                    }
+                },
+            )
+
+        # Audit + snapshots are best-effort: a failed snapshot fetch must
+        # not block timeline reconstruction. The SPA degrades gracefully.
+        snap_payload, _ = await _fetch_json(snap_url)
+        audit_payload, _ = await _fetch_json(
+            audit_url, params={"workspace_id": ws_id, "limit": 1000}
+        )
+
+        timeline = _build_workflow_timeline(wf_payload)
+        return JSONResponse(
+            content={
+                "workflow": wf_payload,
+                "snapshots": (snap_payload or {}).get("snapshots") or [],
+                "audit_events": (audit_payload or {}).get("events") or [],
+                "timeline": timeline,
+            }
+        )
+
     @app.get("/api/audit", tags=["api"])
     async def api_audit(request: Request) -> JSONResponse:
         return await _proxy(request, f"{gw_url}/v1/audit", forward_query=True)
@@ -538,6 +640,23 @@ def _register_routes(app: FastAPI, settings: Settings) -> None:
         # to know which workspace to query.
         return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
 
+    # v1.5 — replay route. Same SPA shell; the JS router handles the
+    # ``#/workflows/<id>/replay`` hash and renders the scrubber + per-step
+    # timeline.
+    @app.api_route(
+        "/workflows/{wf_id}/replay",
+        methods=["GET", "HEAD"],
+        tags=["ui"],
+    )
+    async def index_workflow_replay(wf_id: str) -> FileResponse:  # noqa: ARG001
+        return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
+
+    # v1.5 — Plinth Studio. SPA shell again; the JS router serves the
+    # drag-canvas at ``#/studio``.
+    @app.api_route("/studio", methods=["GET", "HEAD"], tags=["ui"])
+    async def index_studio() -> FileResponse:
+        return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
+
     @app.api_route("/tenants", methods=["GET", "HEAD"], tags=["ui"])
     async def index_tenants() -> FileResponse:
         # v1.0 — tenants list (admin UI). SPA shell; the JS router reads
@@ -551,6 +670,122 @@ def _register_routes(app: FastAPI, settings: Settings) -> None:
     @app.get("/favicon.ico", include_in_schema=False)
     async def favicon() -> FileResponse:
         return FileResponse(STATIC_DIR / "favicon.svg", media_type="image/svg+xml")
+
+
+def _build_workflow_timeline(workflow: dict[str, Any]) -> list[dict[str, Any]]:
+    """Derive an ordered list of state-change events from a workflow row.
+
+    The audit log doesn't carry workflow_id today, so the replay scrubber
+    reconstructs step state from the workflow's own ``steps`` array. Each
+    step row carries ``created_at`` / ``started_at`` / ``finished_at`` plus
+    ``attempt`` and ``status``, which is enough to rebuild a per-attempt
+    timeline. Events are sorted ascending by timestamp so the SPA can
+    bisect by ``ts``.
+
+    Each event has the shape::
+
+        {
+          "ts": "2026-05-10T14:00:00Z",
+          "kind": "step.created" | "step.started" | "step.finished",
+          "step_name": "search",
+          "step_id": "step_xxx",
+          "attempt": 1,
+          "status": "running" | "completed" | "failed" | "cancelled",
+        }
+
+    Workflow-level events (``workflow.created`` / ``workflow.started`` /
+    ``workflow.finished``) bookend the array so the scrubber knows the
+    full timeline range even when no steps exist yet.
+    """
+
+    events: list[dict[str, Any]] = []
+    if not isinstance(workflow, dict):
+        return events
+
+    if workflow.get("created_at"):
+        events.append(
+            {
+                "ts": workflow["created_at"],
+                "kind": "workflow.created",
+                "workflow_id": workflow.get("id"),
+            }
+        )
+    if workflow.get("started_at"):
+        events.append(
+            {
+                "ts": workflow["started_at"],
+                "kind": "workflow.started",
+                "workflow_id": workflow.get("id"),
+            }
+        )
+
+    for step in workflow.get("steps") or []:
+        sname = step.get("name")
+        sid = step.get("id")
+        attempt = step.get("attempt", 1)
+        if step.get("created_at"):
+            events.append(
+                {
+                    "ts": step["created_at"],
+                    "kind": "step.created",
+                    "step_name": sname,
+                    "step_id": sid,
+                    "attempt": attempt,
+                    "status": "pending",
+                }
+            )
+        if step.get("started_at"):
+            events.append(
+                {
+                    "ts": step["started_at"],
+                    "kind": "step.started",
+                    "step_name": sname,
+                    "step_id": sid,
+                    "attempt": attempt,
+                    "status": "running",
+                }
+            )
+        if step.get("finished_at"):
+            events.append(
+                {
+                    "ts": step["finished_at"],
+                    "kind": "step.finished",
+                    "step_name": sname,
+                    "step_id": sid,
+                    "attempt": attempt,
+                    "status": step.get("status") or "completed",
+                    "error": step.get("error"),
+                }
+            )
+
+    if workflow.get("finished_at"):
+        events.append(
+            {
+                "ts": workflow["finished_at"],
+                "kind": "workflow.finished",
+                "workflow_id": workflow.get("id"),
+                "status": workflow.get("status"),
+            }
+        )
+
+    # Stable sort by ts ascending so the SPA can bisect by timestamp. Ties
+    # break on event kind (created < started < finished) so a 0-duration
+    # step still produces a coherent ordering.
+    kind_order = {
+        "workflow.created": 0,
+        "step.created": 1,
+        "workflow.started": 2,
+        "step.started": 3,
+        "step.finished": 4,
+        "workflow.finished": 5,
+    }
+    events.sort(
+        key=lambda e: (
+            str(e.get("ts") or ""),
+            kind_order.get(e.get("kind", ""), 99),
+        )
+    )
+    return events
 
 
 async def _proxy_mut(

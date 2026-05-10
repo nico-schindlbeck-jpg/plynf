@@ -60,6 +60,24 @@
       "runtimeExecutable": "bash",
       "runtimeArgs": ["-c", "cd /tmp && exec /Users/nico/Code/plinth/.venv/bin/python -m google_workspace_mcp"],
       "port": 7430
+    },
+    {
+      "name": "atlassian-mcp",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /tmp && exec /Users/nico/Code/plinth/.venv/bin/python -m atlassian_mcp"],
+      "port": 7431
+    },
+    {
+      "name": "salesforce-mcp",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /tmp && exec /Users/nico/Code/plinth/.venv/bin/python -m salesforce_mcp"],
+      "port": 7432
+    },
+    {
+      "name": "asana-mcp",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /tmp && exec /Users/nico/Code/plinth/.venv/bin/python -m asana_mcp"],
+      "port": 7433
     }
   ]
 }

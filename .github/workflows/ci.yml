@@ -157,6 +157,24 @@ jobs:
       - name: Test worker
         run: cd worker-ts && npm test
 
+  go-sdk:
+    name: Go SDK
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Vet
+        run: cd sdk/go && go vet ./...
+
+      - name: Test
+        run: cd sdk/go && go test -race ./...
+
   specs:
     name: API specs
     runs-on: ubuntu-latest

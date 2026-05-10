@@ -154,6 +154,17 @@
     }
     if (parts[0] === "workflows") {
       if (parts[1]) {
+        // v1.5 — /workflows/<id>/replay route. Re-uses the same `?ws=`
+        // query convention as the detail page so deep-links work.
+        if (parts[2] === "replay") {
+          return {
+            name: "workflow-replay",
+            params: {
+              wf_id: parts[1],
+              ws_id: qs.get("ws") || "",
+            },
+          };
+        }
         return {
           name: "workflow-detail",
           params: {
@@ -163,6 +174,10 @@
         };
       }
       return { name: "workflows", params: {} };
+    }
+    if (parts[0] === "studio") {
+      // v1.5 — Plinth Studio (visual workflow builder).
+      return { name: "studio", params: {} };
     }
     if (parts[0] === "tenants") {
       if (parts[1]) {
@@ -183,6 +198,11 @@
     } else if (route.name === "workflow-detail") {
       crumb.textContent =
         "/ workflows / " + (route.params.wf_id || "");
+    } else if (route.name === "workflow-replay") {
+      crumb.textContent =
+        "/ workflows / " + (route.params.wf_id || "") + " / replay";
+    } else if (route.name === "studio") {
+      crumb.textContent = "/ studio";
     } else if (route.name === "tenants") {
       crumb.textContent = "/ tenants";
     } else if (route.name === "tenant-detail") {
@@ -196,8 +216,14 @@
     // Highlight whichever top-level area the current route belongs to.
     const links = $$(".topnav-link");
     let active = "overview";
-    if (route.name === "workflows" || route.name === "workflow-detail") {
+    if (
+      route.name === "workflows" ||
+      route.name === "workflow-detail" ||
+      route.name === "workflow-replay"
+    ) {
       active = "workflows";
+    } else if (route.name === "studio") {
+      active = "studio";
     } else if (route.name === "tenants" || route.name === "tenant-detail") {
       active = "tenants";
     }
@@ -236,6 +262,14 @@
       mountTemplate("tpl-workflow-detail");
       void refreshWorkflowDetail();
       startPolling();
+    } else if (route.name === "workflow-replay") {
+      mountTemplate("tpl-workflow-replay");
+      stopPolling();
+      void loadWorkflowReplay();
+    } else if (route.name === "studio") {
+      mountTemplate("tpl-studio");
+      stopPolling();
+      void loadStudio();
     } else if (route.name === "tenants") {
       mountTemplate("tpl-tenants-list");
       stopPolling();
@@ -2106,6 +2140,10 @@
         void refreshWorkflowsList();
       } else if (currentRoute.name === "workflow-detail") {
         void refreshWorkflowDetail();
+      } else if (currentRoute.name === "workflow-replay") {
+        void loadWorkflowReplay();
+      } else if (currentRoute.name === "studio") {
+        void loadStudio();
       } else {
         void refresh();
       }
@@ -2740,5 +2778,994 @@
   window.PlinthSchemaWizard = {
     open: openSchemaWizard,
     close: closeSchemaWizard,
+  };
+
+  // ====================================================================
+  // v1.5 — Workflow Replay (timeline scrubber + per-step state)
+  // ====================================================================
+
+  // Cached replay payload + scrub state. We hold the full timeline +
+  // workflow rows in memory so dragging the scrubber doesn't refetch.
+  const replayState = {
+    wfId: null,
+    wsId: null,
+    workflow: null,
+    timeline: [],
+    snapshots: [],
+    auditEvents: [],
+    cursorTs: null,    // ISO string the user is currently scrubbed to
+    rangeMin: null,    // earliest ts (workflow.created_at)
+    rangeMax: null,    // latest ts (workflow.finished_at or NOW)
+  };
+
+  function _ts(s) {
+    if (!s) return null;
+    const t = new Date(s).getTime();
+    return Number.isNaN(t) ? null : t;
+  }
+
+  async function loadWorkflowReplay() {
+    const params = currentRoute.params || {};
+    const wfId = params.wf_id;
+    const wsId = params.ws_id;
+    replayState.wfId = wfId;
+    replayState.wsId = wsId;
+    if (!wfId || !wsId) {
+      const root = $("#replay-graph");
+      if (root) {
+        root.innerHTML = `<p class="empty muted">Missing ?ws=&lt;workspace_id&gt; in the URL.</p>`;
+      }
+      return;
+    }
+    setSpinner(true);
+    try {
+      const data = await api(
+        `/api/workflows/${encodeURIComponent(wfId)}/replay?ws=${encodeURIComponent(
+          wsId,
+        )}`,
+      );
+      replayState.workflow = data.workflow || null;
+      replayState.timeline = data.timeline || [];
+      replayState.snapshots = data.snapshots || [];
+      replayState.auditEvents = data.audit_events || [];
+
+      const wf = replayState.workflow || {};
+      const minMs = _ts(wf.created_at) ?? Date.now();
+      const maxMs = _ts(wf.finished_at) ?? Date.now();
+      replayState.rangeMin = minMs;
+      replayState.rangeMax = Math.max(maxMs, minMs + 1);
+      replayState.cursorTs = new Date(replayState.rangeMax).toISOString();
+
+      renderReplayHead();
+      renderReplaySvg();
+      renderReplayGraph();
+      renderReplayErrors();
+      wireReplayControls();
+      lastFetchAt = Date.now();
+      tickRefreshLabel();
+    } catch (err) {
+      const root = $("#replay-graph");
+      if (root) {
+        root.innerHTML = `<p class="empty err">failed: ${escapeHtml(
+          err.message,
+        )}</p>`;
+      }
+    } finally {
+      setSpinner(false);
+    }
+  }
+
+  function renderReplayHead() {
+    const wf = replayState.workflow;
+    if (!wf) return;
+    const nameEl = $("#replay-name");
+    const idEl = $("#replay-id");
+    const metaEl = $("#replay-meta");
+    if (nameEl) nameEl.textContent = wf.name || wf.id || "Workflow replay";
+    if (idEl) idEl.textContent = wf.id || "";
+    if (metaEl) {
+      const status = wf.status || "pending";
+      metaEl.innerHTML = `
+        <span class="workflow-status ${escapeHtml(status)}">${escapeHtml(status)}</span>
+        <span class="muted">workspace ${escapeHtml(wf.workspace_id || "")}</span>
+        <span class="muted">created ${escapeHtml(fmtDate(wf.created_at))}</span>
+        <span class="muted">finished ${escapeHtml(
+          wf.finished_at ? fmtDate(wf.finished_at) : "—",
+        )}</span>
+        <a class="btn small" href="#/workflows/${encodeURIComponent(
+          wf.id || "",
+        )}?ws=${encodeURIComponent(wf.workspace_id || "")}">live view</a>
+      `;
+    }
+  }
+
+  function renderReplaySvg() {
+    const svg = document.getElementById("replay-svg");
+    if (!svg) return;
+    const wfTimeline = replayState.timeline || [];
+    const minMs = replayState.rangeMin;
+    const maxMs = replayState.rangeMax;
+    const span = Math.max(1, maxMs - minMs);
+
+    const W = 800;
+    const H = 80;
+    const padX = 12;
+    const padY = 16;
+    const innerW = W - padX * 2;
+    const baseY = H - padY;
+
+    let svgInner =
+      `<line class="replay-axis" x1="${padX}" y1="${baseY}" ` +
+      `x2="${W - padX}" y2="${baseY}" />`;
+
+    // Time-axis labels (start, mid, end).
+    const labels = [
+      [padX, fmtTime(new Date(minMs).toISOString())],
+      [padX + innerW / 2, fmtTime(new Date(minMs + span / 2).toISOString())],
+      [W - padX, fmtTime(new Date(maxMs).toISOString())],
+    ];
+    for (const [x, txt] of labels) {
+      svgInner +=
+        `<text class="replay-tick-label" x="${x}" y="${H - 2}" ` +
+        `text-anchor="middle">${escapeHtml(txt)}</text>`;
+    }
+
+    // Tick per timeline event. Colour-coded by event kind / status.
+    for (const ev of wfTimeline) {
+      const t = _ts(ev.ts);
+      if (t == null) continue;
+      const x = padX + ((t - minMs) / span) * innerW;
+      let cls = "replay-tick";
+      if (ev.kind === "step.finished") {
+        cls += " replay-tick--" + (ev.status || "completed");
+      } else if (ev.kind === "step.started") {
+        cls += " replay-tick--running";
+      }
+      const top = ev.kind === "step.finished" ? padY : baseY - 30;
+      const bot = baseY;
+      svgInner +=
+        `<line class="${cls}" x1="${x.toFixed(2)}" y1="${top}" ` +
+        `x2="${x.toFixed(2)}" y2="${bot}">` +
+        `<title>${escapeHtml(ev.kind)} ${escapeHtml(
+          ev.step_name || "",
+        )} @ ${escapeHtml(fmtDate(ev.ts))}</title></line>`;
+    }
+
+    // Cursor.
+    const cursorMs = _ts(replayState.cursorTs) || maxMs;
+    const cursorX = padX + ((cursorMs - minMs) / span) * innerW;
+    svgInner +=
+      `<line class="replay-cursor" x1="${cursorX.toFixed(2)}" y1="${padY - 4}" ` +
+      `x2="${cursorX.toFixed(2)}" y2="${baseY + 4}" />`;
+
+    svg.innerHTML = svgInner;
+
+    // Sync the range slider position. The slider is normalised 0..1000 so
+    // we don't have to rebind it whenever the workflow timespan changes.
+    const range = document.getElementById("replay-range");
+    if (range) {
+      const norm = ((cursorMs - minMs) / span) * 1000;
+      range.value = String(Math.round(Math.max(0, Math.min(1000, norm))));
+    }
+    const posEl = document.getElementById("replay-pos-time");
+    if (posEl) posEl.textContent = fmtDate(replayState.cursorTs);
+    const summary = document.getElementById("replay-scrub-summary");
+    if (summary) {
+      summary.textContent =
+        `${wfTimeline.length} timeline events · drag to inspect past state`;
+    }
+  }
+
+  function reconstructStateAt(cursorTs) {
+    // Replay events up to the cursor and take the latest known state per
+    // (step_name, attempt). This mirrors what the worker would have seen.
+    const cursorMs = _ts(cursorTs) ?? Infinity;
+    const byStep = new Map(); // step_name → { status, attempt, started_at, finished_at, error }
+    for (const ev of replayState.timeline) {
+      const t = _ts(ev.ts);
+      if (t == null || t > cursorMs) continue;
+      if (!ev.step_name) continue;
+      const cur = byStep.get(ev.step_name) || {
+        name: ev.step_name,
+        status: "pending",
+        attempt: ev.attempt || 1,
+      };
+      if (ev.kind === "step.created" && cur.status === "pending") {
+        cur.status = "pending";
+        cur.attempt = ev.attempt || cur.attempt;
+      } else if (ev.kind === "step.started") {
+        cur.status = "running";
+        cur.started_at = ev.ts;
+        cur.attempt = ev.attempt || cur.attempt;
+      } else if (ev.kind === "step.finished") {
+        cur.status = ev.status || "completed";
+        cur.finished_at = ev.ts;
+        cur.error = ev.error || null;
+        cur.attempt = ev.attempt || cur.attempt;
+      }
+      byStep.set(ev.step_name, cur);
+    }
+    return byStep;
+  }
+
+  function renderReplayGraph() {
+    const root = $("#replay-graph");
+    if (!root) return;
+    const wf = replayState.workflow;
+    if (!wf) {
+      root.innerHTML = `<p class="empty muted">No workflow loaded.</p>`;
+      return;
+    }
+    const manifest = wf.steps_manifest || [];
+    if (!manifest.length) {
+      root.innerHTML = `<p class="empty muted">Workflow has no manifest entries.</p>`;
+      return;
+    }
+    const stateByName = reconstructStateAt(replayState.cursorTs);
+
+    const html = manifest
+      .map((name, idx) => {
+        const s = stateByName.get(name);
+        const synthStep = s
+          ? {
+              status: s.status,
+              attempt: s.attempt,
+              started_at: s.started_at,
+              finished_at: s.finished_at,
+              error: s.error,
+            }
+          : null;
+        const node = buildNodeHtml(name, synthStep);
+        const edge =
+          idx < manifest.length - 1
+            ? `<div class="wf-edge" aria-hidden="true"></div>`
+            : "";
+        return `<div class="wf-graph-cell" data-key="${escapeHtml(
+          nodeKey(name),
+        )}">${node}${edge}</div>`;
+      })
+      .join("");
+    root.innerHTML = html;
+
+    const summary = $("#replay-graph-summary");
+    if (summary) {
+      const completed = Array.from(stateByName.values()).filter(
+        (s) => s.status === "completed",
+      ).length;
+      summary.textContent =
+        `${completed}/${manifest.length} steps complete @ ${fmtDate(
+          replayState.cursorTs,
+        )}`;
+    }
+  }
+
+  function renderReplayErrors() {
+    const root = $("#replay-errors");
+    const summary = $("#replay-errors-summary");
+    if (!root) return;
+    const wf = replayState.workflow;
+    if (!wf) {
+      root.innerHTML = `<p class="empty muted">No workflow loaded.</p>`;
+      return;
+    }
+    // Group every step row by step_name; show only steps that ended in
+    // failure (or where the *latest* attempt is still failed).
+    const byName = new Map();
+    for (const s of wf.steps || []) {
+      if (!byName.has(s.name)) byName.set(s.name, []);
+      byName.get(s.name).push(s);
+    }
+    const failedNames = [];
+    for (const [name, attempts] of byName.entries()) {
+      const latest = attempts[attempts.length - 1];
+      if (
+        attempts.some((a) => a.status === "failed") ||
+        (latest && latest.status === "failed")
+      ) {
+        failedNames.push(name);
+      }
+    }
+    if (!failedNames.length) {
+      root.innerHTML = `<p class="empty muted">No failures in this workflow.</p>`;
+      if (summary) summary.textContent = "";
+      return;
+    }
+    if (summary) {
+      summary.textContent =
+        failedNames.length +
+        " step" +
+        (failedNames.length === 1 ? "" : "s") +
+        " failed at least once";
+    }
+    root.innerHTML = failedNames
+      .map((name) => {
+        const attempts = byName.get(name) || [];
+        const failedAttempts = attempts.filter((a) => a.status === "failed");
+        const latestFailed = failedAttempts[failedAttempts.length - 1] || null;
+        const inputJson = latestFailed
+          ? JSON.stringify(latestFailed.input || null, null, 2)
+          : "";
+        const attemptsList = attempts
+          .map(
+            (a) =>
+              `<li>attempt ${escapeHtml(String(a.attempt))} — ${escapeHtml(
+                a.status,
+              )}${
+                a.finished_at ? " @ " + fmtDate(a.finished_at) : ""
+              }${
+                a.error
+                  ? ` <span class="muted">— ${escapeHtml(a.error)}</span>`
+                  : ""
+              }</li>`,
+          )
+          .join("");
+        return `
+          <div class="replay-error-row">
+            <h3>${escapeHtml(name)} <span class="muted">— ${
+          failedAttempts.length
+        }/${attempts.length} attempt(s) failed</span></h3>
+            ${
+              latestFailed && latestFailed.error
+                ? `<pre>${escapeHtml(latestFailed.error)}</pre>`
+                : ""
+            }
+            ${
+              inputJson && inputJson !== "null"
+                ? `<details><summary class="muted">Last attempt input</summary><pre>${escapeHtml(
+                    inputJson,
+                  )}</pre></details>`
+                : ""
+            }
+            <ul class="replay-error-attempts">${attemptsList}</ul>
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  function wireReplayControls() {
+    const range = document.getElementById("replay-range");
+    if (range) {
+      range.oninput = () => {
+        const norm = Number(range.value) / 1000;
+        const minMs = replayState.rangeMin;
+        const maxMs = replayState.rangeMax;
+        const span = Math.max(1, maxMs - minMs);
+        const t = minMs + norm * span;
+        replayState.cursorTs = new Date(t).toISOString();
+        renderReplaySvg();
+        renderReplayGraph();
+      };
+    }
+    const jump = document.getElementById("replay-jump-now");
+    if (jump) {
+      jump.onclick = () => {
+        replayState.cursorTs = new Date(replayState.rangeMax).toISOString();
+        renderReplaySvg();
+        renderReplayGraph();
+      };
+    }
+    const restore = document.getElementById("replay-restore-to-this");
+    if (restore) {
+      restore.onclick = () => {
+        // Find the latest snapshot at-or-before the cursor.
+        const cursorMs = _ts(replayState.cursorTs) || Date.now();
+        const candidates = (replayState.snapshots || [])
+          .filter((s) => {
+            const t = _ts(s.created_at);
+            return t != null && t <= cursorMs;
+          })
+          .sort((a, b) => _ts(b.created_at) - _ts(a.created_at));
+        if (!candidates.length) {
+          alert("No snapshot exists at or before this point.");
+          return;
+        }
+        const snap = candidates[0];
+        alert(
+          `Latest snapshot at-or-before this point:\n\n` +
+            `id:        ${snap.id}\n` +
+            `name:      ${snap.name || "(unnamed)"}\n` +
+            `created:   ${fmtDate(snap.created_at)}\n\n` +
+            `Use the workspace API to restore this snapshot:\n` +
+            `POST /v1/workspaces/${replayState.wsId}/snapshots/${snap.id}/restore`,
+        );
+      };
+    }
+  }
+
+  // ====================================================================
+  // v1.5 — Plinth Studio (visual workflow builder)
+  // ====================================================================
+
+  // Studio state. Drag-drop is hard without a library; we use a
+  // click-to-insert + reorder-buttons approach instead, per the spec
+  // fallback. Steps live in an array and the canvas re-renders from it.
+  const studioState = {
+    workflow: {
+      name: "",
+      description: "",
+      retry_policy: "exponential",
+      max_attempts_default: 3,
+      steps: [],
+    },
+    workspaces: [],
+    selectedWsId: "",
+    editingIndex: null,
+    loadedFromId: null,
+  };
+
+  const STUDIO_STEP_DEFAULTS = {
+    tool: { type: "tool", tool_id: "", arguments_template: {} },
+    llm: {
+      type: "llm",
+      model: "claude-sonnet-4-5",
+      system: "",
+      prompt_template: "",
+    },
+    channel_send: { type: "channel_send", channel: "", payload_template: {} },
+    channel_receive: { type: "channel_receive", channel: "" },
+    manual: { type: "manual" },
+  };
+
+  async function loadStudio() {
+    const sel = $("#studio-ws-select");
+    const status = $("#studio-status");
+    if (!sel) return;
+    if (status) status.textContent = "loading workspaces…";
+    try {
+      const data = await api("/api/workspaces");
+      studioState.workspaces = (data.workspaces || []).slice();
+    } catch (err) {
+      studioState.workspaces = [];
+      if (status) {
+        status.textContent = "failed to load workspaces: " + err.message;
+        status.classList.add("err");
+      }
+    }
+    sel.innerHTML =
+      `<option value="">— choose —</option>` +
+      studioState.workspaces
+        .map(
+          (w) =>
+            `<option value="${escapeHtml(w.id)}">${escapeHtml(
+              w.name || w.id,
+            )}</option>`,
+        )
+        .join("");
+    if (
+      studioState.selectedWsId &&
+      studioState.workspaces.some((w) => w.id === studioState.selectedWsId)
+    ) {
+      sel.value = studioState.selectedWsId;
+    } else if (studioState.workspaces.length === 1) {
+      // Single-workspace deployment: auto-pick.
+      sel.value = studioState.workspaces[0].id;
+      studioState.selectedWsId = studioState.workspaces[0].id;
+    }
+    if (status && !status.classList.contains("err")) status.textContent = "";
+
+    renderStudioCanvas();
+    wireStudioControls();
+    populateStudioPropertiesForm();
+  }
+
+  function populateStudioPropertiesForm() {
+    const form = $("#studio-properties-form");
+    if (!form) return;
+    if (form.elements.name) form.elements.name.value = studioState.workflow.name;
+    if (form.elements.description)
+      form.elements.description.value = studioState.workflow.description;
+    if (form.elements.retry_policy)
+      form.elements.retry_policy.value = studioState.workflow.retry_policy;
+    if (form.elements.max_attempts_default)
+      form.elements.max_attempts_default.value = String(
+        studioState.workflow.max_attempts_default,
+      );
+  }
+
+  function readStudioPropertiesForm() {
+    const form = $("#studio-properties-form");
+    if (!form) return;
+    studioState.workflow.name = (form.elements.name?.value || "").trim();
+    studioState.workflow.description = form.elements.description?.value || "";
+    studioState.workflow.retry_policy =
+      form.elements.retry_policy?.value || "exponential";
+    studioState.workflow.max_attempts_default = Math.max(
+      1,
+      Number(form.elements.max_attempts_default?.value || 1),
+    );
+  }
+
+  function studioStepLabel(step) {
+    if (step.type === "tool") return step.tool_id || "(no tool)";
+    if (step.type === "llm")
+      return (step.model || "model?") + " · " + (step.system ? "sys" : "no sys");
+    if (step.type === "channel_send")
+      return "→ " + (step.channel || "channel?");
+    if (step.type === "channel_receive")
+      return "← " + (step.channel || "channel?");
+    if (step.type === "manual") return "manual approval";
+    return step.type || "(no type)";
+  }
+
+  function studioStepValid(step) {
+    if (!step.name) return false;
+    if (step.type === "tool" && !step.tool_id) return false;
+    if (step.type === "llm" && (!step.model || !step.prompt_template)) return false;
+    if (step.type === "channel_send" && !step.channel) return false;
+    if (step.type === "channel_receive" && !step.channel) return false;
+    return true;
+  }
+
+  function renderStudioCanvas() {
+    const root = $("#studio-canvas");
+    const summary = $("#studio-canvas-summary");
+    if (!root) return;
+    const steps = studioState.workflow.steps;
+    if (summary) {
+      summary.textContent = steps.length
+        ? `${steps.length} step${steps.length === 1 ? "" : "s"}`
+        : "no steps yet";
+    }
+    if (!steps.length) {
+      root.innerHTML = `<li class="studio-canvas-empty muted">
+        Click a tool on the left to add a step.
+      </li>`;
+      return;
+    }
+    root.innerHTML = steps
+      .map((step, idx) => {
+        const valid = studioStepValid(step);
+        return `
+          <li class="studio-step ${valid ? "" : "invalid"}" data-index="${idx}">
+            <span class="studio-step-index">${idx + 1}</span>
+            <div class="studio-step-body">
+              <span class="studio-step-name">
+                ${escapeHtml(step.name || "(unnamed)")}
+                <span class="muted">— ${escapeHtml(step.type || "")}</span>
+              </span>
+              <span class="studio-step-meta" title="${escapeHtml(
+                studioStepLabel(step),
+              )}">${escapeHtml(studioStepLabel(step))}</span>
+            </div>
+            <span class="studio-step-actions">
+              <button class="btn small" type="button" data-step-up
+                ${idx === 0 ? "disabled" : ""}>↑</button>
+              <button class="btn small" type="button" data-step-down
+                ${idx === steps.length - 1 ? "disabled" : ""}>↓</button>
+              <button class="btn small" type="button" data-step-edit>edit</button>
+              <button class="btn small" type="button" data-step-remove>×</button>
+            </span>
+          </li>
+        `;
+      })
+      .join("");
+  }
+
+  function wireStudioControls() {
+    // Toolbox: clicking a tool appends a fresh step at the end of the
+    // canvas. The step is in invalid state until the user fills out the
+    // config modal.
+    $$(".studio-tool").forEach((btn) => {
+      btn.onclick = () => {
+        const t = btn.dataset.stepType;
+        if (!t) return;
+        const defaults = STUDIO_STEP_DEFAULTS[t] || { type: t };
+        const step = {
+          name: `step_${studioState.workflow.steps.length + 1}`,
+          ...JSON.parse(JSON.stringify(defaults)),
+          max_attempts: studioState.workflow.max_attempts_default,
+        };
+        studioState.workflow.steps.push(step);
+        renderStudioCanvas();
+        // Open the editor immediately so the user can fill in required fields.
+        openStudioStepEditor(studioState.workflow.steps.length - 1);
+      };
+    });
+
+    // Canvas: row controls (up/down/edit/remove).
+    const canvas = $("#studio-canvas");
+    if (canvas) {
+      canvas.onclick = (ev) => {
+        const target = ev.target;
+        if (!(target instanceof HTMLElement)) return;
+        const li = target.closest(".studio-step");
+        if (!li) return;
+        const idx = Number(li.dataset.index);
+        if (Number.isNaN(idx)) return;
+        if (target.matches("[data-step-up]")) {
+          if (idx > 0) {
+            const arr = studioState.workflow.steps;
+            [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+            renderStudioCanvas();
+          }
+        } else if (target.matches("[data-step-down]")) {
+          const arr = studioState.workflow.steps;
+          if (idx < arr.length - 1) {
+            [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+            renderStudioCanvas();
+          }
+        } else if (target.matches("[data-step-remove]")) {
+          studioState.workflow.steps.splice(idx, 1);
+          renderStudioCanvas();
+        } else if (target.matches("[data-step-edit]")) {
+          openStudioStepEditor(idx);
+        }
+      };
+    }
+
+    // Workspace picker.
+    const sel = $("#studio-ws-select");
+    if (sel) {
+      sel.onchange = () => {
+        studioState.selectedWsId = sel.value || "";
+      };
+    }
+
+    // Save button.
+    const save = $("#studio-save");
+    if (save) save.onclick = saveStudioWorkflow;
+
+    // Export button.
+    const exp = $("#studio-export");
+    if (exp) exp.onclick = exportStudioWorkflow;
+
+    // Load button.
+    const load = $("#studio-load");
+    if (load) load.onclick = openStudioLoadModal;
+
+    // Properties form: live-sync to state on input.
+    const form = $("#studio-properties-form");
+    if (form) {
+      form.oninput = readStudioPropertiesForm;
+    }
+
+    // Step modal: close + submit.
+    const closeBtn = $("#studio-step-modal-close");
+    if (closeBtn) closeBtn.onclick = closeStudioStepEditor;
+    const stepForm = $("#studio-step-form");
+    if (stepForm) stepForm.onsubmit = submitStudioStepEditor;
+    const delBtn = $("#studio-step-delete");
+    if (delBtn) delBtn.onclick = deleteStudioStepFromEditor;
+  }
+
+  function openStudioStepEditor(idx) {
+    const modal = $("#studio-step-modal");
+    if (!modal) return;
+    const step = studioState.workflow.steps[idx];
+    if (!step) return;
+    studioState.editingIndex = idx;
+    const title = $("#studio-step-modal-title");
+    if (title) title.textContent = `Edit step #${idx + 1}`;
+
+    const form = $("#studio-step-form");
+    if (form) {
+      form.elements.index.value = String(idx);
+      form.elements.type.value = step.type || "";
+      form.elements.name.value = step.name || "";
+    }
+
+    const fields = $("#studio-step-fields");
+    if (fields) {
+      fields.innerHTML = renderStudioStepFields(step);
+    }
+    const status = $("#studio-step-status");
+    if (status) status.textContent = "";
+    modal.hidden = false;
+  }
+
+  function renderStudioStepFields(step) {
+    if (step.type === "tool") {
+      const args = JSON.stringify(step.arguments_template || {}, null, 2);
+      return `
+        <label class="qf-row">
+          <span>tool_id</span>
+          <input type="text" name="tool_id" placeholder="web.search"
+                 value="${escapeHtml(step.tool_id || "")}" required />
+        </label>
+        <label class="qf-row">
+          <span>arguments_template (JSON)</span>
+          <textarea name="arguments_template" rows="6">${escapeHtml(args)}</textarea>
+        </label>
+        <label class="qf-row">
+          <span>max_attempts</span>
+          <input type="number" min="1" max="100" name="max_attempts"
+                 value="${escapeHtml(String(step.max_attempts || 1))}" />
+        </label>
+      `;
+    }
+    if (step.type === "llm") {
+      return `
+        <label class="qf-row">
+          <span>model</span>
+          <input type="text" name="model" placeholder="claude-sonnet-4-5"
+                 value="${escapeHtml(step.model || "")}" required />
+        </label>
+        <label class="qf-row">
+          <span>system</span>
+          <textarea name="system" rows="3">${escapeHtml(step.system || "")}</textarea>
+        </label>
+        <label class="qf-row">
+          <span>prompt_template</span>
+          <textarea name="prompt_template" rows="6" required>${escapeHtml(
+            step.prompt_template || "",
+          )}</textarea>
+        </label>
+        <label class="qf-row">
+          <span>max_attempts</span>
+          <input type="number" min="1" max="100" name="max_attempts"
+                 value="${escapeHtml(String(step.max_attempts || 1))}" />
+        </label>
+      `;
+    }
+    if (step.type === "channel_send" || step.type === "channel_receive") {
+      const isSend = step.type === "channel_send";
+      const payload = JSON.stringify(step.payload_template || {}, null, 2);
+      return `
+        <label class="qf-row">
+          <span>channel</span>
+          <input type="text" name="channel" placeholder="out"
+                 value="${escapeHtml(step.channel || "")}" required />
+        </label>
+        ${
+          isSend
+            ? `<label class="qf-row">
+                <span>payload_template (JSON)</span>
+                <textarea name="payload_template" rows="6">${escapeHtml(
+                  payload,
+                )}</textarea>
+              </label>`
+            : ""
+        }
+        <label class="qf-row">
+          <span>max_attempts</span>
+          <input type="number" min="1" max="100" name="max_attempts"
+                 value="${escapeHtml(String(step.max_attempts || 1))}" />
+        </label>
+      `;
+    }
+    if (step.type === "manual") {
+      return `<p class="muted">Manual approval — placeholder for human-in-loop. No config required.</p>`;
+    }
+    return `<p class="muted">Unknown step type: ${escapeHtml(step.type || "")}</p>`;
+  }
+
+  function closeStudioStepEditor() {
+    const modal = $("#studio-step-modal");
+    if (modal) modal.hidden = true;
+    studioState.editingIndex = null;
+  }
+
+  function submitStudioStepEditor(ev) {
+    ev.preventDefault();
+    const form = ev.target;
+    const idx = Number(form.elements.index.value);
+    const step = studioState.workflow.steps[idx];
+    if (!step) {
+      closeStudioStepEditor();
+      return;
+    }
+    step.name = (form.elements.name.value || "").trim();
+    if (form.elements.tool_id) step.tool_id = form.elements.tool_id.value || "";
+    if (form.elements.model) step.model = form.elements.model.value || "";
+    if (form.elements.system) step.system = form.elements.system.value || "";
+    if (form.elements.prompt_template)
+      step.prompt_template = form.elements.prompt_template.value || "";
+    if (form.elements.channel) step.channel = form.elements.channel.value || "";
+    if (form.elements.max_attempts) {
+      step.max_attempts = Math.max(
+        1,
+        Number(form.elements.max_attempts.value || 1),
+      );
+    }
+    if (form.elements.arguments_template) {
+      try {
+        step.arguments_template = JSON.parse(
+          form.elements.arguments_template.value || "{}",
+        );
+      } catch (err) {
+        const status = $("#studio-step-status");
+        if (status) {
+          status.textContent = "arguments_template must be JSON: " + err.message;
+          status.style.color = "var(--red, #b91c1c)";
+        }
+        return;
+      }
+    }
+    if (form.elements.payload_template) {
+      try {
+        step.payload_template = JSON.parse(
+          form.elements.payload_template.value || "{}",
+        );
+      } catch (err) {
+        const status = $("#studio-step-status");
+        if (status) {
+          status.textContent = "payload_template must be JSON: " + err.message;
+          status.style.color = "var(--red, #b91c1c)";
+        }
+        return;
+      }
+    }
+    closeStudioStepEditor();
+    renderStudioCanvas();
+  }
+
+  function deleteStudioStepFromEditor() {
+    const idx = studioState.editingIndex;
+    if (idx == null) return;
+    studioState.workflow.steps.splice(idx, 1);
+    closeStudioStepEditor();
+    renderStudioCanvas();
+  }
+
+  function studioWorkflowToDefinition() {
+    readStudioPropertiesForm();
+    const wf = studioState.workflow;
+    return {
+      name: wf.name,
+      description: wf.description || "",
+      retry_policy: wf.retry_policy,
+      max_attempts_default: wf.max_attempts_default,
+      steps: wf.steps.slice(),
+    };
+  }
+
+  async function saveStudioWorkflow() {
+    const status = $("#studio-status");
+    const setStatus = (text, kind) => {
+      if (!status) return;
+      status.textContent = text;
+      status.classList.remove("ok", "err");
+      if (kind) status.classList.add(kind);
+    };
+
+    if (!studioState.selectedWsId) {
+      setStatus("Choose a workspace to save into.", "err");
+      return;
+    }
+    const def = studioWorkflowToDefinition();
+    if (!def.name) {
+      setStatus("Workflow name is required.", "err");
+      return;
+    }
+    if (!def.steps.length) {
+      setStatus("Add at least one step.", "err");
+      return;
+    }
+    const invalid = def.steps.find((s) => !studioStepValid(s));
+    if (invalid) {
+      setStatus(`Step "${invalid.name}" is missing required fields.`, "err");
+      return;
+    }
+    setStatus("saving…");
+
+    try {
+      const r = await fetch(
+        `/api/workspaces/${encodeURIComponent(studioState.selectedWsId)}/workflows/import`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(def),
+        },
+      );
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const msg = (body && body.error && body.error.message) || `HTTP ${r.status}`;
+        setStatus("save failed: " + msg, "err");
+        return;
+      }
+      setStatus(`saved · workflow ${body.id}`, "ok");
+      // Redirect to replay page so the user can see (or run) the new workflow.
+      location.hash = `#/workflows/${encodeURIComponent(
+        body.id,
+      )}/replay?ws=${encodeURIComponent(studioState.selectedWsId)}`;
+    } catch (err) {
+      setStatus("save failed: " + err.message, "err");
+    }
+  }
+
+  function exportStudioWorkflow() {
+    const def = studioWorkflowToDefinition();
+    const blob = new Blob([JSON.stringify(def, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = (def.name || "workflow") + ".plinth.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function openStudioLoadModal() {
+    const wsId = studioState.selectedWsId;
+    const status = $("#studio-status");
+    if (!wsId) {
+      if (status) {
+        status.textContent = "Choose a workspace first.";
+        status.classList.add("err");
+      }
+      return;
+    }
+    let workflows = [];
+    try {
+      const data = await api(
+        `/api/workspaces/${encodeURIComponent(wsId)}/workflows`,
+      );
+      workflows = data.workflows || [];
+    } catch (err) {
+      if (status) {
+        status.textContent = "list failed: " + err.message;
+        status.classList.add("err");
+      }
+      return;
+    }
+    if (!workflows.length) {
+      alert("No workflows in this workspace yet. Save one first.");
+      return;
+    }
+    const labels = workflows.map((w) => `${w.id} — ${w.name}`).join("\n");
+    const choice = prompt(
+      "Enter workflow id to load:\n\n" + labels,
+      workflows[0].id,
+    );
+    if (!choice) return;
+    const wf = workflows.find((w) => w.id === choice.trim());
+    if (!wf) {
+      if (status) {
+        status.textContent = "no workflow with id " + choice;
+        status.classList.add("err");
+      }
+      return;
+    }
+    const md = wf.metadata || {};
+    if (md.definition && Array.isArray(md.definition.steps)) {
+      // Imported workflow with full definition: load it back wholesale.
+      studioState.workflow = {
+        name: md.definition.name || wf.name || "",
+        description: md.definition.description || "",
+        retry_policy: md.definition.retry_policy || "exponential",
+        max_attempts_default: md.definition.max_attempts_default || 3,
+        steps: md.definition.steps.slice(),
+      };
+    } else {
+      // Legacy workflow (no definition): synthesise a manual-step skeleton
+      // from the manifest so the user can re-edit.
+      studioState.workflow = {
+        name: wf.name,
+        description: "",
+        retry_policy: "exponential",
+        max_attempts_default: 3,
+        steps: (wf.steps_manifest || []).map((n) => ({
+          name: n,
+          type: "manual",
+          max_attempts: 1,
+        })),
+      };
+    }
+    studioState.loadedFromId = wf.id;
+    if (status) {
+      status.textContent = "loaded " + wf.id;
+      status.classList.remove("err");
+      status.classList.add("ok");
+    }
+    populateStudioPropertiesForm();
+    renderStudioCanvas();
+  }
+
+  // Expose a tiny surface for tests / power-users.
+  window.PlinthStudio = {
+    state: studioState,
+    canvasToDefinition: studioWorkflowToDefinition,
+    save: saveStudioWorkflow,
+  };
+  window.PlinthReplay = {
+    state: replayState,
+    reconstructStateAt,
   };
 })();

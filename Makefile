@@ -22,13 +22,16 @@ PLINTH_SLACK_MCP_PORT ?= 7427
 PLINTH_LINEAR_MCP_PORT ?= 7428
 PLINTH_NOTION_MCP_PORT ?= 7429
 PLINTH_GOOGLE_MCP_PORT ?= 7430
+PLINTH_ATLASSIAN_MCP_PORT ?= 7431
+PLINTH_SALESFORCE_MCP_PORT ?= 7432
+PLINTH_ASANA_MCP_PORT ?= 7433
 
 LOG_DIR := /tmp/plinth-logs
 PID_DIR := /tmp/plinth-pids
 
-.PHONY: help install install-services install-sdk install-examples install-mock install-dashboard install-identity install-github-mcp install-slack-mcp install-linear-mcp install-notion-mcp install-google-mcp install-bench \
-        test test-workspace test-gateway test-sdk test-mock test-dashboard test-identity test-github-mcp test-slack-mcp test-linear-mcp test-notion-mcp test-google-mcp test-ts test-bench \
-        serve serve-workspace serve-gateway serve-mock serve-dashboard serve-identity serve-github-mcp serve-slack-mcp serve-linear-mcp serve-notion-mcp serve-google-mcp stop healthcheck \
+.PHONY: help install install-services install-sdk install-examples install-mock install-dashboard install-identity install-github-mcp install-slack-mcp install-linear-mcp install-notion-mcp install-google-mcp install-atlassian-mcp install-salesforce-mcp install-asana-mcp install-bench \
+        test test-workspace test-gateway test-sdk test-mock test-dashboard test-identity test-github-mcp test-slack-mcp test-linear-mcp test-notion-mcp test-google-mcp test-atlassian-mcp test-salesforce-mcp test-asana-mcp test-ts test-go test-bench \
+        serve serve-workspace serve-gateway serve-mock serve-dashboard serve-identity serve-github-mcp serve-slack-mcp serve-linear-mcp serve-notion-mcp serve-google-mcp serve-atlassian-mcp serve-salesforce-mcp serve-asana-mcp stop healthcheck \
         demo demo-handoff demo-resume demo-triage \
         bench bench-quick bench-compare \
         clean clean-data lint format ci tree
@@ -49,7 +52,7 @@ $(VENV)/bin/activate:
 	@$(PIP) install --upgrade pip wheel >/dev/null
 	@touch $@
 
-install: $(VENV)/bin/activate install-services install-mock install-sdk install-dashboard install-identity install-github-mcp install-slack-mcp install-linear-mcp install-notion-mcp install-google-mcp install-examples  ## Install everything
+install: $(VENV)/bin/activate install-services install-mock install-sdk install-dashboard install-identity install-github-mcp install-slack-mcp install-linear-mcp install-notion-mcp install-google-mcp install-atlassian-mcp install-salesforce-mcp install-asana-mcp install-examples  ## Install everything
 	@echo ""
 	@echo "✔ Plinth installed. Try: make test, make serve, make demo"
 
@@ -127,6 +130,30 @@ install-google-mcp: $(VENV)/bin/activate  ## Install Google Workspace MCP server
 		echo "  (google-workspace-mcp not built yet — skipping)"; \
 	fi
 
+install-atlassian-mcp: $(VENV)/bin/activate  ## Install Atlassian (Jira+Confluence) MCP server
+	@echo "→ Installing Atlassian MCP server"
+	@if [ -d ./mcp-servers/atlassian ]; then \
+		$(PIP) install -e "./mcp-servers/atlassian[dev]" >/dev/null; \
+	else \
+		echo "  (atlassian-mcp not built yet — skipping)"; \
+	fi
+
+install-salesforce-mcp: $(VENV)/bin/activate  ## Install Salesforce MCP server
+	@echo "→ Installing Salesforce MCP server"
+	@if [ -d ./mcp-servers/salesforce ]; then \
+		$(PIP) install -e "./mcp-servers/salesforce[dev]" >/dev/null; \
+	else \
+		echo "  (salesforce-mcp not built yet — skipping)"; \
+	fi
+
+install-asana-mcp: $(VENV)/bin/activate  ## Install Asana MCP server
+	@echo "→ Installing Asana MCP server"
+	@if [ -d ./mcp-servers/asana ]; then \
+		$(PIP) install -e "./mcp-servers/asana[dev]" >/dev/null; \
+	else \
+		echo "  (asana-mcp not built yet — skipping)"; \
+	fi
+
 install-examples: $(VENV)/bin/activate  ## Install example agents
 	@echo "→ Installing research-agent example"
 	@$(PIP) install -e "./examples/01-research-agent" >/dev/null
@@ -145,7 +172,7 @@ install-examples: $(VENV)/bin/activate  ## Install example agents
 
 # ───────── tests ─────────
 
-test: test-workspace test-gateway test-sdk test-mock test-dashboard test-identity test-github-mcp test-slack-mcp test-linear-mcp test-notion-mcp test-google-mcp  ## Run all Python test suites
+test: test-workspace test-gateway test-sdk test-mock test-dashboard test-identity test-github-mcp test-slack-mcp test-linear-mcp test-notion-mcp test-google-mcp test-atlassian-mcp test-salesforce-mcp test-asana-mcp  ## Run all Python test suites
 	@echo ""
 	@echo "✔ All test suites passed"
 
@@ -225,9 +252,41 @@ test-google-mcp:  ## Run Google Workspace MCP server tests
 		echo "  (google-workspace-mcp not built yet — skipping)"; \
 	fi
 
+test-atlassian-mcp:  ## Run Atlassian MCP server tests
+	@echo "→ Atlassian MCP tests"
+	@if [ -d ./mcp-servers/atlassian ]; then \
+		cd mcp-servers/atlassian && $(abspath $(VENV_BIN))/pytest -q --cov=atlassian_mcp --cov-report=term-missing:skip-covered; \
+	else \
+		echo "  (atlassian-mcp not built yet — skipping)"; \
+	fi
+
+test-salesforce-mcp:  ## Run Salesforce MCP server tests
+	@echo "→ Salesforce MCP tests"
+	@if [ -d ./mcp-servers/salesforce ]; then \
+		cd mcp-servers/salesforce && $(abspath $(VENV_BIN))/pytest -q --cov=salesforce_mcp --cov-report=term-missing:skip-covered; \
+	else \
+		echo "  (salesforce-mcp not built yet — skipping)"; \
+	fi
+
+test-asana-mcp:  ## Run Asana MCP server tests
+	@echo "→ Asana MCP tests"
+	@if [ -d ./mcp-servers/asana ]; then \
+		cd mcp-servers/asana && $(abspath $(VENV_BIN))/pytest -q --cov=asana_mcp --cov-report=term-missing:skip-covered; \
+	else \
+		echo "  (asana-mcp not built yet — skipping)"; \
+	fi
+
 test-ts:  ## Run TypeScript SDK tests (requires npm)
 	@echo "→ TypeScript SDK tests"
 	@cd sdk/typescript && npm install --silent && npm run build && npm test
+
+test-go:  ## Run Go SDK tests (requires go 1.22+)
+	@echo "→ Go SDK tests"
+	@if command -v go >/dev/null 2>&1; then \
+		cd sdk/go && go vet ./... && go test ./...; \
+	else \
+		echo "  (go not installed locally — skipping; CI runs the suite on every push)"; \
+	fi
 
 # ───────── lint / format ─────────
 
@@ -249,19 +308,22 @@ $(LOG_DIR):
 $(PID_DIR):
 	@mkdir -p $(PID_DIR)
 
-serve: $(LOG_DIR) $(PID_DIR) serve-workspace serve-gateway serve-mock serve-dashboard serve-identity serve-github-mcp serve-slack-mcp serve-linear-mcp serve-notion-mcp serve-google-mcp  ## Start all services in the background
+serve: $(LOG_DIR) $(PID_DIR) serve-workspace serve-gateway serve-mock serve-dashboard serve-identity serve-github-mcp serve-slack-mcp serve-linear-mcp serve-notion-mcp serve-google-mcp serve-atlassian-mcp serve-salesforce-mcp serve-asana-mcp  ## Start all services in the background
 	@echo ""
 	@echo "✔ Services started:"
-	@echo "  • Workspace        : http://localhost:$(PLINTH_WORKSPACE_PORT)/healthz   (logs: $(LOG_DIR)/workspace.log)"
-	@echo "  • Gateway          : http://localhost:$(PLINTH_GATEWAY_PORT)/healthz     (logs: $(LOG_DIR)/gateway.log)"
-	@echo "  • Mock MCP         : http://localhost:$(PLINTH_MOCK_MCP_PORT)/healthz    (logs: $(LOG_DIR)/mock-mcp.log)"
-	@echo "  • Dashboard        : http://localhost:$(PLINTH_DASHBOARD_PORT)/          (logs: $(LOG_DIR)/dashboard.log)"
-	@echo "  • Identity         : http://localhost:$(PLINTH_IDENTITY_PORT)/healthz    (logs: $(LOG_DIR)/identity.log)"
-	@echo "  • GitHub MCP       : http://localhost:$(PLINTH_GITHUB_MCP_PORT)/healthz  (logs: $(LOG_DIR)/github-mcp.log)"
-	@echo "  • Slack MCP        : http://localhost:$(PLINTH_SLACK_MCP_PORT)/healthz   (logs: $(LOG_DIR)/slack-mcp.log)"
-	@echo "  • Linear MCP       : http://localhost:$(PLINTH_LINEAR_MCP_PORT)/healthz  (logs: $(LOG_DIR)/linear-mcp.log)"
-	@echo "  • Notion MCP       : http://localhost:$(PLINTH_NOTION_MCP_PORT)/healthz  (logs: $(LOG_DIR)/notion-mcp.log)"
-	@echo "  • Google Wrkspc MCP: http://localhost:$(PLINTH_GOOGLE_MCP_PORT)/healthz  (logs: $(LOG_DIR)/google-workspace-mcp.log)"
+	@echo "  • Workspace        : http://localhost:$(PLINTH_WORKSPACE_PORT)/healthz     (logs: $(LOG_DIR)/workspace.log)"
+	@echo "  • Gateway          : http://localhost:$(PLINTH_GATEWAY_PORT)/healthz       (logs: $(LOG_DIR)/gateway.log)"
+	@echo "  • Mock MCP         : http://localhost:$(PLINTH_MOCK_MCP_PORT)/healthz      (logs: $(LOG_DIR)/mock-mcp.log)"
+	@echo "  • Dashboard        : http://localhost:$(PLINTH_DASHBOARD_PORT)/            (logs: $(LOG_DIR)/dashboard.log)"
+	@echo "  • Identity         : http://localhost:$(PLINTH_IDENTITY_PORT)/healthz      (logs: $(LOG_DIR)/identity.log)"
+	@echo "  • GitHub MCP       : http://localhost:$(PLINTH_GITHUB_MCP_PORT)/healthz    (logs: $(LOG_DIR)/github-mcp.log)"
+	@echo "  • Slack MCP        : http://localhost:$(PLINTH_SLACK_MCP_PORT)/healthz     (logs: $(LOG_DIR)/slack-mcp.log)"
+	@echo "  • Linear MCP       : http://localhost:$(PLINTH_LINEAR_MCP_PORT)/healthz    (logs: $(LOG_DIR)/linear-mcp.log)"
+	@echo "  • Notion MCP       : http://localhost:$(PLINTH_NOTION_MCP_PORT)/healthz    (logs: $(LOG_DIR)/notion-mcp.log)"
+	@echo "  • Google Wrkspc MCP: http://localhost:$(PLINTH_GOOGLE_MCP_PORT)/healthz    (logs: $(LOG_DIR)/google-workspace-mcp.log)"
+	@echo "  • Atlassian MCP    : http://localhost:$(PLINTH_ATLASSIAN_MCP_PORT)/healthz (logs: $(LOG_DIR)/atlassian-mcp.log)"
+	@echo "  • Salesforce MCP   : http://localhost:$(PLINTH_SALESFORCE_MCP_PORT)/healthz (logs: $(LOG_DIR)/salesforce-mcp.log)"
+	@echo "  • Asana MCP        : http://localhost:$(PLINTH_ASANA_MCP_PORT)/healthz     (logs: $(LOG_DIR)/asana-mcp.log)"
 	@echo ""
 	@echo "Stop with: make stop"
 
@@ -412,8 +474,53 @@ serve-google-mcp: $(LOG_DIR) $(PID_DIR)  ## Start Google Workspace MCP server
 		echo "  • Google Workspace MCP started (pid $$pid)"; \
 	fi
 
+serve-atlassian-mcp: $(LOG_DIR) $(PID_DIR)  ## Start Atlassian MCP server
+	@if [ ! -d ./mcp-servers/atlassian ]; then \
+		echo "  • atlassian-mcp not built — skipping"; \
+		exit 0; \
+	fi
+	@if [ -f $(PID_DIR)/atlassian-mcp.pid ] && kill -0 $$(cat $(PID_DIR)/atlassian-mcp.pid) 2>/dev/null; then \
+		echo "  • Atlassian MCP already running (pid $$(cat $(PID_DIR)/atlassian-mcp.pid))"; \
+	else \
+		pid=$$($(PY) scripts/_spawn.py \
+			$(PID_DIR)/atlassian-mcp.pid $(LOG_DIR)/atlassian-mcp.log \
+			PLINTH_ATLASSIAN_MCP_PORT=$(PLINTH_ATLASSIAN_MCP_PORT) \
+			-- $(PY) -m atlassian_mcp); \
+		echo "  • Atlassian MCP started (pid $$pid)"; \
+	fi
+
+serve-salesforce-mcp: $(LOG_DIR) $(PID_DIR)  ## Start Salesforce MCP server
+	@if [ ! -d ./mcp-servers/salesforce ]; then \
+		echo "  • salesforce-mcp not built — skipping"; \
+		exit 0; \
+	fi
+	@if [ -f $(PID_DIR)/salesforce-mcp.pid ] && kill -0 $$(cat $(PID_DIR)/salesforce-mcp.pid) 2>/dev/null; then \
+		echo "  • Salesforce MCP already running (pid $$(cat $(PID_DIR)/salesforce-mcp.pid))"; \
+	else \
+		pid=$$($(PY) scripts/_spawn.py \
+			$(PID_DIR)/salesforce-mcp.pid $(LOG_DIR)/salesforce-mcp.log \
+			PLINTH_SALESFORCE_MCP_PORT=$(PLINTH_SALESFORCE_MCP_PORT) \
+			-- $(PY) -m salesforce_mcp); \
+		echo "  • Salesforce MCP started (pid $$pid)"; \
+	fi
+
+serve-asana-mcp: $(LOG_DIR) $(PID_DIR)  ## Start Asana MCP server
+	@if [ ! -d ./mcp-servers/asana ]; then \
+		echo "  • asana-mcp not built — skipping"; \
+		exit 0; \
+	fi
+	@if [ -f $(PID_DIR)/asana-mcp.pid ] && kill -0 $$(cat $(PID_DIR)/asana-mcp.pid) 2>/dev/null; then \
+		echo "  • Asana MCP already running (pid $$(cat $(PID_DIR)/asana-mcp.pid))"; \
+	else \
+		pid=$$($(PY) scripts/_spawn.py \
+			$(PID_DIR)/asana-mcp.pid $(LOG_DIR)/asana-mcp.log \
+			PLINTH_ASANA_MCP_PORT=$(PLINTH_ASANA_MCP_PORT) \
+			-- $(PY) -m asana_mcp); \
+		echo "  • Asana MCP started (pid $$pid)"; \
+	fi
+
 stop:  ## Stop all background services
-	@for svc in workspace gateway mock-mcp dashboard identity github-mcp slack-mcp linear-mcp notion-mcp google-workspace-mcp; do \
+	@for svc in workspace gateway mock-mcp dashboard identity github-mcp slack-mcp linear-mcp notion-mcp google-workspace-mcp atlassian-mcp salesforce-mcp asana-mcp; do \
 		if [ -f $(PID_DIR)/$$svc.pid ]; then \
 			pid=$$(cat $(PID_DIR)/$$svc.pid); \
 			if kill -0 $$pid 2>/dev/null; then \
