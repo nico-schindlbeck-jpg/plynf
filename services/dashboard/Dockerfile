@@ -2,7 +2,7 @@
 # Copyright 2026 The Plinth Authors
 
 # ---------- builder ----------
-FROM python:3.11-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /build
 
@@ -20,7 +20,7 @@ RUN python -m pip install --prefix=/install --no-warn-script-location /wheels/*.
 
 
 # ---------- runtime ----------
-FROM python:3.11-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
