@@ -1,0 +1,238 @@
+#!/bin/sh
+# plinth — CLI wrapper around the user-local Plinth install
+#
+# Installed at $PLINTH_BIN_DIR/plinth (default: ~/.local/bin/plinth) by
+# install.sh. Edit the source at install/plinth in the repo, not here —
+# `plinth update` will overwrite changes.
+set -eu
+
+PLINTH_HOME="${PLINTH_HOME:-$HOME/.plinth}"
+REPO="$PLINTH_HOME/repo"
+VENV="$PLINTH_HOME/venv"
+LOGS="$PLINTH_HOME/state/logs"
+
+OS="$(uname -s)"
+
+# Colours (only when stdout is a TTY) ---------------------------------------
+if [ -t 1 ]; then
+    C_GREEN="$(printf '\033[32m')"
+    C_RED="$(printf '\033[31m')"
+    C_YELLOW="$(printf '\033[33m')"
+    C_DIM="$(printf '\033[2m')"
+    C_RESET="$(printf '\033[0m')"
+else
+    C_GREEN=""
+    C_RED=""
+    C_YELLOW=""
+    C_DIM=""
+    C_RESET=""
+fi
+
+die() {
+    printf '%splinth: %s%s\n' "$C_RED" "$*" "$C_RESET" >&2
+    exit 1
+}
+
+require_install() {
+    [ -d "$REPO" ]  || die "Plinth not installed at $PLINTH_HOME. Run the installer first."
+    [ -d "$VENV" ] || die "Plinth venv missing at $VENV. Try: plinth update"
+}
+
+# ───────── service control ─────────
+plinth_start() {
+    require_install
+    case "$OS" in
+        Darwin)
+            plist="$HOME/Library/LaunchAgents/dev.plinth.services.plist"
+            [ -f "$plist" ] || die "launchd plist missing — re-run install.sh"
+            launchctl load -w "$plist"
+            ;;
+        Linux)
+            command -v systemctl >/dev/null 2>&1 \
+                || die "systemctl not found — start services manually with make serve"
+            systemctl --user start plinth.service
+            ;;
+        *) die "unsupported OS: $OS" ;;
+    esac
+    printf '%s✔%s Plinth started\n' "$C_GREEN" "$C_RESET"
+}
+
+plinth_stop() {
+    require_install
+    case "$OS" in
+        Darwin)
+            plist="$HOME/Library/LaunchAgents/dev.plinth.services.plist"
+            if [ -f "$plist" ]; then
+                launchctl unload "$plist" >/dev/null 2>&1 || true
+            fi
+            ;;
+        Linux)
+            if command -v systemctl >/dev/null 2>&1; then
+                systemctl --user stop plinth.service >/dev/null 2>&1 || true
+            fi
+            ;;
+    esac
+    printf '%s✔%s Plinth stopped\n' "$C_GREEN" "$C_RESET"
+}
+
+plinth_status() {
+    require_install
+    if [ -x "$REPO/scripts/healthcheck.sh" ]; then
+        bash "$REPO/scripts/healthcheck.sh"
+    else
+        # Inline minimal fallback so the CLI keeps working even if the
+        # healthcheck script is missing.
+        for entry in \
+            "workspace:7421" \
+            "gateway:7422" \
+            "mock-mcp:7423" \
+            "dashboard:7424" \
+            "identity:7425"
+        do
+            name="${entry%%:*}"
+            port="${entry##*:}"
+            if curl -sf --max-time 2 "http://localhost:$port/healthz" >/dev/null 2>&1; then
+                printf '  %s✔%s %s\n' "$C_GREEN" "$C_RESET" "$name"
+            else
+                printf '  %s✘%s %s (port %s)\n' "$C_RED" "$C_RESET" "$name" "$port"
+            fi
+        done
+    fi
+}
+
+plinth_logs() {
+    require_install
+    svc="${1:-workspace}"
+    log="$LOGS/$svc.log"
+    if [ ! -f "$log" ]; then
+        printf 'No log at %s\n' "$log" >&2
+        printf 'Available logs:\n' >&2
+        ls -1 "$LOGS"/*.log 2>/dev/null | xargs -n1 basename | sed 's/^/  /' >&2 || true
+        exit 1
+    fi
+    exec tail -f "$log"
+}
+
+plinth_dashboard() {
+    url="http://localhost:7424"
+    case "$OS" in
+        Darwin) open "$url" ;;
+        Linux)  command -v xdg-open >/dev/null 2>&1 && xdg-open "$url" || printf '%s\n' "$url" ;;
+        *)      printf '%s\n' "$url" ;;
+    esac
+}
+
+plinth_demo() {
+    require_install
+    topic="${1:-renewable energy}"
+    script="$REPO/examples/01-research-agent/compare.py"
+    [ -f "$script" ] || die "demo script not found at $script"
+    exec "$VENV/bin/python" "$script" --topic "$topic" --mode simulation
+}
+
+plinth_update() {
+    require_install
+    printf 'Updating Plinth...\n'
+    git -C "$REPO" pull --quiet
+    "$VENV/bin/pip" install --upgrade pip wheel --quiet --disable-pip-version-check
+    for pkg in \
+        services/workspace \
+        services/gateway \
+        services/identity \
+        services/dashboard \
+        mock-mcp-server \
+        mcp-servers/github \
+        mcp-servers/slack \
+        mcp-servers/linear \
+        sdk/python \
+        examples/01-research-agent
+    do
+        if [ -d "$REPO/$pkg" ]; then
+            "$VENV/bin/pip" install --quiet --disable-pip-version-check \
+                -e "$REPO/$pkg[dev]" 2>/dev/null \
+                || "$VENV/bin/pip" install --quiet --disable-pip-version-check \
+                    -e "$REPO/$pkg"
+        fi
+    done
+    # Refresh the CLI wrapper itself.
+    if [ -f "$REPO/install/plinth" ]; then
+        bin="$(command -v plinth || true)"
+        if [ -n "$bin" ] && [ "$bin" != "$REPO/install/plinth" ]; then
+            cp "$REPO/install/plinth" "$bin"
+            chmod +x "$bin"
+        fi
+    fi
+    plinth_restart
+    printf '%s✔%s Plinth updated\n' "$C_GREEN" "$C_RESET"
+}
+
+plinth_restart() {
+    plinth_stop
+    sleep 1
+    plinth_start
+}
+
+plinth_uninstall() {
+    if [ -x "$REPO/install/uninstall.sh" ]; then
+        exec sh "$REPO/install/uninstall.sh" "$@"
+    elif [ -f "$REPO/install/uninstall.sh" ]; then
+        exec sh "$REPO/install/uninstall.sh" "$@"
+    else
+        die "uninstall.sh not found at $REPO/install/uninstall.sh"
+    fi
+}
+
+plinth_version() {
+    require_install
+    if [ -f "$REPO/CHANGELOG.md" ]; then
+        ver=$(grep -m1 -oE '## \[[0-9.]+\]' "$REPO/CHANGELOG.md" | tr -d '[]' | awk '{print $2}')
+        printf 'plinth %s\n' "${ver:-unknown}"
+    else
+        printf 'plinth (no CHANGELOG.md)\n'
+    fi
+    if [ -d "$REPO/.git" ]; then
+        sha=$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)
+        printf '  commit: %s\n' "$sha"
+    fi
+}
+
+plinth_help() {
+    cat <<EOF
+${C_DIM}Plinth — agent-native runtime${C_RESET}
+
+Usage:
+  plinth status         health-check all services
+  plinth start          start the stack (via launchd/systemd)
+  plinth stop           stop the stack
+  plinth restart        stop + start
+  plinth logs [svc]     tail a service log (default: workspace)
+  plinth dashboard      open http://localhost:7424
+  plinth demo [topic]   run the headline token-comparison demo
+  plinth update         git pull + re-install + restart
+  plinth uninstall      remove Plinth from this system
+  plinth version        print installed version
+  plinth help           show this message
+EOF
+}
+
+cmd="${1:-help}"
+[ $# -gt 0 ] && shift
+
+case "$cmd" in
+    status|st)             plinth_status "$@" ;;
+    start|up)              plinth_start "$@" ;;
+    stop|down)             plinth_stop "$@" ;;
+    restart)               plinth_restart "$@" ;;
+    logs|log)              plinth_logs "$@" ;;
+    dashboard|dash|open)   plinth_dashboard "$@" ;;
+    demo)                  plinth_demo "$@" ;;
+    update|upgrade)        plinth_update "$@" ;;
+    uninstall|remove)      plinth_uninstall "$@" ;;
+    version|--version|-V)  plinth_version "$@" ;;
+    help|--help|-h|"")     plinth_help ;;
+    *)
+        printf '%splinth: unknown command "%s"%s\n' "$C_RED" "$cmd" "$C_RESET" >&2
+        printf 'Try: plinth help\n' >&2
+        exit 1
+        ;;
+esac

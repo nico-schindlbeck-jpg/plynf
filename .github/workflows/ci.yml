@@ -176,6 +176,45 @@ jobs:
       - name: Test
         run: cd sdk/go && go test -race ./...
 
+  installer:
+    name: Installer script (Stufe 1)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Shellcheck (sh dialect)
+        run: |
+          shellcheck -s sh install/install.sh
+          shellcheck -s sh install/uninstall.sh
+          shellcheck -s sh install/plinth
+          shellcheck -s sh install/tests/test_install_sh.sh
+          shellcheck -s sh install/tests/shellcheck.sh
+
+      - name: Syntax check
+        run: |
+          sh -n install/install.sh
+          sh -n install/uninstall.sh
+          sh -n install/plinth
+          python3 -c "import ast; ast.parse(open('install/run_all.py').read())"
+
+      - name: Self-test harness
+        run: sh install/tests/test_install_sh.sh
+
+      - name: Dry-run install in a sandbox
+        run: |
+          PLINTH_HOME=/tmp/plinth-install-test \
+          PLINTH_BIN_DIR=/tmp/plinth-bin-test \
+            sh install/install.sh --skip-autostart --skip-services --skip-open --dry-run --no-update
+
   specs:
     name: API specs
     runs-on: ubuntu-latest

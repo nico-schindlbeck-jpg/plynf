@@ -1,0 +1,34 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+---
+
+<BaseLayout title="404 — Plinth" description="Page not found.">
+  <Nav />
+  <main id="main" class="relative overflow-hidden min-h-[70vh] flex items-center">
+    <div class="bg-grid"></div>
+    <div class="bg-hero-glow"></div>
+    <div class="container-narrow relative z-10 py-24 text-center">
+      <p class="font-mono text-2xs uppercase tracking-widest text-accent">404</p>
+      <h1 class="mt-3 font-semibold gradient-text text-balance" style="font-size: clamp(2.25rem, 5vw, 4rem); line-height: 1.05; letter-spacing: -0.04em;">
+        That page doesn't exist.
+      </h1>
+      <p class="mt-5 text-ink-secondary text-base sm:text-lg max-w-xl mx-auto">
+        It may have moved, been renamed, or never existed in the first place.
+        That's okay — let's get you somewhere useful.
+      </p>
+      <div class="mt-10 flex flex-wrap items-center justify-center gap-3">
+        <a href="/" class="btn btn-primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+          Back to home
+        </a>
+        <a href="https://docs.plinth.dev" class="btn btn-secondary">Read the docs</a>
+        <a href="https://github.com/nico-schindlbeck-jpg/plinth" class="btn btn-ghost">GitHub</a>
+      </div>
+    </div>
+  </main>
+  <Footer />
+</BaseLayout>

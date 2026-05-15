@@ -1,0 +1,37 @@
+---
+// "Trusted by" / "Used by" bar. Uses neutral textual logos to keep
+// the page free of unauthorized brand assets. Easy to swap with real
+// SVGs once partnerships exist.
+
+const items = [
+  { name: "Anthropic", subtitle: "MCP" },
+  { name: "OpenAI", subtitle: "Compatible" },
+  { name: "GitHub", subtitle: "OAuth" },
+  { name: "Slack", subtitle: "OAuth" },
+  { name: "Linear", subtitle: "OAuth" },
+  { name: "Notion", subtitle: "OAuth" },
+  { name: "Google", subtitle: "Workspace" },
+];
+---
+
+<section class="border-y border-border bg-bg-1/40">
+  <div class="container-page py-10">
+    <p class="text-center text-2xs font-mono uppercase tracking-widest text-ink-muted">
+      Integrations & ecosystem
+    </p>
+    <div class="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-5 sm:gap-x-14">
+      {
+        items.map((item) => (
+          <div class="flex flex-col items-center justify-center text-center group">
+            <span class="text-base font-semibold tracking-tight text-ink-secondary group-hover:text-ink-primary transition-colors">
+              {item.name}
+            </span>
+            <span class="mt-0.5 text-2xs font-mono uppercase tracking-widest text-ink-muted">
+              {item.subtitle}
+            </span>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>

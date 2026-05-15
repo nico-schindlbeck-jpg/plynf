@@ -2,6 +2,30 @@
 
 All notable changes to Plinth are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [SemVer](https://semver.org).
 
+## [1.6.0] — 2026-05-15
+
+Stufe-1-Installer + Silicon-Valley-Marketing-Page. Plinth shifts from "developer tool" toward "consumer-installable product".
+
+### Added
+- **`install/install.sh`** — One-liner POSIX-sh installer. `curl -fsSL plinth.dev/install.sh | sh` clones repo to `~/.plinth/`, sets up Python venv, installs the 5 core services, registers launchd (macOS) or systemd (Linux) auto-start, and opens the dashboard. Idempotent. No sudo. ~2 minutes total. 485 lines.
+- **`install/plinth`** — Single-binary CLI wrapper at `~/.local/bin/plinth`: `status`, `start`, `stop`, `restart`, `logs`, `dashboard`, `demo`, `update`, `uninstall`, `version`. Short aliases (`st`, `up`, `down`, `dash`). 238 lines.
+- **`install/run_all.py`** — Stdlib-only supervisor: spawns 5 services as child processes, handles SIGTERM/SIGINT/SIGHUP, crash-loop guard (3 crashes/60s → exit 75 so launchd/systemd back off properly). 232 lines.
+- **`install/launchd/` + `install/systemd/`** — auto-start unit templates with placeholder substitution; KeepAlive on macOS, Restart=always on Linux.
+- **`install/uninstall.sh`** — Reverses every change. PATH block removed from rc files via paired markers. Optional `--purge` for data dir.
+- **`install/tests/test_install_sh.sh`** — 22-test harness (no bats needed). Plus `shellcheck.sh` wrapper.
+- **New CI job `installer`** — shellcheck strict, syntax check, self-test, dry-run install.
+
+- **`landing/`** — Silicon-Valley-style marketing site at plinth.dev. Astro 4 + Tailwind + Shiki (build-time syntax highlighting). 32 hand-written files: 14 components, 5 pages, dark-mode-first, animated metrics, 5-SDK code tabs, animated SVG architecture diagram. 844 KB total dist, 112 KB first-paint gzip. `netlify.toml` configured with strict CSP, immutable cache for assets, redirects for `/install.sh` + `/github` + `/docs`.
+
+### Notes
+- Landing-site is separate from `docs-site/` — landing is marketing-front-of-funnel, docs-site is the documentation portal.
+- Both Netlify-deployable independently.
+
+### Backwards compatibility
+- All v1.5 demos unchanged
+- `make install` (dev-mode) still works alongside the new installer
+- No service/SDK changes
+
 ## [1.5.2] — 2026-05-10
 
 Studio v2: real drag-drop replaces v1.5's click-to-insert.
@@ -558,6 +582,7 @@ Initial proof-of-concept release. Working end-to-end slice of the agent-native s
 ### Stack
 Python 3.11+ for services + Python SDK; TypeScript 5.4+ for the TS SDK; FastAPI + uvicorn + aiosqlite + pydantic v2 + tiktoken; vitest for TS tests.
 
+[1.6.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.6.0
 [1.5.2]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.5.2
 [1.5.1]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.5.1
 [1.5.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.5.0

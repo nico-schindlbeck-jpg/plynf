@@ -1,0 +1,67 @@
+---
+---
+
+<button
+  type="button"
+  id="theme-toggle"
+  class="btn btn-ghost h-9 w-9 !p-0"
+  aria-label="Toggle color theme"
+  title="Toggle theme"
+>
+  <svg
+    id="theme-icon-moon"
+    width="15"
+    height="15"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>
+  </svg>
+  <svg
+    id="theme-icon-sun"
+    width="15"
+    height="15"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+    style="display:none;"
+  >
+    <circle cx="12" cy="12" r="4"></circle>
+    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+  </svg>
+</button>
+
+<script is:inline>
+  (function () {
+    var btn = document.getElementById("theme-toggle");
+    var moon = document.getElementById("theme-icon-moon");
+    var sun = document.getElementById("theme-icon-sun");
+    function sync() {
+      var current = document.documentElement.getAttribute("data-theme") || "dark";
+      if (current === "light") {
+        moon.style.display = "";
+        sun.style.display = "none";
+      } else {
+        moon.style.display = "none";
+        sun.style.display = "";
+      }
+    }
+    sync();
+    btn && btn.addEventListener("click", function () {
+      var current = document.documentElement.getAttribute("data-theme") || "dark";
+      var next = current === "light" ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("plinth-theme", next); } catch (_) {}
+      sync();
+    });
+  })();
+</script>

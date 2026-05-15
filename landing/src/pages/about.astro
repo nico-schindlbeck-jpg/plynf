@@ -1,0 +1,117 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+import CTA from "../components/CTA.astro";
+
+const principles = [
+  {
+    title: "Build for agents, not around them",
+    body:
+      "Every API in Plinth is shaped by the question: would an agent use this? Not 'is this fine for a human user?' That single rule produces dramatically different ergonomics.",
+  },
+  {
+    title: "Measure everything we claim",
+    body:
+      "71% token reduction is a measurement, not a marketing line. Run the benchmark yourself from a clean clone — it's in the repo. Every other claim on this site is the same way.",
+  },
+  {
+    title: "Backwards compatibility is non-negotiable",
+    body:
+      "Every demo from v0.1 still runs unchanged. API v1 is locked: additive-only for at least 12 months. Breaking changes get a /v2/ namespace and a migration guide.",
+  },
+  {
+    title: "Open source as a fact, not a marketing tool",
+    body:
+      "Apache 2.0. The cloud product runs identical code. No proprietary forks, no 'community edition' with the good parts ripped out.",
+  },
+];
+---
+
+<BaseLayout
+  title="About — Plinth"
+  description="The team building Plinth, the runtime for production AI agents. Why we started, what we believe, where we're going."
+>
+  <Nav />
+  <main id="main">
+    <section class="relative overflow-hidden">
+      <div class="bg-grid"></div>
+      <div class="bg-hero-glow"></div>
+      <div class="container-narrow relative z-10 pt-20 pb-12 text-center">
+        <p class="section-eyebrow">About</p>
+        <h1 class="mt-3 font-semibold gradient-text text-balance" style="font-size: clamp(2.25rem, 5vw, 3.75rem); line-height: 1.05; letter-spacing: -0.04em;">
+          We're building the layer<br/>
+          <span class="gradient-text-accent">every team will need.</span>
+        </h1>
+        <p class="mt-5 text-ink-secondary text-lg max-w-xl mx-auto">
+          Plinth started from a single observation: every team running agents in production hits the same wall, and most of them try to build their own substrate before realizing how much non-differentiating plumbing that involves.
+        </p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container-narrow" data-reveal>
+        <div class="card p-8 sm:p-10">
+          <p class="section-eyebrow">The bet</p>
+          <h2 class="mt-2 text-2xl font-semibold text-ink-primary tracking-tight">
+            In two years, every team running production agents will have some form of this layer. We're building the one they should buy.
+          </h2>
+          <div class="mt-6 space-y-4 text-ink-secondary leading-relaxed">
+            <p>
+              Three forces converge in the next eighteen months. Every serious team running agents in production hits the quadratic-cost wall, the resilience wall, the integration wall. The standard for tool exposure (MCP) has stabilized — meaning an independent platform can sit cleanly above the protocol layer rather than trying to define one. And as model prices fall while agents take on bigger jobs, total token spend per workload climbs — making efficiency gains the difference between unit economics that work and ones that don't.
+            </p>
+            <p>
+              The strategic question is not whether teams need this layer. They will. The question is who provides it. Three plausible answers: each team builds it themselves (expensive, half-finished, non-differentiating), a hyperscaler ships it tied to their own model (vendor-locked, slow to evolve), or an independent platform wins (model-agnostic, focused, the obvious choice).
+            </p>
+            <p>
+              <span class="text-ink-primary font-medium">Plinth is built for the third outcome.</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="mt-12">
+          <p class="section-eyebrow">Principles</p>
+          <h2 class="section-title">What we won't compromise on.</h2>
+          <div class="mt-10 grid gap-5 sm:grid-cols-2">
+            {
+              principles.map((p) => (
+                <div class="card card-hover glow-card p-6">
+                  <h3 class="text-base font-semibold text-ink-primary tracking-tight">{p.title}</h3>
+                  <p class="mt-2 text-sm text-ink-secondary leading-relaxed">{p.body}</p>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+
+        <div class="mt-16 card p-8 sm:p-10">
+          <p class="section-eyebrow">By the numbers</p>
+          <h2 class="mt-2 text-2xl font-semibold text-ink-primary tracking-tight">
+            Status, today.
+          </h2>
+          <dl class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-y-6 gap-x-4">
+            <div>
+              <dt class="text-2xs font-mono uppercase tracking-widest text-ink-muted">Version</dt>
+              <dd class="mt-1 text-2xl font-semibold text-ink-primary tracking-tight">v1.5</dd>
+            </div>
+            <div>
+              <dt class="text-2xs font-mono uppercase tracking-widest text-ink-muted">Tests</dt>
+              <dd class="mt-1 text-2xl font-semibold text-ink-primary tracking-tight">2,867</dd>
+            </div>
+            <div>
+              <dt class="text-2xs font-mono uppercase tracking-widest text-ink-muted">SDKs</dt>
+              <dd class="mt-1 text-2xl font-semibold text-ink-primary tracking-tight">5</dd>
+            </div>
+            <div>
+              <dt class="text-2xs font-mono uppercase tracking-widest text-ink-muted">License</dt>
+              <dd class="mt-1 text-2xl font-semibold text-ink-primary tracking-tight">Apache 2.0</dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <CTA />
+  </main>
+  <Footer />
+</BaseLayout>

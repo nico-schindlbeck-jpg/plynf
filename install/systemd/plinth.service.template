@@ -1,0 +1,39 @@
+# Plinth systemd --user unit
+# Rendered from install/systemd/plinth.service.template by install.sh.
+# Replaces __HOME__, __VENV__, __REPO__, __PLINTH_HOME__.
+#
+# Install location: ~/.config/systemd/user/plinth.service
+# Management:
+#   systemctl --user start plinth.service
+#   systemctl --user stop plinth.service
+#   systemctl --user status plinth.service
+#   journalctl --user -u plinth.service
+
+[Unit]
+Description=Plinth agent-native runtime
+Documentation=https://github.com/nico-schindlbeck-jpg/plinth
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__REPO__
+ExecStart=__VENV__/bin/python __REPO__/install/run_all.py
+Restart=always
+RestartSec=5
+
+# Hardening — keep this user-scoped, no privileged FS access required.
+PrivateTmp=true
+NoNewPrivileges=true
+
+Environment=PLINTH_HOME=__PLINTH_HOME__
+Environment=PLINTH_DATA_DIR=__PLINTH_HOME__/state/data
+Environment=PLINTH_LOGS_DIR=__PLINTH_HOME__/state/logs
+Environment=PLINTH_PIDS_DIR=__PLINTH_HOME__/state/pids
+Environment=PATH=__VENV__/bin:/usr/local/bin:/usr/bin:/bin
+
+StandardOutput=append:__PLINTH_HOME__/state/logs/systemd.out.log
+StandardError=append:__PLINTH_HOME__/state/logs/systemd.err.log
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="0%" r="60%">
+      <stop offset="0%" stop-color="#ff7849" stop-opacity="0.35"/>
+      <stop offset="60%" stop-color="#ff7849" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#ff7849" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rock-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ff8a5b"/>
+      <stop offset="100%" stop-color="#c2451f"/>
+    </linearGradient>
+    <linearGradient id="text-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#a3a7b8"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0 L0 0 0 48" fill="none" stroke="#1d1f29" stroke-width="1"/>
+    </pattern>
+    <mask id="grid-mask">
+      <radialGradient id="mask-grad" cx="50%" cy="50%" r="60%">
+        <stop offset="0%" stop-color="#fff" stop-opacity="0.5"/>
+        <stop offset="100%" stop-color="#000"/>
+      </radialGradient>
+      <rect width="1200" height="630" fill="url(#mask-grad)"/>
+    </mask>
+  </defs>
+
+  <rect width="1200" height="630" fill="#07070a"/>
+  <rect width="1200" height="630" fill="url(#grid)" mask="url(#grid-mask)" opacity="0.6"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+
+  <!-- rock mark -->
+  <g transform="translate(96 86)">
+    <rect width="80" height="80" rx="18" fill="#14151c" stroke="#2a2c38"/>
+    <path
+      d="M18 56 L26 32 L36 24 L52 24 L66 36 L66 56 Z"
+      transform="translate(-4 0)"
+      fill="url(#rock-grad)"
+      stroke="#1d1f29"
+      stroke-width="1.5"
+      stroke-linejoin="round"
+    />
+  </g>
+  <text x="200" y="138" font-family="Inter, system-ui, sans-serif" font-size="32" font-weight="600" fill="#f4f5f8">plinth.dev</text>
+  <text x="200" y="166" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="500" fill="#6b6f80">v1.5 · Production-ready agent runtime</text>
+
+  <!-- headline -->
+  <text x="96" y="320" font-family="Inter, system-ui, sans-serif" font-size="84" font-weight="700" fill="url(#text-grad)" letter-spacing="-4">The runtime where</text>
+  <text x="96" y="416" font-family="Inter, system-ui, sans-serif" font-size="84" font-weight="700" fill="url(#text-grad)" letter-spacing="-4">production AI agents</text>
+  <text x="96" y="512" font-family="Inter, system-ui, sans-serif" font-size="84" font-weight="700" fill="#ff7849" letter-spacing="-4">actually work.</text>
+
+  <!-- bottom stats -->
+  <g font-family="Inter, system-ui, sans-serif" font-size="20" font-weight="500" fill="#a3a7b8">
+    <text x="96" y="588">71% fewer tokens</text>
+    <text x="316" y="588">·</text>
+    <text x="340" y="588">2,867 tests</text>
+    <text x="490" y="588">·</text>
+    <text x="514" y="588">5 SDKs</text>
+    <text x="616" y="588">·</text>
+    <text x="640" y="588">Apache 2.0</text>
+  </g>
+</svg>

@@ -1,0 +1,71 @@
+---
+const steps = [
+  {
+    n: "01",
+    title: "Install in 30 seconds",
+    body:
+      "One command installs Plinth and starts the runtime in the background. Live dashboard at localhost:7424.",
+    code: "curl -fsSL https://plinth.dev/install.sh | sh",
+  },
+  {
+    n: "02",
+    title: "Wire your agent",
+    body:
+      "One SDK call. Pick Python, TypeScript, Go, Swift, or Kotlin. The agent gets a workspace, gateway, and channels.",
+    code: 'client.workspace("research")',
+  },
+  {
+    n: "03",
+    title: "Ship",
+    body:
+      "Multi-tenancy, OAuth, audit, cost tracking, k8s + Helm + Terraform ready out of the box. v1 API stable.",
+    code: "helm install plinth ./deploy/helm",
+  },
+];
+---
+
+<section class="section relative" id="how">
+  <div class="container-page" data-reveal>
+    <div class="max-w-3xl">
+      <p class="section-eyebrow">How it works</p>
+      <h2 class="section-title text-balance">
+        Three steps from clone to production.
+      </h2>
+      <p class="section-subtitle">
+        Plinth is infrastructure, not a framework. It runs underneath whatever
+        agent you already have — Anthropic, OpenAI, Mock, local. Bring your own loop.
+      </p>
+    </div>
+
+    <div class="mt-16 grid gap-5 md:grid-cols-3 md:gap-6 relative">
+      <!-- Connecting line on desktop -->
+      <div class="hidden md:block absolute top-12 left-[16.67%] right-[16.67%] h-px bg-gradient-to-r from-transparent via-border-strong to-transparent pointer-events-none"></div>
+
+      {
+        steps.map((step) => (
+          <div class="card card-hover glow-card p-7 sm:p-8 relative overflow-hidden">
+            <div class="flex items-center justify-between">
+              <span class="font-mono text-xs tracking-widest text-ink-muted">
+                STEP {step.n}
+              </span>
+              <span class="h-7 w-7 rounded-full bg-bg-2 border border-border flex items-center justify-center text-ink-secondary group-hover:text-accent">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </span>
+            </div>
+            <h3 class="mt-5 text-xl font-semibold tracking-tight text-ink-primary">
+              {step.title}
+            </h3>
+            <p class="mt-3 text-sm leading-relaxed text-ink-secondary">
+              {step.body}
+            </p>
+            <div class="mt-6 rounded-lg bg-bg-0 border border-border px-3.5 py-2.5 font-mono text-xs leading-relaxed text-ink-primary overflow-x-auto">
+              <span class="text-accent">$</span> <span>{step.code}</span>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>

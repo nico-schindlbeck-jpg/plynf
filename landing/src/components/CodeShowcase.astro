@@ -1,0 +1,299 @@
+---
+import { codeToHtml } from "shiki";
+
+const theme = "vesper";
+
+const snippets = {
+  python: `# Python
+from plinth import Plinth
+
+client = Plinth(
+    workspace_url="http://localhost:7421",
+    gateway_url="http://localhost:7422",
+    api_key="local-dev",
+)
+
+ws = client.workspace("my-research")
+ws.kv.set("topic", "renewable energy")
+
+# Token-efficient: stores in workspace, doesn't bloat prompt history
+sources = client.tools.invoke("web.search", {"query": "renewable energy"})
+for src in sources["results"]:
+    content = client.tools.invoke("web.fetch", {"url": src["url"]})  # cached
+    ws.files.write(f"sources/{slug(src['url'])}.txt", content)
+
+ws.snapshot("sources-collected")`,
+  typescript: `// TypeScript
+import { Plinth } from "@plinth/sdk";
+
+const client = new Plinth({
+  workspaceUrl: "http://localhost:7421",
+  gatewayUrl: "http://localhost:7422",
+  apiKey: "local-dev",
+});
+
+const ws = client.workspace("my-research");
+await ws.kv.set("topic", "renewable energy");
+
+// Token-efficient: stores in workspace, doesn't bloat prompt history
+const sources = await client.tools.invoke("web.search", {
+  query: "renewable energy",
+});
+for (const src of sources.results) {
+  const content = await client.tools.invoke("web.fetch", { url: src.url }); // cached
+  await ws.files.write(\`sources/\${slug(src.url)}.txt\`, content);
+}
+
+await ws.snapshot("sources-collected");`,
+  go: `// Go
+package main
+
+import (
+    "context"
+    "github.com/plinth/sdk-go/plinth"
+)
+
+func main() {
+    ctx := context.Background()
+    client, _ := plinth.New(plinth.Config{
+        WorkspaceURL: "http://localhost:7421",
+        GatewayURL:   "http://localhost:7422",
+        APIKey:       "local-dev",
+    })
+
+    ws := client.Workspace("my-research")
+    _ = ws.KV.Set(ctx, "topic", "renewable energy")
+
+    // Token-efficient: stores in workspace, doesn't bloat prompt history
+    sources, _ := client.Tools.Invoke(ctx, "web.search", map[string]any{
+        "query": "renewable energy",
+    })
+    for _, src := range sources["results"].([]any) {
+        content, _ := client.Tools.Invoke(ctx, "web.fetch", map[string]any{
+            "url": src.(map[string]any)["url"],
+        }) // cached
+        _ = ws.Files.Write(ctx, "sources/"+slug(src)+".txt", content)
+    }
+
+    _ = ws.Snapshot(ctx, "sources-collected")
+}`,
+  swift: `// Swift
+import Plinth
+
+let client = Plinth(
+    workspaceURL: URL(string: "http://localhost:7421")!,
+    gatewayURL:   URL(string: "http://localhost:7422")!,
+    apiKey: "local-dev"
+)
+
+let ws = client.workspace("my-research")
+try await ws.kv.set("topic", value: "renewable energy")
+
+// Token-efficient: stores in workspace, doesn't bloat prompt history
+let sources = try await client.tools.invoke(
+    "web.search",
+    args: ["query": "renewable energy"]
+)
+for src in sources.results {
+    let content = try await client.tools.invoke(
+        "web.fetch",
+        args: ["url": src.url]
+    ) // cached
+    try await ws.files.write("sources/\\(slug(src.url)).txt", content)
+}
+
+try await ws.snapshot("sources-collected")`,
+  kotlin: `// Kotlin
+import dev.plinth.Plinth
+
+suspend fun main() {
+    val client = Plinth(
+        workspaceUrl = "http://localhost:7421",
+        gatewayUrl   = "http://localhost:7422",
+        apiKey       = "local-dev",
+    )
+
+    val ws = client.workspace("my-research")
+    ws.kv.set("topic", "renewable energy")
+
+    // Token-efficient: stores in workspace, doesn't bloat prompt history
+    val sources = client.tools.invoke(
+        "web.search",
+        mapOf("query" to "renewable energy")
+    )
+    for (src in sources["results"] as List<Map<String, Any>>) {
+        val content = client.tools.invoke(
+            "web.fetch",
+            mapOf("url" to src["url"])
+        ) // cached
+        ws.files.write("sources/\${slug(src["url"] as String)}.txt", content)
+    }
+
+    ws.snapshot("sources-collected")
+}`,
+};
+
+const langs = [
+  { id: "python", label: "Python", lang: "python" },
+  { id: "typescript", label: "TypeScript", lang: "typescript" },
+  { id: "go", label: "Go", lang: "go" },
+  { id: "swift", label: "Swift", lang: "swift" },
+  { id: "kotlin", label: "Kotlin", lang: "kotlin" },
+];
+
+const highlighted: Record<string, string> = {};
+for (const { id, lang } of langs) {
+  highlighted[id] = await codeToHtml(snippets[id as keyof typeof snippets], {
+    lang,
+    theme,
+  });
+}
+---
+
+<section class="section relative" id="code">
+  <div class="container-page" data-reveal>
+    <div class="max-w-3xl">
+      <p class="section-eyebrow">SDKs</p>
+      <h2 class="section-title text-balance">
+        One coherent surface.
+        <span class="text-ink-muted">Five languages.</span>
+      </h2>
+      <p class="section-subtitle">
+        The same primitives — workspace, gateway, channels, workflows — in the
+        language your team already ships in. API-stable, no breaking changes
+        through v1.
+      </p>
+    </div>
+
+    <div class="mt-12 card overflow-hidden" id="code-tabs">
+      <!-- Tab bar -->
+      <div role="tablist" aria-label="SDK language" class="flex items-center gap-1 border-b border-border bg-bg-2/30 px-3 py-2 overflow-x-auto">
+        {
+          langs.map((l, i) => (
+            <button
+              role="tab"
+              type="button"
+              data-tab={l.id}
+              aria-selected={i === 0 ? "true" : "false"}
+              aria-controls={`panel-${l.id}`}
+              id={`tab-${l.id}`}
+              tabindex={i === 0 ? 0 : -1}
+              class={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap ${
+                i === 0
+                  ? "bg-bg-3 text-ink-primary"
+                  : "text-ink-secondary hover:text-ink-primary hover:bg-bg-3/60"
+              }`}
+            >
+              {l.label}
+            </button>
+          ))
+        }
+        <div class="ml-auto pl-2 flex items-center gap-2">
+          <span class="hidden sm:inline-flex items-center gap-1.5 font-mono text-2xs uppercase tracking-widest text-ink-muted">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            API v1 stable
+          </span>
+          <button
+            type="button"
+            id="copy-code"
+            class="flex items-center gap-1.5 rounded-md px-2 py-1 text-2xs font-mono text-ink-secondary hover:text-ink-primary hover:bg-bg-3 transition-colors"
+            aria-label="Copy code"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span class="copy-label">COPY</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Panels -->
+      <div class="relative bg-bg-1">
+        {
+          langs.map((l, i) => (
+            <div
+              role="tabpanel"
+              id={`panel-${l.id}`}
+              aria-labelledby={`tab-${l.id}`}
+              data-panel={l.id}
+              data-raw={snippets[l.id as keyof typeof snippets]}
+              hidden={i !== 0}
+              class="px-6 py-6 sm:px-8 sm:py-7 overflow-x-auto"
+              set:html={highlighted[l.id]}
+            />
+          ))
+        }
+      </div>
+    </div>
+
+    <p class="mt-6 text-sm text-ink-muted text-center sm:text-left">
+      <span class="font-mono text-accent">→</span>
+      Result: a 5-source research task uses
+      <span class="text-ink-primary font-medium">71% fewer tokens</span>
+      than the same task without Plinth. Measured across three topics, fully reproducible.
+    </p>
+  </div>
+</section>
+
+<script is:inline>
+  (function () {
+    var root = document.getElementById("code-tabs");
+    if (!root) return;
+    var tabs = root.querySelectorAll("[role='tab']");
+    var panels = root.querySelectorAll("[role='tabpanel']");
+    var copyBtn = document.getElementById("copy-code");
+    var copyLabel = copyBtn && copyBtn.querySelector(".copy-label");
+    var currentId = "python";
+
+    function activate(id) {
+      currentId = id;
+      tabs.forEach(function (t) {
+        var on = t.getAttribute("data-tab") === id;
+        t.setAttribute("aria-selected", on ? "true" : "false");
+        t.setAttribute("tabindex", on ? "0" : "-1");
+        t.classList.toggle("bg-bg-3", on);
+        t.classList.toggle("text-ink-primary", on);
+        t.classList.toggle("text-ink-secondary", !on);
+      });
+      panels.forEach(function (p) {
+        var on = p.getAttribute("data-panel") === id;
+        if (on) p.removeAttribute("hidden");
+        else p.setAttribute("hidden", "");
+      });
+    }
+
+    tabs.forEach(function (t, i) {
+      t.addEventListener("click", function () {
+        activate(t.getAttribute("data-tab"));
+      });
+      t.addEventListener("keydown", function (e) {
+        if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+          e.preventDefault();
+          var next = e.key === "ArrowRight"
+            ? (i + 1) % tabs.length
+            : (i - 1 + tabs.length) % tabs.length;
+          tabs[next].focus();
+          activate(tabs[next].getAttribute("data-tab"));
+        }
+      });
+    });
+
+    if (copyBtn) {
+      copyBtn.addEventListener("click", async function () {
+        var panel = root.querySelector("[data-panel='" + currentId + "']");
+        var raw = panel ? panel.getAttribute("data-raw") : "";
+        try {
+          await navigator.clipboard.writeText(raw || "");
+          if (copyLabel) {
+            var prev = copyLabel.textContent;
+            copyLabel.textContent = "COPIED";
+            setTimeout(function () { copyLabel.textContent = prev; }, 1500);
+          }
+        } catch (_) {}
+      });
+    }
+  })();
+</script>

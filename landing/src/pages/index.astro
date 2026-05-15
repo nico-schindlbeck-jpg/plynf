@@ -1,0 +1,37 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Nav from "../components/Nav.astro";
+import Hero from "../components/Hero.astro";
+import Logos from "../components/Logos.astro";
+import ProblemSolution from "../components/ProblemSolution.astro";
+import HowItWorks from "../components/HowItWorks.astro";
+import FeatureGrid from "../components/FeatureGrid.astro";
+import CodeShowcase from "../components/CodeShowcase.astro";
+import MetricsBar from "../components/MetricsBar.astro";
+import Architecture from "../components/Architecture.astro";
+import Pricing from "../components/Pricing.astro";
+import FAQ from "../components/FAQ.astro";
+import CTA from "../components/CTA.astro";
+import Footer from "../components/Footer.astro";
+---
+
+<BaseLayout
+  title="Plinth — The runtime where production AI agents actually work"
+  description="Plinth is the runtime where production AI agents actually work. Versioned workspace + tool gateway + multi-agent channels — designed for AI agents, not retrofitted from human UIs. 71% fewer tokens. 2,867 tests. Apache 2.0."
+>
+  <Nav />
+  <main id="main">
+    <Hero />
+    <Logos />
+    <ProblemSolution />
+    <HowItWorks />
+    <FeatureGrid />
+    <CodeShowcase />
+    <MetricsBar />
+    <Architecture />
+    <Pricing />
+    <FAQ />
+    <CTA />
+  </main>
+  <Footer />
+</BaseLayout>

@@ -1,0 +1,35 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Nav from "../components/Nav.astro";
+import Pricing from "../components/Pricing.astro";
+import FAQ from "../components/FAQ.astro";
+import CTA from "../components/CTA.astro";
+import Footer from "../components/Footer.astro";
+---
+
+<BaseLayout
+  title="Pricing — Plinth"
+  description="Free to start. Pro for teams. Real numbers for enterprise. Apache 2.0 forever, self-hosted is always free."
+>
+  <Nav />
+  <main id="main">
+    <section class="relative overflow-hidden">
+      <div class="bg-grid"></div>
+      <div class="bg-hero-glow"></div>
+      <div class="container-narrow relative z-10 pt-20 pb-8 text-center">
+        <p class="section-eyebrow">Pricing</p>
+        <h1 class="mt-3 font-semibold gradient-text text-balance" style="font-size: clamp(2.25rem, 5vw, 3.75rem); line-height: 1.05; letter-spacing: -0.04em;">
+          Built for solo, priced for teams,<br/>
+          <span class="gradient-text-accent">earned at enterprise.</span>
+        </h1>
+        <p class="mt-5 text-ink-secondary text-lg max-w-xl mx-auto">
+          The runtime is and will always be Apache 2.0 — self-hosted, free. Paid tiers exist so we can run it for you.
+        </p>
+      </div>
+    </section>
+    <Pricing variant="page" />
+    <FAQ />
+    <CTA />
+  </main>
+  <Footer />
+</BaseLayout>

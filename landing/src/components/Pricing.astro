@@ -1,0 +1,128 @@
+---
+interface Props {
+  /** When rendered as a section on the home page, use a slightly tighter intro. */
+  variant?: "section" | "page";
+}
+const { variant = "section" } = Astro.props;
+
+const tiers = [
+  {
+    name: "Free",
+    blurb: "For solo builders and OSS projects.",
+    price: "$0",
+    cadence: "forever",
+    cta: { label: "Get started", href: "#install" },
+    accent: false,
+    rows: [
+      ["Workspaces", "5"],
+      ["Cost cap", "$10/mo"],
+      ["Tenants", "1"],
+      ["OAuth providers", "All 8"],
+      ["Support", "Community"],
+      ["SLA", "—"],
+      ["Compliance", "—"],
+      ["Multi-region", "—"],
+    ],
+  },
+  {
+    name: "Pro",
+    blurb: "For teams shipping production agents.",
+    price: "$49",
+    cadence: "per month",
+    cta: { label: "Start trial", href: "mailto:hello@plinth.dev?subject=Plinth%20Pro%20trial" },
+    accent: true,
+    rows: [
+      ["Workspaces", "Unlimited"],
+      ["Cost cap", "$1k/mo"],
+      ["Tenants", "10"],
+      ["OAuth providers", "All 8"],
+      ["Support", "Email (24h)"],
+      ["SLA", "99.5%"],
+      ["Compliance", "SOC 2 (in progress)"],
+      ["Multi-region", "—"],
+    ],
+  },
+  {
+    name: "Enterprise",
+    blurb: "For regulated industries and bigco.",
+    price: "Talk to us",
+    cadence: "annual contract",
+    cta: { label: "Contact sales", href: "mailto:sales@plinth.dev?subject=Plinth%20Enterprise" },
+    accent: false,
+    rows: [
+      ["Workspaces", "Unlimited"],
+      ["Cost cap", "Custom"],
+      ["Tenants", "Unlimited"],
+      ["OAuth providers", "All 8 + custom"],
+      ["Support", "Dedicated Slack"],
+      ["SLA", "99.95%"],
+      ["Compliance", "SOC 2 + DPA"],
+      ["Multi-region", "Yes"],
+    ],
+  },
+];
+---
+
+<section class={variant === "page" ? "section" : "section"} id="pricing">
+  <div class="container-page" data-reveal>
+    <div class="max-w-3xl">
+      <p class="section-eyebrow">Pricing</p>
+      <h2 class="section-title text-balance">
+        Free to start. Pro for teams.
+        <span class="text-ink-muted">Real numbers for enterprise.</span>
+      </h2>
+      <p class="section-subtitle">
+        Apache 2.0 forever. Self-hosted is and will always be free. Cloud and
+        enterprise tiers exist for teams that want us to run it.
+      </p>
+    </div>
+
+    <div class="mt-14 grid gap-5 lg:grid-cols-3">
+      {
+        tiers.map((tier) => (
+          <div
+            class={`card ${tier.accent ? "glow-card relative" : ""} p-7 sm:p-8 flex flex-col`}
+          >
+            {tier.accent && (
+              <span
+                aria-hidden="true"
+                class="absolute -top-3 left-7 inline-flex items-center rounded-full bg-accent px-2.5 py-1 text-2xs font-mono uppercase tracking-widest text-[#1a0d05]"
+              >
+                Recommended
+              </span>
+            )}
+            <div>
+              <h3 class="text-lg font-semibold text-ink-primary">{tier.name}</h3>
+              <p class="mt-1.5 text-sm text-ink-secondary">{tier.blurb}</p>
+            </div>
+            <div class="mt-6 flex items-baseline gap-1.5">
+              <span class={`font-semibold tracking-tightest ${tier.accent ? "gradient-text-accent" : "text-ink-primary"}`} style="font-size: 2.25rem; line-height: 1;">
+                {tier.price}
+              </span>
+              <span class="text-sm text-ink-muted">/ {tier.cadence}</span>
+            </div>
+            <a
+              href={tier.cta.href}
+              class={`mt-6 btn ${tier.accent ? "btn-primary" : "btn-secondary"} justify-center`}
+            >
+              {tier.cta.label}
+            </a>
+            <ul class="mt-7 space-y-3.5 text-sm">
+              {tier.rows.map(([k, v]) => (
+                <li class="flex items-baseline justify-between gap-3 border-b border-border pb-3.5 last:border-0 last:pb-0">
+                  <span class="text-ink-muted">{k}</span>
+                  <span class={`font-medium text-right ${v === "—" ? "text-ink-muted" : "text-ink-primary"}`}>{v}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </div>
+
+    <p class="mt-10 text-center text-sm text-ink-muted">
+      Need something custom? <a href="mailto:hello@plinth.dev" class="text-ink-secondary hover:text-ink-primary underline underline-offset-4 decoration-border-strong">Just ask</a>.
+      All tiers run on identical core code — Apache 2.0, no proprietary forks.
+    </p>
+  </div>
+</section>

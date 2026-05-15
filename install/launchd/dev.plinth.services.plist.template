@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Plinth launchd agent — rendered from the template at
+  install/launchd/dev.plinth.services.plist.template by install.sh.
+  Replaces __HOME__, __VENV__, __REPO__, __PLINTH_HOME__.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>dev.plinth.services</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__VENV__/bin/python</string>
+        <string>__REPO__/install/run_all.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__REPO__</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PLINTH_HOME</key>
+        <string>__PLINTH_HOME__</string>
+        <key>PLINTH_DATA_DIR</key>
+        <string>__PLINTH_HOME__/state/data</string>
+        <key>PLINTH_LOGS_DIR</key>
+        <string>__PLINTH_HOME__/state/logs</string>
+        <key>PLINTH_PIDS_DIR</key>
+        <string>__PLINTH_HOME__/state/pids</string>
+        <key>PATH</key>
+        <string>__VENV__/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+        <key>Crashed</key>
+        <true/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>StandardOutPath</key>
+    <string>__PLINTH_HOME__/state/logs/launchd.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>__PLINTH_HOME__/state/logs/launchd.err.log</string>
+</dict>
+</plist>

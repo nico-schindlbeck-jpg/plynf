@@ -1,0 +1,111 @@
+---
+const cols = [
+  {
+    heading: "Product",
+    links: [
+      { label: "Features", href: "/#features" },
+      { label: "Pricing", href: "/pricing" },
+      { label: "Docs", href: "https://docs.plinth.dev" },
+      { label: "Changelog", href: "https://github.com/nico-schindlbeck-jpg/plinth/releases" },
+    ],
+  },
+  {
+    heading: "Resources",
+    links: [
+      { label: "GitHub", href: "https://github.com/nico-schindlbeck-jpg/plinth" },
+      { label: "Discord", href: "/discord" },
+      { label: "Blog", href: "https://blog.plinth.dev" },
+      { label: "Status", href: "https://status.plinth.dev" },
+    ],
+  },
+  {
+    heading: "Company",
+    links: [
+      { label: "About", href: "/about" },
+      { label: "Manifesto", href: "/manifesto" },
+      { label: "Privacy", href: "/privacy" },
+      { label: "Terms", href: "/terms" },
+    ],
+  },
+];
+
+const year = new Date().getFullYear();
+---
+
+<footer class="relative border-t border-border bg-bg-1/30 mt-10">
+  <div class="absolute inset-x-0 -top-10 h-10 bg-gradient-to-t from-bg-1/40 to-transparent pointer-events-none"></div>
+  <div class="container-page pt-16 pb-10">
+    <div class="grid gap-10 lg:grid-cols-[2fr_3fr]">
+      <div class="max-w-md">
+        <a href="/" class="inline-flex items-center gap-2.5" aria-label="Plinth home">
+          <span class="relative flex h-8 w-8 items-center justify-center rounded-lg bg-bg-2 border border-border overflow-hidden">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <defs>
+                <linearGradient id="footer-rock" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#ff8a5b" />
+                  <stop offset="100%" stop-color="#c2451f" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M5 17 L8 9 L12 6 L17 6 L20 11 L20 17 Z"
+                fill="url(#footer-rock)"
+                stroke="#1d1f29"
+                stroke-width="0.6"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </span>
+          <span class="font-semibold tracking-tight text-ink-primary">Plinth</span>
+        </a>
+        <p class="mt-4 text-sm text-ink-secondary leading-relaxed">
+          The runtime where production AI agents actually work. Versioned workspace, tool gateway, multi-agent channels. Apache 2.0.
+        </p>
+        <div class="mt-6 flex items-center gap-2">
+          <a href="https://github.com/nico-schindlbeck-jpg/plinth" rel="noopener" class="flex h-9 w-9 items-center justify-center rounded-full bg-bg-2 border border-border text-ink-secondary hover:text-ink-primary hover:bg-bg-3 transition-colors" aria-label="GitHub">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.79-.26.79-.58v-2c-3.34.73-4.04-1.61-4.04-1.61-.55-1.38-1.34-1.75-1.34-1.75-1.09-.74.08-.73.08-.73 1.2.08 1.84 1.23 1.84 1.23 1.07 1.83 2.81 1.3 3.5.99.11-.77.42-1.3.76-1.6-2.66-.3-5.46-1.33-5.46-5.93 0-1.31.47-2.38 1.23-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 016 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.81 5.62-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.19.69.8.58A12 12 0 0024 12c0-6.63-5.37-12-12-12z"/>
+            </svg>
+          </a>
+          <a href="https://twitter.com/plinth_dev" rel="noopener" class="flex h-9 w-9 items-center justify-center rounded-full bg-bg-2 border border-border text-ink-secondary hover:text-ink-primary hover:bg-bg-3 transition-colors" aria-label="Twitter / X">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+            </svg>
+          </a>
+          <a href="https://www.linkedin.com/company/plinth" rel="noopener" class="flex h-9 w-9 items-center justify-center rounded-full bg-bg-2 border border-border text-ink-secondary hover:text-ink-primary hover:bg-bg-3 transition-colors" aria-label="LinkedIn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-8">
+        {
+          cols.map((col) => (
+            <div>
+              <p class="text-2xs font-mono uppercase tracking-widest text-ink-muted">{col.heading}</p>
+              <ul class="mt-4 space-y-3">
+                {col.links.map((l) => (
+                  <li>
+                    <a href={l.href} class="text-sm text-ink-secondary hover:text-ink-primary transition-colors">
+                      {l.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class="mt-12 pt-6 border-t border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <p class="text-xs text-ink-muted">
+        © {year} Plinth · Made with rocks
+      </p>
+      <p class="text-2xs font-mono uppercase tracking-widest text-ink-muted">
+        v1.5 · API v1 stable · Apache 2.0
+      </p>
+    </div>
+  </div>
+</footer>

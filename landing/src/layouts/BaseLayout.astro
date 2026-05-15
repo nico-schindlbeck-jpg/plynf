@@ -1,0 +1,96 @@
+---
+import "../styles/globals.css";
+
+interface Props {
+  title: string;
+  description?: string;
+  canonical?: string;
+  ogImage?: string;
+}
+
+const {
+  title,
+  description = "Plinth is the runtime where production AI agents actually work. Persistent workspace, tool gateway, multi-agent channels — designed for AI agents, not retrofitted from human UIs.",
+  canonical,
+  ogImage = "/og-image.svg",
+} = Astro.props;
+
+const fullTitle = title.includes("Plinth") ? title : `${title} · Plinth`;
+const url = canonical ?? new URL(Astro.url.pathname, Astro.site).toString();
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#07070a" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href={url} />
+
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={url} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={new URL(ogImage, Astro.site).toString()} />
+    <meta property="og:site_name" content="Plinth" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={new URL(ogImage, Astro.site).toString()} />
+
+    <!-- Preconnect for nothing external by default — keep it that way -->
+
+    <!-- Theme bootstrap: read storage before paint -->
+    <script is:inline>
+      (function () {
+        try {
+          var stored = localStorage.getItem("plinth-theme");
+          if (stored === "light" || stored === "dark") {
+            document.documentElement.setAttribute("data-theme", stored);
+          }
+        } catch (_) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-bg-2 focus:px-3 focus:py-2 focus:text-ink-primary focus:outline focus:outline-2 focus:outline-accent">
+      Skip to content
+    </a>
+    <slot />
+
+    <!-- Scroll-reveal observer (tiny inline script — no framework, no flash) -->
+    <script is:inline>
+      (function () {
+        if (typeof IntersectionObserver === "undefined") {
+          document
+            .querySelectorAll("[data-reveal]")
+            .forEach(function (el) {
+              el.classList.add("is-visible");
+            });
+          return;
+        }
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("is-visible");
+              io.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
+        document
+          .querySelectorAll("[data-reveal]")
+          .forEach(function (el) { io.observe(el); });
+      })();
+    </script>
+  </body>
+</html>

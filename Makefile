@@ -30,7 +30,7 @@ LOG_DIR := /tmp/plinth-logs
 PID_DIR := /tmp/plinth-pids
 
 .PHONY: help install install-services install-sdk install-examples install-mock install-dashboard install-identity install-github-mcp install-slack-mcp install-linear-mcp install-notion-mcp install-google-mcp install-atlassian-mcp install-salesforce-mcp install-asana-mcp install-bench \
-        test test-workspace test-gateway test-sdk test-mock test-dashboard test-identity test-github-mcp test-slack-mcp test-linear-mcp test-notion-mcp test-google-mcp test-atlassian-mcp test-salesforce-mcp test-asana-mcp test-ts test-go test-bench \
+        test test-workspace test-gateway test-sdk test-mock test-dashboard test-identity test-github-mcp test-slack-mcp test-linear-mcp test-notion-mcp test-google-mcp test-atlassian-mcp test-salesforce-mcp test-asana-mcp test-ts test-go test-bench test-installer \
         serve serve-workspace serve-gateway serve-mock serve-dashboard serve-identity serve-github-mcp serve-slack-mcp serve-linear-mcp serve-notion-mcp serve-google-mcp serve-atlassian-mcp serve-salesforce-mcp serve-asana-mcp stop healthcheck \
         demo demo-handoff demo-resume demo-triage \
         bench bench-quick bench-compare \
@@ -274,6 +274,15 @@ test-asana-mcp:  ## Run Asana MCP server tests
 		cd mcp-servers/asana && $(abspath $(VENV_BIN))/pytest -q --cov=asana_mcp --cov-report=term-missing:skip-covered; \
 	else \
 		echo "  (asana-mcp not built yet — skipping)"; \
+	fi
+
+test-installer:  ## Lint + smoke-test the one-liner installer (install/)
+	@echo "→ Installer self-tests"
+	@sh install/tests/test_install_sh.sh
+	@if command -v shellcheck >/dev/null 2>&1; then \
+		sh install/tests/shellcheck.sh; \
+	else \
+		echo "  (shellcheck not installed locally — CI runs it)"; \
 	fi
 
 test-ts:  ## Run TypeScript SDK tests (requires npm)

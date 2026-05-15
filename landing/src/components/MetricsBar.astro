@@ -1,0 +1,81 @@
+---
+const metrics = [
+  { value: 71, suffix: "%", label: "Token reduction", caption: "real workloads" },
+  { value: 2867, suffix: "", label: "Tests passing", caption: "across 7 SDKs" },
+  { value: 5, suffix: "", label: "SDK languages", caption: "Py · TS · Go · Swift · Kotlin" },
+  { value: 8, suffix: "", label: "OAuth providers", caption: "real flows, real tokens" },
+  { value: 12, suffix: "", label: "Services", caption: "deployable units" },
+];
+
+function fmt(n: number) {
+  return n.toLocaleString("en-US");
+}
+---
+
+<section class="relative py-16 sm:py-20 border-y border-border bg-bg-1/30">
+  <div class="container-page" data-reveal>
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-y-10 gap-x-6">
+      {
+        metrics.map((m) => (
+          <div class="text-center sm:text-left">
+            <div
+              class="font-semibold tracking-tightest gradient-text-accent"
+              style="font-size: clamp(2.25rem, 4vw, 3.5rem); line-height: 1;"
+            >
+              <span class="counter" data-target={m.value}>
+                {fmt(m.value)}
+              </span>
+              <span>{m.suffix}</span>
+            </div>
+            <p class="mt-3 text-sm font-medium text-ink-primary">{m.label}</p>
+            <p class="text-2xs font-mono uppercase tracking-widest text-ink-muted mt-1">
+              {m.caption}
+            </p>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<script is:inline>
+  (function () {
+    var prefersReduce = window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var counters = document.querySelectorAll(".counter");
+    if (!counters.length) return;
+
+    function animate(el) {
+      var target = parseInt(el.getAttribute("data-target") || "0", 10);
+      if (prefersReduce || !target) {
+        el.textContent = target.toLocaleString("en-US");
+        return;
+      }
+      var duration = 1200;
+      var start = performance.now();
+      function frame(now) {
+        var t = Math.min(1, (now - start) / duration);
+        // easeOutExpo
+        var eased = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+        var v = Math.round(target * eased);
+        el.textContent = v.toLocaleString("en-US");
+        if (t < 1) requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    if (typeof IntersectionObserver === "undefined") {
+      counters.forEach(animate);
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          animate(entry.target);
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.4 });
+    counters.forEach(function (c) { io.observe(c); });
+  })();
+</script>
