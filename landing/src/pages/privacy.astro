@@ -1,0 +1,112 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+
+const lastUpdated = "May 2026";
+---
+
+<BaseLayout
+  title="Privacy · Plinth"
+  description="How Plinth handles your data. Plain English, no dark patterns."
+>
+  <Nav />
+  <main id="main">
+    <section class="relative overflow-hidden">
+      <div class="bg-grid"></div>
+      <div class="bg-hero-glow"></div>
+      <div class="container-narrow relative z-10 pt-20 pb-10 text-center">
+        <p class="section-eyebrow">Privacy</p>
+        <h1 class="mt-3 font-semibold gradient-text text-balance" style="font-size: clamp(2.25rem, 5vw, 3.75rem); line-height: 1.05; letter-spacing: -0.04em;">
+          The shortest privacy policy<br/>
+          <span class="gradient-text-accent">we could legally write.</span>
+        </h1>
+        <p class="mt-6 text-ink-muted text-sm font-mono uppercase tracking-widest">
+          Last updated · {lastUpdated}
+        </p>
+      </div>
+    </section>
+
+    <section class="section pt-4">
+      <article class="container-narrow" data-reveal>
+        <div class="card p-8 sm:p-12 space-y-7 text-ink-secondary leading-relaxed">
+
+          <div>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">1. Who we are</h2>
+            <p class="mt-3">
+              Plinth is an open-source runtime for AI agents, distributed under the Apache 2.0 license. This policy covers the website at plinth.dev and the optional hosted cloud product. The self-hosted runtime that you install on your own infrastructure does not transmit any data to us.
+            </p>
+          </div>
+
+          <div>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">2. What we collect on the website</h2>
+            <ul class="mt-3 space-y-2 list-disc list-inside">
+              <li>Standard server logs (IP address, user agent, referrer, timestamp). Retained for 30 days. Used for abuse detection and capacity planning.</li>
+              <li>Anonymous page-view counters via a self-hosted Plausible instance. No cookies, no fingerprinting, no cross-site tracking.</li>
+              <li>If you submit a form, the fields you fill in. We only ask for what we need.</li>
+            </ul>
+          </div>
+
+          <div>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">3. What we collect in the hosted cloud</h2>
+            <p class="mt-3">
+              If you create a Plinth Cloud account: your email, account name, billing details (handled by Stripe, see their policy), and the workspaces, files, and tool-call metadata that you push to the platform.
+            </p>
+            <p class="mt-3">
+              We do not read the contents of your workspaces or train models on your data. Engineering staff access is gated behind a break-glass workflow that produces a permanent audit entry.
+            </p>
+          </div>
+
+          <div>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">4. Cookies</h2>
+            <p class="mt-3">
+              The marketing site does not set tracking cookies. The hosted dashboard sets a single, strictly-necessary session cookie when you log in. That is the entire list.
+            </p>
+          </div>
+
+          <div>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">5. Third parties</h2>
+            <ul class="mt-3 space-y-2 list-disc list-inside">
+              <li><span class="text-ink-primary">Stripe</span> for payments (cloud customers only)</li>
+              <li><span class="text-ink-primary">Cloudflare</span> for DDoS protection and CDN</li>
+              <li><span class="text-ink-primary">Netlify</span> for serving this marketing site</li>
+            </ul>
+            <p class="mt-3">
+              No analytics SaaS, no ad networks, no session replay, no chat widgets.
+            </p>
+          </div>
+
+          <div>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">6. Where data lives</h2>
+            <p class="mt-3">
+              EU customers: data stays in eu-central-1 (Frankfurt). US customers: us-east-1 (Virginia). You pick the region at signup. Cross-region replication only happens if you explicitly opt in.
+            </p>
+          </div>
+
+          <div>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">7. Your rights (GDPR + CCPA)</h2>
+            <p class="mt-3">
+              You can request a full export of your data, ask us to delete your account and everything in it, or correct anything we got wrong. Email privacy@plinth.dev. We respond within 30 days, usually faster.
+            </p>
+          </div>
+
+          <div>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">8. Changes</h2>
+            <p class="mt-3">
+              If we change this policy in any material way, we will email every account holder at least 30 days before the new version takes effect. The diff lives in the open-source repo so you can audit it.
+            </p>
+          </div>
+
+          <div>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">9. Contact</h2>
+            <p class="mt-3">
+              <a href="mailto:privacy@plinth.dev" class="text-accent hover:underline">privacy@plinth.dev</a> for anything covered above. <a href="mailto:security@plinth.dev" class="text-accent hover:underline">security@plinth.dev</a> for vulnerability reports. Postal address on the <a href="/imprint" class="text-accent hover:underline">imprint</a> page.
+            </p>
+          </div>
+
+        </div>
+      </article>
+    </section>
+  </main>
+  <Footer />
+</BaseLayout>

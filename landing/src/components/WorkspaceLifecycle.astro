@@ -20,7 +20,7 @@
       <!-- Diagram -->
       <div class="card card-tint-cyan p-6 sm:p-8 relative overflow-hidden">
         <svg
-          viewBox="0 0 460 540"
+          viewBox="0 0 540 580"
           role="img"
           aria-label="Workspace lifecycle: write v1, write v2, snapshot baseline, branch experiment, merge back"
           class="w-full h-auto"
@@ -38,10 +38,12 @@
           </defs>
 
           <!-- Main trunk -->
-          <path d="M120 30 L120 510" stroke="url(#trunk-grad)" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+          <path d="M120 30 L120 560" stroke="url(#trunk-grad)" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
 
-          <!-- Branch path: split out at v3 (y=260), rejoin at v5 (y=460) -->
-          <path d="M120 260 C 200 260, 240 280, 280 340 L 280 380 C 280 420, 200 440, 120 460"
+          <!-- Branch path: split out at v3 (y=260), rejoin at v5 (y=460).
+               Out leg stays at y≈260 until x>280 so V3 value text clears.
+               Return leg dips to y≈524 so V5 label and value both clear. -->
+          <path d="M120 260 C 300 260, 350 260, 380 340 L 380 380 C 380 550, 220 550, 120 460"
                 stroke="url(#branch-grad)" stroke-width="2.5" stroke-linecap="round"
                 stroke-dasharray="6 4" fill="none" opacity="0.85"/>
 
@@ -68,12 +70,12 @@
               <text x="150" y="250" font-family="JetBrains Mono, monospace" font-size="12" font-weight="600" fill="#6366f1" letter-spacing="1.5">V3 · SNAPSHOT</text>
               <text x="150" y="278" font-family="Inter, sans-serif" font-size="14" class="svg-ink">tag: "baseline"</text>
             </g>
-            <!-- v4 (on branch) -->
+            <!-- v4 (on branch, pushed right so labels clear the curve) -->
             <g class="diagram-stage" data-stage="4">
-              <circle cx="280" cy="360" r="14" fill="#08070d" stroke="#d946ef" stroke-width="2.5"/>
-              <circle cx="280" cy="360" r="5" fill="#d946ef"/>
-              <text x="310" y="350" font-family="JetBrains Mono, monospace" font-size="12" font-weight="600" fill="#d946ef" letter-spacing="1.5">V4 · BRANCH</text>
-              <text x="310" y="378" font-family="Inter, sans-serif" font-size="14" class="svg-ink">name: "experiment"</text>
+              <circle cx="380" cy="360" r="14" fill="#08070d" stroke="#d946ef" stroke-width="2.5"/>
+              <circle cx="380" cy="360" r="5" fill="#d946ef"/>
+              <text x="410" y="350" font-family="JetBrains Mono, monospace" font-size="12" font-weight="600" fill="#d946ef" letter-spacing="1.5">V4 · BRANCH</text>
+              <text x="410" y="378" font-family="Inter, sans-serif" font-size="14" class="svg-ink">name: "experiment"</text>
             </g>
             <!-- v5 — merge back -->
             <g class="diagram-stage" data-stage="5">
