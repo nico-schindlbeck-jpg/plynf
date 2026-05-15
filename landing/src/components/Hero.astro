@@ -3,7 +3,8 @@ const installCommand = "curl -fsSL https://plinth.dev/install.sh | sh";
 ---
 
 <section class="relative overflow-hidden">
-  <div class="bg-grid"></div>
+  <!-- Layered backgrounds with parallax. Grid layer scrolls slower for depth. -->
+  <div class="bg-grid" data-hero-parallax></div>
   <div class="bg-hero-glow"></div>
 
   <div class="container-page relative z-10 pt-20 pb-24 sm:pt-28 sm:pb-32">
@@ -26,8 +27,8 @@ const installCommand = "curl -fsSL https://plinth.dev/install.sh | sh";
       </h1>
 
       <p class="mt-7 max-w-2xl text-balance text-ink-secondary text-lg leading-relaxed">
-        A versioned workspace, a tool gateway, and multi-agent channels —
-        designed for AI agents, not retrofitted from human UIs.
+        A versioned workspace, a tool gateway, and multi-agent channels.
+        Designed for AI agents. Not retrofitted from human UIs.
       </p>
 
       <div class="mt-10 flex flex-wrap items-center justify-center gap-3" id="install">

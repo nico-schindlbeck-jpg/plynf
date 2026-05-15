@@ -6,7 +6,7 @@ import CTA from "../components/CTA.astro";
 ---
 
 <BaseLayout
-  title="Manifesto — Plinth"
+  title="Manifesto · Plinth"
   description="Why we built Plinth. The runtime where production AI agents actually work."
 >
   <Nav />
@@ -27,11 +27,11 @@ import CTA from "../components/CTA.astro";
       <article class="container-narrow prose-content" data-reveal>
         <div class="card p-8 sm:p-12 space-y-6 text-ink-secondary leading-relaxed">
           <p class="text-lg text-ink-primary">
-            Today's AI agents are wrappers around interfaces built for humans. They click buttons. They parse screenshots. They re-read the same content from chat history every step. This is slow, expensive, and brittle — and it's how almost every production agent in 2026 works.
+            Today's AI agents are wrappers around interfaces built for humans. They click buttons. They parse screenshots. They re-read the same content from chat history every step. This is slow, expensive, and brittle. That's how almost every production agent in 2026 works.
           </p>
 
           <p>
-            We didn't get here because anyone designed it this way. We got here because the model came first. Models are spectacular at processing whatever you put in front of them. So we put human interfaces in front of them, and it worked well enough to demo. By the time anyone noticed that costs scale quadratically with the work — that every step drags the entire conversation history with it — there were already a million LangChain tutorials saying this was fine.
+            We didn't get here because anyone designed it this way. We got here because the model came first. Models are spectacular at processing whatever you put in front of them. So we put human interfaces in front of them, and it worked well enough to demo. By the time anyone noticed that costs scale quadratically with the work, where every step drags the entire conversation history with it, there were already a million LangChain tutorials saying this was fine.
           </p>
 
           <p>
@@ -49,7 +49,7 @@ import CTA from "../components/CTA.astro";
           </p>
 
           <p>
-            <span class="text-ink-primary font-medium">Way B:</span> they have a desk. They put sources on the desk. They write notes in a notebook. When they want to refer to source three, they pick it up off the desk — they don't read it aloud again. The desk is still there tomorrow. If they get sick, a colleague sits at the same desk and continues exactly where they left off.
+            <span class="text-ink-primary font-medium">Way B:</span> they have a desk. They put sources on the desk. They write notes in a notebook. When they want to refer to source three, they pick it up off the desk. They don't read it aloud again. The desk is still there tomorrow. If they get sick, a colleague sits at the same desk and continues exactly where they left off.
           </p>
 
           <p>
@@ -59,21 +59,21 @@ import CTA from "../components/CTA.astro";
           <h2 class="text-2xl font-semibold text-ink-primary tracking-tight pt-4">What that means in practice</h2>
 
           <p>
-            State lives in the workspace, referenced by key. Each reasoning step gets a focused, small prompt. The token bill stays linear in actual reasoning work, not quadratic in conversation history. Tools route through one gateway — cached, audited, cost-capped, OAuth-handled — instead of five bespoke integrations. Multi-agent coordination is structured messages on durable channels, not walls of pasted text. Workflows checkpoint. Crashes resume. Audits are tamper-evident.
+            State lives in the workspace, referenced by key. Each reasoning step gets a focused, small prompt. The token bill stays linear in actual reasoning work, not quadratic in conversation history. Tools route through one gateway, cached, audited, cost-capped, OAuth-handled. Instead of five bespoke integrations. Multi-agent coordination is structured messages on durable channels, not walls of pasted text. Workflows checkpoint. Crashes resume. Audits are tamper-evident.
           </p>
 
           <p>
-            None of this is novel infrastructure individually. What's novel is putting it all under one coherent API designed from day one for agents — not retrofitted from a human UI, not assembled from five tools that don't know about each other.
+            None of this is novel infrastructure individually. What's novel is putting it all under one coherent API designed from day one for agents. Not retrofitted from a human UI, not assembled from five tools that don't know about each other.
           </p>
 
           <h2 class="text-2xl font-semibold text-ink-primary tracking-tight pt-4">Why Apache 2.0</h2>
 
           <p>
-            Because the alternative — proprietary platform with a "community edition" — is the failure mode of every previous developer-infrastructure category. Vercel, Stripe, Resend, Linear: all built their commercial business on top of code that anyone could read, run, and replace if they got too greedy. That accountability is the entire point.
+            Because the alternative, a proprietary platform with a "community edition," is the failure mode of every previous developer-infrastructure category. Vercel, Stripe, Resend, Linear: all built their commercial business on top of code that anyone could read, run, and replace if they got too greedy. That accountability is the entire point.
           </p>
 
           <p>
-            We will charge for the things teams genuinely want us to run — hosted, multi-tenant, multi-region, SOC 2. We will not charge for the things teams should have for free: the runtime, the SDKs, the documentation, the right to fork.
+            We will charge for the things teams genuinely want us to run. Hosted, multi-tenant, multi-region, SOC 2. We will not charge for the things teams should have for free: the runtime, the SDKs, the documentation, the right to fork.
           </p>
 
           <h2 class="text-2xl font-semibold text-ink-primary tracking-tight pt-4">The bet</h2>

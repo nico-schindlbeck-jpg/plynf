@@ -71,7 +71,7 @@ const oauthTools = [
           <text x="20" y="30" font-family="Inter, sans-serif" font-size="11" font-weight="500" fill="#ff7849" letter-spacing="1.5" style="text-transform:uppercase;">PLINTH</text>
 
           <!-- Workspace -->
-          <g transform="translate(20 50)">
+          <g transform="translate(20 50)" class="arch-node">
             <rect width="280" height="76" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.1)"/>
             <text x="20" y="32" font-family="Inter, sans-serif" font-size="15" font-weight="600" fill="#f4f5f8">Workspace</text>
             <text x="20" y="56" font-family="Inter, sans-serif" font-size="12" fill="#a3a7b8">KV · Files · Snapshots · Branches</text>
@@ -80,7 +80,7 @@ const oauthTools = [
           </g>
 
           <!-- Gateway -->
-          <g transform="translate(20 142)">
+          <g transform="translate(20 142)" class="arch-node arch-node--delay-1">
             <rect width="280" height="76" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.1)"/>
             <text x="20" y="32" font-family="Inter, sans-serif" font-size="15" font-weight="600" fill="#f4f5f8">Tool Gateway</text>
             <text x="20" y="56" font-family="Inter, sans-serif" font-size="12" fill="#a3a7b8">Cache · Audit · OAuth · Cost-caps</text>
@@ -89,7 +89,7 @@ const oauthTools = [
           </g>
 
           <!-- Identity -->
-          <g transform="translate(20 234)">
+          <g transform="translate(20 234)" class="arch-node arch-node--delay-2">
             <rect width="280" height="66" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.1)"/>
             <text x="20" y="32" font-family="Inter, sans-serif" font-size="15" font-weight="600" fill="#f4f5f8">Identity</text>
             <text x="20" y="52" font-family="Inter, sans-serif" font-size="12" fill="#a3a7b8">JWT · Tenants · RS256 · JWKS</text>
@@ -136,6 +136,15 @@ const oauthTools = [
           <text x="244" y="180">SDK CALL</text>
           <text x="720" y="78">MCP / REST</text>
         </g>
+
+        <!-- Traveling-dot particles along each connection. Data flowing visualization. -->
+        <circle r="3" class="arch-traveler arch-traveler--1"/>
+        <circle r="3" class="arch-traveler arch-traveler--2"/>
+        <circle r="3" class="arch-traveler arch-traveler--3"/>
+        <circle r="2.5" class="arch-traveler arch-traveler--t1"/>
+        <circle r="2.5" class="arch-traveler arch-traveler--t2"/>
+        <circle r="2.5" class="arch-traveler arch-traveler--t3"/>
+        <circle r="2.5" class="arch-traveler arch-traveler--t4"/>
       </svg>
 
       <!-- Caption -->

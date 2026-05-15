@@ -10,7 +10,7 @@ interface Props {
 
 const {
   title,
-  description = "Plinth is the runtime where production AI agents actually work. Persistent workspace, tool gateway, multi-agent channels — designed for AI agents, not retrofitted from human UIs.",
+  description = "Plinth is the runtime where production AI agents actually work. Persistent workspace, tool gateway, multi-agent channels. Designed for AI agents, not retrofitted from human UIs.",
   canonical,
   ogImage = "/og-image.svg",
 } = Astro.props;
@@ -66,11 +66,60 @@ const url = canonical ?? new URL(Astro.url.pathname, Astro.site).toString();
     <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-bg-2 focus:px-3 focus:py-2 focus:text-ink-primary focus:outline focus:outline-2 focus:outline-accent">
       Skip to content
     </a>
+
+    <!-- Scroll progress indicator (Apple-style ambient detail) -->
+    <div id="scroll-progress" aria-hidden="true"></div>
+
     <slot />
 
-    <!-- Scroll-reveal observer (tiny inline script — no framework, no flash) -->
+    <!-- Scroll-reveal observer + scroll progress bar. No framework. No flash. -->
     <script is:inline>
       (function () {
+        var prefersReduce = window.matchMedia &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+        // ── Scroll progress bar (top of viewport, fills as you scroll) ──
+        var bar = document.getElementById("scroll-progress");
+        if (bar && !prefersReduce) {
+          var ticking = false;
+          function updateBar() {
+            var doc = document.documentElement;
+            var scrolled = doc.scrollTop || document.body.scrollTop;
+            var max = (doc.scrollHeight - doc.clientHeight) || 1;
+            var pct = Math.min(100, Math.max(0, (scrolled / max) * 100));
+            bar.style.transform = "scaleX(" + (pct / 100) + ")";
+            ticking = false;
+          }
+          window.addEventListener("scroll", function () {
+            if (!ticking) {
+              window.requestAnimationFrame(updateBar);
+              ticking = true;
+            }
+          }, { passive: true });
+          updateBar();
+        }
+
+        // ── Hero parallax: subtle background shift on scroll ──
+        var heroBg = document.querySelector("[data-hero-parallax]");
+        if (heroBg && !prefersReduce) {
+          var pTicking = false;
+          function updateParallax() {
+            var y = window.scrollY || 0;
+            // Only apply parallax while hero is on screen-ish (first 100vh)
+            if (y < window.innerHeight * 1.2) {
+              heroBg.style.transform = "translate3d(0, " + (y * 0.18) + "px, 0)";
+            }
+            pTicking = false;
+          }
+          window.addEventListener("scroll", function () {
+            if (!pTicking) {
+              window.requestAnimationFrame(updateParallax);
+              pTicking = true;
+            }
+          }, { passive: true });
+        }
+
+        // ── Reveal-on-scroll using IntersectionObserver ──
         if (typeof IntersectionObserver === "undefined") {
           document
             .querySelectorAll("[data-reveal]")

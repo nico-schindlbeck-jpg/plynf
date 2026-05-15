@@ -19,9 +19,9 @@ const tiers = [
       ["Tenants", "1"],
       ["OAuth providers", "All 8"],
       ["Support", "Community"],
-      ["SLA", "—"],
-      ["Compliance", "—"],
-      ["Multi-region", "—"],
+      ["SLA", "None"],
+      ["Compliance", "n/a"],
+      ["Multi-region", "n/a"],
     ],
   },
   {
@@ -39,7 +39,7 @@ const tiers = [
       ["Support", "Email (24h)"],
       ["SLA", "99.5%"],
       ["Compliance", "SOC 2 (in progress)"],
-      ["Multi-region", "—"],
+      ["Multi-region", "n/a"],
     ],
   },
   {
@@ -111,7 +111,7 @@ const tiers = [
               {tier.rows.map(([k, v]) => (
                 <li class="flex items-baseline justify-between gap-3 border-b border-border pb-3.5 last:border-0 last:pb-0">
                   <span class="text-ink-muted">{k}</span>
-                  <span class={`font-medium text-right ${v === "—" ? "text-ink-muted" : "text-ink-primary"}`}>{v}</span>
+                  <span class={`font-medium text-right ${v === "None" || v === "n/a" ? "text-ink-muted" : "text-ink-primary"}`}>{v}</span>
                 </li>
               ))}
             </ul>
@@ -122,7 +122,7 @@ const tiers = [
 
     <p class="mt-10 text-center text-sm text-ink-muted">
       Need something custom? <a href="mailto:hello@plinth.dev" class="text-ink-secondary hover:text-ink-primary underline underline-offset-4 decoration-border-strong">Just ask</a>.
-      All tiers run on identical core code — Apache 2.0, no proprietary forks.
+      All tiers run on identical core code. Apache 2.0, no proprietary forks.
     </p>
   </div>
 </section>
