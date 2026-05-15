@@ -26,26 +26,26 @@
   --text-secondary: #b9b5d4;
   --text-muted: #6e6a8a;
 
-  /* Reduced palette — three primary colors. Removes orange/cyan/lime
-     to avoid the kindergarten-poster look. Pink to magenta to indigo
+  /* Reduced palette, three primary colors. Removes pink/cyan/lime
+     to avoid the kindergarten-poster look. Orange to magenta to indigo
      gives a vivid warm-to-cool sweep that still feels alive. */
-  --grad-pink:    #ff4d8f;
+  --grad-orange:  #ff8551;
   --grad-magenta: #d946ef;
   --grad-indigo:  #6366f1;
 
-  /* Primary accent — pink as the ember */
-  --accent: #ff4d8f;
-  --accent-hover: #ff6ea5;
-  --accent-glow: rgba(255, 77, 143, 0.32);
-  --accent-subtle: rgba(255, 77, 143, 0.08);
+  /* Primary accent, orange as the ember */
+  --accent: #ff8551;
+  --accent-hover: #ffa07a;
+  --accent-glow: rgba(255, 133, 81, 0.32);
+  --accent-subtle: rgba(255, 133, 81, 0.08);
 
   /* Hero conic — three-color sweep */
   --gradient-hero: conic-gradient(
     from 215deg at 50% 50%,
-    var(--grad-pink) 0%,
+    var(--grad-orange) 0%,
     var(--grad-magenta) 33%,
     var(--grad-indigo) 66%,
-    var(--grad-pink) 100%
+    var(--grad-orange) 100%
   );
 
   --gradient-fade-bottom: linear-gradient(
@@ -76,8 +76,8 @@
   --text-primary: #0c0d12;
   --text-secondary: #4a4e5c;
   --text-muted: #6b6f80;
-  --accent-glow: rgba(255, 77, 143, 0.18);
-  --accent-subtle: rgba(255, 77, 143, 0.08);
+  --accent-glow: rgba(255, 133, 81, 0.18);
+  --accent-subtle: rgba(255, 133, 81, 0.08);
 }
 
 /* =========================================================
@@ -155,10 +155,10 @@ body {
 .gradient-text-accent {
   background: linear-gradient(
     96deg,
-    var(--grad-pink) 0%,
-    var(--grad-pink) 40%,
+    var(--grad-orange) 0%,
+    var(--grad-orange) 40%,
     var(--grad-magenta) 80%,
-    var(--grad-pink) 100%
+    var(--grad-orange) 100%
   );
   background-size: 220% auto;
   -webkit-background-clip: text;
@@ -357,17 +357,17 @@ body {
 .card-hover:hover,
 .card:hover {
   transform: translateY(-2px);
-  border-color: rgba(255, 77, 143, 0.28);
+  border-color: rgba(255, 133, 81, 0.28);
   box-shadow:
-    0 0 0 1px rgba(255, 77, 143, 0.06),
+    0 0 0 1px rgba(255, 133, 81, 0.06),
     0 12px 40px rgba(0, 0, 0, 0.4),
-    0 0 60px -20px rgba(255, 77, 143, 0.22);
+    0 0 60px -20px rgba(255, 133, 81, 0.22);
 }
 
 /* Per-card gradient tints (bento grid color personality) */
 .card-tint-pink {
   background:
-    radial-gradient(ellipse 80% 60% at 0% 0%, rgba(255, 77, 143, 0.10), transparent 60%),
+    radial-gradient(ellipse 80% 60% at 0% 0%, rgba(255, 133, 81, 0.10), transparent 60%),
     var(--bg-1);
 }
 .card-tint-indigo {
@@ -387,7 +387,7 @@ body {
 }
 .card-tint-orange {
   background:
-    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255, 77, 143, 0.10), transparent 60%),
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255, 133, 81, 0.10), transparent 60%),
     var(--bg-1);
 }
 .card-tint-lime {
@@ -422,8 +422,8 @@ body {
 .btn-primary {
   background: linear-gradient(
     135deg,
-    var(--grad-pink) 0%,
-    var(--grad-pink) 50%,
+    var(--grad-orange) 0%,
+    var(--grad-orange) 50%,
     var(--grad-magenta) 100%
   );
   background-size: 200% 200%;
@@ -432,7 +432,7 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.32),
     0 1px 2px rgba(0, 0, 0, 0.25),
-    0 10px 36px rgba(255, 77, 143, 0.32);
+    0 10px 36px rgba(255, 133, 81, 0.32);
   animation: grad-shift 7s ease-in-out infinite;
 }
 
@@ -441,7 +441,7 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.4),
     0 4px 12px rgba(0, 0, 0, 0.25),
-    0 14px 44px rgba(255, 77, 143, 0.45);
+    0 14px 44px rgba(255, 133, 81, 0.45);
 }
 
 .btn-secondary {
@@ -547,7 +547,7 @@ body {
   letter-spacing: -0.055em;
   line-height: 0.94;
   color: var(--text-primary);
-  text-shadow: 0 0 80px rgba(255, 77, 143, 0.18);
+  text-shadow: 0 0 80px rgba(255, 133, 81, 0.18);
 }
 
 .hero-headline .line {
@@ -557,8 +557,8 @@ body {
 .hero-headline .grad-text {
   background: linear-gradient(
     135deg,
-    var(--grad-pink),
-    var(--grad-pink) 40%,
+    var(--grad-orange),
+    var(--grad-orange) 40%,
     var(--grad-magenta) 80%,
     var(--grad-indigo)
   );
@@ -585,7 +585,7 @@ body {
   padding: 1px;
   background: linear-gradient(
     140deg,
-    rgba(255, 77, 143, 0.4),
+    rgba(255, 133, 81, 0.4),
     rgba(217, 70, 239, 0.2) 30%,
     transparent 50%,
     transparent 70%,
@@ -632,8 +632,8 @@ body {
   background: linear-gradient(
     to right,
     transparent,
-    var(--grad-pink) 30%,
-    var(--grad-pink) 60%,
+    var(--grad-orange) 30%,
+    var(--grad-orange) 60%,
     transparent
   );
   opacity: 0.7;
@@ -745,15 +745,15 @@ input:focus-visible,
   z-index: 100;
   background: linear-gradient(
     to right,
-    var(--grad-pink) 0%,
-    var(--grad-pink) 40%,
+    var(--grad-orange) 0%,
+    var(--grad-orange) 40%,
     var(--grad-magenta) 70%,
     var(--grad-indigo) 100%
   );
   transform: scaleX(0);
   transform-origin: 0 50%;
   pointer-events: none;
-  box-shadow: 0 0 12px rgba(255, 77, 143, 0.5);
+  box-shadow: 0 0 12px rgba(255, 133, 81, 0.5);
   will-change: transform;
 }
 

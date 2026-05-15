@@ -26,8 +26,8 @@ export default {
           subtle: "var(--accent-subtle)",
         },
         grad: {
-          pink: "var(--grad-pink)",
-          orange: "var(--grad-pink)",
+          pink: "var(--grad-orange)",
+          orange: "var(--grad-orange)",
           magenta: "var(--grad-magenta)",
           indigo: "var(--grad-indigo)",
           cyan: "var(--grad-indigo)",
@@ -72,10 +72,10 @@ export default {
       boxShadow: {
         "card": "0 0 0 1px var(--border), 0 1px 2px rgba(0,0,0,0.4)",
         "card-hover":
-          "0 0 0 1px var(--border-strong), 0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,77,143,0.04)",
+          "0 0 0 1px var(--border-strong), 0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,133,81,0.04)",
         "glow":
-          "0 0 0 1px rgba(255,77,143,0.18), 0 8px 40px rgba(255,77,143,0.20)",
-        "ring": "0 0 0 1px var(--accent), 0 0 0 4px rgba(255,77,143,0.18)",
+          "0 0 0 1px rgba(255,133,81,0.18), 0 8px 40px rgba(255,133,81,0.20)",
+        "ring": "0 0 0 1px var(--accent), 0 0 0 4px rgba(255,133,81,0.18)",
       },
       animation: {
         "pulse-line": "pulse-line 3s ease-in-out infinite",
