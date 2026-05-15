@@ -28,10 +28,10 @@
         <defs>
           <linearGradient id="flow-pink-orange" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%"   stop-color="#ff4d8f"/>
-            <stop offset="100%" stop-color="#ff8551"/>
+            <stop offset="100%" stop-color="#ff4d8f"/>
           </linearGradient>
           <linearGradient id="flow-orange-magenta" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%"   stop-color="#ff8551"/>
+            <stop offset="0%"   stop-color="#ff4d8f"/>
             <stop offset="100%" stop-color="#d946ef"/>
           </linearGradient>
           <linearGradient id="flow-magenta-indigo" x1="0" y1="0" x2="1" y2="0">
@@ -42,10 +42,6 @@
           <radialGradient id="node-pink" cx="0.5" cy="0.45" r="0.6">
             <stop offset="0%"  stop-color="#ff4d8f" stop-opacity="1"/>
             <stop offset="100%" stop-color="#ff4d8f" stop-opacity="0"/>
-          </radialGradient>
-          <radialGradient id="node-orange" cx="0.5" cy="0.45" r="0.6">
-            <stop offset="0%"  stop-color="#ff8551" stop-opacity="1"/>
-            <stop offset="100%" stop-color="#ff8551" stop-opacity="0"/>
           </radialGradient>
           <radialGradient id="node-magenta" cx="0.5" cy="0.45" r="0.6">
             <stop offset="0%"  stop-color="#d946ef" stop-opacity="1"/>
@@ -82,15 +78,15 @@
           <text x="75" y="206" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" fill="#b9b5d4">Your loop calls one SDK method.</text>
         </g>
 
-        <!-- Stage 2 — Workspace (orange) -->
+        <!-- Stage 2 — Workspace (magenta) -->
         <g class="diagram-stage" data-stage="2" transform="translate(360 60)">
-          <circle cx="75" cy="80" r="90" fill="url(#node-orange)" opacity="0.45" filter="url(#flow-glow)"/>
-          <circle cx="75" cy="80" r="40" fill="#08070d" stroke="#ff8551" stroke-width="1.5"/>
+          <circle cx="75" cy="80" r="90" fill="url(#node-magenta)" opacity="0.45" filter="url(#flow-glow)"/>
+          <circle cx="75" cy="80" r="40" fill="#08070d" stroke="#d946ef" stroke-width="1.5"/>
           <!-- Stack icon -->
-          <g stroke="#ff8551" stroke-width="2" fill="none" stroke-linejoin="round">
-            <rect x="56" y="62" width="38" height="9" rx="2" fill="#ff8551" fill-opacity="0.18"/>
-            <rect x="56" y="74" width="38" height="9" rx="2" fill="#ff8551" fill-opacity="0.32"/>
-            <rect x="56" y="86" width="38" height="9" rx="2" fill="#ff8551" fill-opacity="0.5"/>
+          <g stroke="#d946ef" stroke-width="2" fill="none" stroke-linejoin="round">
+            <rect x="56" y="62" width="38" height="9" rx="2" fill="#d946ef" fill-opacity="0.18"/>
+            <rect x="56" y="74" width="38" height="9" rx="2" fill="#d946ef" fill-opacity="0.32"/>
+            <rect x="56" y="86" width="38" height="9" rx="2" fill="#d946ef" fill-opacity="0.5"/>
           </g>
           <text x="75" y="160" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" font-weight="500" fill="#6e6a8a" letter-spacing="1.5">STAGE 02</text>
           <text x="75" y="184" text-anchor="middle" font-family="Inter, sans-serif" font-size="16" font-weight="600" fill="#f8f7ff">Workspace receives state</text>

@@ -27,11 +27,11 @@ export default {
         },
         grad: {
           pink: "var(--grad-pink)",
-          orange: "var(--grad-orange)",
+          orange: "var(--grad-pink)",
           magenta: "var(--grad-magenta)",
           indigo: "var(--grad-indigo)",
-          cyan: "var(--grad-cyan)",
-          lime: "var(--grad-lime)",
+          cyan: "var(--grad-indigo)",
+          lime: "var(--grad-magenta)",
         },
       },
       fontFamily: {

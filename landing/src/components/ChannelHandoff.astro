@@ -33,11 +33,11 @@
           </linearGradient>
           <linearGradient id="agent-indigo" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%"   stop-color="#6366f1"/>
-            <stop offset="100%" stop-color="#06b6d4"/>
+            <stop offset="100%" stop-color="#6366f1"/>
           </linearGradient>
           <linearGradient id="agent-lime" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%"   stop-color="#a3e635"/>
-            <stop offset="100%" stop-color="#06b6d4"/>
+            <stop offset="0%"   stop-color="#d946ef"/>
+            <stop offset="100%" stop-color="#6366f1"/>
           </linearGradient>
           <linearGradient id="channel-1" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%"   stop-color="#ff4d8f" stop-opacity="0.6"/>
@@ -45,7 +45,7 @@
           </linearGradient>
           <linearGradient id="channel-2" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%"   stop-color="#6366f1" stop-opacity="0.6"/>
-            <stop offset="100%" stop-color="#a3e635" stop-opacity="0.6"/>
+            <stop offset="100%" stop-color="#d946ef" stop-opacity="0.6"/>
           </linearGradient>
 
           <filter id="channel-glow">
@@ -80,8 +80,8 @@
 
           <g transform="translate(660 180)">
             <circle class="particle particle-a" r="4" cx="0" cy="0" fill="#6366f1" style="animation-delay:-0.4s;"/>
-            <circle class="particle particle-b" r="4" cx="0" cy="0" fill="#06b6d4" style="animation-delay:-1.3s;"/>
-            <circle class="particle particle-c" r="4" cx="0" cy="0" fill="#a3e635" style="animation-delay:-2.1s;"/>
+            <circle class="particle particle-b" r="4" cx="0" cy="0" fill="#6366f1" style="animation-delay:-1.3s;"/>
+            <circle class="particle particle-c" r="4" cx="0" cy="0" fill="#d946ef" style="animation-delay:-2.1s;"/>
           </g>
         </g>
 
@@ -135,11 +135,11 @@
       <div class="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="code-block">
           <span class="comment"># Researcher publishes</span><br/>
-          <span class="prompt">›</span>ch.send(<span style="color: var(--grad-cyan);">"research-out"</span>, sources)
+          <span class="prompt">›</span>ch.send(<span style="color: var(--grad-indigo);">"research-out"</span>, sources)
         </div>
         <div class="code-block">
           <span class="comment"># Writer subscribes</span><br/>
-          <span class="prompt">›</span><span style="color: var(--grad-pink);">async for</span> msg <span style="color: var(--grad-pink);">in</span> ch.recv(<span style="color: var(--grad-cyan);">"research-out"</span>):
+          <span class="prompt">›</span><span style="color: var(--grad-pink);">async for</span> msg <span style="color: var(--grad-pink);">in</span> ch.recv(<span style="color: var(--grad-indigo);">"research-out"</span>):
         </div>
       </div>
     </div>
