@@ -138,51 +138,28 @@ body {
 }
 
 /* =========================================================
-   Gradient ink
+   Accent ink — solid colors only.
+   Class names kept for backwards compat with existing markup,
+   but each rule paints a single flat color (no gradient inside text).
    ========================================================= */
 .gradient-text {
-  background: linear-gradient(
-    180deg,
-    var(--text-primary) 0%,
-    var(--text-secondary) 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
+  color: var(--text-primary);
 }
 
 .gradient-text-accent {
-  background: linear-gradient(
-    96deg,
-    var(--grad-orange) 0%,
-    var(--grad-orange) 40%,
-    var(--grad-magenta) 80%,
-    var(--grad-orange) 100%
-  );
-  background-size: 220% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  animation: grad-shift 7s ease-in-out infinite;
+  color: var(--accent);
 }
 
 .gradient-text-cyan {
-  background: linear-gradient(
-    96deg,
-    var(--grad-indigo) 0%,
-    var(--grad-indigo) 50%,
-    var(--grad-magenta) 100%
-  );
-  background-size: 220% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  animation: grad-shift 9s ease-in-out infinite;
+  color: var(--grad-magenta);
 }
 
+/* Alias used by some sections that want the cool accent */
+.gradient-text-indigo {
+  color: var(--grad-indigo);
+}
+
+/* Background-gradient sweep used by .btn-primary (NOT applied to text glyphs) */
 @keyframes grad-shift {
   0%, 100% { background-position: 0% 50%; }
   50%      { background-position: 100% 50%; }
@@ -555,19 +532,7 @@ body {
 }
 
 .hero-headline .grad-text {
-  background: linear-gradient(
-    135deg,
-    var(--grad-orange),
-    var(--grad-orange) 40%,
-    var(--grad-magenta) 80%,
-    var(--grad-indigo)
-  );
-  background-size: 220% 220%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  animation: grad-shift 6s ease-in-out infinite;
+  color: var(--accent);
 }
 
 /* =========================================================
