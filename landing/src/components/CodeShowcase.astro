@@ -211,7 +211,7 @@ for (const { id, lang } of langs) {
       </div>
 
       <!-- Panels -->
-      <div class="relative bg-bg-1">
+      <div class="relative" style="background-color:#0d0c14;">
         {
           langs.map((l, i) => (
             <div
@@ -221,7 +221,7 @@ for (const { id, lang } of langs) {
               data-panel={l.id}
               data-raw={snippets[l.id as keyof typeof snippets]}
               hidden={i !== 0}
-              class="px-6 py-6 sm:px-8 sm:py-7 overflow-x-auto"
+              class="px-4 py-4 sm:px-6 sm:py-5 overflow-x-auto"
               set:html={highlighted[l.id]}
             />
           ))

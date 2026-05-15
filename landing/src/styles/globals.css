@@ -166,6 +166,29 @@ body {
 }
 
 /* =========================================================
+   SVG text utilities — resolve to theme tokens so embedded
+   labels stay readable in both dark and light mode.
+   ========================================================= */
+.svg-ink            { fill: var(--text-primary); }
+.svg-ink-secondary  { fill: var(--text-secondary); }
+.svg-ink-muted      { fill: var(--text-muted); }
+
+/* Subtle inner-card surfaces inside SVG diagrams.
+   Fill-only — leave stroke to the element so colored borders survive. */
+.svg-surface      { fill: rgba(255, 255, 255, 0.04); }
+.svg-surface-soft { fill: rgba(255, 255, 255, 0.025); }
+:root[data-theme="light"] .svg-surface      { fill: rgba(15, 15, 30, 0.04); }
+:root[data-theme="light"] .svg-surface-soft { fill: rgba(15, 15, 30, 0.025); }
+
+/* In light mode, near-black SVG card fills should invert to near-white
+   so accent strokes/rings stay visible against the page. */
+:root[data-theme="light"] .svg-card-bg { fill: #ffffff; }
+.svg-card-bg { fill: #08070d; }
+
+/* Shiki dark-mode override is consolidated below in the .code-block
+   block — keep the rules in one place so they don't fight each other. */
+
+/* =========================================================
    Shader mesh — the hero centerpiece
    ========================================================= */
 .shader-hero {
@@ -615,19 +638,34 @@ body {
   color: var(--text-muted);
 }
 
-.code-block pre,
-.shiki {
+.code-block pre {
   background: transparent !important;
   padding: 0 !important;
   margin: 0 !important;
+}
+
+/* Shiki output: render dark regardless of theme. Code is conventionally
+   on a dark backdrop and the vesper theme assumes dark. */
+.shiki,
+.shiki code,
+pre.shiki {
+  background-color: #0d0c14 !important;
+  color: #e3e1ee !important;
   font-family:
     "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace !important;
-  font-size: 0.8125rem !important;
+  font-size: 0.875rem !important;
   line-height: 1.65 !important;
+}
+
+.shiki {
+  padding: 1rem 1.25rem !important;
+  margin: 0 !important;
+  border-radius: 0;
 }
 
 .shiki code {
   font-family: inherit !important;
+  background: transparent !important;
 }
 
 /* =========================================================

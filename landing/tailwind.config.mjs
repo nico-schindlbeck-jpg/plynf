@@ -51,7 +51,7 @@ export default {
         ],
       },
       fontSize: {
-        "2xs": ["0.6875rem", { lineHeight: "1rem" }],
+        "2xs": ["0.75rem", { lineHeight: "1.1rem" }],
         "display-sm": ["2rem", { lineHeight: "1.1", letterSpacing: "-0.025em" }],
         "display-md": ["3rem", { lineHeight: "1.05", letterSpacing: "-0.035em" }],
         "display-lg": ["4rem", { lineHeight: "1.04", letterSpacing: "-0.04em" }],
