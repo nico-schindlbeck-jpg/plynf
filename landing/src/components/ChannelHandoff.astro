@@ -1,0 +1,147 @@
+---
+// Phase 4.4 — Multi-agent channel hand-off
+// Researcher → research-out channel → Writer → draft-out channel → Reviewer → final
+---
+
+<section class="section relative" id="handoff">
+  <div class="container-page" data-reveal>
+    <div class="max-w-3xl">
+      <p class="section-eyebrow">Multi-agent</p>
+      <h2 class="section-title text-balance">
+        Three agents.
+        <span class="gradient-text-cyan">Two channels.</span>
+        One report.
+      </h2>
+      <p class="section-subtitle">
+        Pipelines without prompt-history sprawl. Each agent reads from one
+        durable typed queue, writes to the next. Add a reviewer step without
+        re-engineering the upstream.
+      </p>
+    </div>
+
+    <div class="mt-16 card card-tint-indigo p-6 sm:p-10 relative overflow-hidden">
+      <svg
+        viewBox="0 0 1100 400"
+        role="img"
+        aria-label="Three-stage flow: Researcher emits to research-out channel, Writer reads it and emits to draft-out, Reviewer produces final report"
+        class="w-full h-auto"
+      >
+        <defs>
+          <linearGradient id="agent-pink" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%"   stop-color="#ff4d8f"/>
+            <stop offset="100%" stop-color="#d946ef"/>
+          </linearGradient>
+          <linearGradient id="agent-indigo" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%"   stop-color="#6366f1"/>
+            <stop offset="100%" stop-color="#06b6d4"/>
+          </linearGradient>
+          <linearGradient id="agent-lime" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%"   stop-color="#a3e635"/>
+            <stop offset="100%" stop-color="#06b6d4"/>
+          </linearGradient>
+          <linearGradient id="channel-1" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%"   stop-color="#ff4d8f" stop-opacity="0.6"/>
+            <stop offset="100%" stop-color="#6366f1" stop-opacity="0.6"/>
+          </linearGradient>
+          <linearGradient id="channel-2" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%"   stop-color="#6366f1" stop-opacity="0.6"/>
+            <stop offset="100%" stop-color="#a3e635" stop-opacity="0.6"/>
+          </linearGradient>
+
+          <filter id="channel-glow">
+            <feGaussianBlur stdDeviation="4"/>
+          </filter>
+        </defs>
+
+        <!-- Channel tubes -->
+        <g class="diagram-stage" data-stage="2">
+          <rect x="220" y="160" width="220" height="40" rx="20"
+                fill="url(#channel-1)" opacity="0.18" filter="url(#channel-glow)"/>
+          <rect x="220" y="160" width="220" height="40" rx="20"
+                fill="none" stroke="url(#channel-1)" stroke-width="1.5" stroke-dasharray="4 4"/>
+          <text x="330" y="138" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#b9b5d4" letter-spacing="1.5">research-out</text>
+          <text x="330" y="222" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#6e6a8a">Source[] · typed</text>
+
+          <!-- Particles -->
+          <g transform="translate(220 180)">
+            <circle class="particle particle-a" r="4" cx="0" cy="0" fill="#ff4d8f"/>
+            <circle class="particle particle-b" r="4" cx="0" cy="0" fill="#d946ef"/>
+            <circle class="particle particle-c" r="4" cx="0" cy="0" fill="#6366f1"/>
+          </g>
+        </g>
+
+        <g class="diagram-stage" data-stage="4">
+          <rect x="660" y="160" width="220" height="40" rx="20"
+                fill="url(#channel-2)" opacity="0.18" filter="url(#channel-glow)"/>
+          <rect x="660" y="160" width="220" height="40" rx="20"
+                fill="none" stroke="url(#channel-2)" stroke-width="1.5" stroke-dasharray="4 4"/>
+          <text x="770" y="138" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#b9b5d4" letter-spacing="1.5">draft-out</text>
+          <text x="770" y="222" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="#6e6a8a">Draft · typed</text>
+
+          <g transform="translate(660 180)">
+            <circle class="particle particle-a" r="4" cx="0" cy="0" fill="#6366f1" style="animation-delay:-0.4s;"/>
+            <circle class="particle particle-b" r="4" cx="0" cy="0" fill="#06b6d4" style="animation-delay:-1.3s;"/>
+            <circle class="particle particle-c" r="4" cx="0" cy="0" fill="#a3e635" style="animation-delay:-2.1s;"/>
+          </g>
+        </g>
+
+        <!-- Agent: Researcher -->
+        <g class="diagram-stage" data-stage="1" transform="translate(40 100)">
+          <circle cx="90" cy="80" r="74" fill="url(#agent-pink)" opacity="0.15" filter="url(#channel-glow)"/>
+          <circle cx="90" cy="80" r="48" fill="#08070d" stroke="url(#agent-pink)" stroke-width="2"/>
+          <!-- Avatar: small + magnifier -->
+          <g transform="translate(90 80)">
+            <circle cx="0" cy="-8" r="11" fill="url(#agent-pink)"/>
+            <path d="M-16 14 q0 -16 16 -16 q16 0 16 16 v6 h-32 z" fill="url(#agent-pink)"/>
+            <!-- magnifier accent -->
+            <circle cx="14" cy="8" r="6" fill="none" stroke="#f8f7ff" stroke-width="1.8"/>
+            <line x1="18" y1="12" x2="22" y2="16" stroke="#f8f7ff" stroke-width="2" stroke-linecap="round"/>
+          </g>
+          <text x="90" y="190" text-anchor="middle" font-family="Inter, sans-serif" font-size="15" font-weight="600" fill="#f8f7ff">Researcher</text>
+          <text x="90" y="208" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" fill="#b9b5d4">fetches sources</text>
+        </g>
+
+        <!-- Agent: Writer -->
+        <g class="diagram-stage" data-stage="3" transform="translate(460 100)">
+          <circle cx="90" cy="80" r="74" fill="url(#agent-indigo)" opacity="0.15" filter="url(#channel-glow)"/>
+          <circle cx="90" cy="80" r="48" fill="#08070d" stroke="url(#agent-indigo)" stroke-width="2"/>
+          <g transform="translate(90 80)">
+            <circle cx="0" cy="-8" r="11" fill="url(#agent-indigo)"/>
+            <path d="M-16 14 q0 -16 16 -16 q16 0 16 16 v6 h-32 z" fill="url(#agent-indigo)"/>
+            <!-- pen accent -->
+            <path d="M10 6 L18 -2 L22 2 L14 10 Z" fill="#f8f7ff"/>
+            <line x1="9" y1="11" x2="13" y2="11" stroke="#f8f7ff" stroke-width="1.8"/>
+          </g>
+          <text x="90" y="190" text-anchor="middle" font-family="Inter, sans-serif" font-size="15" font-weight="600" fill="#f8f7ff">Writer</text>
+          <text x="90" y="208" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" fill="#b9b5d4">composes draft</text>
+        </g>
+
+        <!-- Agent: Reviewer -->
+        <g class="diagram-stage" data-stage="5" transform="translate(880 100)">
+          <circle cx="90" cy="80" r="74" fill="url(#agent-lime)" opacity="0.15" filter="url(#channel-glow)"/>
+          <circle cx="90" cy="80" r="48" fill="#08070d" stroke="url(#agent-lime)" stroke-width="2"/>
+          <g transform="translate(90 80)">
+            <circle cx="0" cy="-8" r="11" fill="url(#agent-lime)"/>
+            <path d="M-16 14 q0 -16 16 -16 q16 0 16 16 v6 h-32 z" fill="url(#agent-lime)"/>
+            <!-- check accent -->
+            <path d="M6 4 L11 9 L20 -2" stroke="#08070d" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+          <text x="90" y="190" text-anchor="middle" font-family="Inter, sans-serif" font-size="15" font-weight="600" fill="#f8f7ff">Reviewer</text>
+          <text x="90" y="208" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" fill="#b9b5d4">final report</text>
+        </g>
+      </svg>
+
+      <!-- Code annotation row -->
+      <div class="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="code-block">
+          <span class="comment"># Researcher publishes</span><br/>
+          <span class="prompt">›</span>ch.send(<span style="color: var(--grad-cyan);">"research-out"</span>, sources)
+        </div>
+        <div class="code-block">
+          <span class="comment"># Writer subscribes</span><br/>
+          <span class="prompt">›</span><span style="color: var(--grad-pink);">async for</span> msg <span style="color: var(--grad-pink);">in</span> ch.recv(<span style="color: var(--grad-cyan);">"research-out"</span>):
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

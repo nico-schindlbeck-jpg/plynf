@@ -8,36 +8,49 @@
 @tailwind utilities;
 
 /* =========================================================
-   Design tokens — dark mode first
+   Design tokens — vivid, fluid, alive
    ========================================================= */
 :root {
-  /* Background scale, deepest to lifted */
-  --bg-0: #07070a;
-  --bg-1: #0c0d12;
-  --bg-2: #14151c;
-  --bg-3: #1d1f29;
+  /* Backgrounds — near-black, very deep purple-tinted */
+  --bg-0: #08070d;
+  --bg-1: #110e1f;
+  --bg-2: #1a1530;
+  --bg-3: #261d44;
 
   /* Borders */
-  --border: rgba(255, 255, 255, 0.06);
-  --border-strong: rgba(255, 255, 255, 0.1);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
 
-  /* Text */
-  --text-primary: #f4f5f8;
-  --text-secondary: #a3a7b8;
-  --text-muted: #6b6f80;
+  /* Ink */
+  --text-primary: #f8f7ff;
+  --text-secondary: #b9b5d4;
+  --text-muted: #6e6a8a;
 
-  /* Accent — one carefully chosen ember */
-  --accent: #ff7849;
-  --accent-hover: #ff8a5b;
-  --accent-glow: rgba(255, 120, 73, 0.18);
-  --accent-subtle: rgba(255, 120, 73, 0.08);
+  /* Vibrant gradient palette */
+  --grad-pink:    #ff4d8f;
+  --grad-orange:  #ff8551;
+  --grad-magenta: #d946ef;
+  --grad-indigo:  #6366f1;
+  --grad-cyan:    #06b6d4;
+  --grad-lime:    #a3e635;
 
-  /* Gradients */
-  --gradient-hero: radial-gradient(
-    ellipse 80% 50% at 50% -20%,
-    var(--accent-glow),
-    transparent 70%
+  /* Primary accent — pink as the new ember */
+  --accent: #ff4d8f;
+  --accent-hover: #ff6ea5;
+  --accent-glow: rgba(255, 77, 143, 0.32);
+  --accent-subtle: rgba(255, 77, 143, 0.08);
+
+  /* Hero conic — vivid full-circle sweep */
+  --gradient-hero: conic-gradient(
+    from 215deg at 50% 50%,
+    var(--grad-pink) 0%,
+    var(--grad-orange) 20%,
+    var(--grad-magenta) 40%,
+    var(--grad-indigo) 60%,
+    var(--grad-cyan) 80%,
+    var(--grad-pink) 100%
   );
+
   --gradient-fade-bottom: linear-gradient(
     to bottom,
     transparent,
@@ -48,6 +61,7 @@
   --tracking-tight: -0.02em;
   --tracking-tighter: -0.035em;
   --tracking-tightest: -0.04em;
+  --tracking-ultra: -0.055em;
 
   /* Motion */
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
@@ -65,8 +79,8 @@
   --text-primary: #0c0d12;
   --text-secondary: #4a4e5c;
   --text-muted: #6b6f80;
-  --accent-glow: rgba(255, 120, 73, 0.14);
-  --accent-subtle: rgba(255, 120, 73, 0.06);
+  --accent-glow: rgba(255, 77, 143, 0.18);
+  --accent-subtle: rgba(255, 77, 143, 0.08);
 }
 
 /* =========================================================
@@ -83,7 +97,6 @@ html {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   scroll-behavior: smooth;
-  /* Optional snap on hero only; full-page snap is too aggressive for a marketing page */
 }
 
 body {
@@ -100,10 +113,9 @@ body {
 
 ::selection {
   background: var(--accent);
-  color: #07070a;
+  color: #190612;
 }
 
-/* Reduced motion respect */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -116,10 +128,8 @@ body {
 }
 
 /* =========================================================
-   Reusable bits
+   Containers
    ========================================================= */
-
-/* Soft container */
 .container-page {
   @apply mx-auto w-full px-6 sm:px-8;
   max-width: 1200px;
@@ -130,7 +140,9 @@ body {
   max-width: 880px;
 }
 
-/* Gradient ink */
+/* =========================================================
+   Gradient ink
+   ========================================================= */
 .gradient-text {
   background: linear-gradient(
     180deg,
@@ -146,18 +158,135 @@ body {
 .gradient-text-accent {
   background: linear-gradient(
     96deg,
-    var(--accent) 0%,
-    #ffb38a 50%,
-    var(--accent) 100%
+    var(--grad-pink) 0%,
+    var(--grad-orange) 40%,
+    var(--grad-magenta) 80%,
+    var(--grad-pink) 100%
   );
-  background-size: 200% auto;
+  background-size: 220% auto;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
+  animation: grad-shift 7s ease-in-out infinite;
 }
 
-/* Animated grid background — pure CSS */
+.gradient-text-cyan {
+  background: linear-gradient(
+    96deg,
+    var(--grad-cyan) 0%,
+    var(--grad-indigo) 50%,
+    var(--grad-magenta) 100%
+  );
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: grad-shift 9s ease-in-out infinite;
+}
+
+@keyframes grad-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* =========================================================
+   Shader mesh — the hero centerpiece
+   ========================================================= */
+.shader-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--bg-0);
+}
+
+.shader-mesh {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.78;
+  filter: saturate(1.35) contrast(1.05);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.blob {
+  filter: blur(18px);
+  will-change: transform;
+}
+
+.blob-1 { animation: blob-orbit-1 14s ease-in-out infinite; }
+.blob-2 { animation: blob-orbit-2 11s ease-in-out infinite; }
+.blob-3 { animation: blob-orbit-3 16s ease-in-out infinite; }
+.blob-4 { animation: blob-orbit-4 13s ease-in-out infinite; }
+.blob-5 { animation: blob-orbit-5  9s ease-in-out infinite; }
+.blob-6 { animation: blob-orbit-6 12s ease-in-out infinite; }
+
+@keyframes blob-orbit-1 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33%      { transform: translate3d(80px, -60px, 0) scale(1.1); }
+  66%      { transform: translate3d(-50px, 90px, 0) scale(0.95); }
+}
+@keyframes blob-orbit-2 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  25%      { transform: translate3d(-100px, 40px, 0) scale(1.08); }
+  75%      { transform: translate3d(60px, -80px, 0) scale(0.92); }
+}
+@keyframes blob-orbit-3 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  40%      { transform: translate3d(120px, 60px, 0) scale(1.05); }
+  70%      { transform: translate3d(-80px, -30px, 0) scale(0.97); }
+}
+@keyframes blob-orbit-4 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  30%      { transform: translate3d(-70px, -50px, 0) scale(1.1); }
+  60%      { transform: translate3d(40px, 70px, 0) scale(0.95); }
+}
+@keyframes blob-orbit-5 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(90px, 30px, 0) scale(1.12); }
+}
+@keyframes blob-orbit-6 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33%      { transform: translate3d(-60px, 70px, 0) scale(0.93); }
+  66%      { transform: translate3d(70px, -40px, 0) scale(1.07); }
+}
+
+.shader-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center,
+    transparent 35%,
+    rgba(8, 7, 13, 0.55) 70%,
+    var(--bg-0) 95%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Ambient mesh — a smaller, slower version used in non-hero sections */
+.ambient-mesh {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.35;
+  filter: saturate(1.2);
+  pointer-events: none;
+  z-index: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blob, .blob-1, .blob-2, .blob-3, .blob-4, .blob-5, .blob-6 {
+    animation: none !important;
+  }
+}
+
+/* =========================================================
+   Grid backgrounds (kept, lighter)
+   ========================================================= */
 .bg-grid {
   position: absolute;
   inset: 0;
@@ -177,6 +306,7 @@ body {
   );
   pointer-events: none;
   z-index: 0;
+  opacity: 0.5;
 }
 
 .bg-grid-dense {
@@ -196,12 +326,11 @@ body {
     black 0%,
     transparent 70%
   );
-  opacity: 0.6;
+  opacity: 0.4;
   pointer-events: none;
   z-index: 0;
 }
 
-/* Hero radial glow */
 .bg-hero-glow {
   position: absolute;
   inset: 0;
@@ -210,35 +339,72 @@ body {
   z-index: 0;
 }
 
-/* Card surface */
+/* =========================================================
+   Cards
+   ========================================================= */
 .card {
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.025) 0%,
+    rgba(255, 255, 255, 0.035) 0%,
     rgba(255, 255, 255, 0) 100%
   );
   background-color: var(--bg-1);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 16px;
   transition:
-    transform 0.35s var(--ease-out-quart),
-    border-color 0.35s var(--ease-out-quart),
-    box-shadow 0.35s var(--ease-out-quart);
+    transform 0.18s cubic-bezier(0.32, 0.72, 0, 1),
+    border-color 0.18s ease-out,
+    box-shadow 0.18s ease-out;
 }
 
-.card-hover:hover {
+.card-hover:hover,
+.card:hover {
   transform: translateY(-2px);
-  border-color: var(--border-strong);
+  border-color: rgba(255, 77, 143, 0.28);
   box-shadow:
-    0 0 0 1px var(--border-strong),
-    0 12px 48px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(255, 120, 73, 0.06);
+    0 0 0 1px rgba(255, 77, 143, 0.06),
+    0 12px 40px rgba(0, 0, 0, 0.4),
+    0 0 60px -20px rgba(255, 77, 143, 0.22);
 }
 
-/* Buttons */
+/* Per-card gradient tints (bento grid color personality) */
+.card-tint-pink {
+  background:
+    radial-gradient(ellipse 80% 60% at 0% 0%, rgba(255, 77, 143, 0.10), transparent 60%),
+    var(--bg-1);
+}
+.card-tint-indigo {
+  background:
+    radial-gradient(ellipse 80% 60% at 100% 0%, rgba(99, 102, 241, 0.10), transparent 60%),
+    var(--bg-1);
+}
+.card-tint-cyan {
+  background:
+    radial-gradient(ellipse 80% 60% at 0% 100%, rgba(6, 182, 212, 0.10), transparent 60%),
+    var(--bg-1);
+}
+.card-tint-magenta {
+  background:
+    radial-gradient(ellipse 80% 60% at 100% 100%, rgba(217, 70, 239, 0.10), transparent 60%),
+    var(--bg-1);
+}
+.card-tint-orange {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255, 133, 81, 0.10), transparent 60%),
+    var(--bg-1);
+}
+.card-tint-lime {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 100%, rgba(163, 230, 53, 0.08), transparent 60%),
+    var(--bg-1);
+}
+
+/* =========================================================
+   Buttons
+   ========================================================= */
 .btn {
   @apply inline-flex items-center justify-center gap-2 rounded-full font-medium;
-  padding: 0.625rem 1.125rem;
+  padding: 0.625rem 1.25rem;
   font-size: 0.9375rem;
   line-height: 1;
   letter-spacing: -0.01em;
@@ -258,24 +424,27 @@ body {
 
 .btn-primary {
   background: linear-gradient(
-    180deg,
-    var(--accent-hover) 0%,
-    var(--accent) 100%
+    135deg,
+    var(--grad-pink) 0%,
+    var(--grad-orange) 50%,
+    var(--grad-magenta) 100%
   );
-  color: #1a0d05;
-  border: 1px solid rgba(0, 0, 0, 0.2);
+  background-size: 200% 200%;
+  color: #190612;
+  border: 1px solid rgba(0, 0, 0, 0.25);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.25),
-    0 1px 2px rgba(0, 0, 0, 0.2),
-    0 8px 32px rgba(255, 120, 73, 0.25);
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 10px 36px rgba(255, 77, 143, 0.32);
+  animation: grad-shift 7s ease-in-out infinite;
 }
 
 .btn-primary:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    0 4px 8px rgba(0, 0, 0, 0.2),
-    0 12px 36px rgba(255, 120, 73, 0.35);
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 4px 12px rgba(0, 0, 0, 0.25),
+    0 14px 44px rgba(255, 77, 143, 0.45);
 }
 
 .btn-secondary {
@@ -286,7 +455,7 @@ body {
 
 .btn-secondary:hover {
   background: var(--bg-3);
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.22);
   transform: translateY(-1px);
 }
 
@@ -300,12 +469,14 @@ body {
   background: var(--bg-2);
 }
 
-/* Eyebrow chip */
+/* =========================================================
+   Eyebrow
+   ========================================================= */
 .eyebrow {
   @apply inline-flex items-center gap-2 rounded-full font-mono text-2xs uppercase tracking-widest;
   background: var(--bg-2);
   border: 1px solid var(--border);
-  padding: 0.375rem 0.75rem;
+  padding: 0.375rem 0.875rem;
   color: var(--text-secondary);
 }
 
@@ -315,7 +486,7 @@ body {
   height: 6px;
   border-radius: 999px;
   background: var(--accent);
-  box-shadow: 0 0 8px var(--accent-glow);
+  box-shadow: 0 0 10px var(--accent-glow);
 }
 
 .eyebrow-dot::after {
@@ -330,10 +501,12 @@ body {
 
 @keyframes eyebrow-ping {
   0%, 100% { transform: scale(1); opacity: 0.4; }
-  50% { transform: scale(1.5); opacity: 0; }
+  50%      { transform: scale(1.5); opacity: 0; }
 }
 
-/* Section spacing */
+/* =========================================================
+   Section spacing & headings
+   ========================================================= */
 .section {
   position: relative;
   padding-top: clamp(4rem, 8vw, 7rem);
@@ -346,7 +519,6 @@ body {
   padding-bottom: clamp(2.5rem, 5vw, 4rem);
 }
 
-/* Section heading rhythm */
 .section-eyebrow {
   @apply font-mono text-xs uppercase tracking-widest;
   color: var(--accent);
@@ -354,10 +526,10 @@ body {
 
 .section-title {
   margin-top: 0.75rem;
-  font-size: clamp(1.875rem, 4vw, 3rem);
-  line-height: 1.1;
-  letter-spacing: -0.035em;
-  font-weight: 600;
+  font-size: clamp(2rem, 4.5vw, 3.5rem);
+  line-height: 1.04;
+  letter-spacing: -0.04em;
+  font-weight: 700;
   color: var(--text-primary);
 }
 
@@ -369,7 +541,41 @@ body {
   max-width: 60ch;
 }
 
-/* Subtle border-glow card variant */
+/* =========================================================
+   Display headline (hero)
+   ========================================================= */
+.hero-headline {
+  font-size: clamp(3rem, 10vw, 8.5rem);
+  font-weight: 700;
+  letter-spacing: -0.055em;
+  line-height: 0.94;
+  color: var(--text-primary);
+  text-shadow: 0 0 80px rgba(255, 77, 143, 0.18);
+}
+
+.hero-headline .line {
+  display: block;
+}
+
+.hero-headline .grad-text {
+  background: linear-gradient(
+    135deg,
+    var(--grad-pink),
+    var(--grad-orange) 40%,
+    var(--grad-magenta) 80%,
+    var(--grad-indigo)
+  );
+  background-size: 220% 220%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: grad-shift 6s ease-in-out infinite;
+}
+
+/* =========================================================
+   Subtle border-glow card variant
+   ========================================================= */
 .glow-card {
   position: relative;
 }
@@ -382,10 +588,11 @@ body {
   padding: 1px;
   background: linear-gradient(
     140deg,
-    rgba(255, 120, 73, 0.25),
-    transparent 40%,
-    transparent 60%,
-    rgba(255, 120, 73, 0.08)
+    rgba(255, 77, 143, 0.4),
+    rgba(217, 70, 239, 0.2) 30%,
+    transparent 50%,
+    transparent 70%,
+    rgba(6, 182, 212, 0.18)
   );
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,
@@ -401,7 +608,9 @@ body {
   opacity: 1;
 }
 
-/* Inline code snippet block */
+/* =========================================================
+   Code blocks
+   ========================================================= */
 .code-block {
   background: var(--bg-1);
   border: 1px solid var(--border);
@@ -413,6 +622,25 @@ body {
   line-height: 1.6;
   color: var(--text-primary);
   overflow-x: auto;
+  position: relative;
+}
+
+.code-block::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--grad-pink) 30%,
+    var(--grad-orange) 60%,
+    transparent
+  );
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 .code-block .prompt {
@@ -425,7 +653,6 @@ body {
   color: var(--text-muted);
 }
 
-/* Shiki override — match our surface */
 .code-block pre,
 .shiki {
   background: transparent !important;
@@ -441,7 +668,9 @@ body {
   font-family: inherit !important;
 }
 
-/* Scroll reveal — base state */
+/* =========================================================
+   Reveal animation
+   ========================================================= */
 [data-reveal] {
   opacity: 0;
   transform: translateY(12px);
@@ -455,7 +684,9 @@ body {
   transform: translateY(0);
 }
 
-/* Focus styles — global */
+/* =========================================================
+   Focus
+   ========================================================= */
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
@@ -465,7 +696,9 @@ input:focus-visible,
   border-radius: 6px;
 }
 
-/* Subtle divider */
+/* =========================================================
+   Misc
+   ========================================================= */
 .divider {
   height: 1px;
   background: linear-gradient(
@@ -476,7 +709,6 @@ input:focus-visible,
   );
 }
 
-/* Pulse stroke for SVG diagrams */
 .pulse-line {
   stroke-dasharray: 6 6;
   animation: dashflow 3s linear infinite;
@@ -488,7 +720,6 @@ input:focus-visible,
   }
 }
 
-/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -502,14 +733,12 @@ input:focus-visible,
   border: 2px solid var(--bg-0);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2f3140;
+  background: #3a2d65;
 }
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Apple-style scroll-driven enhancements
-   ───────────────────────────────────────────────────────────────────────── */
-
-/* Scroll progress bar (top of viewport, scales horizontally with scroll) */
+/* =========================================================
+   Scroll progress bar
+   ========================================================= */
 #scroll-progress {
   position: fixed;
   top: 0;
@@ -519,14 +748,15 @@ input:focus-visible,
   z-index: 100;
   background: linear-gradient(
     to right,
-    var(--accent) 0%,
-    rgba(255, 120, 73, 0.6) 60%,
-    rgba(255, 120, 73, 0.2) 100%
+    var(--grad-pink) 0%,
+    var(--grad-orange) 40%,
+    var(--grad-magenta) 70%,
+    var(--grad-indigo) 100%
   );
   transform: scaleX(0);
   transform-origin: 0 50%;
   pointer-events: none;
-  box-shadow: 0 0 12px rgba(255, 120, 73, 0.5);
+  box-shadow: 0 0 12px rgba(255, 77, 143, 0.5);
   will-change: transform;
 }
 
@@ -534,13 +764,14 @@ input:focus-visible,
   #scroll-progress { display: none; }
 }
 
-/* Hero parallax target (background layer moves slower than foreground) */
+/* =========================================================
+   Parallax + architecture animations
+   ========================================================= */
 [data-hero-parallax] {
   will-change: transform;
   transition: transform 0.05s linear;
 }
 
-/* Architecture: ambient breathing on key cards */
 .arch-node {
   transform-box: fill-box;
   transform-origin: center;
@@ -554,7 +785,6 @@ input:focus-visible,
   50%      { transform: scale(1.012); }
 }
 
-/* Architecture: traveling dot along the curve (motion-path) */
 .arch-traveler {
   fill: var(--accent);
   filter: drop-shadow(0 0 6px var(--accent));
@@ -582,34 +812,65 @@ input:focus-visible,
   }
 }
 
-/* Section transition: subtle background shift between major sections */
-.section {
-  position: relative;
+/* =========================================================
+   Diagram primitives (used by Phase 4 components)
+   ========================================================= */
+.diagram-stage {
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 0.7s var(--ease-out-quart),
+    transform 0.7s var(--ease-out-quart);
 }
-.section::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 1px;
-  height: 80px;
-  background: linear-gradient(to bottom, transparent, var(--border-strong), transparent);
-  opacity: 0.4;
-  pointer-events: none;
+[data-reveal].is-visible .diagram-stage,
+.diagram-stage.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.diagram-stage[data-stage="1"] { transition-delay: 0.05s; }
+.diagram-stage[data-stage="2"] { transition-delay: 0.18s; }
+.diagram-stage[data-stage="3"] { transition-delay: 0.32s; }
+.diagram-stage[data-stage="4"] { transition-delay: 0.46s; }
+.diagram-stage[data-stage="5"] { transition-delay: 0.60s; }
+
+/* Channel-handoff traveling particle */
+.particle {
+  fill: var(--text-primary);
+  filter: drop-shadow(0 0 6px currentColor);
+}
+.particle-a { animation: particle-move-a 2.6s linear infinite; }
+.particle-b { animation: particle-move-b 2.6s linear infinite; animation-delay: -0.9s; }
+.particle-c { animation: particle-move-c 2.6s linear infinite; animation-delay: -1.7s; }
+
+@keyframes particle-move-a {
+  0%   { transform: translateX(0); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateX(220px); opacity: 0; }
+}
+@keyframes particle-move-b {
+  0%   { transform: translateX(0); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateX(220px); opacity: 0; }
+}
+@keyframes particle-move-c {
+  0%   { transform: translateX(0); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateX(220px); opacity: 0; }
 }
 
-/* Card hover-lift refinement: tighter, more responsive */
-.card {
-  transition: transform 0.18s cubic-bezier(0.32, 0.72, 0, 1),
-              box-shadow 0.18s ease-out,
-              border-color 0.18s ease-out;
+@media (prefers-reduced-motion: reduce) {
+  .particle, .particle-a, .particle-b, .particle-c { animation: none !important; }
 }
-.card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(255, 120, 73, 0.2);
-  box-shadow:
-    0 0 0 1px rgba(255, 120, 73, 0.06),
-    0 12px 40px rgba(0, 0, 0, 0.4),
-    0 0 60px -20px rgba(255, 120, 73, 0.15);
+
+/* Token-economics bars */
+.bar-fill {
+  transform-origin: 50% 100%;
+  transform: scaleY(0);
+  transition: transform 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+[data-reveal].is-visible .bar-fill {
+  transform: scaleY(1);
 }

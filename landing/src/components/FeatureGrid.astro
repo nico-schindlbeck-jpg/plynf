@@ -1,36 +1,7 @@
 ---
-const features = [
-  {
-    title: "Persistent workspace",
-    desc: "KV + files + snapshots + branches. Versioned. Crash-safe. The agent's memory survives everything.",
-    icon: "workspace",
-  },
-  {
-    title: "Tool gateway",
-    desc: "Single boundary for every external tool. Caching, audit, OAuth, cost-caps. All built-in.",
-    icon: "gateway",
-  },
-  {
-    title: "Multi-agent channels",
-    desc: "Durable typed message queues. Multi-agent pipelines without prompt-history sprawl.",
-    icon: "channels",
-  },
-  {
-    title: "Resumable workflows",
-    desc: "Worker pool with lease-based recovery. Crash mid-flight, pick up where you left off.",
-    icon: "workflow",
-  },
-  {
-    title: "Production safety",
-    desc: "JWT, multi-tenant, GDPR, rate limits, tamper-evident audit, threat model.",
-    icon: "safety",
-  },
-  {
-    title: "8 OAuth providers",
-    desc: "GitHub, Slack, Linear, Notion, Google Workspace, Atlassian, Salesforce, Asana.",
-    icon: "oauth",
-  },
-];
+// Phase 5 — Bento-grid feature showcase
+// Big cards (2x1) anchor the grid, medium cards fill the rest.
+// Each card carries its own gradient tint to make the page feel color-rich.
 ---
 
 <section class="section relative" id="features">
@@ -39,67 +10,214 @@ const features = [
     <div class="max-w-3xl">
       <p class="section-eyebrow">Capabilities</p>
       <h2 class="section-title text-balance">
-        Everything your agent needs.
-        <br class="hidden sm:block" />
-        <span class="text-ink-muted">Nothing it doesn't.</span>
+        Six primitives.
+        <span class="gradient-text-accent">One coherent runtime.</span>
       </h2>
       <p class="section-subtitle">
-        Six primitives, designed together. Each one removes a category of
-        plumbing you'd otherwise have to build, deploy, and maintain yourself.
+        Each one removes a category of plumbing you'd otherwise have to build,
+        deploy, and maintain yourself. They are designed together, not
+        retrofitted.
       </p>
     </div>
 
-    <div class="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 sm:gap-5">
-      {
-        features.map((f) => (
-          <article class="card card-hover glow-card p-7 group relative overflow-hidden">
-            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-bg-2 border border-border text-accent">
-              {f.icon === "workspace" && (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-                  <path d="M3 9h18M9 21V9"></path>
-                </svg>
-              )}
-              {f.icon === "gateway" && (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="3"></circle>
-                  <path d="M12 3v6M12 15v6M3 12h6M15 12h6M5.6 5.6l4.2 4.2M14.2 14.2l4.2 4.2M5.6 18.4l4.2-4.2M14.2 9.8l4.2-4.2"></path>
-                </svg>
-              )}
-              {f.icon === "channels" && (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-                </svg>
-              )}
-              {f.icon === "workflow" && (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <polyline points="23 4 23 10 17 10"></polyline>
-                  <polyline points="1 20 1 14 7 14"></polyline>
-                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                </svg>
-              )}
-              {f.icon === "safety" && (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                  <path d="M9 12l2 2 4-4"></path>
-                </svg>
-              )}
-              {f.icon === "oauth" && (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect x="3" y="11" width="18" height="11" rx="2"></rect>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                </svg>
-              )}
-            </div>
-            <h3 class="mt-6 text-lg font-semibold tracking-tight text-ink-primary">
-              {f.title}
-            </h3>
-            <p class="mt-2 text-sm leading-relaxed text-ink-secondary">
-              {f.desc}
+    <div class="mt-14 grid gap-4 sm:gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 auto-rows-[minmax(220px,_auto)]">
+      <!-- BIG: Persistent Workspace (2x1, pink) -->
+      <article class="card card-tint-pink glow-card p-7 sm:p-8 sm:col-span-2 relative overflow-hidden flex flex-col">
+        <div class="flex items-center gap-3">
+          <div class="flex h-11 w-11 items-center justify-center rounded-xl border" style="background: rgba(255, 77, 143, 0.16); border-color: rgba(255, 77, 143, 0.35); color: var(--grad-pink);">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+              <path d="M3 9h18M9 21V9"></path>
+            </svg>
+          </div>
+          <span class="font-mono text-2xs uppercase tracking-widest text-ink-muted">Primitive 01</span>
+        </div>
+        <h3 class="mt-5 text-2xl sm:text-3xl font-semibold tracking-tight text-ink-primary"
+            style="letter-spacing: -0.04em;">
+          Persistent workspace
+        </h3>
+        <p class="mt-3 text-sm sm:text-base leading-relaxed text-ink-secondary max-w-md">
+          KV, files, snapshots, and branches. Versioned. Crash-safe. The agent's
+          memory survives everything.
+        </p>
+
+        <!-- Inline live KV count animation -->
+        <div class="mt-auto pt-6 flex items-end gap-6 flex-wrap">
+          <div>
+            <p class="font-mono text-2xs uppercase tracking-widest text-ink-muted">Keys stored</p>
+            <p class="mt-1 font-semibold text-ink-primary"
+               style="font-size: clamp(1.5rem, 3vw, 2.25rem); line-height: 1; letter-spacing: -0.04em;">
+              <span class="counter-kv" data-target="1247">1,247</span>
             </p>
-          </article>
-        ))
-      }
+          </div>
+          <div>
+            <p class="font-mono text-2xs uppercase tracking-widest text-ink-muted">Snapshots</p>
+            <p class="mt-1 font-semibold text-ink-primary"
+               style="font-size: clamp(1.5rem, 3vw, 2.25rem); line-height: 1; letter-spacing: -0.04em;">
+              <span class="counter-kv" data-target="38">38</span>
+            </p>
+          </div>
+          <div>
+            <p class="font-mono text-2xs uppercase tracking-widest text-ink-muted">Branches</p>
+            <p class="mt-1 font-semibold text-ink-primary"
+               style="font-size: clamp(1.5rem, 3vw, 2.25rem); line-height: 1; letter-spacing: -0.04em;">
+              <span class="counter-kv" data-target="6">6</span>
+            </p>
+          </div>
+        </div>
+      </article>
+
+      <!-- MED: Tool Gateway (indigo) -->
+      <article class="card card-tint-indigo glow-card p-7 relative overflow-hidden flex flex-col">
+        <div class="flex h-11 w-11 items-center justify-center rounded-xl border" style="background: rgba(99, 102, 241, 0.16); border-color: rgba(99, 102, 241, 0.35); color: var(--grad-indigo);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 3v6M12 15v6M3 12h6M15 12h6M5.6 5.6l4.2 4.2M14.2 14.2l4.2 4.2M5.6 18.4l4.2-4.2M14.2 9.8l4.2-4.2"></path>
+          </svg>
+        </div>
+        <h3 class="mt-5 text-xl font-semibold tracking-tight text-ink-primary">Tool gateway</h3>
+        <p class="mt-2 text-sm leading-relaxed text-ink-secondary">
+          Single boundary for every external tool. Caching, audit, OAuth,
+          cost-caps. All built-in.
+        </p>
+      </article>
+
+      <!-- MED: Multi-agent Channels (cyan) -->
+      <article class="card card-tint-cyan glow-card p-7 relative overflow-hidden flex flex-col">
+        <div class="flex h-11 w-11 items-center justify-center rounded-xl border" style="background: rgba(6, 182, 212, 0.16); border-color: rgba(6, 182, 212, 0.35); color: var(--grad-cyan);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+          </svg>
+        </div>
+        <h3 class="mt-5 text-xl font-semibold tracking-tight text-ink-primary">Multi-agent channels</h3>
+        <p class="mt-2 text-sm leading-relaxed text-ink-secondary">
+          Durable typed message queues. Multi-agent pipelines without
+          prompt-history sprawl.
+        </p>
+      </article>
+
+      <!-- BIG: Resumable Workflows (2x1, magenta) -->
+      <article class="card card-tint-magenta glow-card p-7 sm:p-8 sm:col-span-2 relative overflow-hidden flex flex-col">
+        <div class="flex items-center gap-3">
+          <div class="flex h-11 w-11 items-center justify-center rounded-xl border" style="background: rgba(217, 70, 239, 0.16); border-color: rgba(217, 70, 239, 0.35); color: var(--grad-magenta);">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+          </div>
+          <span class="font-mono text-2xs uppercase tracking-widest text-ink-muted">Primitive 04</span>
+        </div>
+        <h3 class="mt-5 text-2xl sm:text-3xl font-semibold tracking-tight text-ink-primary"
+            style="letter-spacing: -0.04em;">
+          Resumable workflows
+        </h3>
+        <p class="mt-3 text-sm sm:text-base leading-relaxed text-ink-secondary max-w-md">
+          Worker pool with lease-based recovery. Crash mid-flight, pick up
+          where you left off. Verified by a runnable demo.
+        </p>
+
+        <!-- Mini workflow-replay diagram -->
+        <div class="mt-auto pt-6">
+          <svg viewBox="0 0 380 60" class="w-full max-w-md h-auto" aria-hidden="true">
+            <defs>
+              <linearGradient id="wf-line" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%"  stop-color="#d946ef"/>
+                <stop offset="100%" stop-color="#ff4d8f"/>
+              </linearGradient>
+            </defs>
+            <line x1="20" y1="30" x2="360" y2="30" stroke="url(#wf-line)" stroke-width="2" stroke-linecap="round" stroke-dasharray="4 4" opacity="0.65"/>
+            <!-- step 1 done -->
+            <circle cx="60" cy="30" r="9" fill="#d946ef"/>
+            <text x="60" y="55" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#b9b5d4">fetch</text>
+            <!-- step 2 done -->
+            <circle cx="140" cy="30" r="9" fill="#d946ef"/>
+            <text x="140" y="55" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#b9b5d4">parse</text>
+            <!-- crash point -->
+            <g>
+              <circle cx="220" cy="30" r="10" fill="none" stroke="#ef4444" stroke-width="2"/>
+              <path d="M215 25 L225 35 M225 25 L215 35" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+              <text x="220" y="55" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#ef4444">crash</text>
+            </g>
+            <!-- resume -->
+            <circle cx="300" cy="30" r="9" fill="#06b6d4"/>
+            <text x="300" y="55" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#b9b5d4">resume</text>
+            <!-- complete -->
+            <circle cx="360" cy="30" r="9" fill="#a3e635"/>
+          </svg>
+        </div>
+      </article>
+
+      <!-- MED: Production Safety (orange) -->
+      <article class="card card-tint-orange glow-card p-7 relative overflow-hidden flex flex-col">
+        <div class="flex h-11 w-11 items-center justify-center rounded-xl border" style="background: rgba(255, 133, 81, 0.16); border-color: rgba(255, 133, 81, 0.35); color: var(--grad-orange);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            <path d="M9 12l2 2 4-4"></path>
+          </svg>
+        </div>
+        <h3 class="mt-5 text-xl font-semibold tracking-tight text-ink-primary">Production safety</h3>
+        <p class="mt-2 text-sm leading-relaxed text-ink-secondary">
+          JWT, multi-tenant, GDPR, rate limits, tamper-evident audit, published
+          threat model.
+        </p>
+      </article>
+
+      <!-- MED: 8 OAuth providers (lime) -->
+      <article class="card card-tint-lime glow-card p-7 relative overflow-hidden flex flex-col">
+        <div class="flex h-11 w-11 items-center justify-center rounded-xl border" style="background: rgba(163, 230, 53, 0.14); border-color: rgba(163, 230, 53, 0.32); color: var(--grad-lime);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+        <h3 class="mt-5 text-xl font-semibold tracking-tight text-ink-primary">8 OAuth providers</h3>
+        <p class="mt-2 text-sm leading-relaxed text-ink-secondary">
+          GitHub, Slack, Linear, Notion, Google Workspace, Atlassian,
+          Salesforce, Asana. Real flows.
+        </p>
+      </article>
     </div>
   </div>
 </section>
+
+<script is:inline>
+  (function () {
+    var prefersReduce = window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var counters = document.querySelectorAll(".counter-kv");
+    if (!counters.length) return;
+
+    function animate(el) {
+      var target = parseInt(el.getAttribute("data-target") || "0", 10);
+      if (prefersReduce || !target) {
+        el.textContent = target.toLocaleString("en-US");
+        return;
+      }
+      var duration = 1400;
+      var start = performance.now();
+      function frame(now) {
+        var t = Math.min(1, (now - start) / duration);
+        var eased = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+        var v = Math.round(target * eased);
+        el.textContent = v.toLocaleString("en-US");
+        if (t < 1) requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    if (typeof IntersectionObserver === "undefined") {
+      counters.forEach(animate);
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          animate(entry.target);
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.3 });
+    counters.forEach(function (c) { io.observe(c); });
+  })();
+</script>

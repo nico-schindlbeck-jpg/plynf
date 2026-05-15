@@ -1,0 +1,143 @@
+---
+// Phase 4.2 — Vertical timeline of workspace versions with a branch + merge
+---
+
+<section class="section relative" id="lifecycle">
+  <div class="container-page" data-reveal>
+    <div class="max-w-3xl">
+      <p class="section-eyebrow">Lifecycle</p>
+      <h2 class="section-title text-balance">
+        How a workspace
+        <span class="gradient-text-cyan">evolves over time.</span>
+      </h2>
+      <p class="section-subtitle">
+        Every write is a version. Every snapshot is a checkpoint. Every branch
+        is an experiment you can throw away or merge back without fear.
+      </p>
+    </div>
+
+    <div class="mt-16 grid gap-10 lg:grid-cols-[1fr_1fr] lg:gap-16">
+      <!-- Diagram -->
+      <div class="card card-tint-cyan p-6 sm:p-8 relative overflow-hidden">
+        <svg
+          viewBox="0 0 460 540"
+          role="img"
+          aria-label="Workspace lifecycle: write v1, write v2, snapshot baseline, branch experiment, merge back"
+          class="w-full h-auto"
+        >
+          <defs>
+            <linearGradient id="trunk-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stop-color="#06b6d4"/>
+              <stop offset="50%"  stop-color="#6366f1"/>
+              <stop offset="100%" stop-color="#d946ef"/>
+            </linearGradient>
+            <linearGradient id="branch-grad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%"   stop-color="#6366f1"/>
+              <stop offset="100%" stop-color="#a3e635"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Main trunk -->
+          <path d="M120 30 L120 510" stroke="url(#trunk-grad)" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+
+          <!-- Branch path: split out at v3 (y=260), rejoin at v5 (y=460) -->
+          <path d="M120 260 C 200 260, 240 280, 280 340 L 280 380 C 280 420, 200 440, 120 460"
+                stroke="url(#branch-grad)" stroke-width="2.5" stroke-linecap="round"
+                stroke-dasharray="6 4" fill="none" opacity="0.85"/>
+
+          <!-- Milestones (trunk) -->
+          <g>
+            <!-- v1 -->
+            <g class="diagram-stage" data-stage="1">
+              <circle cx="120" cy="60" r="14" fill="#08070d" stroke="#06b6d4" stroke-width="2.5"/>
+              <circle cx="120" cy="60" r="5" fill="#06b6d4"/>
+              <text x="150" y="56" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#06b6d4" letter-spacing="1.5">V1 · WRITE</text>
+              <text x="150" y="74" font-family="Inter, sans-serif" font-size="14" fill="#f8f7ff">kv.set("topic", "renewables")</text>
+            </g>
+            <!-- v2 -->
+            <g class="diagram-stage" data-stage="2">
+              <circle cx="120" cy="160" r="14" fill="#08070d" stroke="#06b6d4" stroke-width="2.5"/>
+              <circle cx="120" cy="160" r="5" fill="#06b6d4"/>
+              <text x="150" y="156" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#06b6d4" letter-spacing="1.5">V2 · WRITE</text>
+              <text x="150" y="174" font-family="Inter, sans-serif" font-size="14" fill="#f8f7ff">files.write("notes/raw.md")</text>
+            </g>
+            <!-- v3 — snapshot baseline -->
+            <g class="diagram-stage" data-stage="3">
+              <circle cx="120" cy="260" r="16" fill="#08070d" stroke="#6366f1" stroke-width="3"/>
+              <path d="M114 254 L120 260 L114 266 M120 254 L126 260 L120 266" stroke="#6366f1" stroke-width="2" fill="none"/>
+              <text x="150" y="256" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#6366f1" letter-spacing="1.5">V3 · SNAPSHOT</text>
+              <text x="150" y="274" font-family="Inter, sans-serif" font-size="14" fill="#f8f7ff">tag: "baseline"</text>
+            </g>
+            <!-- v4 (on branch) -->
+            <g class="diagram-stage" data-stage="4">
+              <circle cx="280" cy="360" r="14" fill="#08070d" stroke="#a3e635" stroke-width="2.5"/>
+              <circle cx="280" cy="360" r="5" fill="#a3e635"/>
+              <text x="310" y="356" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#a3e635" letter-spacing="1.5">V4 · BRANCH</text>
+              <text x="310" y="374" font-family="Inter, sans-serif" font-size="14" fill="#f8f7ff">name: "experiment"</text>
+            </g>
+            <!-- v5 — merge back -->
+            <g class="diagram-stage" data-stage="5">
+              <circle cx="120" cy="460" r="16" fill="#08070d" stroke="#d946ef" stroke-width="3"/>
+              <path d="M112 460 L120 452 L128 460 L120 468 Z" fill="#d946ef" opacity="0.5"/>
+              <text x="150" y="456" font-family="JetBrains Mono, monospace" font-size="11" font-weight="600" fill="#d946ef" letter-spacing="1.5">V5 · MERGE</text>
+              <text x="150" y="474" font-family="Inter, sans-serif" font-size="14" fill="#f8f7ff">strategy: "fast-forward"</text>
+            </g>
+          </g>
+
+          <!-- Annotations -->
+          <text x="20" y="60" font-family="JetBrains Mono, monospace" font-size="10" fill="#6e6a8a" letter-spacing="1.5" text-anchor="end" transform="rotate(-90 20 60)">MAIN</text>
+        </svg>
+      </div>
+
+      <!-- Side copy -->
+      <div class="flex flex-col justify-center">
+        <ul class="space-y-6">
+          <li class="flex items-start gap-4">
+            <span class="mt-1 inline-flex h-6 w-6 flex-none items-center justify-center rounded-full" style="background: rgba(6, 182, 212, 0.16); color: var(--grad-cyan); border: 1px solid var(--grad-cyan);">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </span>
+            <div>
+              <p class="font-medium text-ink-primary">Every write is versioned</p>
+              <p class="mt-1 text-sm leading-relaxed text-ink-secondary">No silent overwrites. A monotonic version counter per workspace makes "what did we know at v17" trivially recoverable.</p>
+            </div>
+          </li>
+          <li class="flex items-start gap-4">
+            <span class="mt-1 inline-flex h-6 w-6 flex-none items-center justify-center rounded-full" style="background: rgba(99, 102, 241, 0.16); color: var(--grad-indigo); border: 1px solid var(--grad-indigo);">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </span>
+            <div>
+              <p class="font-medium text-ink-primary">Snapshots are named checkpoints</p>
+              <p class="mt-1 text-sm leading-relaxed text-ink-secondary">Take a labelled freeze before a risky tool call. Restore in one call when the model goes off the rails.</p>
+            </div>
+          </li>
+          <li class="flex items-start gap-4">
+            <span class="mt-1 inline-flex h-6 w-6 flex-none items-center justify-center rounded-full" style="background: rgba(163, 230, 53, 0.16); color: var(--grad-lime); border: 1px solid var(--grad-lime);">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </span>
+            <div>
+              <p class="font-medium text-ink-primary">Branches are speculative</p>
+              <p class="mt-1 text-sm leading-relaxed text-ink-secondary">Fork the workspace, let an agent try three approaches in parallel, throw away the failures, merge the winner.</p>
+            </div>
+          </li>
+          <li class="flex items-start gap-4">
+            <span class="mt-1 inline-flex h-6 w-6 flex-none items-center justify-center rounded-full" style="background: rgba(217, 70, 239, 0.16); color: var(--grad-magenta); border: 1px solid var(--grad-magenta);">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </span>
+            <div>
+              <p class="font-medium text-ink-primary">Merges are explicit</p>
+              <p class="mt-1 text-sm leading-relaxed text-ink-secondary">Fast-forward or three-way merge, your choice. Conflicts surface to the agent as structured data, not raw diffs.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>

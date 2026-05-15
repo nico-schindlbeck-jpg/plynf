@@ -5,12 +5,16 @@ const installCommand = "curl -fsSL https://plinth.dev/install.sh | sh";
 <section class="section relative overflow-hidden">
   <div class="absolute inset-0 -z-10">
     <div class="absolute inset-0 bg-grid"></div>
-    <div class="absolute inset-0" style="background: radial-gradient(ellipse 60% 50% at 50% 50%, var(--accent-glow), transparent 70%);"></div>
+    <!-- Vivid radial gradient halo, anchored bottom-center for emotional weight -->
+    <div class="absolute inset-0" style="background:
+      radial-gradient(ellipse 60% 50% at 30% 30%, rgba(255, 77, 143, 0.18), transparent 60%),
+      radial-gradient(ellipse 60% 50% at 70% 60%, rgba(99, 102, 241, 0.16), transparent 60%),
+      radial-gradient(ellipse 60% 50% at 50% 90%, rgba(217, 70, 239, 0.16), transparent 65%);"></div>
   </div>
 
   <div class="container-narrow text-center" data-reveal>
     <p class="section-eyebrow">Ready when you are</p>
-    <h2 class="mt-3 font-semibold tracking-ultra text-balance" style="font-size: clamp(2rem, 5vw, 4rem); line-height: 1.04;">
+    <h2 class="mt-3 font-bold text-balance" style="font-size: clamp(2.5rem, 7vw, 5rem); line-height: 0.98; letter-spacing: -0.055em;">
       <span class="gradient-text">Build the agent.</span><br/>
       <span class="gradient-text-accent">We'll handle the substrate.</span>
     </h2>

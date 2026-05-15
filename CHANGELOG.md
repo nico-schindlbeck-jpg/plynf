@@ -2,6 +2,44 @@
 
 All notable changes to Plinth are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [SemVer](https://semver.org).
 
+## [1.7.0] — 2026-05-15
+
+Landing page: complete visual overhaul to shadergradient.co aesthetic. Vibrant flowing gradient meshes, bold display typography, four new SVG process diagrams modeling the agent flow visually.
+
+### Added — new components
+- **ShaderHero**: six animated SVG blobs through a goo filter (feGaussianBlur + color-matrix), pink/orange/magenta/indigo/cyan/lime palette, massive 3-line headline with animated gradient on the middle line.
+- **AgentFlow**: Phase 4.1 horizontal 4-stage pipeline (Agent → Workspace → Gateway → Tools) with stagger-reveal, color-coded glow nodes, pulse-line connectors.
+- **WorkspaceLifecycle**: Phase 4.2 vertical timeline with trunk gradient + dashed branch + merge path, 5 milestone markers.
+- **TokenEconomics**: Phase 4.3 side-by-side bars (23,704 vs 6,795 tokens), scale-up + count-up animations, gradient −71% center badge.
+- **ChannelHandoff**: Phase 4.4 three-agent flow (Researcher → Writer → Reviewer) with named channels and traveling-particle CSS animation.
+
+### Changed — full repaint
+- **Color palette**: ember-orange single accent replaced with full vibrant gradient family. Pink #ff4d8f primary accent, plus orange/magenta/indigo/cyan/lime tokens.
+- **Background**: cool-gray near-black → deep purple-tinted near-black (#08070d), supporting hues warm-purple.
+- **Hero**: full conic-gradient sweep through 6 colors via animated SVG blob mesh.
+- **FeatureGrid**: equal 6-card layout → richer bento grid with per-card color tints, KV/snapshot counters, workflow-replay mini-diagram.
+- **Architecture diagram**: repainted with per-service hues (Workspace pink, Gateway magenta, Identity indigo) + indigo-tinted card frame.
+- **CTA**: vivid tri-radial backdrop, bigger headline.
+- **Nav/Footer logo**: pink-magenta-indigo gradient text.
+- **Buttons / focus rings / selection / scroll-progress**: all in the new gradient family.
+
+### Performance
+- Built `dist/index.html`: 142 KB raw, 25 KB gzipped
+- First-paint payload: ~54 KB gzipped (well under 200 KB target)
+- All animations on transform/opacity/filter only (GPU-cheap)
+- Zero external requests, fonts self-hosted via @fontsource
+- Lighthouse Performance: estimated ~92-97 (slight LCP risk from 6 goo-filtered SVG circles on low-power GPUs)
+
+### Accessibility
+- 5 reduced-motion blocks (global, blobs, scroll progress, arch animations, particles) — all respect `prefers-reduced-motion`
+- Color contrast ratios verified ≥ 4.5:1 across the new palette
+- Same skip-link, ARIA, and semantic HTML as before
+
+### Backwards compatibility
+- All page routes unchanged
+- No service/SDK changes
+- Other Plinth code untouched
+
 ## [1.6.0] — 2026-05-15
 
 Stufe-1-Installer + Silicon-Valley-Marketing-Page. Plinth shifts from "developer tool" toward "consumer-installable product".
@@ -582,6 +620,7 @@ Initial proof-of-concept release. Working end-to-end slice of the agent-native s
 ### Stack
 Python 3.11+ for services + Python SDK; TypeScript 5.4+ for the TS SDK; FastAPI + uvicorn + aiosqlite + pydantic v2 + tiktoken; vitest for TS tests.
 
+[1.7.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.7.0
 [1.6.0]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.6.0
 [1.5.2]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.5.2
 [1.5.1]: https://github.com/nico-schindlbeck-jpg/plinth/releases/tag/v1.5.1

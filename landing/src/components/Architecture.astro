@@ -25,7 +25,7 @@ const oauthTools = [
       </p>
     </div>
 
-    <div class="mt-14 card p-6 sm:p-10 relative overflow-hidden">
+    <div class="mt-14 card card-tint-indigo p-6 sm:p-10 relative overflow-hidden">
       <!-- Animated diagram -->
       <svg
         viewBox="0 0 1100 480"
@@ -35,15 +35,16 @@ const oauthTools = [
       >
         <defs>
           <linearGradient id="arch-grad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stop-color="#ff7849" stop-opacity="0.7"/>
-            <stop offset="100%" stop-color="#ff7849" stop-opacity="0.1"/>
+            <stop offset="0%"  stop-color="#ff4d8f" stop-opacity="0.8"/>
+            <stop offset="50%" stop-color="#d946ef" stop-opacity="0.55"/>
+            <stop offset="100%" stop-color="#6366f1" stop-opacity="0.25"/>
           </linearGradient>
           <linearGradient id="card-stroke" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="rgba(255,255,255,0.12)"/>
+            <stop offset="0%" stop-color="rgba(255,255,255,0.16)"/>
             <stop offset="100%" stop-color="rgba(255,255,255,0.04)"/>
           </linearGradient>
           <linearGradient id="card-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="rgba(255,255,255,0.04)"/>
+            <stop offset="0%" stop-color="rgba(255,255,255,0.05)"/>
             <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
           </linearGradient>
           <filter id="soft-glow">
@@ -58,43 +59,42 @@ const oauthTools = [
         <!-- ===== Agent (left) ===== -->
         <g transform="translate(40 180)">
           <rect width="190" height="120" rx="14" fill="url(#card-fill)" stroke="url(#card-stroke)"/>
-          <text x="20" y="34" font-family="Inter, sans-serif" font-size="11" font-weight="500" fill="#6b6f80" letter-spacing="1.5" style="text-transform:uppercase;">AGENT</text>
-          <text x="20" y="68" font-family="Inter, sans-serif" font-size="20" font-weight="600" fill="#f4f5f8">Your loop</text>
-          <text x="20" y="92" font-family="Inter, sans-serif" font-size="13" fill="#a3a7b8">Python · TS · Go</text>
-          <text x="20" y="108" font-family="Inter, sans-serif" font-size="13" fill="#a3a7b8">Swift · Kotlin</text>
+          <text x="20" y="34" font-family="Inter, sans-serif" font-size="11" font-weight="500" fill="#6e6a8a" letter-spacing="1.5" style="text-transform:uppercase;">AGENT</text>
+          <text x="20" y="68" font-family="Inter, sans-serif" font-size="20" font-weight="600" fill="#f8f7ff">Your loop</text>
+          <text x="20" y="92" font-family="Inter, sans-serif" font-size="13" fill="#b9b5d4">Python · TS · Go</text>
+          <text x="20" y="108" font-family="Inter, sans-serif" font-size="13" fill="#b9b5d4">Swift · Kotlin</text>
         </g>
 
         <!-- ===== Plinth core (center) ===== -->
         <g transform="translate(380 80)">
-          <!-- container -->
-          <rect width="320" height="320" rx="18" fill="rgba(255,255,255,0.015)" stroke="rgba(255,120,73,0.18)"/>
-          <text x="20" y="30" font-family="Inter, sans-serif" font-size="11" font-weight="500" fill="#ff7849" letter-spacing="1.5" style="text-transform:uppercase;">PLINTH</text>
+          <rect width="320" height="320" rx="18" fill="rgba(255,255,255,0.025)" stroke="rgba(255,77,143,0.32)"/>
+          <text x="20" y="30" font-family="Inter, sans-serif" font-size="11" font-weight="600" fill="#ff4d8f" letter-spacing="1.5" style="text-transform:uppercase;">PLINTH</text>
 
           <!-- Workspace -->
           <g transform="translate(20 50)" class="arch-node">
-            <rect width="280" height="76" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.1)"/>
-            <text x="20" y="32" font-family="Inter, sans-serif" font-size="15" font-weight="600" fill="#f4f5f8">Workspace</text>
-            <text x="20" y="56" font-family="Inter, sans-serif" font-size="12" fill="#a3a7b8">KV · Files · Snapshots · Branches</text>
-            <rect x="240" y="20" width="22" height="22" rx="6" fill="rgba(255,120,73,0.15)" stroke="rgba(255,120,73,0.4)"/>
-            <text x="244" y="35" font-family="JetBrains Mono, monospace" font-size="10" fill="#ff7849">:21</text>
+            <rect width="280" height="76" rx="12" fill="rgba(255,77,143,0.06)" stroke="rgba(255,77,143,0.22)"/>
+            <text x="20" y="32" font-family="Inter, sans-serif" font-size="15" font-weight="600" fill="#f8f7ff">Workspace</text>
+            <text x="20" y="56" font-family="Inter, sans-serif" font-size="12" fill="#b9b5d4">KV · Files · Snapshots · Branches</text>
+            <rect x="240" y="20" width="22" height="22" rx="6" fill="rgba(255,77,143,0.18)" stroke="rgba(255,77,143,0.5)"/>
+            <text x="244" y="35" font-family="JetBrains Mono, monospace" font-size="10" fill="#ff4d8f">:21</text>
           </g>
 
           <!-- Gateway -->
           <g transform="translate(20 142)" class="arch-node arch-node--delay-1">
-            <rect width="280" height="76" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.1)"/>
-            <text x="20" y="32" font-family="Inter, sans-serif" font-size="15" font-weight="600" fill="#f4f5f8">Tool Gateway</text>
-            <text x="20" y="56" font-family="Inter, sans-serif" font-size="12" fill="#a3a7b8">Cache · Audit · OAuth · Cost-caps</text>
-            <rect x="240" y="20" width="22" height="22" rx="6" fill="rgba(255,120,73,0.15)" stroke="rgba(255,120,73,0.4)"/>
-            <text x="244" y="35" font-family="JetBrains Mono, monospace" font-size="10" fill="#ff7849">:22</text>
+            <rect width="280" height="76" rx="12" fill="rgba(217,70,239,0.06)" stroke="rgba(217,70,239,0.22)"/>
+            <text x="20" y="32" font-family="Inter, sans-serif" font-size="15" font-weight="600" fill="#f8f7ff">Tool Gateway</text>
+            <text x="20" y="56" font-family="Inter, sans-serif" font-size="12" fill="#b9b5d4">Cache · Audit · OAuth · Cost-caps</text>
+            <rect x="240" y="20" width="22" height="22" rx="6" fill="rgba(217,70,239,0.18)" stroke="rgba(217,70,239,0.5)"/>
+            <text x="244" y="35" font-family="JetBrains Mono, monospace" font-size="10" fill="#d946ef">:22</text>
           </g>
 
           <!-- Identity -->
           <g transform="translate(20 234)" class="arch-node arch-node--delay-2">
-            <rect width="280" height="66" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.1)"/>
-            <text x="20" y="32" font-family="Inter, sans-serif" font-size="15" font-weight="600" fill="#f4f5f8">Identity</text>
-            <text x="20" y="52" font-family="Inter, sans-serif" font-size="12" fill="#a3a7b8">JWT · Tenants · RS256 · JWKS</text>
-            <rect x="240" y="20" width="22" height="22" rx="6" fill="rgba(255,120,73,0.15)" stroke="rgba(255,120,73,0.4)"/>
-            <text x="244" y="35" font-family="JetBrains Mono, monospace" font-size="10" fill="#ff7849">:25</text>
+            <rect width="280" height="66" rx="12" fill="rgba(99,102,241,0.06)" stroke="rgba(99,102,241,0.22)"/>
+            <text x="20" y="32" font-family="Inter, sans-serif" font-size="15" font-weight="600" fill="#f8f7ff">Identity</text>
+            <text x="20" y="52" font-family="Inter, sans-serif" font-size="12" fill="#b9b5d4">JWT · Tenants · RS256 · JWKS</text>
+            <rect x="240" y="20" width="22" height="22" rx="6" fill="rgba(99,102,241,0.18)" stroke="rgba(99,102,241,0.5)"/>
+            <text x="244" y="35" font-family="JetBrains Mono, monospace" font-size="10" fill="#6366f1">:25</text>
           </g>
         </g>
 
@@ -114,17 +114,17 @@ const oauthTools = [
             const y = 88 + row * 76;
             return (
               <g transform={`translate(${x} ${y})`}>
-                <rect width="135" height="58" rx="10" fill="rgba(255,255,255,0.025)" stroke="rgba(255,255,255,0.08)"/>
-                <circle cx="18" cy="29" r="6" fill="rgba(255,120,73,0.25)" stroke="rgba(255,120,73,0.5)"/>
-                <text x="34" y="26" font-family="Inter, sans-serif" font-size="13" font-weight="500" fill="#f4f5f8">{tool}</text>
-                <text x="34" y="42" font-family="JetBrains Mono, monospace" font-size="9" fill="#6b6f80" letter-spacing="1">OAUTH</text>
+                <rect width="135" height="58" rx="10" fill="rgba(255,255,255,0.025)" stroke="rgba(99,102,241,0.18)"/>
+                <circle cx="18" cy="29" r="6" fill="rgba(99,102,241,0.32)" stroke="rgba(99,102,241,0.6)"/>
+                <text x="34" y="26" font-family="Inter, sans-serif" font-size="13" font-weight="500" fill="#f8f7ff">{tool}</text>
+                <text x="34" y="42" font-family="JetBrains Mono, monospace" font-size="9" fill="#6e6a8a" letter-spacing="1">OAUTH</text>
               </g>
             );
           })
         }
 
         <!-- ===== Lines: plinth → tools ===== -->
-        <g fill="none" stroke="url(#arch-grad)" stroke-width="1" stroke-opacity="0.6">
+        <g fill="none" stroke="url(#arch-grad)" stroke-width="1" stroke-opacity="0.7">
           <path d="M700 180 C 740 180, 760 117, 780 117" class="pulse-line" style="animation-delay:-0.2s"/>
           <path d="M700 195 C 740 195, 760 193, 780 193" class="pulse-line" style="animation-delay:-0.5s"/>
           <path d="M700 210 C 740 210, 760 269, 780 269" class="pulse-line" style="animation-delay:-0.9s"/>
@@ -132,7 +132,7 @@ const oauthTools = [
         </g>
 
         <!-- annotations -->
-        <g font-family="JetBrains Mono, monospace" font-size="10" fill="#6b6f80" letter-spacing="1" style="text-transform:uppercase;">
+        <g font-family="JetBrains Mono, monospace" font-size="10" fill="#6e6a8a" letter-spacing="1" style="text-transform:uppercase;">
           <text x="244" y="180">SDK CALL</text>
           <text x="720" y="78">MCP / REST</text>
         </g>
@@ -154,7 +154,7 @@ const oauthTools = [
           <p class="mt-1.5 text-ink-secondary">SDK in 5 languages. One call, no glue code.</p>
         </div>
         <div>
-          <p class="text-2xs font-mono uppercase tracking-widest text-accent">Plinth runtime</p>
+          <p class="text-2xs font-mono uppercase tracking-widest" style="color: var(--grad-pink);">Plinth runtime</p>
           <p class="mt-1.5 text-ink-secondary">Workspace + Gateway + Identity. All replaceable.</p>
         </div>
         <div>
