@@ -1,0 +1,403 @@
+/* Plinth dashboard — global tokens shared between wizard and SPA. */
+
+:root {
+  --bg-0: #08070d;
+  --bg-1: #110e1f;
+  --bg-2: #1a1530;
+  --bg-3: #261d44;
+
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  --ink: #f8f7ff;
+  --ink-2: #b9b5d4;
+  --ink-3: #6e6a8a;
+
+  --accent: #ff8551;
+  --accent-hover: #ffa07a;
+  --accent-subtle: rgba(255, 133, 81, 0.08);
+  --accent-glow: rgba(255, 133, 81, 0.32);
+  --magenta: #d946ef;
+  --indigo: #6366f1;
+
+  --radius: 12px;
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-0);
+  color: var(--ink);
+  font-family:
+    "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+code,
+.mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+}
+
+/* ─── Wizard layout ───────────────────────────────────────── */
+
+.wizard {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+.wizard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 32px;
+  border-bottom: 1px solid var(--border);
+}
+
+.wizard-version {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  color: var(--ink-3);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.wizard-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.wizard-logo:hover {
+  text-decoration: none;
+}
+
+.wizard-main {
+  display: grid;
+  place-items: center;
+  padding: 40px 24px;
+}
+
+.wizard-footer {
+  text-align: center;
+  padding: 16px 32px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.wizard-step {
+  width: 100%;
+  max-width: 560px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0)),
+    var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 40px 36px;
+}
+
+/* ─── Progress dots ───────────────────────────────────────── */
+
+.wizard-progress {
+  display: flex;
+  gap: 10px;
+  margin: 0 auto 28px;
+  width: fit-content;
+}
+.wizard-progress-step {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-3);
+  transition: background 0.18s var(--ease);
+}
+.wizard-progress-step.is-active {
+  background: var(--accent);
+}
+
+/* ─── Type ramp ───────────────────────────────────────────── */
+
+.wizard-eyebrow {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+  margin: 0 0 12px;
+}
+.wizard-eyebrow-success {
+  color: #93e0b2;
+}
+
+.wizard-title {
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+
+.wizard-lead {
+  font-size: 15px;
+  color: var(--ink-2);
+  line-height: 1.55;
+  margin: 0 0 28px;
+}
+
+/* ─── Fields ──────────────────────────────────────────────── */
+
+.wizard-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.wizard-field > span {
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 500;
+}
+.wizard-field-hint {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+.wizard-field input {
+  padding: 11px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-2);
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+  transition: border-color 0.15s var(--ease);
+}
+.wizard-field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+.wizard-field-error {
+  font-size: 12px;
+  color: #ff8b8b;
+}
+
+.wizard-fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+.wizard-fieldset[disabled] {
+  opacity: 0.5;
+}
+
+/* ─── Toggle ──────────────────────────────────────────────── */
+
+.wizard-toggle {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  margin-bottom: 24px;
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease);
+}
+.wizard-toggle:hover {
+  border-color: var(--accent);
+}
+.wizard-toggle.is-active {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+.wizard-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.wizard-toggle-track {
+  width: 38px;
+  height: 22px;
+  background: var(--bg-3);
+  border-radius: 999px;
+  position: relative;
+  transition: background 0.15s var(--ease);
+  flex-shrink: 0;
+}
+.wizard-toggle.is-active .wizard-toggle-track {
+  background: var(--accent);
+}
+.wizard-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ink);
+  transition: transform 0.18s var(--ease);
+}
+.wizard-toggle.is-active .wizard-toggle-thumb {
+  transform: translateX(16px);
+}
+.wizard-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+}
+.wizard-toggle-text small {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+/* ─── Summary ─────────────────────────────────────────────── */
+
+.wizard-summary {
+  margin: 0 0 24px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-2);
+}
+.wizard-summary > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.wizard-summary > div:last-child {
+  border-bottom: 0;
+}
+.wizard-summary dt {
+  color: var(--ink-3);
+  font-size: 13px;
+  margin: 0;
+}
+.wizard-summary dd {
+  color: var(--ink);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ─── Actions / buttons ───────────────────────────────────── */
+
+.wizard-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 24px;
+}
+
+.wizard-btn-primary,
+.wizard-btn-secondary {
+  font: inherit;
+  font-weight: 500;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    transform 0.12s var(--ease),
+    background 0.12s var(--ease),
+    border-color 0.12s var(--ease);
+}
+.wizard-btn-primary {
+  background: var(--accent);
+  color: #190612;
+}
+.wizard-btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+.wizard-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.wizard-btn-secondary {
+  background: transparent;
+  color: var(--ink-2);
+  border-color: var(--border-strong);
+}
+.wizard-btn-secondary:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+.wizard-btn-large {
+  display: inline-block;
+  padding: 14px 28px;
+  font-size: 16px;
+  text-decoration: none;
+  margin-top: 24px;
+}
+
+/* ─── Complete state ──────────────────────────────────────── */
+
+.wizard-step-complete {
+  text-align: center;
+}
+.wizard-apikey {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--accent);
+  background: var(--accent-subtle);
+  border-radius: 10px;
+  margin: 24px 0;
+}
+.wizard-apikey code {
+  flex: 1;
+  font-size: 13px;
+  text-align: left;
+  word-break: break-all;
+}
+.wizard-checklist {
+  color: var(--ink-2);
+  font-size: 14px;
+  margin: 16px 0 0;
+}
+.wizard-checklist strong {
+  color: var(--ink);
+}
+
+/* ─── Error block ─────────────────────────────────────────── */
+
+.wizard-error {
+  border: 1px solid #ff8b8b;
+  background: rgba(255, 139, 139, 0.08);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 0 0 16px;
+  font-size: 14px;
+}
+.wizard-error strong {
+  display: block;
+  color: #ffaaaa;
+  margin-bottom: 4px;
+}
+.wizard-error p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+}
