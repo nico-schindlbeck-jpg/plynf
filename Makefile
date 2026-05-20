@@ -11,7 +11,14 @@ VENV_BIN := $(VENV)/bin
 PIP := $(VENV_BIN)/pip
 PY := $(VENV_BIN)/python
 
-PLINTH_DATA_DIR ?= /tmp/plinth-data
+# Data directory — defaults to OS-appropriate user data dir.
+# macOS:   ~/Library/Application Support/Plinth
+# Linux:   ~/.local/share/plinth   (XDG_DATA_HOME)
+# Windows: %APPDATA%\Plinth
+# Override with PLINTH_DATA_DIR=/path/to/custom on the make command line.
+# Legacy /tmp/plinth-data is auto-migrated by scripts/migrate_data_dir.sh
+# on first `make serve` after upgrade. See docs/distribution/CLICK_TO_INSTALL_GAPS.md §1.6.
+PLINTH_DATA_DIR ?= $(shell $(PYTHON) -c "import os; d = os.environ.get('XDG_DATA_HOME') or (os.path.expanduser('~/Library/Application Support') if os.uname().sysname == 'Darwin' else os.path.expanduser('~/.local/share')); print(os.path.join(d, 'Plinth' if os.uname().sysname == 'Darwin' else 'plinth'))" 2>/dev/null || echo "$$HOME/.plinth/data")
 PLINTH_WORKSPACE_PORT ?= 7421
 PLINTH_GATEWAY_PORT ?= 7422
 PLINTH_MOCK_MCP_PORT ?= 7423
@@ -317,7 +324,10 @@ $(LOG_DIR):
 $(PID_DIR):
 	@mkdir -p $(PID_DIR)
 
-serve: $(LOG_DIR) $(PID_DIR) serve-workspace serve-gateway serve-mock serve-dashboard serve-identity serve-github-mcp serve-slack-mcp serve-linear-mcp serve-notion-mcp serve-google-mcp serve-atlassian-mcp serve-salesforce-mcp serve-asana-mcp  ## Start all services in the background
+migrate-data-dir:  ## One-shot: migrate /tmp/plinth-data to OS-appropriate user data dir
+	@bash scripts/migrate_data_dir.sh
+
+serve: migrate-data-dir $(LOG_DIR) $(PID_DIR) serve-workspace serve-gateway serve-mock serve-dashboard serve-identity serve-github-mcp serve-slack-mcp serve-linear-mcp serve-notion-mcp serve-google-mcp serve-atlassian-mcp serve-salesforce-mcp serve-asana-mcp  ## Start all services in the background
 	@echo ""
 	@echo "✔ Services started:"
 	@echo "  • Workspace        : http://localhost:$(PLINTH_WORKSPACE_PORT)/healthz     (logs: $(LOG_DIR)/workspace.log)"
