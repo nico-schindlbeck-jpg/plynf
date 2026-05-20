@@ -1,0 +1,254 @@
+# Plinth — production deployment via pre-built GHCR images.
+#
+# Used by `plinth up` (Block 3 CLI) and by ops teams who self-host
+# without wanting to build from source. No `build:` directives —
+# images are pulled from GitHub Container Registry.
+#
+# Setup (one-time):
+#   PLINTH_ORG must be set to your GHCR org or user namespace. After
+#   Block 0.3 lands, the canonical value will be 'plinth' (assuming
+#   we register that org). Until then, set it explicitly:
+#     export PLINTH_ORG=nico-schindlbeck-jpg
+#     export PLINTH_VERSION=1.7.5
+#
+# Usage:
+#   docker compose -f deploy/compose.prod.yml pull
+#   docker compose -f deploy/compose.prod.yml up -d --wait --wait-timeout 120
+#   docker compose -f deploy/compose.prod.yml logs -f workspace
+#   docker compose -f deploy/compose.prod.yml down -v
+#
+# Image signatures: verify with cosign before deploying in regulated
+# environments:
+#   cosign verify ghcr.io/${PLINTH_ORG}/plinth-workspace:${PLINTH_VERSION} \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+#     --certificate-identity-regexp "^https://github.com/${PLINTH_ORG}/plinth/"
+
+x-base-env: &base-env
+  PLINTH_LOG_LEVEL: "${PLINTH_LOG_LEVEL:-INFO}"
+  PLINTH_LOG_FORMAT: "${PLINTH_LOG_FORMAT:-json}"
+  PLINTH_DATA_DIR: /data
+
+x-base-healthcheck: &base-healthcheck
+  interval: 10s
+  timeout: 3s
+  retries: 5
+  start_period: 5s
+
+services:
+  workspace:
+    image: ghcr.io/${PLINTH_ORG:?PLINTH_ORG must be set}/plinth-workspace:${PLINTH_VERSION:-latest}
+    pull_policy: always
+    container_name: plinth-workspace
+    ports:
+      - "${PLINTH_WORKSPACE_PORT:-7421}:7421"
+    environment:
+      <<: *base-env
+      PLINTH_WORKSPACE_PORT: "7421"
+    volumes:
+      - plinth_data:/data
+    healthcheck:
+      <<: *base-healthcheck
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7421/healthz\").read()'"]
+    restart: unless-stopped
+    labels:
+      io.plinth.service: "workspace"
+      io.plinth.version: "${PLINTH_VERSION:-latest}"
+
+  gateway:
+    image: ghcr.io/${PLINTH_ORG:?PLINTH_ORG must be set}/plinth-gateway:${PLINTH_VERSION:-latest}
+    pull_policy: always
+    container_name: plinth-gateway
+    ports:
+      - "${PLINTH_GATEWAY_PORT:-7422}:7422"
+    environment:
+      <<: *base-env
+      PLINTH_GATEWAY_PORT: "7422"
+    volumes:
+      - plinth_data:/data
+    depends_on:
+      workspace: { condition: service_healthy }
+    healthcheck:
+      <<: *base-healthcheck
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7422/healthz\").read()'"]
+    restart: unless-stopped
+    labels:
+      io.plinth.service: "gateway"
+      io.plinth.version: "${PLINTH_VERSION:-latest}"
+
+  identity:
+    image: ghcr.io/${PLINTH_ORG:?PLINTH_ORG must be set}/plinth-identity:${PLINTH_VERSION:-latest}
+    pull_policy: always
+    container_name: plinth-identity
+    ports:
+      - "${PLINTH_IDENTITY_PORT:-7425}:7425"
+    environment:
+      <<: *base-env
+      PLINTH_IDENTITY_PORT: "7425"
+      PLINTH_IDENTITY_DATA_DIR: /data/identity
+    volumes:
+      - plinth_data:/data
+    healthcheck:
+      <<: *base-healthcheck
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7425/healthz\").read()'"]
+    restart: unless-stopped
+    labels:
+      io.plinth.service: "identity"
+      io.plinth.version: "${PLINTH_VERSION:-latest}"
+
+  dashboard:
+    image: ghcr.io/${PLINTH_ORG:?PLINTH_ORG must be set}/plinth-dashboard:${PLINTH_VERSION:-latest}
+    pull_policy: always
+    container_name: plinth-dashboard
+    ports:
+      - "${PLINTH_DASHBOARD_PORT:-7424}:7424"
+    environment:
+      <<: *base-env
+      PLINTH_DASHBOARD_PORT: "7424"
+      PLINTH_WORKSPACE_URL: "http://workspace:7421"
+      PLINTH_GATEWAY_URL: "http://gateway:7422"
+      PLINTH_IDENTITY_URL: "http://identity:7425"
+    depends_on:
+      workspace: { condition: service_healthy }
+      gateway:   { condition: service_healthy }
+      identity:  { condition: service_healthy }
+    healthcheck:
+      <<: *base-healthcheck
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7424/healthz\").read()'"]
+    restart: unless-stopped
+    labels:
+      io.plinth.service: "dashboard"
+      io.plinth.version: "${PLINTH_VERSION:-latest}"
+
+  mock-mcp:
+    image: ghcr.io/${PLINTH_ORG:?PLINTH_ORG must be set}/plinth-mock-mcp:${PLINTH_VERSION:-latest}
+    pull_policy: always
+    container_name: plinth-mock-mcp
+    ports:
+      - "${PLINTH_MOCK_MCP_PORT:-7423}:7423"
+    environment:
+      <<: *base-env
+      PLINTH_MOCK_MCP_PORT: "7423"
+    healthcheck:
+      <<: *base-healthcheck
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7423/healthz\").read()'"]
+    restart: unless-stopped
+    labels:
+      io.plinth.service: "mock-mcp"
+      io.plinth.version: "${PLINTH_VERSION:-latest}"
+
+  # ──────────── OAuth MCP servers (eight providers) ────────────
+  github-mcp:
+    image: ghcr.io/${PLINTH_ORG:?PLINTH_ORG must be set}/plinth-github-mcp:${PLINTH_VERSION:-latest}
+    pull_policy: always
+    container_name: plinth-github-mcp
+    ports: ["${PLINTH_GITHUB_MCP_PORT:-7426}:7426"]
+    environment:
+      <<: *base-env
+      PLINTH_GITHUB_MCP_PORT: "7426"
+    healthcheck:
+      <<: *base-healthcheck
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7426/healthz\").read()'"]
+    restart: unless-stopped
+    labels: { io.plinth.service: "github-mcp", io.plinth.version: "${PLINTH_VERSION:-latest}" }
+
+  slack-mcp:
+    image: ghcr.io/${PLINTH_ORG:?PLINTH_ORG must be set}/plinth-slack-mcp:${PLINTH_VERSION:-latest}
+    pull_policy: always
+    container_name: plinth-slack-mcp
+    ports: ["${PLINTH_SLACK_MCP_PORT:-7427}:7427"]
+    environment:
+      <<: *base-env
+      PLINTH_SLACK_MCP_PORT: "7427"
+    healthcheck:
+      <<: *base-healthcheck
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7427/healthz\").read()'"]
+    restart: unless-stopped
+    labels: { io.plinth.service: "slack-mcp", io.plinth.version: "${PLINTH_VERSION:-latest}" }
+
+  linear-mcp:
+    image: ghcr.io/${PLINTH_ORG:?PLINTH_ORG must be set}/plinth-linear-mcp:${PLINTH_VERSION:-latest}
+    pull_policy: always
+    container_name: plinth-linear-mcp
+    ports: ["${PLINTH_LINEAR_MCP_PORT:-7428}:7428"]
+    environment:
+      <<: *base-env
+      PLINTH_LINEAR_MCP_PORT: "7428"
+    healthcheck:
+      <<: *base-healthcheck
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7428/healthz\").read()'"]
+    restart: unless-stopped
+    labels: { io.plinth.service: "linear-mcp", io.plinth.version: "${PLINTH_VERSION:-latest}" }
+
+  notion-mcp:
+    image: ghcr.io/${PLINTH_ORG:?PLINTH_ORG must be set}/plinth-notion-mcp:${PLINTH_VERSION:-latest}
+    pull_policy: always
+    container_name: plinth-notion-mcp
+    ports: ["${PLINTH_NOTION_MCP_PORT:-7429}:7429"]
+    environment:
+      <<: *base-env
+      PLINTH_NOTION_MCP_PORT: "7429"
+    healthcheck:
+      <<: *base-healthcheck
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7429/healthz\").read()'"]
+    restart: unless-stopped
+    labels: { io.plinth.service: "notion-mcp", io.plinth.version: "${PLINTH_VERSION:-latest}" }
+
+  google-mcp:
+    image: ghcr.io/${PLINTH_ORG:?PLINTH_ORG must be set}/plinth-google-mcp:${PLINTH_VERSION:-latest}
+    pull_policy: always
+    container_name: plinth-google-mcp
+    ports: ["${PLINTH_GOOGLE_MCP_PORT:-7430}:7430"]
+    environment:
+      <<: *base-env
+      PLINTH_GOOGLE_MCP_PORT: "7430"
+    healthcheck:
+      <<: *base-healthcheck
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7430/healthz\").read()'"]
+    restart: unless-stopped
+    labels: { io.plinth.service: "google-mcp", io.plinth.version: "${PLINTH_VERSION:-latest}" }
+
+  atlassian-mcp:
+    image: ghcr.io/${PLINTH_ORG:?PLINTH_ORG must be set}/plinth-atlassian-mcp:${PLINTH_VERSION:-latest}
+    pull_policy: always
+    container_name: plinth-atlassian-mcp
+    ports: ["${PLINTH_ATLASSIAN_MCP_PORT:-7431}:7431"]
+    environment:
+      <<: *base-env
+      PLINTH_ATLASSIAN_MCP_PORT: "7431"
+    healthcheck:
+      <<: *base-healthcheck
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7431/healthz\").read()'"]
+    restart: unless-stopped
+    labels: { io.plinth.service: "atlassian-mcp", io.plinth.version: "${PLINTH_VERSION:-latest}" }
+
+  salesforce-mcp:
+    image: ghcr.io/${PLINTH_ORG:?PLINTH_ORG must be set}/plinth-salesforce-mcp:${PLINTH_VERSION:-latest}
+    pull_policy: always
+    container_name: plinth-salesforce-mcp
+    ports: ["${PLINTH_SALESFORCE_MCP_PORT:-7432}:7432"]
+    environment:
+      <<: *base-env
+      PLINTH_SALESFORCE_MCP_PORT: "7432"
+    healthcheck:
+      <<: *base-healthcheck
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7432/healthz\").read()'"]
+    restart: unless-stopped
+    labels: { io.plinth.service: "salesforce-mcp", io.plinth.version: "${PLINTH_VERSION:-latest}" }
+
+  asana-mcp:
+    image: ghcr.io/${PLINTH_ORG:?PLINTH_ORG must be set}/plinth-asana-mcp:${PLINTH_VERSION:-latest}
+    pull_policy: always
+    container_name: plinth-asana-mcp
+    ports: ["${PLINTH_ASANA_MCP_PORT:-7433}:7433"]
+    environment:
+      <<: *base-env
+      PLINTH_ASANA_MCP_PORT: "7433"
+    healthcheck:
+      <<: *base-healthcheck
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7433/healthz\").read()'"]
+    restart: unless-stopped
+    labels: { io.plinth.service: "asana-mcp", io.plinth.version: "${PLINTH_VERSION:-latest}" }
+
+volumes:
+  plinth_data:
+    name: plinth_data
