@@ -1,0 +1,112 @@
+name: release-ts-sdk
+
+# Publishes the TypeScript SDK at sdk/typescript to npm on every tag
+# matching `sdk-ts-v*`. Uses npm provenance + npm trusted publishing
+# (announced 2024, GA mid-2025) — no NPM_TOKEN stored.
+#
+# Setup steps (one-time, manual on npm side):
+#   1. Create the @plinth org on npm (or claim plinth-sdk if @plinth taken).
+#   2. Go to https://www.npmjs.com/package/@plinth/sdk/access (after
+#      first manual publish), enable "Trusted publisher via GitHub Actions"
+#      and pin:
+#        Organization: nico-schindlbeck-jpg
+#        Repository: plinth
+#        Workflow filename: release-ts-sdk.yml
+#        Environment: npm
+#
+# Release procedure:
+#   1. Bump version in sdk/typescript/package.json
+#   2. PR + merge to main
+#   3. git tag sdk-ts-v0.4.0 && git push origin sdk-ts-v0.4.0
+
+on:
+  push:
+    tags:
+      - "sdk-ts-v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build but don't publish"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write   # Required for npm provenance + trusted publishing
+
+jobs:
+  build:
+    name: Build + test
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.derive.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org/"
+
+      - name: Derive version from tag
+        id: derive
+        run: |
+          tag="${GITHUB_REF#refs/tags/sdk-ts-v}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="$(node -p "require('./sdk/typescript/package.json').version")"
+          fi
+          echo "version=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Sanity-check version matches package.json
+        run: |
+          declared=$(node -p "require('./sdk/typescript/package.json').version")
+          if [ "${declared}" != "${{ steps.derive.outputs.version }}" ]; then
+            echo "✘ Tag version ${{ steps.derive.outputs.version }} != package.json ${declared}"
+            exit 1
+          fi
+
+      - name: Install + build + test
+        working-directory: sdk/typescript
+        run: |
+          npm ci
+          npm run build
+          npm test
+
+      - name: Pack
+        working-directory: sdk/typescript
+        run: |
+          npm pack --pack-destination ../../dist
+
+      - name: Upload artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ts-sdk-dist
+          path: dist/*.tgz
+
+  publish:
+    name: Publish to npm
+    needs: build
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || inputs.dry_run == false
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/@plinth/sdk/v/${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org/"
+
+      - name: Install + build (publish needs files in source tree)
+        working-directory: sdk/typescript
+        run: |
+          npm ci
+          npm run build
+
+      - name: Publish
+        working-directory: sdk/typescript
+        run: |
+          npm publish --access public --provenance

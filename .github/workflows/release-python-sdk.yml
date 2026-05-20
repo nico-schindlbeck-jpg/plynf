@@ -1,0 +1,110 @@
+name: release-python-sdk
+
+# Publishes the Python SDK at sdk/python to PyPI on every tag matching
+# `sdk-python-v*`. Uses PyPI Trusted Publishers (OIDC) — no API token
+# stored in repo secrets.
+#
+# Setup steps (one-time, manual on PyPI side):
+#   1. Create the `plinth` project on PyPI (claim the name).
+#   2. Go to https://pypi.org/manage/account/publishing/ and register
+#      a trusted publisher for:
+#        Owner: nico-schindlbeck-jpg
+#        Repository name: plinth
+#        Workflow filename: release-python-sdk.yml
+#        Environment name: pypi
+#   3. (Optional) Repeat against test.pypi.org for a release-candidate
+#      publishing flow.
+#
+# Release procedure:
+#   1. Bump version in sdk/python/pyproject.toml
+#   2. Open PR, merge to main
+#   3. git tag sdk-python-v0.2.0 && git push origin sdk-python-v0.2.0
+#   4. This workflow builds + publishes automatically.
+
+on:
+  push:
+    tags:
+      - "sdk-python-v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build but don't publish"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write   # Required for PyPI trusted publishing
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.derive.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build twine
+
+      - name: Derive version from tag
+        id: derive
+        run: |
+          tag="${GITHUB_REF#refs/tags/sdk-python-v}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="$(grep -E '^version' sdk/python/pyproject.toml | sed -E 's/.*"(.+)".*/\1/')"
+          fi
+          echo "version=${tag}" >> "$GITHUB_OUTPUT"
+          echo "→ SDK version: ${tag}"
+
+      - name: Sanity-check version matches pyproject.toml
+        run: |
+          declared=$(grep -E '^version' sdk/python/pyproject.toml | sed -E 's/.*"(.+)".*/\1/')
+          if [ "${declared}" != "${{ steps.derive.outputs.version }}" ]; then
+            echo "✘ Tag version ${{ steps.derive.outputs.version }} != pyproject ${declared}"
+            exit 1
+          fi
+
+      - name: Build sdist + wheel
+        run: |
+          cd sdk/python
+          python -m build --sdist --wheel --outdir ../../dist
+
+      - name: Verify metadata
+        run: |
+          python -m twine check dist/*
+
+      - name: Upload artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-sdk-dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || inputs.dry_run == false
+    environment:
+      name: pypi
+      url: https://pypi.org/project/plinth/${{ needs.build.outputs.version }}/
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-sdk-dist
+          path: dist/
+
+      - name: Publish to PyPI (trusted publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          attestations: true     # PEP 740 build provenance attestation
+          verbose: true

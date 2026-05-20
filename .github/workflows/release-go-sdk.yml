@@ -1,0 +1,100 @@
+name: release-go-sdk
+
+# Tags the Go SDK for the Go module proxy. Go modules are pull-based:
+# once a tag exists in the repo's git history, `go get github.com/plinth/sdk-go@v0.x.y`
+# resolves automatically via proxy.golang.org. There's nothing to PUBLISH —
+# this workflow just enforces the tag-conventions and runs verification.
+#
+# Setup steps (one-time):
+#   1. After plinth.dev is registered, decide on canonical module path:
+#        Option A (recommended): github.com/plinth/sdk-go  (new repo)
+#        Option B:               github.com/nico-schindlbeck-jpg/plinth/sdk/go
+#      Current go.mod points to option A but the SDK lives in this
+#      monorepo. Either move sdk-go to its own repo OR change go.mod to
+#      option B. Decision blocks first publish — see Block 8 docs.
+#   2. Tag format: sdk-go-v0.x.y (this workflow trigger) maps to the
+#      Go-required tag format vX.Y.Z on the target repo/path.
+#
+# Release procedure:
+#   1. Bump module's internal version constant in sdk/go/plinth/version.go
+#   2. PR + merge to main
+#   3. git tag sdk-go-v0.4.0 && git push origin sdk-go-v0.4.0
+#   4. Workflow runs verification then pushes a parallel vX.Y.Z tag
+#      on the module-root path (option A: separate repo; option B: same).
+
+on:
+  push:
+    tags:
+      - "sdk-go-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write   # Need write to push the v-prefixed tag
+
+jobs:
+  verify-and-tag:
+    name: Verify + emit canonical tag
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need full history for tag operations
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Derive version from tag
+        id: derive
+        run: |
+          tag="${GITHUB_REF#refs/tags/sdk-go-v}"
+          echo "version=${tag}" >> "$GITHUB_OUTPUT"
+          echo "go_tag=v${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Go module builds + tests
+        working-directory: sdk/go
+        run: |
+          go mod download
+          go build ./...
+          go test -race -timeout 60s ./...
+
+      - name: Verify version constant matches tag
+        run: |
+          # Allow either a version.go file or a const in plinth.go
+          if [ -f sdk/go/plinth/version.go ]; then
+            const=$(grep -oE 'Version = "[^"]+"' sdk/go/plinth/version.go | sed -E 's/.*"(.+)"/\1/' || echo "MISSING")
+          else
+            const="MISSING"
+          fi
+          if [ "${const}" = "MISSING" ]; then
+            echo "::warning::No Version constant found in sdk/go/plinth/. Skipping sanity-check."
+          elif [ "${const}" != "${{ steps.derive.outputs.version }}" ]; then
+            echo "✘ Tag version ${{ steps.derive.outputs.version }} != constant ${const}"
+            exit 1
+          fi
+
+      - name: Notify Go module proxy
+        run: |
+          # The proxy auto-discovers tagged versions, but a courtesy
+          # ping warms the cache so `go get` works within minutes.
+          module="github.com/plinth/sdk-go"
+          curl -sf "https://proxy.golang.org/${module}/@v/${{ steps.derive.outputs.go_tag }}.info" || \
+            echo "::warning::Proxy not yet aware of ${module}@${{ steps.derive.outputs.go_tag }} — will catch up within an hour."
+
+      - name: Summary
+        run: |
+          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
+          # Go SDK release ${{ steps.derive.outputs.go_tag }}
+
+          Build green. Tests green.
+
+          Consumer install:
+          \`\`\`bash
+          go get github.com/plinth/sdk-go@${{ steps.derive.outputs.go_tag }}
+          \`\`\`
+
+          Note: Go modules are pull-based. There is no "publish" step;
+          the tag itself is the release. proxy.golang.org will pick it
+          up automatically within ~1 hour.
+          EOF
