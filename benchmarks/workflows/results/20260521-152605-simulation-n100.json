@@ -1,0 +1,4973 @@
+{
+  "schema": "plinth.workflow_simulation/v1",
+  "generated": "2026-05-21T15:26:05",
+  "settings": {
+    "runs_per_scenario": 100,
+    "n_scenarios": 8,
+    "total_runs": 800,
+    "seed": 42
+  },
+  "pricing": {
+    "model": "claude-sonnet-4.5",
+    "input_per_mtok_usd": 3.0,
+    "output_per_mtok_usd": 15.0,
+    "as_of": "2026-05"
+  },
+  "aggregate": {
+    "mean_reduction_pct": 80.33,
+    "median_reduction_pct": 83.27,
+    "p05_reduction_pct": 45.69,
+    "p25_reduction_pct": 78.59,
+    "p75_reduction_pct": 87.38,
+    "p95_reduction_pct": 97.55,
+    "stdev_pp": 14.05,
+    "total_cost_saved_usd": 7940.47,
+    "mean_cost_saved_per_run_usd": 9.9256
+  },
+  "scenarios": [
+    {
+      "id": "research-5-source",
+      "title": "5-source research synthesis",
+      "persona": "Hobby developer / research bot",
+      "n_runs": 100,
+      "mean_reduction_pct": 84.36,
+      "median_reduction_pct": 84.78,
+      "p05_reduction_pct": 81.87,
+      "p25_reduction_pct": 83.61,
+      "p75_reduction_pct": 85.47,
+      "p95_reduction_pct": 86.07,
+      "min_reduction_pct": 79.44,
+      "max_reduction_pct": 86.64,
+      "stdev_pp": 1.46,
+      "mean_saved_usd": 0.8696,
+      "samples": [
+        {
+          "i": 0,
+          "n_steps": 12,
+          "reduction_pct": 85.189,
+          "saved_usd": 0.9434
+        },
+        {
+          "i": 1,
+          "n_steps": 12,
+          "reduction_pct": 85.082,
+          "saved_usd": 0.8992
+        },
+        {
+          "i": 2,
+          "n_steps": 12,
+          "reduction_pct": 85.055,
+          "saved_usd": 1.0382
+        },
+        {
+          "i": 3,
+          "n_steps": 10,
+          "reduction_pct": 81.606,
+          "saved_usd": 0.4159
+        },
+        {
+          "i": 4,
+          "n_steps": 10,
+          "reduction_pct": 82.696,
+          "saved_usd": 0.778
+        },
+        {
+          "i": 5,
+          "n_steps": 12,
+          "reduction_pct": 85.894,
+          "saved_usd": 1.1142
+        },
+        {
+          "i": 6,
+          "n_steps": 12,
+          "reduction_pct": 85.339,
+          "saved_usd": 1.0475
+        },
+        {
+          "i": 7,
+          "n_steps": 11,
+          "reduction_pct": 83.84,
+          "saved_usd": 0.6599
+        },
+        {
+          "i": 8,
+          "n_steps": 10,
+          "reduction_pct": 81.879,
+          "saved_usd": 0.6672
+        },
+        {
+          "i": 9,
+          "n_steps": 11,
+          "reduction_pct": 84.142,
+          "saved_usd": 0.8466
+        },
+        {
+          "i": 10,
+          "n_steps": 12,
+          "reduction_pct": 85.315,
+          "saved_usd": 0.9292
+        },
+        {
+          "i": 11,
+          "n_steps": 12,
+          "reduction_pct": 85.677,
+          "saved_usd": 0.9037
+        },
+        {
+          "i": 12,
+          "n_steps": 12,
+          "reduction_pct": 86.066,
+          "saved_usd": 1.172
+        },
+        {
+          "i": 13,
+          "n_steps": 12,
+          "reduction_pct": 85.464,
+          "saved_usd": 0.9964
+        },
+        {
+          "i": 14,
+          "n_steps": 9,
+          "reduction_pct": 79.439,
+          "saved_usd": 0.3455
+        },
+        {
+          "i": 15,
+          "n_steps": 10,
+          "reduction_pct": 82.065,
+          "saved_usd": 0.4688
+        },
+        {
+          "i": 16,
+          "n_steps": 12,
+          "reduction_pct": 84.013,
+          "saved_usd": 0.7855
+        },
+        {
+          "i": 17,
+          "n_steps": 11,
+          "reduction_pct": 84.824,
+          "saved_usd": 0.9949
+        },
+        {
+          "i": 18,
+          "n_steps": 10,
+          "reduction_pct": 83.398,
+          "saved_usd": 0.8141
+        },
+        {
+          "i": 19,
+          "n_steps": 11,
+          "reduction_pct": 84.481,
+          "saved_usd": 0.944
+        },
+        {
+          "i": 20,
+          "n_steps": 10,
+          "reduction_pct": 83.882,
+          "saved_usd": 0.6604
+        },
+        {
+          "i": 21,
+          "n_steps": 11,
+          "reduction_pct": 84.71,
+          "saved_usd": 0.7951
+        },
+        {
+          "i": 22,
+          "n_steps": 12,
+          "reduction_pct": 85.802,
+          "saved_usd": 1.1573
+        },
+        {
+          "i": 23,
+          "n_steps": 10,
+          "reduction_pct": 83.328,
+          "saved_usd": 0.5431
+        },
+        {
+          "i": 24,
+          "n_steps": 9,
+          "reduction_pct": 80.973,
+          "saved_usd": 0.5896
+        },
+        {
+          "i": 25,
+          "n_steps": 10,
+          "reduction_pct": 83.632,
+          "saved_usd": 0.6062
+        },
+        {
+          "i": 26,
+          "n_steps": 12,
+          "reduction_pct": 85.139,
+          "saved_usd": 1.0336
+        },
+        {
+          "i": 27,
+          "n_steps": 11,
+          "reduction_pct": 83.515,
+          "saved_usd": 0.6687
+        },
+        {
+          "i": 28,
+          "n_steps": 12,
+          "reduction_pct": 85.854,
+          "saved_usd": 1.0339
+        },
+        {
+          "i": 29,
+          "n_steps": 10,
+          "reduction_pct": 83.385,
+          "saved_usd": 0.7514
+        },
+        {
+          "i": 30,
+          "n_steps": 11,
+          "reduction_pct": 85.029,
+          "saved_usd": 1.1197
+        },
+        {
+          "i": 31,
+          "n_steps": 10,
+          "reduction_pct": 82.76,
+          "saved_usd": 0.7753
+        },
+        {
+          "i": 32,
+          "n_steps": 12,
+          "reduction_pct": 85.728,
+          "saved_usd": 1.0861
+        },
+        {
+          "i": 33,
+          "n_steps": 10,
+          "reduction_pct": 82.184,
+          "saved_usd": 0.7978
+        },
+        {
+          "i": 34,
+          "n_steps": 9,
+          "reduction_pct": 80.482,
+          "saved_usd": 0.4635
+        },
+        {
+          "i": 35,
+          "n_steps": 11,
+          "reduction_pct": 83.637,
+          "saved_usd": 0.656
+        },
+        {
+          "i": 36,
+          "n_steps": 12,
+          "reduction_pct": 85.64,
+          "saved_usd": 1.1462
+        },
+        {
+          "i": 37,
+          "n_steps": 12,
+          "reduction_pct": 85.795,
+          "saved_usd": 1.0611
+        },
+        {
+          "i": 38,
+          "n_steps": 12,
+          "reduction_pct": 85.518,
+          "saved_usd": 1.0081
+        },
+        {
+          "i": 39,
+          "n_steps": 11,
+          "reduction_pct": 84.524,
+          "saved_usd": 0.7778
+        },
+        {
+          "i": 40,
+          "n_steps": 12,
+          "reduction_pct": 85.73,
+          "saved_usd": 1.1134
+        },
+        {
+          "i": 41,
+          "n_steps": 12,
+          "reduction_pct": 85.444,
+          "saved_usd": 1.0654
+        },
+        {
+          "i": 42,
+          "n_steps": 12,
+          "reduction_pct": 86.132,
+          "saved_usd": 1.3195
+        },
+        {
+          "i": 43,
+          "n_steps": 11,
+          "reduction_pct": 84.491,
+          "saved_usd": 0.8898
+        },
+        {
+          "i": 44,
+          "n_steps": 10,
+          "reduction_pct": 82.463,
+          "saved_usd": 0.5895
+        },
+        {
+          "i": 45,
+          "n_steps": 11,
+          "reduction_pct": 84.021,
+          "saved_usd": 0.8827
+        },
+        {
+          "i": 46,
+          "n_steps": 10,
+          "reduction_pct": 82.917,
+          "saved_usd": 0.5601
+        },
+        {
+          "i": 47,
+          "n_steps": 12,
+          "reduction_pct": 85.685,
+          "saved_usd": 1.1536
+        },
+        {
+          "i": 48,
+          "n_steps": 12,
+          "reduction_pct": 84.381,
+          "saved_usd": 0.7836
+        },
+        {
+          "i": 49,
+          "n_steps": 12,
+          "reduction_pct": 85.486,
+          "saved_usd": 1.0418
+        },
+        {
+          "i": 50,
+          "n_steps": 12,
+          "reduction_pct": 83.656,
+          "saved_usd": 0.6959
+        },
+        {
+          "i": 51,
+          "n_steps": 12,
+          "reduction_pct": 85.317,
+          "saved_usd": 0.9089
+        },
+        {
+          "i": 52,
+          "n_steps": 12,
+          "reduction_pct": 86.53,
+          "saved_usd": 1.4043
+        },
+        {
+          "i": 53,
+          "n_steps": 11,
+          "reduction_pct": 83.952,
+          "saved_usd": 0.8023
+        },
+        {
+          "i": 54,
+          "n_steps": 12,
+          "reduction_pct": 84.755,
+          "saved_usd": 0.8557
+        },
+        {
+          "i": 55,
+          "n_steps": 12,
+          "reduction_pct": 85.463,
+          "saved_usd": 1.01
+        },
+        {
+          "i": 56,
+          "n_steps": 10,
+          "reduction_pct": 82.372,
+          "saved_usd": 0.4711
+        },
+        {
+          "i": 57,
+          "n_steps": 12,
+          "reduction_pct": 85.456,
+          "saved_usd": 1.2889
+        },
+        {
+          "i": 58,
+          "n_steps": 10,
+          "reduction_pct": 82.64,
+          "saved_usd": 0.7589
+        },
+        {
+          "i": 59,
+          "n_steps": 12,
+          "reduction_pct": 84.404,
+          "saved_usd": 0.8369
+        },
+        {
+          "i": 60,
+          "n_steps": 10,
+          "reduction_pct": 83.954,
+          "saved_usd": 0.6299
+        },
+        {
+          "i": 61,
+          "n_steps": 12,
+          "reduction_pct": 85.145,
+          "saved_usd": 0.9123
+        },
+        {
+          "i": 62,
+          "n_steps": 11,
+          "reduction_pct": 83.278,
+          "saved_usd": 0.5829
+        },
+        {
+          "i": 63,
+          "n_steps": 12,
+          "reduction_pct": 86.645,
+          "saved_usd": 1.4343
+        },
+        {
+          "i": 64,
+          "n_steps": 11,
+          "reduction_pct": 84.174,
+          "saved_usd": 0.8726
+        },
+        {
+          "i": 65,
+          "n_steps": 12,
+          "reduction_pct": 85.57,
+          "saved_usd": 1.0887
+        },
+        {
+          "i": 66,
+          "n_steps": 10,
+          "reduction_pct": 82.205,
+          "saved_usd": 0.6317
+        },
+        {
+          "i": 67,
+          "n_steps": 11,
+          "reduction_pct": 84.014,
+          "saved_usd": 0.7328
+        },
+        {
+          "i": 68,
+          "n_steps": 12,
+          "reduction_pct": 86.08,
+          "saved_usd": 1.1919
+        },
+        {
+          "i": 69,
+          "n_steps": 10,
+          "reduction_pct": 82.793,
+          "saved_usd": 0.5486
+        },
+        {
+          "i": 70,
+          "n_steps": 12,
+          "reduction_pct": 85.85,
+          "saved_usd": 1.2612
+        },
+        {
+          "i": 71,
+          "n_steps": 12,
+          "reduction_pct": 85.023,
+          "saved_usd": 0.9451
+        },
+        {
+          "i": 72,
+          "n_steps": 12,
+          "reduction_pct": 85.47,
+          "saved_usd": 0.9846
+        },
+        {
+          "i": 73,
+          "n_steps": 10,
+          "reduction_pct": 82.416,
+          "saved_usd": 0.4786
+        },
+        {
+          "i": 74,
+          "n_steps": 12,
+          "reduction_pct": 84.991,
+          "saved_usd": 0.8371
+        },
+        {
+          "i": 75,
+          "n_steps": 11,
+          "reduction_pct": 84.448,
+          "saved_usd": 0.8097
+        },
+        {
+          "i": 76,
+          "n_steps": 12,
+          "reduction_pct": 84.971,
+          "saved_usd": 0.9423
+        },
+        {
+          "i": 77,
+          "n_steps": 11,
+          "reduction_pct": 84.54,
+          "saved_usd": 0.8062
+        },
+        {
+          "i": 78,
+          "n_steps": 11,
+          "reduction_pct": 83.706,
+          "saved_usd": 0.6653
+        },
+        {
+          "i": 79,
+          "n_steps": 11,
+          "reduction_pct": 85.059,
+          "saved_usd": 0.9206
+        },
+        {
+          "i": 80,
+          "n_steps": 11,
+          "reduction_pct": 85.167,
+          "saved_usd": 1.0304
+        },
+        {
+          "i": 81,
+          "n_steps": 10,
+          "reduction_pct": 82.182,
+          "saved_usd": 0.4474
+        },
+        {
+          "i": 82,
+          "n_steps": 12,
+          "reduction_pct": 85.664,
+          "saved_usd": 1.0787
+        },
+        {
+          "i": 83,
+          "n_steps": 12,
+          "reduction_pct": 86.171,
+          "saved_usd": 1.3344
+        },
+        {
+          "i": 84,
+          "n_steps": 9,
+          "reduction_pct": 80.639,
+          "saved_usd": 0.5089
+        },
+        {
+          "i": 85,
+          "n_steps": 10,
+          "reduction_pct": 81.929,
+          "saved_usd": 0.631
+        },
+        {
+          "i": 86,
+          "n_steps": 11,
+          "reduction_pct": 83.559,
+          "saved_usd": 0.6272
+        },
+        {
+          "i": 87,
+          "n_steps": 12,
+          "reduction_pct": 85.506,
+          "saved_usd": 0.9803
+        },
+        {
+          "i": 88,
+          "n_steps": 12,
+          "reduction_pct": 85.224,
+          "saved_usd": 0.9688
+        },
+        {
+          "i": 89,
+          "n_steps": 12,
+          "reduction_pct": 85.171,
+          "saved_usd": 1.0413
+        },
+        {
+          "i": 90,
+          "n_steps": 12,
+          "reduction_pct": 84.955,
+          "saved_usd": 0.9127
+        },
+        {
+          "i": 91,
+          "n_steps": 11,
+          "reduction_pct": 84.825,
+          "saved_usd": 0.9211
+        },
+        {
+          "i": 92,
+          "n_steps": 12,
+          "reduction_pct": 84.645,
+          "saved_usd": 0.7594
+        },
+        {
+          "i": 93,
+          "n_steps": 12,
+          "reduction_pct": 84.75,
+          "saved_usd": 0.9353
+        },
+        {
+          "i": 94,
+          "n_steps": 12,
+          "reduction_pct": 85.911,
+          "saved_usd": 1.0658
+        },
+        {
+          "i": 95,
+          "n_steps": 12,
+          "reduction_pct": 85.528,
+          "saved_usd": 0.9714
+        },
+        {
+          "i": 96,
+          "n_steps": 12,
+          "reduction_pct": 86.008,
+          "saved_usd": 1.1764
+        },
+        {
+          "i": 97,
+          "n_steps": 11,
+          "reduction_pct": 85.051,
+          "saved_usd": 0.7951
+        },
+        {
+          "i": 98,
+          "n_steps": 11,
+          "reduction_pct": 84.797,
+          "saved_usd": 0.883
+        },
+        {
+          "i": 99,
+          "n_steps": 11,
+          "reduction_pct": 83.886,
+          "saved_usd": 0.6836
+        }
+      ]
+    },
+    {
+      "id": "research-30-pdf",
+      "title": "30-PDF literature review",
+      "persona": "Analyst / research-heavy knowledge worker",
+      "n_runs": 100,
+      "mean_reduction_pct": 97.36,
+      "median_reduction_pct": 97.42,
+      "p05_reduction_pct": 96.82,
+      "p25_reduction_pct": 97.22,
+      "p75_reduction_pct": 97.59,
+      "p95_reduction_pct": 97.62,
+      "min_reduction_pct": 96.41,
+      "max_reduction_pct": 97.65,
+      "stdev_pp": 0.26,
+      "mean_saved_usd": 72.4416,
+      "samples": [
+        {
+          "i": 0,
+          "n_steps": 50,
+          "reduction_pct": 97.203,
+          "saved_usd": 48.0166
+        },
+        {
+          "i": 1,
+          "n_steps": 45,
+          "reduction_pct": 96.789,
+          "saved_usd": 47.1783
+        },
+        {
+          "i": 2,
+          "n_steps": 52,
+          "reduction_pct": 97.22,
+          "saved_usd": 51.6103
+        },
+        {
+          "i": 3,
+          "n_steps": 52,
+          "reduction_pct": 97.368,
+          "saved_usd": 58.1374
+        },
+        {
+          "i": 4,
+          "n_steps": 57,
+          "reduction_pct": 97.383,
+          "saved_usd": 78.2177
+        },
+        {
+          "i": 5,
+          "n_steps": 60,
+          "reduction_pct": 97.54,
+          "saved_usd": 76.921
+        },
+        {
+          "i": 6,
+          "n_steps": 61,
+          "reduction_pct": 97.586,
+          "saved_usd": 86.0164
+        },
+        {
+          "i": 7,
+          "n_steps": 61,
+          "reduction_pct": 97.573,
+          "saved_usd": 81.8778
+        },
+        {
+          "i": 8,
+          "n_steps": 61,
+          "reduction_pct": 97.579,
+          "saved_usd": 82.1372
+        },
+        {
+          "i": 9,
+          "n_steps": 51,
+          "reduction_pct": 97.082,
+          "saved_usd": 72.1239
+        },
+        {
+          "i": 10,
+          "n_steps": 50,
+          "reduction_pct": 97.024,
+          "saved_usd": 56.4199
+        },
+        {
+          "i": 11,
+          "n_steps": 61,
+          "reduction_pct": 97.594,
+          "saved_usd": 85.2475
+        },
+        {
+          "i": 12,
+          "n_steps": 61,
+          "reduction_pct": 97.587,
+          "saved_usd": 81.9603
+        },
+        {
+          "i": 13,
+          "n_steps": 46,
+          "reduction_pct": 96.826,
+          "saved_usd": 40.6955
+        },
+        {
+          "i": 14,
+          "n_steps": 57,
+          "reduction_pct": 97.509,
+          "saved_usd": 72.8686
+        },
+        {
+          "i": 15,
+          "n_steps": 60,
+          "reduction_pct": 97.551,
+          "saved_usd": 86.9022
+        },
+        {
+          "i": 16,
+          "n_steps": 61,
+          "reduction_pct": 97.582,
+          "saved_usd": 83.3847
+        },
+        {
+          "i": 17,
+          "n_steps": 52,
+          "reduction_pct": 97.085,
+          "saved_usd": 71.6361
+        },
+        {
+          "i": 18,
+          "n_steps": 59,
+          "reduction_pct": 97.57,
+          "saved_usd": 84.4161
+        },
+        {
+          "i": 19,
+          "n_steps": 53,
+          "reduction_pct": 97.352,
+          "saved_usd": 59.6699
+        },
+        {
+          "i": 20,
+          "n_steps": 60,
+          "reduction_pct": 97.605,
+          "saved_usd": 90.4628
+        },
+        {
+          "i": 21,
+          "n_steps": 53,
+          "reduction_pct": 97.219,
+          "saved_usd": 71.3898
+        },
+        {
+          "i": 22,
+          "n_steps": 61,
+          "reduction_pct": 97.625,
+          "saved_usd": 87.6074
+        },
+        {
+          "i": 23,
+          "n_steps": 50,
+          "reduction_pct": 97.048,
+          "saved_usd": 59.0672
+        },
+        {
+          "i": 24,
+          "n_steps": 53,
+          "reduction_pct": 97.23,
+          "saved_usd": 67.5142
+        },
+        {
+          "i": 25,
+          "n_steps": 55,
+          "reduction_pct": 97.418,
+          "saved_usd": 65.183
+        },
+        {
+          "i": 26,
+          "n_steps": 54,
+          "reduction_pct": 97.27,
+          "saved_usd": 76.2598
+        },
+        {
+          "i": 27,
+          "n_steps": 61,
+          "reduction_pct": 97.562,
+          "saved_usd": 84.059
+        },
+        {
+          "i": 28,
+          "n_steps": 53,
+          "reduction_pct": 97.2,
+          "saved_usd": 64.0544
+        },
+        {
+          "i": 29,
+          "n_steps": 61,
+          "reduction_pct": 97.602,
+          "saved_usd": 85.3512
+        },
+        {
+          "i": 30,
+          "n_steps": 51,
+          "reduction_pct": 97.135,
+          "saved_usd": 69.1966
+        },
+        {
+          "i": 31,
+          "n_steps": 51,
+          "reduction_pct": 97.09,
+          "saved_usd": 62.1065
+        },
+        {
+          "i": 32,
+          "n_steps": 54,
+          "reduction_pct": 97.202,
+          "saved_usd": 70.3334
+        },
+        {
+          "i": 33,
+          "n_steps": 52,
+          "reduction_pct": 97.108,
+          "saved_usd": 68.6218
+        },
+        {
+          "i": 34,
+          "n_steps": 53,
+          "reduction_pct": 97.349,
+          "saved_usd": 54.3781
+        },
+        {
+          "i": 35,
+          "n_steps": 61,
+          "reduction_pct": 97.573,
+          "saved_usd": 85.5687
+        },
+        {
+          "i": 36,
+          "n_steps": 56,
+          "reduction_pct": 97.411,
+          "saved_usd": 69.4885
+        },
+        {
+          "i": 37,
+          "n_steps": 61,
+          "reduction_pct": 97.625,
+          "saved_usd": 91.6228
+        },
+        {
+          "i": 38,
+          "n_steps": 60,
+          "reduction_pct": 97.604,
+          "saved_usd": 88.4521
+        },
+        {
+          "i": 39,
+          "n_steps": 58,
+          "reduction_pct": 97.425,
+          "saved_usd": 75.4735
+        },
+        {
+          "i": 40,
+          "n_steps": 61,
+          "reduction_pct": 97.604,
+          "saved_usd": 94.0453
+        },
+        {
+          "i": 41,
+          "n_steps": 60,
+          "reduction_pct": 97.616,
+          "saved_usd": 88.8214
+        },
+        {
+          "i": 42,
+          "n_steps": 54,
+          "reduction_pct": 97.262,
+          "saved_usd": 75.7893
+        },
+        {
+          "i": 43,
+          "n_steps": 61,
+          "reduction_pct": 97.62,
+          "saved_usd": 85.1619
+        },
+        {
+          "i": 44,
+          "n_steps": 55,
+          "reduction_pct": 97.302,
+          "saved_usd": 56.9464
+        },
+        {
+          "i": 45,
+          "n_steps": 46,
+          "reduction_pct": 96.797,
+          "saved_usd": 52.3909
+        },
+        {
+          "i": 46,
+          "n_steps": 61,
+          "reduction_pct": 97.634,
+          "saved_usd": 93.3478
+        },
+        {
+          "i": 47,
+          "n_steps": 58,
+          "reduction_pct": 97.432,
+          "saved_usd": 71.2765
+        },
+        {
+          "i": 48,
+          "n_steps": 55,
+          "reduction_pct": 97.388,
+          "saved_usd": 57.7028
+        },
+        {
+          "i": 49,
+          "n_steps": 53,
+          "reduction_pct": 97.259,
+          "saved_usd": 53.8105
+        },
+        {
+          "i": 50,
+          "n_steps": 49,
+          "reduction_pct": 97.028,
+          "saved_usd": 60.9242
+        },
+        {
+          "i": 51,
+          "n_steps": 61,
+          "reduction_pct": 97.558,
+          "saved_usd": 87.9632
+        },
+        {
+          "i": 52,
+          "n_steps": 61,
+          "reduction_pct": 97.631,
+          "saved_usd": 87.1231
+        },
+        {
+          "i": 53,
+          "n_steps": 47,
+          "reduction_pct": 96.782,
+          "saved_usd": 61.1039
+        },
+        {
+          "i": 54,
+          "n_steps": 61,
+          "reduction_pct": 97.566,
+          "saved_usd": 83.7992
+        },
+        {
+          "i": 55,
+          "n_steps": 61,
+          "reduction_pct": 97.616,
+          "saved_usd": 93.5189
+        },
+        {
+          "i": 56,
+          "n_steps": 48,
+          "reduction_pct": 96.869,
+          "saved_usd": 56.915
+        },
+        {
+          "i": 57,
+          "n_steps": 61,
+          "reduction_pct": 97.546,
+          "saved_usd": 82.0488
+        },
+        {
+          "i": 58,
+          "n_steps": 52,
+          "reduction_pct": 97.282,
+          "saved_usd": 49.4103
+        },
+        {
+          "i": 59,
+          "n_steps": 61,
+          "reduction_pct": 97.625,
+          "saved_usd": 88.1382
+        },
+        {
+          "i": 60,
+          "n_steps": 61,
+          "reduction_pct": 97.613,
+          "saved_usd": 85.1676
+        },
+        {
+          "i": 61,
+          "n_steps": 54,
+          "reduction_pct": 97.233,
+          "saved_usd": 68.6554
+        },
+        {
+          "i": 62,
+          "n_steps": 60,
+          "reduction_pct": 97.566,
+          "saved_usd": 88.6439
+        },
+        {
+          "i": 63,
+          "n_steps": 61,
+          "reduction_pct": 97.618,
+          "saved_usd": 84.1912
+        },
+        {
+          "i": 64,
+          "n_steps": 57,
+          "reduction_pct": 97.483,
+          "saved_usd": 73.2286
+        },
+        {
+          "i": 65,
+          "n_steps": 49,
+          "reduction_pct": 97.037,
+          "saved_usd": 59.1895
+        },
+        {
+          "i": 66,
+          "n_steps": 60,
+          "reduction_pct": 97.615,
+          "saved_usd": 82.6507
+        },
+        {
+          "i": 67,
+          "n_steps": 61,
+          "reduction_pct": 97.565,
+          "saved_usd": 90.1005
+        },
+        {
+          "i": 68,
+          "n_steps": 56,
+          "reduction_pct": 97.37,
+          "saved_usd": 78.7286
+        },
+        {
+          "i": 69,
+          "n_steps": 49,
+          "reduction_pct": 96.943,
+          "saved_usd": 54.5853
+        },
+        {
+          "i": 70,
+          "n_steps": 61,
+          "reduction_pct": 97.557,
+          "saved_usd": 89.8885
+        },
+        {
+          "i": 71,
+          "n_steps": 51,
+          "reduction_pct": 97.267,
+          "saved_usd": 50.286
+        },
+        {
+          "i": 72,
+          "n_steps": 51,
+          "reduction_pct": 97.298,
+          "saved_usd": 53.2637
+        },
+        {
+          "i": 73,
+          "n_steps": 54,
+          "reduction_pct": 97.339,
+          "saved_usd": 53.7732
+        },
+        {
+          "i": 74,
+          "n_steps": 61,
+          "reduction_pct": 97.619,
+          "saved_usd": 81.8227
+        },
+        {
+          "i": 75,
+          "n_steps": 61,
+          "reduction_pct": 97.611,
+          "saved_usd": 89.1326
+        },
+        {
+          "i": 76,
+          "n_steps": 51,
+          "reduction_pct": 97.247,
+          "saved_usd": 48.5686
+        },
+        {
+          "i": 77,
+          "n_steps": 59,
+          "reduction_pct": 97.494,
+          "saved_usd": 80.8319
+        },
+        {
+          "i": 78,
+          "n_steps": 44,
+          "reduction_pct": 96.769,
+          "saved_usd": 46.8314
+        },
+        {
+          "i": 79,
+          "n_steps": 54,
+          "reduction_pct": 97.255,
+          "saved_usd": 67.3509
+        },
+        {
+          "i": 80,
+          "n_steps": 52,
+          "reduction_pct": 97.288,
+          "saved_usd": 53.2458
+        },
+        {
+          "i": 81,
+          "n_steps": 51,
+          "reduction_pct": 97.33,
+          "saved_usd": 57.0738
+        },
+        {
+          "i": 82,
+          "n_steps": 61,
+          "reduction_pct": 97.621,
+          "saved_usd": 94.7149
+        },
+        {
+          "i": 83,
+          "n_steps": 61,
+          "reduction_pct": 97.615,
+          "saved_usd": 90.4273
+        },
+        {
+          "i": 84,
+          "n_steps": 61,
+          "reduction_pct": 97.562,
+          "saved_usd": 78.8075
+        },
+        {
+          "i": 85,
+          "n_steps": 49,
+          "reduction_pct": 97.116,
+          "saved_usd": 62.1714
+        },
+        {
+          "i": 86,
+          "n_steps": 59,
+          "reduction_pct": 97.492,
+          "saved_usd": 77.9332
+        },
+        {
+          "i": 87,
+          "n_steps": 50,
+          "reduction_pct": 97.08,
+          "saved_usd": 61.8403
+        },
+        {
+          "i": 88,
+          "n_steps": 53,
+          "reduction_pct": 97.246,
+          "saved_usd": 69.993
+        },
+        {
+          "i": 89,
+          "n_steps": 49,
+          "reduction_pct": 97.037,
+          "saved_usd": 56.7259
+        },
+        {
+          "i": 90,
+          "n_steps": 61,
+          "reduction_pct": 97.638,
+          "saved_usd": 83.9812
+        },
+        {
+          "i": 91,
+          "n_steps": 53,
+          "reduction_pct": 97.229,
+          "saved_usd": 70.0227
+        },
+        {
+          "i": 92,
+          "n_steps": 61,
+          "reduction_pct": 97.649,
+          "saved_usd": 94.0601
+        },
+        {
+          "i": 93,
+          "n_steps": 57,
+          "reduction_pct": 97.481,
+          "saved_usd": 70.4599
+        },
+        {
+          "i": 94,
+          "n_steps": 60,
+          "reduction_pct": 97.567,
+          "saved_usd": 77.9097
+        },
+        {
+          "i": 95,
+          "n_steps": 61,
+          "reduction_pct": 97.615,
+          "saved_usd": 84.3056
+        },
+        {
+          "i": 96,
+          "n_steps": 52,
+          "reduction_pct": 97.187,
+          "saved_usd": 68.06
+        },
+        {
+          "i": 97,
+          "n_steps": 55,
+          "reduction_pct": 97.426,
+          "saved_usd": 67.2188
+        },
+        {
+          "i": 98,
+          "n_steps": 41,
+          "reduction_pct": 96.406,
+          "saved_usd": 35.8306
+        },
+        {
+          "i": 99,
+          "n_steps": 61,
+          "reduction_pct": 97.618,
+          "saved_usd": 90.6232
+        }
+      ]
+    },
+    {
+      "id": "multi-agent-content",
+      "title": "Researcher \u2192 Writer \u2192 Reviewer (3 rounds)",
+      "persona": "Content automation / 3-agent pipeline",
+      "n_runs": 100,
+      "mean_reduction_pct": 81.91,
+      "median_reduction_pct": 81.9,
+      "p05_reduction_pct": 80.36,
+      "p25_reduction_pct": 81.29,
+      "p75_reduction_pct": 82.51,
+      "p95_reduction_pct": 83.21,
+      "min_reduction_pct": 79.71,
+      "max_reduction_pct": 83.77,
+      "stdev_pp": 0.88,
+      "mean_saved_usd": 0.796,
+      "samples": [
+        {
+          "i": 0,
+          "n_steps": 11,
+          "reduction_pct": 81.898,
+          "saved_usd": 0.7843
+        },
+        {
+          "i": 1,
+          "n_steps": 11,
+          "reduction_pct": 82.151,
+          "saved_usd": 0.8183
+        },
+        {
+          "i": 2,
+          "n_steps": 11,
+          "reduction_pct": 81.062,
+          "saved_usd": 0.711
+        },
+        {
+          "i": 3,
+          "n_steps": 11,
+          "reduction_pct": 82.948,
+          "saved_usd": 0.8347
+        },
+        {
+          "i": 4,
+          "n_steps": 11,
+          "reduction_pct": 80.609,
+          "saved_usd": 0.6795
+        },
+        {
+          "i": 5,
+          "n_steps": 11,
+          "reduction_pct": 81.146,
+          "saved_usd": 0.7207
+        },
+        {
+          "i": 6,
+          "n_steps": 11,
+          "reduction_pct": 81.92,
+          "saved_usd": 0.7856
+        },
+        {
+          "i": 7,
+          "n_steps": 11,
+          "reduction_pct": 80.746,
+          "saved_usd": 0.7191
+        },
+        {
+          "i": 8,
+          "n_steps": 11,
+          "reduction_pct": 82.557,
+          "saved_usd": 0.8123
+        },
+        {
+          "i": 9,
+          "n_steps": 11,
+          "reduction_pct": 81.845,
+          "saved_usd": 0.843
+        },
+        {
+          "i": 10,
+          "n_steps": 11,
+          "reduction_pct": 82.639,
+          "saved_usd": 0.8063
+        },
+        {
+          "i": 11,
+          "n_steps": 11,
+          "reduction_pct": 81.145,
+          "saved_usd": 0.6992
+        },
+        {
+          "i": 12,
+          "n_steps": 11,
+          "reduction_pct": 83.108,
+          "saved_usd": 0.9239
+        },
+        {
+          "i": 13,
+          "n_steps": 11,
+          "reduction_pct": 82.379,
+          "saved_usd": 0.884
+        },
+        {
+          "i": 14,
+          "n_steps": 11,
+          "reduction_pct": 82.481,
+          "saved_usd": 0.8447
+        },
+        {
+          "i": 15,
+          "n_steps": 11,
+          "reduction_pct": 82.245,
+          "saved_usd": 0.7528
+        },
+        {
+          "i": 16,
+          "n_steps": 11,
+          "reduction_pct": 82.823,
+          "saved_usd": 0.9134
+        },
+        {
+          "i": 17,
+          "n_steps": 11,
+          "reduction_pct": 81.707,
+          "saved_usd": 0.7406
+        },
+        {
+          "i": 18,
+          "n_steps": 11,
+          "reduction_pct": 81.848,
+          "saved_usd": 0.7694
+        },
+        {
+          "i": 19,
+          "n_steps": 11,
+          "reduction_pct": 81.231,
+          "saved_usd": 0.7186
+        },
+        {
+          "i": 20,
+          "n_steps": 11,
+          "reduction_pct": 80.309,
+          "saved_usd": 0.6454
+        },
+        {
+          "i": 21,
+          "n_steps": 11,
+          "reduction_pct": 80.791,
+          "saved_usd": 0.6763
+        },
+        {
+          "i": 22,
+          "n_steps": 11,
+          "reduction_pct": 81.691,
+          "saved_usd": 0.778
+        },
+        {
+          "i": 23,
+          "n_steps": 11,
+          "reduction_pct": 82.03,
+          "saved_usd": 0.7629
+        },
+        {
+          "i": 24,
+          "n_steps": 11,
+          "reduction_pct": 83.222,
+          "saved_usd": 0.9205
+        },
+        {
+          "i": 25,
+          "n_steps": 11,
+          "reduction_pct": 80.168,
+          "saved_usd": 0.6169
+        },
+        {
+          "i": 26,
+          "n_steps": 11,
+          "reduction_pct": 82.876,
+          "saved_usd": 0.8814
+        },
+        {
+          "i": 27,
+          "n_steps": 11,
+          "reduction_pct": 81.878,
+          "saved_usd": 0.8101
+        },
+        {
+          "i": 28,
+          "n_steps": 11,
+          "reduction_pct": 81.709,
+          "saved_usd": 0.7468
+        },
+        {
+          "i": 29,
+          "n_steps": 11,
+          "reduction_pct": 81.323,
+          "saved_usd": 0.7472
+        },
+        {
+          "i": 30,
+          "n_steps": 11,
+          "reduction_pct": 81.773,
+          "saved_usd": 0.7955
+        },
+        {
+          "i": 31,
+          "n_steps": 11,
+          "reduction_pct": 81.909,
+          "saved_usd": 0.7697
+        },
+        {
+          "i": 32,
+          "n_steps": 11,
+          "reduction_pct": 82.208,
+          "saved_usd": 0.865
+        },
+        {
+          "i": 33,
+          "n_steps": 11,
+          "reduction_pct": 80.897,
+          "saved_usd": 0.6572
+        },
+        {
+          "i": 34,
+          "n_steps": 11,
+          "reduction_pct": 82.887,
+          "saved_usd": 0.8924
+        },
+        {
+          "i": 35,
+          "n_steps": 11,
+          "reduction_pct": 82.386,
+          "saved_usd": 0.8326
+        },
+        {
+          "i": 36,
+          "n_steps": 11,
+          "reduction_pct": 81.543,
+          "saved_usd": 0.7146
+        },
+        {
+          "i": 37,
+          "n_steps": 11,
+          "reduction_pct": 82.505,
+          "saved_usd": 0.9422
+        },
+        {
+          "i": 38,
+          "n_steps": 11,
+          "reduction_pct": 81.608,
+          "saved_usd": 0.785
+        },
+        {
+          "i": 39,
+          "n_steps": 11,
+          "reduction_pct": 82.808,
+          "saved_usd": 0.88
+        },
+        {
+          "i": 40,
+          "n_steps": 11,
+          "reduction_pct": 81.061,
+          "saved_usd": 0.7602
+        },
+        {
+          "i": 41,
+          "n_steps": 11,
+          "reduction_pct": 82.171,
+          "saved_usd": 0.865
+        },
+        {
+          "i": 42,
+          "n_steps": 11,
+          "reduction_pct": 83.136,
+          "saved_usd": 0.8863
+        },
+        {
+          "i": 43,
+          "n_steps": 11,
+          "reduction_pct": 81.071,
+          "saved_usd": 0.6952
+        },
+        {
+          "i": 44,
+          "n_steps": 11,
+          "reduction_pct": 83.05,
+          "saved_usd": 0.9346
+        },
+        {
+          "i": 45,
+          "n_steps": 11,
+          "reduction_pct": 82.268,
+          "saved_usd": 0.8559
+        },
+        {
+          "i": 46,
+          "n_steps": 11,
+          "reduction_pct": 83.293,
+          "saved_usd": 0.966
+        },
+        {
+          "i": 47,
+          "n_steps": 11,
+          "reduction_pct": 81.346,
+          "saved_usd": 0.7252
+        },
+        {
+          "i": 48,
+          "n_steps": 11,
+          "reduction_pct": 81.528,
+          "saved_usd": 0.7668
+        },
+        {
+          "i": 49,
+          "n_steps": 11,
+          "reduction_pct": 81.306,
+          "saved_usd": 0.683
+        },
+        {
+          "i": 50,
+          "n_steps": 11,
+          "reduction_pct": 82.617,
+          "saved_usd": 0.8197
+        },
+        {
+          "i": 51,
+          "n_steps": 11,
+          "reduction_pct": 81.364,
+          "saved_usd": 0.7254
+        },
+        {
+          "i": 52,
+          "n_steps": 11,
+          "reduction_pct": 81.125,
+          "saved_usd": 0.7293
+        },
+        {
+          "i": 53,
+          "n_steps": 11,
+          "reduction_pct": 83.208,
+          "saved_usd": 0.9757
+        },
+        {
+          "i": 54,
+          "n_steps": 11,
+          "reduction_pct": 79.713,
+          "saved_usd": 0.631
+        },
+        {
+          "i": 55,
+          "n_steps": 11,
+          "reduction_pct": 82.256,
+          "saved_usd": 0.8306
+        },
+        {
+          "i": 56,
+          "n_steps": 11,
+          "reduction_pct": 83.552,
+          "saved_usd": 0.9995
+        },
+        {
+          "i": 57,
+          "n_steps": 11,
+          "reduction_pct": 83.497,
+          "saved_usd": 0.9607
+        },
+        {
+          "i": 58,
+          "n_steps": 11,
+          "reduction_pct": 80.488,
+          "saved_usd": 0.6808
+        },
+        {
+          "i": 59,
+          "n_steps": 11,
+          "reduction_pct": 82.436,
+          "saved_usd": 0.9001
+        },
+        {
+          "i": 60,
+          "n_steps": 11,
+          "reduction_pct": 81.615,
+          "saved_usd": 0.7812
+        },
+        {
+          "i": 61,
+          "n_steps": 11,
+          "reduction_pct": 82.163,
+          "saved_usd": 0.8403
+        },
+        {
+          "i": 62,
+          "n_steps": 11,
+          "reduction_pct": 83.154,
+          "saved_usd": 0.9047
+        },
+        {
+          "i": 63,
+          "n_steps": 11,
+          "reduction_pct": 81.157,
+          "saved_usd": 0.6497
+        },
+        {
+          "i": 64,
+          "n_steps": 11,
+          "reduction_pct": 79.729,
+          "saved_usd": 0.6333
+        },
+        {
+          "i": 65,
+          "n_steps": 11,
+          "reduction_pct": 80.359,
+          "saved_usd": 0.6642
+        },
+        {
+          "i": 66,
+          "n_steps": 11,
+          "reduction_pct": 82.252,
+          "saved_usd": 0.8447
+        },
+        {
+          "i": 67,
+          "n_steps": 11,
+          "reduction_pct": 82.786,
+          "saved_usd": 0.9126
+        },
+        {
+          "i": 68,
+          "n_steps": 11,
+          "reduction_pct": 82.499,
+          "saved_usd": 0.8634
+        },
+        {
+          "i": 69,
+          "n_steps": 11,
+          "reduction_pct": 81.209,
+          "saved_usd": 0.7013
+        },
+        {
+          "i": 70,
+          "n_steps": 11,
+          "reduction_pct": 82.223,
+          "saved_usd": 0.8272
+        },
+        {
+          "i": 71,
+          "n_steps": 11,
+          "reduction_pct": 83.136,
+          "saved_usd": 0.8782
+        },
+        {
+          "i": 72,
+          "n_steps": 11,
+          "reduction_pct": 80.181,
+          "saved_usd": 0.6501
+        },
+        {
+          "i": 73,
+          "n_steps": 11,
+          "reduction_pct": 81.652,
+          "saved_usd": 0.7604
+        },
+        {
+          "i": 74,
+          "n_steps": 11,
+          "reduction_pct": 81.519,
+          "saved_usd": 0.7363
+        },
+        {
+          "i": 75,
+          "n_steps": 11,
+          "reduction_pct": 81.648,
+          "saved_usd": 0.7444
+        },
+        {
+          "i": 76,
+          "n_steps": 11,
+          "reduction_pct": 82.269,
+          "saved_usd": 0.8469
+        },
+        {
+          "i": 77,
+          "n_steps": 11,
+          "reduction_pct": 81.94,
+          "saved_usd": 0.757
+        },
+        {
+          "i": 78,
+          "n_steps": 11,
+          "reduction_pct": 81.198,
+          "saved_usd": 0.7456
+        },
+        {
+          "i": 79,
+          "n_steps": 11,
+          "reduction_pct": 81.267,
+          "saved_usd": 0.7102
+        },
+        {
+          "i": 80,
+          "n_steps": 11,
+          "reduction_pct": 83.766,
+          "saved_usd": 1.0525
+        },
+        {
+          "i": 81,
+          "n_steps": 11,
+          "reduction_pct": 81.715,
+          "saved_usd": 0.8176
+        },
+        {
+          "i": 82,
+          "n_steps": 11,
+          "reduction_pct": 82.86,
+          "saved_usd": 0.922
+        },
+        {
+          "i": 83,
+          "n_steps": 11,
+          "reduction_pct": 82.9,
+          "saved_usd": 0.9245
+        },
+        {
+          "i": 84,
+          "n_steps": 11,
+          "reduction_pct": 81.104,
+          "saved_usd": 0.7534
+        },
+        {
+          "i": 85,
+          "n_steps": 11,
+          "reduction_pct": 82.323,
+          "saved_usd": 0.8326
+        },
+        {
+          "i": 86,
+          "n_steps": 11,
+          "reduction_pct": 81.041,
+          "saved_usd": 0.7151
+        },
+        {
+          "i": 87,
+          "n_steps": 11,
+          "reduction_pct": 83.005,
+          "saved_usd": 0.9621
+        },
+        {
+          "i": 88,
+          "n_steps": 11,
+          "reduction_pct": 81.87,
+          "saved_usd": 0.7548
+        },
+        {
+          "i": 89,
+          "n_steps": 11,
+          "reduction_pct": 82.407,
+          "saved_usd": 0.8004
+        },
+        {
+          "i": 90,
+          "n_steps": 11,
+          "reduction_pct": 82.246,
+          "saved_usd": 0.7654
+        },
+        {
+          "i": 91,
+          "n_steps": 11,
+          "reduction_pct": 81.751,
+          "saved_usd": 0.7767
+        },
+        {
+          "i": 92,
+          "n_steps": 11,
+          "reduction_pct": 81.424,
+          "saved_usd": 0.7283
+        },
+        {
+          "i": 93,
+          "n_steps": 11,
+          "reduction_pct": 80.686,
+          "saved_usd": 0.6695
+        },
+        {
+          "i": 94,
+          "n_steps": 11,
+          "reduction_pct": 81.296,
+          "saved_usd": 0.7243
+        },
+        {
+          "i": 95,
+          "n_steps": 11,
+          "reduction_pct": 82.848,
+          "saved_usd": 0.8867
+        },
+        {
+          "i": 96,
+          "n_steps": 11,
+          "reduction_pct": 82.329,
+          "saved_usd": 0.8686
+        },
+        {
+          "i": 97,
+          "n_steps": 11,
+          "reduction_pct": 82.223,
+          "saved_usd": 0.7648
+        },
+        {
+          "i": 98,
+          "n_steps": 11,
+          "reduction_pct": 81.293,
+          "saved_usd": 0.7144
+        },
+        {
+          "i": 99,
+          "n_steps": 11,
+          "reduction_pct": 82.53,
+          "saved_usd": 0.8441
+        }
+      ]
+    },
+    {
+      "id": "code-review-pr",
+      "title": "Code review on 14-file PR",
+      "persona": "Engineering / code-review bot",
+      "n_runs": 100,
+      "mean_reduction_pct": 82.5,
+      "median_reduction_pct": 83.39,
+      "p05_reduction_pct": 75.31,
+      "p25_reduction_pct": 81.34,
+      "p75_reduction_pct": 85.09,
+      "p95_reduction_pct": 87.16,
+      "min_reduction_pct": 66.36,
+      "max_reduction_pct": 88.84,
+      "stdev_pp": 3.99,
+      "mean_saved_usd": 0.8127,
+      "samples": [
+        {
+          "i": 0,
+          "n_steps": 12,
+          "reduction_pct": 85.445,
+          "saved_usd": 0.7473
+        },
+        {
+          "i": 1,
+          "n_steps": 22,
+          "reduction_pct": 83.673,
+          "saved_usd": 0.9329
+        },
+        {
+          "i": 2,
+          "n_steps": 23,
+          "reduction_pct": 86.47,
+          "saved_usd": 1.1793
+        },
+        {
+          "i": 3,
+          "n_steps": 23,
+          "reduction_pct": 81.441,
+          "saved_usd": 0.8063
+        },
+        {
+          "i": 4,
+          "n_steps": 23,
+          "reduction_pct": 84.461,
+          "saved_usd": 1.0196
+        },
+        {
+          "i": 5,
+          "n_steps": 21,
+          "reduction_pct": 81.485,
+          "saved_usd": 0.6683
+        },
+        {
+          "i": 6,
+          "n_steps": 23,
+          "reduction_pct": 74.996,
+          "saved_usd": 0.4442
+        },
+        {
+          "i": 7,
+          "n_steps": 18,
+          "reduction_pct": 84.409,
+          "saved_usd": 1.0072
+        },
+        {
+          "i": 8,
+          "n_steps": 18,
+          "reduction_pct": 83.405,
+          "saved_usd": 0.68
+        },
+        {
+          "i": 9,
+          "n_steps": 18,
+          "reduction_pct": 86.323,
+          "saved_usd": 1.0386
+        },
+        {
+          "i": 10,
+          "n_steps": 23,
+          "reduction_pct": 85.104,
+          "saved_usd": 1.0088
+        },
+        {
+          "i": 11,
+          "n_steps": 21,
+          "reduction_pct": 83.577,
+          "saved_usd": 0.8125
+        },
+        {
+          "i": 12,
+          "n_steps": 23,
+          "reduction_pct": 88.498,
+          "saved_usd": 1.7041
+        },
+        {
+          "i": 13,
+          "n_steps": 21,
+          "reduction_pct": 82.771,
+          "saved_usd": 0.7317
+        },
+        {
+          "i": 14,
+          "n_steps": 10,
+          "reduction_pct": 75.331,
+          "saved_usd": 0.2632
+        },
+        {
+          "i": 15,
+          "n_steps": 19,
+          "reduction_pct": 79.499,
+          "saved_usd": 0.6378
+        },
+        {
+          "i": 16,
+          "n_steps": 19,
+          "reduction_pct": 83.443,
+          "saved_usd": 0.7624
+        },
+        {
+          "i": 17,
+          "n_steps": 15,
+          "reduction_pct": 85.035,
+          "saved_usd": 0.6599
+        },
+        {
+          "i": 18,
+          "n_steps": 15,
+          "reduction_pct": 82.785,
+          "saved_usd": 0.7775
+        },
+        {
+          "i": 19,
+          "n_steps": 18,
+          "reduction_pct": 70.179,
+          "saved_usd": 0.3447
+        },
+        {
+          "i": 20,
+          "n_steps": 23,
+          "reduction_pct": 87.779,
+          "saved_usd": 1.39
+        },
+        {
+          "i": 21,
+          "n_steps": 19,
+          "reduction_pct": 75.897,
+          "saved_usd": 0.5952
+        },
+        {
+          "i": 22,
+          "n_steps": 16,
+          "reduction_pct": 81.952,
+          "saved_usd": 0.4872
+        },
+        {
+          "i": 23,
+          "n_steps": 11,
+          "reduction_pct": 83.352,
+          "saved_usd": 0.5732
+        },
+        {
+          "i": 24,
+          "n_steps": 23,
+          "reduction_pct": 83.044,
+          "saved_usd": 0.8435
+        },
+        {
+          "i": 25,
+          "n_steps": 23,
+          "reduction_pct": 84.855,
+          "saved_usd": 0.974
+        },
+        {
+          "i": 26,
+          "n_steps": 23,
+          "reduction_pct": 83.851,
+          "saved_usd": 0.9626
+        },
+        {
+          "i": 27,
+          "n_steps": 23,
+          "reduction_pct": 86.194,
+          "saved_usd": 1.1258
+        },
+        {
+          "i": 28,
+          "n_steps": 23,
+          "reduction_pct": 84.094,
+          "saved_usd": 1.0094
+        },
+        {
+          "i": 29,
+          "n_steps": 21,
+          "reduction_pct": 76.73,
+          "saved_usd": 0.4752
+        },
+        {
+          "i": 30,
+          "n_steps": 22,
+          "reduction_pct": 85.082,
+          "saved_usd": 0.9845
+        },
+        {
+          "i": 31,
+          "n_steps": 23,
+          "reduction_pct": 82.428,
+          "saved_usd": 0.7923
+        },
+        {
+          "i": 32,
+          "n_steps": 23,
+          "reduction_pct": 86.53,
+          "saved_usd": 1.217
+        },
+        {
+          "i": 33,
+          "n_steps": 11,
+          "reduction_pct": 80.329,
+          "saved_usd": 0.5141
+        },
+        {
+          "i": 34,
+          "n_steps": 23,
+          "reduction_pct": 88.841,
+          "saved_usd": 1.7523
+        },
+        {
+          "i": 35,
+          "n_steps": 22,
+          "reduction_pct": 83.99,
+          "saved_usd": 0.9073
+        },
+        {
+          "i": 36,
+          "n_steps": 16,
+          "reduction_pct": 81.624,
+          "saved_usd": 0.4846
+        },
+        {
+          "i": 37,
+          "n_steps": 15,
+          "reduction_pct": 85.533,
+          "saved_usd": 0.9788
+        },
+        {
+          "i": 38,
+          "n_steps": 23,
+          "reduction_pct": 81.388,
+          "saved_usd": 0.6908
+        },
+        {
+          "i": 39,
+          "n_steps": 23,
+          "reduction_pct": 83.524,
+          "saved_usd": 0.9867
+        },
+        {
+          "i": 40,
+          "n_steps": 22,
+          "reduction_pct": 85.365,
+          "saved_usd": 1.0155
+        },
+        {
+          "i": 41,
+          "n_steps": 23,
+          "reduction_pct": 81.568,
+          "saved_usd": 0.802
+        },
+        {
+          "i": 42,
+          "n_steps": 23,
+          "reduction_pct": 82.362,
+          "saved_usd": 0.8794
+        },
+        {
+          "i": 43,
+          "n_steps": 23,
+          "reduction_pct": 82.575,
+          "saved_usd": 0.7999
+        },
+        {
+          "i": 44,
+          "n_steps": 17,
+          "reduction_pct": 83.466,
+          "saved_usd": 0.6312
+        },
+        {
+          "i": 45,
+          "n_steps": 18,
+          "reduction_pct": 81.66,
+          "saved_usd": 0.554
+        },
+        {
+          "i": 46,
+          "n_steps": 23,
+          "reduction_pct": 85.68,
+          "saved_usd": 1.0461
+        },
+        {
+          "i": 47,
+          "n_steps": 23,
+          "reduction_pct": 87.129,
+          "saved_usd": 1.5228
+        },
+        {
+          "i": 48,
+          "n_steps": 21,
+          "reduction_pct": 80.685,
+          "saved_usd": 0.6595
+        },
+        {
+          "i": 49,
+          "n_steps": 23,
+          "reduction_pct": 79.701,
+          "saved_usd": 0.6224
+        },
+        {
+          "i": 50,
+          "n_steps": 23,
+          "reduction_pct": 85.691,
+          "saved_usd": 1.0247
+        },
+        {
+          "i": 51,
+          "n_steps": 22,
+          "reduction_pct": 79.654,
+          "saved_usd": 0.6531
+        },
+        {
+          "i": 52,
+          "n_steps": 23,
+          "reduction_pct": 80.466,
+          "saved_usd": 0.6979
+        },
+        {
+          "i": 53,
+          "n_steps": 23,
+          "reduction_pct": 81.502,
+          "saved_usd": 0.6982
+        },
+        {
+          "i": 54,
+          "n_steps": 17,
+          "reduction_pct": 84.898,
+          "saved_usd": 0.698
+        },
+        {
+          "i": 55,
+          "n_steps": 15,
+          "reduction_pct": 78.289,
+          "saved_usd": 0.3188
+        },
+        {
+          "i": 56,
+          "n_steps": 11,
+          "reduction_pct": 73.597,
+          "saved_usd": 0.2752
+        },
+        {
+          "i": 57,
+          "n_steps": 23,
+          "reduction_pct": 84.083,
+          "saved_usd": 0.8572
+        },
+        {
+          "i": 58,
+          "n_steps": 15,
+          "reduction_pct": 81.802,
+          "saved_usd": 0.5165
+        },
+        {
+          "i": 59,
+          "n_steps": 23,
+          "reduction_pct": 82.477,
+          "saved_usd": 0.8006
+        },
+        {
+          "i": 60,
+          "n_steps": 21,
+          "reduction_pct": 85.462,
+          "saved_usd": 1.0557
+        },
+        {
+          "i": 61,
+          "n_steps": 17,
+          "reduction_pct": 83.747,
+          "saved_usd": 0.6525
+        },
+        {
+          "i": 62,
+          "n_steps": 18,
+          "reduction_pct": 66.358,
+          "saved_usd": 0.273
+        },
+        {
+          "i": 63,
+          "n_steps": 10,
+          "reduction_pct": 76.229,
+          "saved_usd": 0.2819
+        },
+        {
+          "i": 64,
+          "n_steps": 23,
+          "reduction_pct": 80.503,
+          "saved_usd": 0.665
+        },
+        {
+          "i": 65,
+          "n_steps": 12,
+          "reduction_pct": 77.547,
+          "saved_usd": 0.3949
+        },
+        {
+          "i": 66,
+          "n_steps": 14,
+          "reduction_pct": 82.726,
+          "saved_usd": 0.4395
+        },
+        {
+          "i": 67,
+          "n_steps": 21,
+          "reduction_pct": 88.689,
+          "saved_usd": 1.4806
+        },
+        {
+          "i": 68,
+          "n_steps": 22,
+          "reduction_pct": 82.609,
+          "saved_usd": 0.7717
+        },
+        {
+          "i": 69,
+          "n_steps": 21,
+          "reduction_pct": 85.825,
+          "saved_usd": 1.0873
+        },
+        {
+          "i": 70,
+          "n_steps": 21,
+          "reduction_pct": 84.769,
+          "saved_usd": 0.9573
+        },
+        {
+          "i": 71,
+          "n_steps": 23,
+          "reduction_pct": 86.066,
+          "saved_usd": 1.1576
+        },
+        {
+          "i": 72,
+          "n_steps": 10,
+          "reduction_pct": 76.23,
+          "saved_usd": 0.2761
+        },
+        {
+          "i": 73,
+          "n_steps": 21,
+          "reduction_pct": 83.877,
+          "saved_usd": 0.7928
+        },
+        {
+          "i": 74,
+          "n_steps": 23,
+          "reduction_pct": 77.205,
+          "saved_usd": 0.6341
+        },
+        {
+          "i": 75,
+          "n_steps": 23,
+          "reduction_pct": 86.341,
+          "saved_usd": 1.1181
+        },
+        {
+          "i": 76,
+          "n_steps": 23,
+          "reduction_pct": 84.382,
+          "saved_usd": 0.9707
+        },
+        {
+          "i": 77,
+          "n_steps": 23,
+          "reduction_pct": 88.758,
+          "saved_usd": 1.5488
+        },
+        {
+          "i": 78,
+          "n_steps": 23,
+          "reduction_pct": 82.472,
+          "saved_usd": 0.8699
+        },
+        {
+          "i": 79,
+          "n_steps": 23,
+          "reduction_pct": 82.34,
+          "saved_usd": 0.7817
+        },
+        {
+          "i": 80,
+          "n_steps": 23,
+          "reduction_pct": 83.265,
+          "saved_usd": 0.8413
+        },
+        {
+          "i": 81,
+          "n_steps": 20,
+          "reduction_pct": 87.078,
+          "saved_usd": 1.2259
+        },
+        {
+          "i": 82,
+          "n_steps": 23,
+          "reduction_pct": 81.14,
+          "saved_usd": 0.7128
+        },
+        {
+          "i": 83,
+          "n_steps": 23,
+          "reduction_pct": 83.992,
+          "saved_usd": 1.0172
+        },
+        {
+          "i": 84,
+          "n_steps": 23,
+          "reduction_pct": 81.792,
+          "saved_usd": 0.7168
+        },
+        {
+          "i": 85,
+          "n_steps": 23,
+          "reduction_pct": 86.318,
+          "saved_usd": 1.143
+        },
+        {
+          "i": 86,
+          "n_steps": 21,
+          "reduction_pct": 85.174,
+          "saved_usd": 1.0515
+        },
+        {
+          "i": 87,
+          "n_steps": 13,
+          "reduction_pct": 71.796,
+          "saved_usd": 0.2616
+        },
+        {
+          "i": 88,
+          "n_steps": 19,
+          "reduction_pct": 79.396,
+          "saved_usd": 0.5278
+        },
+        {
+          "i": 89,
+          "n_steps": 20,
+          "reduction_pct": 83.377,
+          "saved_usd": 0.843
+        },
+        {
+          "i": 90,
+          "n_steps": 16,
+          "reduction_pct": 82.226,
+          "saved_usd": 0.5458
+        },
+        {
+          "i": 91,
+          "n_steps": 17,
+          "reduction_pct": 81.208,
+          "saved_usd": 0.5581
+        },
+        {
+          "i": 92,
+          "n_steps": 20,
+          "reduction_pct": 84.624,
+          "saved_usd": 0.9765
+        },
+        {
+          "i": 93,
+          "n_steps": 15,
+          "reduction_pct": 83.986,
+          "saved_usd": 0.5205
+        },
+        {
+          "i": 94,
+          "n_steps": 23,
+          "reduction_pct": 84.416,
+          "saved_usd": 1.0343
+        },
+        {
+          "i": 95,
+          "n_steps": 18,
+          "reduction_pct": 85.705,
+          "saved_usd": 0.8876
+        },
+        {
+          "i": 96,
+          "n_steps": 21,
+          "reduction_pct": 83.798,
+          "saved_usd": 0.867
+        },
+        {
+          "i": 97,
+          "n_steps": 22,
+          "reduction_pct": 78.474,
+          "saved_usd": 0.5706
+        },
+        {
+          "i": 98,
+          "n_steps": 19,
+          "reduction_pct": 75.671,
+          "saved_usd": 0.476
+        },
+        {
+          "i": 99,
+          "n_steps": 23,
+          "reduction_pct": 86.552,
+          "saved_usd": 1.2405
+        }
+      ]
+    },
+    {
+      "id": "customer-support-escalation",
+      "title": "10-turn customer support with 4 lookups",
+      "persona": "Customer support / tier-1 automation",
+      "n_runs": 100,
+      "mean_reduction_pct": 83.54,
+      "median_reduction_pct": 84.56,
+      "p05_reduction_pct": 77.71,
+      "p25_reduction_pct": 81.87,
+      "p75_reduction_pct": 85.83,
+      "p95_reduction_pct": 86.94,
+      "min_reduction_pct": 75.57,
+      "max_reduction_pct": 87.39,
+      "stdev_pp": 2.94,
+      "mean_saved_usd": 0.5611,
+      "samples": [
+        {
+          "i": 0,
+          "n_steps": 18,
+          "reduction_pct": 83.269,
+          "saved_usd": 0.4622
+        },
+        {
+          "i": 1,
+          "n_steps": 16,
+          "reduction_pct": 81.079,
+          "saved_usd": 0.3626
+        },
+        {
+          "i": 2,
+          "n_steps": 14,
+          "reduction_pct": 78.715,
+          "saved_usd": 0.2979
+        },
+        {
+          "i": 3,
+          "n_steps": 25,
+          "reduction_pct": 85.866,
+          "saved_usd": 0.7317
+        },
+        {
+          "i": 4,
+          "n_steps": 25,
+          "reduction_pct": 86.477,
+          "saved_usd": 0.7927
+        },
+        {
+          "i": 5,
+          "n_steps": 25,
+          "reduction_pct": 86.343,
+          "saved_usd": 0.7661
+        },
+        {
+          "i": 6,
+          "n_steps": 23,
+          "reduction_pct": 85.2,
+          "saved_usd": 0.6822
+        },
+        {
+          "i": 7,
+          "n_steps": 18,
+          "reduction_pct": 81.916,
+          "saved_usd": 0.3627
+        },
+        {
+          "i": 8,
+          "n_steps": 16,
+          "reduction_pct": 81.918,
+          "saved_usd": 0.3791
+        },
+        {
+          "i": 9,
+          "n_steps": 23,
+          "reduction_pct": 85.358,
+          "saved_usd": 0.6869
+        },
+        {
+          "i": 10,
+          "n_steps": 25,
+          "reduction_pct": 86.018,
+          "saved_usd": 0.74
+        },
+        {
+          "i": 11,
+          "n_steps": 21,
+          "reduction_pct": 85.532,
+          "saved_usd": 0.6503
+        },
+        {
+          "i": 12,
+          "n_steps": 23,
+          "reduction_pct": 85.78,
+          "saved_usd": 0.7056
+        },
+        {
+          "i": 13,
+          "n_steps": 23,
+          "reduction_pct": 84.903,
+          "saved_usd": 0.6173
+        },
+        {
+          "i": 14,
+          "n_steps": 14,
+          "reduction_pct": 75.571,
+          "saved_usd": 0.2124
+        },
+        {
+          "i": 15,
+          "n_steps": 23,
+          "reduction_pct": 85.594,
+          "saved_usd": 0.7085
+        },
+        {
+          "i": 16,
+          "n_steps": 16,
+          "reduction_pct": 80.66,
+          "saved_usd": 0.3355
+        },
+        {
+          "i": 17,
+          "n_steps": 25,
+          "reduction_pct": 87.222,
+          "saved_usd": 0.8512
+        },
+        {
+          "i": 18,
+          "n_steps": 23,
+          "reduction_pct": 85.404,
+          "saved_usd": 0.7127
+        },
+        {
+          "i": 19,
+          "n_steps": 23,
+          "reduction_pct": 86.342,
+          "saved_usd": 0.7625
+        },
+        {
+          "i": 20,
+          "n_steps": 21,
+          "reduction_pct": 83.911,
+          "saved_usd": 0.5944
+        },
+        {
+          "i": 21,
+          "n_steps": 25,
+          "reduction_pct": 87.381,
+          "saved_usd": 0.9493
+        },
+        {
+          "i": 22,
+          "n_steps": 23,
+          "reduction_pct": 86.081,
+          "saved_usd": 0.7389
+        },
+        {
+          "i": 23,
+          "n_steps": 21,
+          "reduction_pct": 84.724,
+          "saved_usd": 0.5944
+        },
+        {
+          "i": 24,
+          "n_steps": 25,
+          "reduction_pct": 87.388,
+          "saved_usd": 0.8699
+        },
+        {
+          "i": 25,
+          "n_steps": 18,
+          "reduction_pct": 83.976,
+          "saved_usd": 0.494
+        },
+        {
+          "i": 26,
+          "n_steps": 23,
+          "reduction_pct": 84.497,
+          "saved_usd": 0.6094
+        },
+        {
+          "i": 27,
+          "n_steps": 16,
+          "reduction_pct": 80.121,
+          "saved_usd": 0.3236
+        },
+        {
+          "i": 28,
+          "n_steps": 25,
+          "reduction_pct": 85.064,
+          "saved_usd": 0.6791
+        },
+        {
+          "i": 29,
+          "n_steps": 18,
+          "reduction_pct": 82.415,
+          "saved_usd": 0.4061
+        },
+        {
+          "i": 30,
+          "n_steps": 21,
+          "reduction_pct": 82.508,
+          "saved_usd": 0.485
+        },
+        {
+          "i": 31,
+          "n_steps": 16,
+          "reduction_pct": 80.889,
+          "saved_usd": 0.3701
+        },
+        {
+          "i": 32,
+          "n_steps": 16,
+          "reduction_pct": 82.559,
+          "saved_usd": 0.442
+        },
+        {
+          "i": 33,
+          "n_steps": 23,
+          "reduction_pct": 86.061,
+          "saved_usd": 0.7618
+        },
+        {
+          "i": 34,
+          "n_steps": 25,
+          "reduction_pct": 85.936,
+          "saved_usd": 0.7437
+        },
+        {
+          "i": 35,
+          "n_steps": 21,
+          "reduction_pct": 83.816,
+          "saved_usd": 0.5306
+        },
+        {
+          "i": 36,
+          "n_steps": 18,
+          "reduction_pct": 82.856,
+          "saved_usd": 0.4209
+        },
+        {
+          "i": 37,
+          "n_steps": 25,
+          "reduction_pct": 86.859,
+          "saved_usd": 0.8417
+        },
+        {
+          "i": 38,
+          "n_steps": 25,
+          "reduction_pct": 87.122,
+          "saved_usd": 0.8999
+        },
+        {
+          "i": 39,
+          "n_steps": 14,
+          "reduction_pct": 77.989,
+          "saved_usd": 0.2424
+        },
+        {
+          "i": 40,
+          "n_steps": 25,
+          "reduction_pct": 86.121,
+          "saved_usd": 0.7514
+        },
+        {
+          "i": 41,
+          "n_steps": 16,
+          "reduction_pct": 79.9,
+          "saved_usd": 0.31
+        },
+        {
+          "i": 42,
+          "n_steps": 25,
+          "reduction_pct": 86.545,
+          "saved_usd": 0.7991
+        },
+        {
+          "i": 43,
+          "n_steps": 23,
+          "reduction_pct": 84.797,
+          "saved_usd": 0.6536
+        },
+        {
+          "i": 44,
+          "n_steps": 23,
+          "reduction_pct": 85.813,
+          "saved_usd": 0.7255
+        },
+        {
+          "i": 45,
+          "n_steps": 14,
+          "reduction_pct": 79.426,
+          "saved_usd": 0.3037
+        },
+        {
+          "i": 46,
+          "n_steps": 25,
+          "reduction_pct": 86.926,
+          "saved_usd": 0.8233
+        },
+        {
+          "i": 47,
+          "n_steps": 14,
+          "reduction_pct": 76.263,
+          "saved_usd": 0.2219
+        },
+        {
+          "i": 48,
+          "n_steps": 21,
+          "reduction_pct": 83.698,
+          "saved_usd": 0.5403
+        },
+        {
+          "i": 49,
+          "n_steps": 18,
+          "reduction_pct": 82.143,
+          "saved_usd": 0.4049
+        },
+        {
+          "i": 50,
+          "n_steps": 14,
+          "reduction_pct": 78.238,
+          "saved_usd": 0.281
+        },
+        {
+          "i": 51,
+          "n_steps": 21,
+          "reduction_pct": 84.258,
+          "saved_usd": 0.604
+        },
+        {
+          "i": 52,
+          "n_steps": 16,
+          "reduction_pct": 81.059,
+          "saved_usd": 0.3565
+        },
+        {
+          "i": 53,
+          "n_steps": 23,
+          "reduction_pct": 85.239,
+          "saved_usd": 0.6256
+        },
+        {
+          "i": 54,
+          "n_steps": 23,
+          "reduction_pct": 86.773,
+          "saved_usd": 0.8464
+        },
+        {
+          "i": 55,
+          "n_steps": 25,
+          "reduction_pct": 86.453,
+          "saved_usd": 0.7766
+        },
+        {
+          "i": 56,
+          "n_steps": 25,
+          "reduction_pct": 86.856,
+          "saved_usd": 0.8603
+        },
+        {
+          "i": 57,
+          "n_steps": 23,
+          "reduction_pct": 84.639,
+          "saved_usd": 0.6307
+        },
+        {
+          "i": 58,
+          "n_steps": 23,
+          "reduction_pct": 85.092,
+          "saved_usd": 0.6588
+        },
+        {
+          "i": 59,
+          "n_steps": 25,
+          "reduction_pct": 86.791,
+          "saved_usd": 0.8142
+        },
+        {
+          "i": 60,
+          "n_steps": 21,
+          "reduction_pct": 85.004,
+          "saved_usd": 0.6147
+        },
+        {
+          "i": 61,
+          "n_steps": 18,
+          "reduction_pct": 84.926,
+          "saved_usd": 0.5431
+        },
+        {
+          "i": 62,
+          "n_steps": 21,
+          "reduction_pct": 83.261,
+          "saved_usd": 0.5131
+        },
+        {
+          "i": 63,
+          "n_steps": 23,
+          "reduction_pct": 84.495,
+          "saved_usd": 0.6227
+        },
+        {
+          "i": 64,
+          "n_steps": 23,
+          "reduction_pct": 85.546,
+          "saved_usd": 0.6732
+        },
+        {
+          "i": 65,
+          "n_steps": 25,
+          "reduction_pct": 86.481,
+          "saved_usd": 0.7984
+        },
+        {
+          "i": 66,
+          "n_steps": 18,
+          "reduction_pct": 82.766,
+          "saved_usd": 0.4492
+        },
+        {
+          "i": 67,
+          "n_steps": 21,
+          "reduction_pct": 84.487,
+          "saved_usd": 0.6062
+        },
+        {
+          "i": 68,
+          "n_steps": 25,
+          "reduction_pct": 86.234,
+          "saved_usd": 0.7797
+        },
+        {
+          "i": 69,
+          "n_steps": 25,
+          "reduction_pct": 86.05,
+          "saved_usd": 0.7622
+        },
+        {
+          "i": 70,
+          "n_steps": 14,
+          "reduction_pct": 78.059,
+          "saved_usd": 0.2642
+        },
+        {
+          "i": 71,
+          "n_steps": 21,
+          "reduction_pct": 84.986,
+          "saved_usd": 0.6083
+        },
+        {
+          "i": 72,
+          "n_steps": 21,
+          "reduction_pct": 83.958,
+          "saved_usd": 0.5848
+        },
+        {
+          "i": 73,
+          "n_steps": 21,
+          "reduction_pct": 84.46,
+          "saved_usd": 0.5721
+        },
+        {
+          "i": 74,
+          "n_steps": 25,
+          "reduction_pct": 86.183,
+          "saved_usd": 0.7405
+        },
+        {
+          "i": 75,
+          "n_steps": 16,
+          "reduction_pct": 81.407,
+          "saved_usd": 0.3647
+        },
+        {
+          "i": 76,
+          "n_steps": 21,
+          "reduction_pct": 84.725,
+          "saved_usd": 0.5873
+        },
+        {
+          "i": 77,
+          "n_steps": 16,
+          "reduction_pct": 80.441,
+          "saved_usd": 0.3447
+        },
+        {
+          "i": 78,
+          "n_steps": 21,
+          "reduction_pct": 84.9,
+          "saved_usd": 0.606
+        },
+        {
+          "i": 79,
+          "n_steps": 23,
+          "reduction_pct": 84.81,
+          "saved_usd": 0.6196
+        },
+        {
+          "i": 80,
+          "n_steps": 16,
+          "reduction_pct": 81.328,
+          "saved_usd": 0.3604
+        },
+        {
+          "i": 81,
+          "n_steps": 14,
+          "reduction_pct": 78.147,
+          "saved_usd": 0.283
+        },
+        {
+          "i": 82,
+          "n_steps": 14,
+          "reduction_pct": 77.293,
+          "saved_usd": 0.2503
+        },
+        {
+          "i": 83,
+          "n_steps": 18,
+          "reduction_pct": 82.317,
+          "saved_usd": 0.3871
+        },
+        {
+          "i": 84,
+          "n_steps": 23,
+          "reduction_pct": 85.151,
+          "saved_usd": 0.6978
+        },
+        {
+          "i": 85,
+          "n_steps": 16,
+          "reduction_pct": 80.881,
+          "saved_usd": 0.3558
+        },
+        {
+          "i": 86,
+          "n_steps": 18,
+          "reduction_pct": 82.376,
+          "saved_usd": 0.393
+        },
+        {
+          "i": 87,
+          "n_steps": 18,
+          "reduction_pct": 83.401,
+          "saved_usd": 0.441
+        },
+        {
+          "i": 88,
+          "n_steps": 14,
+          "reduction_pct": 77.328,
+          "saved_usd": 0.2533
+        },
+        {
+          "i": 89,
+          "n_steps": 18,
+          "reduction_pct": 83.261,
+          "saved_usd": 0.4295
+        },
+        {
+          "i": 90,
+          "n_steps": 14,
+          "reduction_pct": 76.995,
+          "saved_usd": 0.2381
+        },
+        {
+          "i": 91,
+          "n_steps": 14,
+          "reduction_pct": 77.732,
+          "saved_usd": 0.2558
+        },
+        {
+          "i": 92,
+          "n_steps": 21,
+          "reduction_pct": 84.933,
+          "saved_usd": 0.61
+        },
+        {
+          "i": 93,
+          "n_steps": 23,
+          "reduction_pct": 84.92,
+          "saved_usd": 0.6375
+        },
+        {
+          "i": 94,
+          "n_steps": 21,
+          "reduction_pct": 84.617,
+          "saved_usd": 0.6579
+        },
+        {
+          "i": 95,
+          "n_steps": 16,
+          "reduction_pct": 80.422,
+          "saved_usd": 0.3368
+        },
+        {
+          "i": 96,
+          "n_steps": 16,
+          "reduction_pct": 81.722,
+          "saved_usd": 0.4232
+        },
+        {
+          "i": 97,
+          "n_steps": 25,
+          "reduction_pct": 87.153,
+          "saved_usd": 0.8768
+        },
+        {
+          "i": 98,
+          "n_steps": 18,
+          "reduction_pct": 83.493,
+          "saved_usd": 0.4635
+        },
+        {
+          "i": 99,
+          "n_steps": 14,
+          "reduction_pct": 79.207,
+          "saved_usd": 0.3012
+        }
+      ]
+    },
+    {
+      "id": "sales-lead-enrichment",
+      "title": "Sales lead enrichment + CRM sync",
+      "persona": "Sales ops / lead research",
+      "n_runs": 100,
+      "mean_reduction_pct": 77.29,
+      "median_reduction_pct": 77.39,
+      "p05_reduction_pct": 74.64,
+      "p25_reduction_pct": 76.05,
+      "p75_reduction_pct": 78.55,
+      "p95_reduction_pct": 79.79,
+      "min_reduction_pct": 72.5,
+      "max_reduction_pct": 80.97,
+      "stdev_pp": 1.64,
+      "mean_saved_usd": 0.3924,
+      "samples": [
+        {
+          "i": 0,
+          "n_steps": 8,
+          "reduction_pct": 78.697,
+          "saved_usd": 0.5347
+        },
+        {
+          "i": 1,
+          "n_steps": 8,
+          "reduction_pct": 77.336,
+          "saved_usd": 0.381
+        },
+        {
+          "i": 2,
+          "n_steps": 8,
+          "reduction_pct": 76.578,
+          "saved_usd": 0.3069
+        },
+        {
+          "i": 3,
+          "n_steps": 8,
+          "reduction_pct": 76.661,
+          "saved_usd": 0.3628
+        },
+        {
+          "i": 4,
+          "n_steps": 8,
+          "reduction_pct": 75.354,
+          "saved_usd": 0.3073
+        },
+        {
+          "i": 5,
+          "n_steps": 8,
+          "reduction_pct": 78.884,
+          "saved_usd": 0.4781
+        },
+        {
+          "i": 6,
+          "n_steps": 8,
+          "reduction_pct": 77.265,
+          "saved_usd": 0.379
+        },
+        {
+          "i": 7,
+          "n_steps": 8,
+          "reduction_pct": 75.837,
+          "saved_usd": 0.3235
+        },
+        {
+          "i": 8,
+          "n_steps": 8,
+          "reduction_pct": 77.776,
+          "saved_usd": 0.3553
+        },
+        {
+          "i": 9,
+          "n_steps": 8,
+          "reduction_pct": 77.324,
+          "saved_usd": 0.3669
+        },
+        {
+          "i": 10,
+          "n_steps": 8,
+          "reduction_pct": 76.075,
+          "saved_usd": 0.3354
+        },
+        {
+          "i": 11,
+          "n_steps": 8,
+          "reduction_pct": 79.969,
+          "saved_usd": 0.5405
+        },
+        {
+          "i": 12,
+          "n_steps": 8,
+          "reduction_pct": 74.922,
+          "saved_usd": 0.2769
+        },
+        {
+          "i": 13,
+          "n_steps": 8,
+          "reduction_pct": 76.668,
+          "saved_usd": 0.3542
+        },
+        {
+          "i": 14,
+          "n_steps": 8,
+          "reduction_pct": 76.03,
+          "saved_usd": 0.314
+        },
+        {
+          "i": 15,
+          "n_steps": 8,
+          "reduction_pct": 79.042,
+          "saved_usd": 0.451
+        },
+        {
+          "i": 16,
+          "n_steps": 8,
+          "reduction_pct": 76.937,
+          "saved_usd": 0.367
+        },
+        {
+          "i": 17,
+          "n_steps": 8,
+          "reduction_pct": 79.644,
+          "saved_usd": 0.4598
+        },
+        {
+          "i": 18,
+          "n_steps": 8,
+          "reduction_pct": 77.539,
+          "saved_usd": 0.4111
+        },
+        {
+          "i": 19,
+          "n_steps": 8,
+          "reduction_pct": 78.537,
+          "saved_usd": 0.485
+        },
+        {
+          "i": 20,
+          "n_steps": 8,
+          "reduction_pct": 80.971,
+          "saved_usd": 0.6942
+        },
+        {
+          "i": 21,
+          "n_steps": 8,
+          "reduction_pct": 76.75,
+          "saved_usd": 0.3247
+        },
+        {
+          "i": 22,
+          "n_steps": 8,
+          "reduction_pct": 76.06,
+          "saved_usd": 0.3685
+        },
+        {
+          "i": 23,
+          "n_steps": 8,
+          "reduction_pct": 72.504,
+          "saved_usd": 0.2209
+        },
+        {
+          "i": 24,
+          "n_steps": 8,
+          "reduction_pct": 77.24,
+          "saved_usd": 0.3997
+        },
+        {
+          "i": 25,
+          "n_steps": 8,
+          "reduction_pct": 78.922,
+          "saved_usd": 0.391
+        },
+        {
+          "i": 26,
+          "n_steps": 8,
+          "reduction_pct": 77.62,
+          "saved_usd": 0.3575
+        },
+        {
+          "i": 27,
+          "n_steps": 8,
+          "reduction_pct": 78.145,
+          "saved_usd": 0.4348
+        },
+        {
+          "i": 28,
+          "n_steps": 8,
+          "reduction_pct": 76.53,
+          "saved_usd": 0.3698
+        },
+        {
+          "i": 29,
+          "n_steps": 8,
+          "reduction_pct": 77.78,
+          "saved_usd": 0.4351
+        },
+        {
+          "i": 30,
+          "n_steps": 8,
+          "reduction_pct": 77.849,
+          "saved_usd": 0.3985
+        },
+        {
+          "i": 31,
+          "n_steps": 8,
+          "reduction_pct": 78.832,
+          "saved_usd": 0.4518
+        },
+        {
+          "i": 32,
+          "n_steps": 8,
+          "reduction_pct": 78.146,
+          "saved_usd": 0.426
+        },
+        {
+          "i": 33,
+          "n_steps": 8,
+          "reduction_pct": 76.669,
+          "saved_usd": 0.3428
+        },
+        {
+          "i": 34,
+          "n_steps": 8,
+          "reduction_pct": 77.866,
+          "saved_usd": 0.4085
+        },
+        {
+          "i": 35,
+          "n_steps": 8,
+          "reduction_pct": 74.544,
+          "saved_usd": 0.2854
+        },
+        {
+          "i": 36,
+          "n_steps": 8,
+          "reduction_pct": 77.717,
+          "saved_usd": 0.4033
+        },
+        {
+          "i": 37,
+          "n_steps": 8,
+          "reduction_pct": 78.447,
+          "saved_usd": 0.4407
+        },
+        {
+          "i": 38,
+          "n_steps": 8,
+          "reduction_pct": 76.427,
+          "saved_usd": 0.3167
+        },
+        {
+          "i": 39,
+          "n_steps": 8,
+          "reduction_pct": 75.503,
+          "saved_usd": 0.2989
+        },
+        {
+          "i": 40,
+          "n_steps": 8,
+          "reduction_pct": 77.405,
+          "saved_usd": 0.4177
+        },
+        {
+          "i": 41,
+          "n_steps": 8,
+          "reduction_pct": 74.649,
+          "saved_usd": 0.2604
+        },
+        {
+          "i": 42,
+          "n_steps": 8,
+          "reduction_pct": 78.175,
+          "saved_usd": 0.4132
+        },
+        {
+          "i": 43,
+          "n_steps": 8,
+          "reduction_pct": 77.838,
+          "saved_usd": 0.4278
+        },
+        {
+          "i": 44,
+          "n_steps": 8,
+          "reduction_pct": 75.889,
+          "saved_usd": 0.3085
+        },
+        {
+          "i": 45,
+          "n_steps": 8,
+          "reduction_pct": 77.629,
+          "saved_usd": 0.3827
+        },
+        {
+          "i": 46,
+          "n_steps": 8,
+          "reduction_pct": 79.189,
+          "saved_usd": 0.4648
+        },
+        {
+          "i": 47,
+          "n_steps": 8,
+          "reduction_pct": 77.629,
+          "saved_usd": 0.3493
+        },
+        {
+          "i": 48,
+          "n_steps": 8,
+          "reduction_pct": 77.384,
+          "saved_usd": 0.3743
+        },
+        {
+          "i": 49,
+          "n_steps": 8,
+          "reduction_pct": 76.628,
+          "saved_usd": 0.3592
+        },
+        {
+          "i": 50,
+          "n_steps": 8,
+          "reduction_pct": 75.987,
+          "saved_usd": 0.3399
+        },
+        {
+          "i": 51,
+          "n_steps": 8,
+          "reduction_pct": 77.98,
+          "saved_usd": 0.3988
+        },
+        {
+          "i": 52,
+          "n_steps": 8,
+          "reduction_pct": 75.058,
+          "saved_usd": 0.314
+        },
+        {
+          "i": 53,
+          "n_steps": 8,
+          "reduction_pct": 77.957,
+          "saved_usd": 0.376
+        },
+        {
+          "i": 54,
+          "n_steps": 8,
+          "reduction_pct": 78.697,
+          "saved_usd": 0.4519
+        },
+        {
+          "i": 55,
+          "n_steps": 8,
+          "reduction_pct": 76.785,
+          "saved_usd": 0.4267
+        },
+        {
+          "i": 56,
+          "n_steps": 8,
+          "reduction_pct": 74.825,
+          "saved_usd": 0.2932
+        },
+        {
+          "i": 57,
+          "n_steps": 8,
+          "reduction_pct": 75.241,
+          "saved_usd": 0.3086
+        },
+        {
+          "i": 58,
+          "n_steps": 8,
+          "reduction_pct": 78.453,
+          "saved_usd": 0.4281
+        },
+        {
+          "i": 59,
+          "n_steps": 8,
+          "reduction_pct": 74.039,
+          "saved_usd": 0.2778
+        },
+        {
+          "i": 60,
+          "n_steps": 8,
+          "reduction_pct": 78.243,
+          "saved_usd": 0.4398
+        },
+        {
+          "i": 61,
+          "n_steps": 8,
+          "reduction_pct": 79.788,
+          "saved_usd": 0.5417
+        },
+        {
+          "i": 62,
+          "n_steps": 8,
+          "reduction_pct": 74.29,
+          "saved_usd": 0.2956
+        },
+        {
+          "i": 63,
+          "n_steps": 8,
+          "reduction_pct": 77.049,
+          "saved_usd": 0.3634
+        },
+        {
+          "i": 64,
+          "n_steps": 8,
+          "reduction_pct": 77.615,
+          "saved_usd": 0.3805
+        },
+        {
+          "i": 65,
+          "n_steps": 8,
+          "reduction_pct": 78.174,
+          "saved_usd": 0.4496
+        },
+        {
+          "i": 66,
+          "n_steps": 8,
+          "reduction_pct": 75.529,
+          "saved_usd": 0.2963
+        },
+        {
+          "i": 67,
+          "n_steps": 8,
+          "reduction_pct": 76.075,
+          "saved_usd": 0.3411
+        },
+        {
+          "i": 68,
+          "n_steps": 8,
+          "reduction_pct": 75.613,
+          "saved_usd": 0.3683
+        },
+        {
+          "i": 69,
+          "n_steps": 8,
+          "reduction_pct": 79.586,
+          "saved_usd": 0.6409
+        },
+        {
+          "i": 70,
+          "n_steps": 8,
+          "reduction_pct": 77.802,
+          "saved_usd": 0.3234
+        },
+        {
+          "i": 71,
+          "n_steps": 8,
+          "reduction_pct": 75.549,
+          "saved_usd": 0.3592
+        },
+        {
+          "i": 72,
+          "n_steps": 8,
+          "reduction_pct": 78.935,
+          "saved_usd": 0.4366
+        },
+        {
+          "i": 73,
+          "n_steps": 8,
+          "reduction_pct": 79.908,
+          "saved_usd": 0.5118
+        },
+        {
+          "i": 74,
+          "n_steps": 8,
+          "reduction_pct": 79.632,
+          "saved_usd": 0.4924
+        },
+        {
+          "i": 75,
+          "n_steps": 8,
+          "reduction_pct": 75.957,
+          "saved_usd": 0.3522
+        },
+        {
+          "i": 76,
+          "n_steps": 8,
+          "reduction_pct": 79.858,
+          "saved_usd": 0.5014
+        },
+        {
+          "i": 77,
+          "n_steps": 8,
+          "reduction_pct": 76.498,
+          "saved_usd": 0.3357
+        },
+        {
+          "i": 78,
+          "n_steps": 8,
+          "reduction_pct": 78.945,
+          "saved_usd": 0.4483
+        },
+        {
+          "i": 79,
+          "n_steps": 8,
+          "reduction_pct": 76.562,
+          "saved_usd": 0.3518
+        },
+        {
+          "i": 80,
+          "n_steps": 8,
+          "reduction_pct": 74.497,
+          "saved_usd": 0.2911
+        },
+        {
+          "i": 81,
+          "n_steps": 8,
+          "reduction_pct": 79.602,
+          "saved_usd": 0.4949
+        },
+        {
+          "i": 82,
+          "n_steps": 8,
+          "reduction_pct": 75.624,
+          "saved_usd": 0.3177
+        },
+        {
+          "i": 83,
+          "n_steps": 8,
+          "reduction_pct": 78.605,
+          "saved_usd": 0.4722
+        },
+        {
+          "i": 84,
+          "n_steps": 8,
+          "reduction_pct": 79.646,
+          "saved_usd": 0.4657
+        },
+        {
+          "i": 85,
+          "n_steps": 8,
+          "reduction_pct": 74.695,
+          "saved_usd": 0.2975
+        },
+        {
+          "i": 86,
+          "n_steps": 8,
+          "reduction_pct": 78.694,
+          "saved_usd": 0.4483
+        },
+        {
+          "i": 87,
+          "n_steps": 8,
+          "reduction_pct": 77.992,
+          "saved_usd": 0.4134
+        },
+        {
+          "i": 88,
+          "n_steps": 8,
+          "reduction_pct": 77.134,
+          "saved_usd": 0.3724
+        },
+        {
+          "i": 89,
+          "n_steps": 8,
+          "reduction_pct": 75.887,
+          "saved_usd": 0.3117
+        },
+        {
+          "i": 90,
+          "n_steps": 8,
+          "reduction_pct": 78.692,
+          "saved_usd": 0.5016
+        },
+        {
+          "i": 91,
+          "n_steps": 8,
+          "reduction_pct": 80.027,
+          "saved_usd": 0.5718
+        },
+        {
+          "i": 92,
+          "n_steps": 8,
+          "reduction_pct": 79.357,
+          "saved_usd": 0.4895
+        },
+        {
+          "i": 93,
+          "n_steps": 8,
+          "reduction_pct": 79.309,
+          "saved_usd": 0.5011
+        },
+        {
+          "i": 94,
+          "n_steps": 8,
+          "reduction_pct": 76.2,
+          "saved_usd": 0.3265
+        },
+        {
+          "i": 95,
+          "n_steps": 8,
+          "reduction_pct": 76.979,
+          "saved_usd": 0.4093
+        },
+        {
+          "i": 96,
+          "n_steps": 8,
+          "reduction_pct": 78.287,
+          "saved_usd": 0.4271
+        },
+        {
+          "i": 97,
+          "n_steps": 8,
+          "reduction_pct": 75.884,
+          "saved_usd": 0.3408
+        },
+        {
+          "i": 98,
+          "n_steps": 8,
+          "reduction_pct": 75.025,
+          "saved_usd": 0.2932
+        },
+        {
+          "i": 99,
+          "n_steps": 8,
+          "reduction_pct": 76.193,
+          "saved_usd": 0.3293
+        }
+      ]
+    },
+    {
+      "id": "doc-qa-50-contracts",
+      "title": "Q&A across 50 contracts with citation",
+      "persona": "Legal ops / internal knowledge bot",
+      "n_runs": 100,
+      "mean_reduction_pct": 46.99,
+      "median_reduction_pct": 46.97,
+      "p05_reduction_pct": 36.26,
+      "p25_reduction_pct": 43.35,
+      "p75_reduction_pct": 51.11,
+      "p95_reduction_pct": 55.82,
+      "min_reduction_pct": 31.6,
+      "max_reduction_pct": 59.15,
+      "stdev_pp": 5.67,
+      "mean_saved_usd": 0.0811,
+      "samples": [
+        {
+          "i": 0,
+          "n_steps": 9,
+          "reduction_pct": 43.27,
+          "saved_usd": 0.0502
+        },
+        {
+          "i": 1,
+          "n_steps": 11,
+          "reduction_pct": 43.3,
+          "saved_usd": 0.0679
+        },
+        {
+          "i": 2,
+          "n_steps": 11,
+          "reduction_pct": 43.403,
+          "saved_usd": 0.0703
+        },
+        {
+          "i": 3,
+          "n_steps": 11,
+          "reduction_pct": 56.192,
+          "saved_usd": 0.129
+        },
+        {
+          "i": 4,
+          "n_steps": 11,
+          "reduction_pct": 46.584,
+          "saved_usd": 0.0831
+        },
+        {
+          "i": 5,
+          "n_steps": 11,
+          "reduction_pct": 46.657,
+          "saved_usd": 0.0885
+        },
+        {
+          "i": 6,
+          "n_steps": 11,
+          "reduction_pct": 53.996,
+          "saved_usd": 0.1153
+        },
+        {
+          "i": 7,
+          "n_steps": 11,
+          "reduction_pct": 56.516,
+          "saved_usd": 0.1345
+        },
+        {
+          "i": 8,
+          "n_steps": 9,
+          "reduction_pct": 37.74,
+          "saved_usd": 0.0394
+        },
+        {
+          "i": 9,
+          "n_steps": 8,
+          "reduction_pct": 35.789,
+          "saved_usd": 0.0351
+        },
+        {
+          "i": 10,
+          "n_steps": 9,
+          "reduction_pct": 53.817,
+          "saved_usd": 0.0862
+        },
+        {
+          "i": 11,
+          "n_steps": 10,
+          "reduction_pct": 39.133,
+          "saved_usd": 0.0541
+        },
+        {
+          "i": 12,
+          "n_steps": 9,
+          "reduction_pct": 35.99,
+          "saved_usd": 0.0408
+        },
+        {
+          "i": 13,
+          "n_steps": 10,
+          "reduction_pct": 46.257,
+          "saved_usd": 0.072
+        },
+        {
+          "i": 14,
+          "n_steps": 11,
+          "reduction_pct": 50.574,
+          "saved_usd": 0.0987
+        },
+        {
+          "i": 15,
+          "n_steps": 11,
+          "reduction_pct": 45.342,
+          "saved_usd": 0.0741
+        },
+        {
+          "i": 16,
+          "n_steps": 8,
+          "reduction_pct": 37.381,
+          "saved_usd": 0.0409
+        },
+        {
+          "i": 17,
+          "n_steps": 10,
+          "reduction_pct": 46.308,
+          "saved_usd": 0.0663
+        },
+        {
+          "i": 18,
+          "n_steps": 11,
+          "reduction_pct": 53.553,
+          "saved_usd": 0.1057
+        },
+        {
+          "i": 19,
+          "n_steps": 9,
+          "reduction_pct": 43.869,
+          "saved_usd": 0.0592
+        },
+        {
+          "i": 20,
+          "n_steps": 11,
+          "reduction_pct": 47.029,
+          "saved_usd": 0.0788
+        },
+        {
+          "i": 21,
+          "n_steps": 11,
+          "reduction_pct": 41.868,
+          "saved_usd": 0.066
+        },
+        {
+          "i": 22,
+          "n_steps": 11,
+          "reduction_pct": 47.027,
+          "saved_usd": 0.0877
+        },
+        {
+          "i": 23,
+          "n_steps": 11,
+          "reduction_pct": 49.37,
+          "saved_usd": 0.0924
+        },
+        {
+          "i": 24,
+          "n_steps": 11,
+          "reduction_pct": 49.536,
+          "saved_usd": 0.096
+        },
+        {
+          "i": 25,
+          "n_steps": 11,
+          "reduction_pct": 51.622,
+          "saved_usd": 0.0973
+        },
+        {
+          "i": 26,
+          "n_steps": 11,
+          "reduction_pct": 54.106,
+          "saved_usd": 0.115
+        },
+        {
+          "i": 27,
+          "n_steps": 9,
+          "reduction_pct": 45.504,
+          "saved_usd": 0.068
+        },
+        {
+          "i": 28,
+          "n_steps": 11,
+          "reduction_pct": 55.798,
+          "saved_usd": 0.1181
+        },
+        {
+          "i": 29,
+          "n_steps": 11,
+          "reduction_pct": 49.204,
+          "saved_usd": 0.0966
+        },
+        {
+          "i": 30,
+          "n_steps": 9,
+          "reduction_pct": 54.527,
+          "saved_usd": 0.1035
+        },
+        {
+          "i": 31,
+          "n_steps": 11,
+          "reduction_pct": 50.552,
+          "saved_usd": 0.0984
+        },
+        {
+          "i": 32,
+          "n_steps": 10,
+          "reduction_pct": 48.581,
+          "saved_usd": 0.0788
+        },
+        {
+          "i": 33,
+          "n_steps": 10,
+          "reduction_pct": 43.581,
+          "saved_usd": 0.064
+        },
+        {
+          "i": 34,
+          "n_steps": 11,
+          "reduction_pct": 51.129,
+          "saved_usd": 0.106
+        },
+        {
+          "i": 35,
+          "n_steps": 11,
+          "reduction_pct": 44.56,
+          "saved_usd": 0.0721
+        },
+        {
+          "i": 36,
+          "n_steps": 11,
+          "reduction_pct": 46.112,
+          "saved_usd": 0.084
+        },
+        {
+          "i": 37,
+          "n_steps": 11,
+          "reduction_pct": 51.981,
+          "saved_usd": 0.1052
+        },
+        {
+          "i": 38,
+          "n_steps": 11,
+          "reduction_pct": 59.146,
+          "saved_usd": 0.1471
+        },
+        {
+          "i": 39,
+          "n_steps": 8,
+          "reduction_pct": 41.276,
+          "saved_usd": 0.045
+        },
+        {
+          "i": 40,
+          "n_steps": 11,
+          "reduction_pct": 54.213,
+          "saved_usd": 0.1165
+        },
+        {
+          "i": 41,
+          "n_steps": 11,
+          "reduction_pct": 47.989,
+          "saved_usd": 0.0851
+        },
+        {
+          "i": 42,
+          "n_steps": 11,
+          "reduction_pct": 55.337,
+          "saved_usd": 0.1215
+        },
+        {
+          "i": 43,
+          "n_steps": 11,
+          "reduction_pct": 51.283,
+          "saved_usd": 0.1016
+        },
+        {
+          "i": 44,
+          "n_steps": 11,
+          "reduction_pct": 54.897,
+          "saved_usd": 0.1185
+        },
+        {
+          "i": 45,
+          "n_steps": 11,
+          "reduction_pct": 50.296,
+          "saved_usd": 0.0964
+        },
+        {
+          "i": 46,
+          "n_steps": 11,
+          "reduction_pct": 49.992,
+          "saved_usd": 0.0988
+        },
+        {
+          "i": 47,
+          "n_steps": 11,
+          "reduction_pct": 47.833,
+          "saved_usd": 0.0875
+        },
+        {
+          "i": 48,
+          "n_steps": 11,
+          "reduction_pct": 51.102,
+          "saved_usd": 0.0997
+        },
+        {
+          "i": 49,
+          "n_steps": 8,
+          "reduction_pct": 36.273,
+          "saved_usd": 0.0317
+        },
+        {
+          "i": 50,
+          "n_steps": 8,
+          "reduction_pct": 42.887,
+          "saved_usd": 0.0502
+        },
+        {
+          "i": 51,
+          "n_steps": 9,
+          "reduction_pct": 42.175,
+          "saved_usd": 0.0528
+        },
+        {
+          "i": 52,
+          "n_steps": 8,
+          "reduction_pct": 40.528,
+          "saved_usd": 0.0455
+        },
+        {
+          "i": 53,
+          "n_steps": 11,
+          "reduction_pct": 45.703,
+          "saved_usd": 0.0737
+        },
+        {
+          "i": 54,
+          "n_steps": 11,
+          "reduction_pct": 46.907,
+          "saved_usd": 0.0822
+        },
+        {
+          "i": 55,
+          "n_steps": 11,
+          "reduction_pct": 50.653,
+          "saved_usd": 0.0991
+        },
+        {
+          "i": 56,
+          "n_steps": 9,
+          "reduction_pct": 43.497,
+          "saved_usd": 0.0631
+        },
+        {
+          "i": 57,
+          "n_steps": 11,
+          "reduction_pct": 53.458,
+          "saved_usd": 0.1046
+        },
+        {
+          "i": 58,
+          "n_steps": 11,
+          "reduction_pct": 48.754,
+          "saved_usd": 0.0985
+        },
+        {
+          "i": 59,
+          "n_steps": 8,
+          "reduction_pct": 31.598,
+          "saved_usd": 0.0222
+        },
+        {
+          "i": 60,
+          "n_steps": 11,
+          "reduction_pct": 50.499,
+          "saved_usd": 0.0988
+        },
+        {
+          "i": 61,
+          "n_steps": 11,
+          "reduction_pct": 49.814,
+          "saved_usd": 0.1019
+        },
+        {
+          "i": 62,
+          "n_steps": 10,
+          "reduction_pct": 51.775,
+          "saved_usd": 0.0999
+        },
+        {
+          "i": 63,
+          "n_steps": 8,
+          "reduction_pct": 40.283,
+          "saved_usd": 0.0492
+        },
+        {
+          "i": 64,
+          "n_steps": 11,
+          "reduction_pct": 57.627,
+          "saved_usd": 0.1316
+        },
+        {
+          "i": 65,
+          "n_steps": 10,
+          "reduction_pct": 46.329,
+          "saved_usd": 0.0728
+        },
+        {
+          "i": 66,
+          "n_steps": 8,
+          "reduction_pct": 34.338,
+          "saved_usd": 0.0364
+        },
+        {
+          "i": 67,
+          "n_steps": 11,
+          "reduction_pct": 47.439,
+          "saved_usd": 0.0813
+        },
+        {
+          "i": 68,
+          "n_steps": 11,
+          "reduction_pct": 50.12,
+          "saved_usd": 0.0967
+        },
+        {
+          "i": 69,
+          "n_steps": 11,
+          "reduction_pct": 46.734,
+          "saved_usd": 0.0721
+        },
+        {
+          "i": 70,
+          "n_steps": 9,
+          "reduction_pct": 43.161,
+          "saved_usd": 0.0538
+        },
+        {
+          "i": 71,
+          "n_steps": 11,
+          "reduction_pct": 43.741,
+          "saved_usd": 0.0652
+        },
+        {
+          "i": 72,
+          "n_steps": 10,
+          "reduction_pct": 48.089,
+          "saved_usd": 0.0746
+        },
+        {
+          "i": 73,
+          "n_steps": 10,
+          "reduction_pct": 43.054,
+          "saved_usd": 0.0534
+        },
+        {
+          "i": 74,
+          "n_steps": 11,
+          "reduction_pct": 52.025,
+          "saved_usd": 0.1091
+        },
+        {
+          "i": 75,
+          "n_steps": 11,
+          "reduction_pct": 44.451,
+          "saved_usd": 0.0755
+        },
+        {
+          "i": 76,
+          "n_steps": 8,
+          "reduction_pct": 33.13,
+          "saved_usd": 0.0319
+        },
+        {
+          "i": 77,
+          "n_steps": 10,
+          "reduction_pct": 44.743,
+          "saved_usd": 0.0711
+        },
+        {
+          "i": 78,
+          "n_steps": 11,
+          "reduction_pct": 47.606,
+          "saved_usd": 0.0855
+        },
+        {
+          "i": 79,
+          "n_steps": 10,
+          "reduction_pct": 43.099,
+          "saved_usd": 0.0659
+        },
+        {
+          "i": 80,
+          "n_steps": 10,
+          "reduction_pct": 43.369,
+          "saved_usd": 0.0644
+        },
+        {
+          "i": 81,
+          "n_steps": 11,
+          "reduction_pct": 49.748,
+          "saved_usd": 0.0928
+        },
+        {
+          "i": 82,
+          "n_steps": 10,
+          "reduction_pct": 43.566,
+          "saved_usd": 0.0652
+        },
+        {
+          "i": 83,
+          "n_steps": 9,
+          "reduction_pct": 43.033,
+          "saved_usd": 0.0606
+        },
+        {
+          "i": 84,
+          "n_steps": 11,
+          "reduction_pct": 42.959,
+          "saved_usd": 0.0652
+        },
+        {
+          "i": 85,
+          "n_steps": 11,
+          "reduction_pct": 46.051,
+          "saved_usd": 0.0754
+        },
+        {
+          "i": 86,
+          "n_steps": 11,
+          "reduction_pct": 52.684,
+          "saved_usd": 0.1007
+        },
+        {
+          "i": 87,
+          "n_steps": 8,
+          "reduction_pct": 42.511,
+          "saved_usd": 0.0492
+        },
+        {
+          "i": 88,
+          "n_steps": 10,
+          "reduction_pct": 44.541,
+          "saved_usd": 0.0735
+        },
+        {
+          "i": 89,
+          "n_steps": 11,
+          "reduction_pct": 45.292,
+          "saved_usd": 0.084
+        },
+        {
+          "i": 90,
+          "n_steps": 9,
+          "reduction_pct": 41.043,
+          "saved_usd": 0.0497
+        },
+        {
+          "i": 91,
+          "n_steps": 8,
+          "reduction_pct": 40.128,
+          "saved_usd": 0.0449
+        },
+        {
+          "i": 92,
+          "n_steps": 11,
+          "reduction_pct": 47.762,
+          "saved_usd": 0.0945
+        },
+        {
+          "i": 93,
+          "n_steps": 11,
+          "reduction_pct": 53.912,
+          "saved_usd": 0.1139
+        },
+        {
+          "i": 94,
+          "n_steps": 11,
+          "reduction_pct": 56.588,
+          "saved_usd": 0.1228
+        },
+        {
+          "i": 95,
+          "n_steps": 11,
+          "reduction_pct": 47.201,
+          "saved_usd": 0.0806
+        },
+        {
+          "i": 96,
+          "n_steps": 11,
+          "reduction_pct": 47.224,
+          "saved_usd": 0.0881
+        },
+        {
+          "i": 97,
+          "n_steps": 10,
+          "reduction_pct": 52.167,
+          "saved_usd": 0.1035
+        },
+        {
+          "i": 98,
+          "n_steps": 11,
+          "reduction_pct": 45.472,
+          "saved_usd": 0.0714
+        },
+        {
+          "i": 99,
+          "n_steps": 11,
+          "reduction_pct": 52.201,
+          "saved_usd": 0.1061
+        }
+      ]
+    },
+    {
+      "id": "report-writing",
+      "title": "12-section quarterly market report",
+      "persona": "Strategy / market research auto-writer",
+      "n_runs": 100,
+      "mean_reduction_pct": 88.72,
+      "median_reduction_pct": 88.84,
+      "p05_reduction_pct": 87.31,
+      "p25_reduction_pct": 88.47,
+      "p75_reduction_pct": 89.21,
+      "p95_reduction_pct": 89.68,
+      "min_reduction_pct": 86.71,
+      "max_reduction_pct": 89.97,
+      "stdev_pp": 0.74,
+      "mean_saved_usd": 3.4501,
+      "samples": [
+        {
+          "i": 0,
+          "n_steps": 19,
+          "reduction_pct": 88.944,
+          "saved_usd": 3.5725
+        },
+        {
+          "i": 1,
+          "n_steps": 19,
+          "reduction_pct": 89.669,
+          "saved_usd": 4.367
+        },
+        {
+          "i": 2,
+          "n_steps": 19,
+          "reduction_pct": 89.048,
+          "saved_usd": 3.926
+        },
+        {
+          "i": 3,
+          "n_steps": 18,
+          "reduction_pct": 88.575,
+          "saved_usd": 3.2323
+        },
+        {
+          "i": 4,
+          "n_steps": 18,
+          "reduction_pct": 88.484,
+          "saved_usd": 3.2739
+        },
+        {
+          "i": 5,
+          "n_steps": 19,
+          "reduction_pct": 87.853,
+          "saved_usd": 2.8903
+        },
+        {
+          "i": 6,
+          "n_steps": 19,
+          "reduction_pct": 89.263,
+          "saved_usd": 3.9191
+        },
+        {
+          "i": 7,
+          "n_steps": 19,
+          "reduction_pct": 88.732,
+          "saved_usd": 3.4001
+        },
+        {
+          "i": 8,
+          "n_steps": 19,
+          "reduction_pct": 88.855,
+          "saved_usd": 3.5177
+        },
+        {
+          "i": 9,
+          "n_steps": 19,
+          "reduction_pct": 89.445,
+          "saved_usd": 3.8212
+        },
+        {
+          "i": 10,
+          "n_steps": 19,
+          "reduction_pct": 89.107,
+          "saved_usd": 3.6528
+        },
+        {
+          "i": 11,
+          "n_steps": 19,
+          "reduction_pct": 89.602,
+          "saved_usd": 4.1609
+        },
+        {
+          "i": 12,
+          "n_steps": 19,
+          "reduction_pct": 88.887,
+          "saved_usd": 3.5083
+        },
+        {
+          "i": 13,
+          "n_steps": 19,
+          "reduction_pct": 88.94,
+          "saved_usd": 3.6862
+        },
+        {
+          "i": 14,
+          "n_steps": 18,
+          "reduction_pct": 87.332,
+          "saved_usd": 2.7514
+        },
+        {
+          "i": 15,
+          "n_steps": 19,
+          "reduction_pct": 88.616,
+          "saved_usd": 3.3807
+        },
+        {
+          "i": 16,
+          "n_steps": 19,
+          "reduction_pct": 89.453,
+          "saved_usd": 3.93
+        },
+        {
+          "i": 17,
+          "n_steps": 19,
+          "reduction_pct": 88.74,
+          "saved_usd": 3.5095
+        },
+        {
+          "i": 18,
+          "n_steps": 18,
+          "reduction_pct": 88.947,
+          "saved_usd": 3.4649
+        },
+        {
+          "i": 19,
+          "n_steps": 19,
+          "reduction_pct": 88.571,
+          "saved_usd": 3.4799
+        },
+        {
+          "i": 20,
+          "n_steps": 18,
+          "reduction_pct": 87.746,
+          "saved_usd": 2.7461
+        },
+        {
+          "i": 21,
+          "n_steps": 19,
+          "reduction_pct": 88.807,
+          "saved_usd": 3.5632
+        },
+        {
+          "i": 22,
+          "n_steps": 19,
+          "reduction_pct": 87.662,
+          "saved_usd": 2.8121
+        },
+        {
+          "i": 23,
+          "n_steps": 19,
+          "reduction_pct": 89.296,
+          "saved_usd": 3.9755
+        },
+        {
+          "i": 24,
+          "n_steps": 19,
+          "reduction_pct": 89.537,
+          "saved_usd": 4.2367
+        },
+        {
+          "i": 25,
+          "n_steps": 17,
+          "reduction_pct": 87.513,
+          "saved_usd": 2.386
+        },
+        {
+          "i": 26,
+          "n_steps": 18,
+          "reduction_pct": 88.471,
+          "saved_usd": 3.1806
+        },
+        {
+          "i": 27,
+          "n_steps": 19,
+          "reduction_pct": 88.65,
+          "saved_usd": 3.5017
+        },
+        {
+          "i": 28,
+          "n_steps": 17,
+          "reduction_pct": 88.302,
+          "saved_usd": 2.7006
+        },
+        {
+          "i": 29,
+          "n_steps": 19,
+          "reduction_pct": 86.963,
+          "saved_usd": 2.5921
+        },
+        {
+          "i": 30,
+          "n_steps": 19,
+          "reduction_pct": 88.487,
+          "saved_usd": 3.3565
+        },
+        {
+          "i": 31,
+          "n_steps": 19,
+          "reduction_pct": 87.959,
+          "saved_usd": 3.0976
+        },
+        {
+          "i": 32,
+          "n_steps": 19,
+          "reduction_pct": 88.584,
+          "saved_usd": 3.3762
+        },
+        {
+          "i": 33,
+          "n_steps": 19,
+          "reduction_pct": 89.974,
+          "saved_usd": 4.3522
+        },
+        {
+          "i": 34,
+          "n_steps": 17,
+          "reduction_pct": 87.797,
+          "saved_usd": 2.4527
+        },
+        {
+          "i": 35,
+          "n_steps": 19,
+          "reduction_pct": 89.217,
+          "saved_usd": 3.8985
+        },
+        {
+          "i": 36,
+          "n_steps": 19,
+          "reduction_pct": 89.483,
+          "saved_usd": 4.0147
+        },
+        {
+          "i": 37,
+          "n_steps": 19,
+          "reduction_pct": 88.896,
+          "saved_usd": 3.5669
+        },
+        {
+          "i": 38,
+          "n_steps": 19,
+          "reduction_pct": 89.407,
+          "saved_usd": 3.9248
+        },
+        {
+          "i": 39,
+          "n_steps": 17,
+          "reduction_pct": 86.709,
+          "saved_usd": 2.0879
+        },
+        {
+          "i": 40,
+          "n_steps": 19,
+          "reduction_pct": 89.055,
+          "saved_usd": 3.5559
+        },
+        {
+          "i": 41,
+          "n_steps": 19,
+          "reduction_pct": 89.515,
+          "saved_usd": 4.0209
+        },
+        {
+          "i": 42,
+          "n_steps": 17,
+          "reduction_pct": 87.454,
+          "saved_usd": 2.3956
+        },
+        {
+          "i": 43,
+          "n_steps": 19,
+          "reduction_pct": 89.1,
+          "saved_usd": 3.8754
+        },
+        {
+          "i": 44,
+          "n_steps": 18,
+          "reduction_pct": 88.835,
+          "saved_usd": 3.3347
+        },
+        {
+          "i": 45,
+          "n_steps": 19,
+          "reduction_pct": 89.193,
+          "saved_usd": 3.7935
+        },
+        {
+          "i": 46,
+          "n_steps": 17,
+          "reduction_pct": 86.915,
+          "saved_usd": 2.0269
+        },
+        {
+          "i": 47,
+          "n_steps": 19,
+          "reduction_pct": 88.864,
+          "saved_usd": 3.4391
+        },
+        {
+          "i": 48,
+          "n_steps": 19,
+          "reduction_pct": 89.179,
+          "saved_usd": 3.6945
+        },
+        {
+          "i": 49,
+          "n_steps": 19,
+          "reduction_pct": 89.828,
+          "saved_usd": 4.271
+        },
+        {
+          "i": 50,
+          "n_steps": 19,
+          "reduction_pct": 88.314,
+          "saved_usd": 3.3162
+        },
+        {
+          "i": 51,
+          "n_steps": 19,
+          "reduction_pct": 89.271,
+          "saved_usd": 3.8284
+        },
+        {
+          "i": 52,
+          "n_steps": 19,
+          "reduction_pct": 89.886,
+          "saved_usd": 4.4347
+        },
+        {
+          "i": 53,
+          "n_steps": 19,
+          "reduction_pct": 88.66,
+          "saved_usd": 3.5977
+        },
+        {
+          "i": 54,
+          "n_steps": 19,
+          "reduction_pct": 89.187,
+          "saved_usd": 3.9008
+        },
+        {
+          "i": 55,
+          "n_steps": 19,
+          "reduction_pct": 89.1,
+          "saved_usd": 3.7857
+        },
+        {
+          "i": 56,
+          "n_steps": 19,
+          "reduction_pct": 89.553,
+          "saved_usd": 4.1129
+        },
+        {
+          "i": 57,
+          "n_steps": 19,
+          "reduction_pct": 88.797,
+          "saved_usd": 3.4583
+        },
+        {
+          "i": 58,
+          "n_steps": 18,
+          "reduction_pct": 88.009,
+          "saved_usd": 2.9753
+        },
+        {
+          "i": 59,
+          "n_steps": 19,
+          "reduction_pct": 88.584,
+          "saved_usd": 3.4361
+        },
+        {
+          "i": 60,
+          "n_steps": 19,
+          "reduction_pct": 89.575,
+          "saved_usd": 4.2632
+        },
+        {
+          "i": 61,
+          "n_steps": 19,
+          "reduction_pct": 88.758,
+          "saved_usd": 3.6506
+        },
+        {
+          "i": 62,
+          "n_steps": 19,
+          "reduction_pct": 89.123,
+          "saved_usd": 3.6993
+        },
+        {
+          "i": 63,
+          "n_steps": 17,
+          "reduction_pct": 88.547,
+          "saved_usd": 2.8788
+        },
+        {
+          "i": 64,
+          "n_steps": 17,
+          "reduction_pct": 88.111,
+          "saved_usd": 2.5731
+        },
+        {
+          "i": 65,
+          "n_steps": 19,
+          "reduction_pct": 89.678,
+          "saved_usd": 4.2687
+        },
+        {
+          "i": 66,
+          "n_steps": 19,
+          "reduction_pct": 89.21,
+          "saved_usd": 3.9874
+        },
+        {
+          "i": 67,
+          "n_steps": 19,
+          "reduction_pct": 88.888,
+          "saved_usd": 3.5838
+        },
+        {
+          "i": 68,
+          "n_steps": 17,
+          "reduction_pct": 88.778,
+          "saved_usd": 2.9012
+        },
+        {
+          "i": 69,
+          "n_steps": 17,
+          "reduction_pct": 87.952,
+          "saved_usd": 2.4873
+        },
+        {
+          "i": 70,
+          "n_steps": 19,
+          "reduction_pct": 88.848,
+          "saved_usd": 3.543
+        },
+        {
+          "i": 71,
+          "n_steps": 17,
+          "reduction_pct": 87.973,
+          "saved_usd": 2.5074
+        },
+        {
+          "i": 72,
+          "n_steps": 18,
+          "reduction_pct": 87.618,
+          "saved_usd": 2.7689
+        },
+        {
+          "i": 73,
+          "n_steps": 19,
+          "reduction_pct": 88.894,
+          "saved_usd": 3.6079
+        },
+        {
+          "i": 74,
+          "n_steps": 19,
+          "reduction_pct": 89.256,
+          "saved_usd": 3.8667
+        },
+        {
+          "i": 75,
+          "n_steps": 17,
+          "reduction_pct": 88.737,
+          "saved_usd": 3.007
+        },
+        {
+          "i": 76,
+          "n_steps": 19,
+          "reduction_pct": 88.746,
+          "saved_usd": 3.3589
+        },
+        {
+          "i": 77,
+          "n_steps": 17,
+          "reduction_pct": 86.728,
+          "saved_usd": 2.0069
+        },
+        {
+          "i": 78,
+          "n_steps": 19,
+          "reduction_pct": 89.11,
+          "saved_usd": 3.7254
+        },
+        {
+          "i": 79,
+          "n_steps": 19,
+          "reduction_pct": 88.579,
+          "saved_usd": 3.2537
+        },
+        {
+          "i": 80,
+          "n_steps": 19,
+          "reduction_pct": 89.256,
+          "saved_usd": 3.8832
+        },
+        {
+          "i": 81,
+          "n_steps": 19,
+          "reduction_pct": 88.526,
+          "saved_usd": 3.2976
+        },
+        {
+          "i": 82,
+          "n_steps": 18,
+          "reduction_pct": 87.74,
+          "saved_usd": 2.8203
+        },
+        {
+          "i": 83,
+          "n_steps": 19,
+          "reduction_pct": 89.843,
+          "saved_usd": 4.376
+        },
+        {
+          "i": 84,
+          "n_steps": 19,
+          "reduction_pct": 89.613,
+          "saved_usd": 4.2156
+        },
+        {
+          "i": 85,
+          "n_steps": 17,
+          "reduction_pct": 86.736,
+          "saved_usd": 1.953
+        },
+        {
+          "i": 86,
+          "n_steps": 18,
+          "reduction_pct": 87.955,
+          "saved_usd": 2.8068
+        },
+        {
+          "i": 87,
+          "n_steps": 19,
+          "reduction_pct": 88.937,
+          "saved_usd": 3.6803
+        },
+        {
+          "i": 88,
+          "n_steps": 19,
+          "reduction_pct": 88.672,
+          "saved_usd": 3.616
+        },
+        {
+          "i": 89,
+          "n_steps": 19,
+          "reduction_pct": 88.62,
+          "saved_usd": 3.4786
+        },
+        {
+          "i": 90,
+          "n_steps": 19,
+          "reduction_pct": 89.086,
+          "saved_usd": 3.7667
+        },
+        {
+          "i": 91,
+          "n_steps": 19,
+          "reduction_pct": 88.955,
+          "saved_usd": 3.5484
+        },
+        {
+          "i": 92,
+          "n_steps": 19,
+          "reduction_pct": 89.362,
+          "saved_usd": 4.2919
+        },
+        {
+          "i": 93,
+          "n_steps": 18,
+          "reduction_pct": 88.481,
+          "saved_usd": 3.2525
+        },
+        {
+          "i": 94,
+          "n_steps": 18,
+          "reduction_pct": 88.128,
+          "saved_usd": 2.9431
+        },
+        {
+          "i": 95,
+          "n_steps": 19,
+          "reduction_pct": 88.47,
+          "saved_usd": 3.3288
+        },
+        {
+          "i": 96,
+          "n_steps": 19,
+          "reduction_pct": 89.32,
+          "saved_usd": 4.0026
+        },
+        {
+          "i": 97,
+          "n_steps": 19,
+          "reduction_pct": 89.74,
+          "saved_usd": 4.1104
+        },
+        {
+          "i": 98,
+          "n_steps": 19,
+          "reduction_pct": 89.174,
+          "saved_usd": 3.9189
+        },
+        {
+          "i": 99,
+          "n_steps": 19,
+          "reduction_pct": 88.151,
+          "saved_usd": 3.2635
+        }
+      ]
+    }
+  ]
+}
