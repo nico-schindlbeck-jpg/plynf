@@ -1,0 +1,94 @@
+---
+// Phase 4.3 — Token-savings benchmark across 8 agentic workflows
+// Data sourced from benchmarks/workflows/RESULTS.md, committed at
+// the same SHA as this component. Update both together.
+
+interface Row {
+  workflow: string;
+  persona: string;
+  reduction: string;
+  tone: "warm" | "cool" | "neutral";
+}
+
+const rows: Row[] = [
+  { workflow: "5-source research synthesis", persona: "Hobby dev / research bot", reduction: "85.3%", tone: "warm" },
+  { workflow: "30-PDF literature review", persona: "Analyst / knowledge worker", reduction: "97.6%", tone: "warm" },
+  { workflow: "3-agent content pipeline", persona: "Content automation", reduction: "81.8%", tone: "cool" },
+  { workflow: "Code review on 14-file PR", persona: "Engineering / review bot", reduction: "83.8%", tone: "cool" },
+  { workflow: "10-turn customer support", persona: "Support ops / tier-1", reduction: "86.3%", tone: "warm" },
+  { workflow: "Sales lead enrichment", persona: "Sales ops / outbound", reduction: "77.0%", tone: "cool" },
+  { workflow: "Q&A across 50 contracts", persona: "Legal ops / knowledge", reduction: "48.4%", tone: "neutral" },
+  { workflow: "12-section market report", persona: "Strategy / research", reduction: "88.9%", tone: "warm" },
+];
+
+const avg = "81.1%";
+const totalScenarios = rows.length;
+---
+
+<section class="section relative" id="benchmarks">
+  <div class="container-page" data-reveal>
+    <div class="max-w-3xl">
+      <p class="section-eyebrow">Benchmarks · across workloads</p>
+      <h2 class="section-title text-balance">
+        It's not just research.
+        <span class="text-ink-muted">Eight workflows. One pattern.</span>
+      </h2>
+      <p class="section-subtitle">
+        We model token cost across the breadth of agentic work — content pipelines,
+        code review, customer support, sales enrichment, legal Q&amp;A, long-form
+        writing. The savings shape is the same everywhere: chat-history is
+        quadratic, Plinth is linear.
+      </p>
+    </div>
+
+    <div class="mt-12 card overflow-hidden">
+      <table class="w-full text-sm" style="border-collapse: collapse;">
+        <thead>
+          <tr class="border-b border-border">
+            <th class="text-left py-3 px-5 text-2xs font-mono uppercase tracking-widest text-ink-muted font-medium">Workflow</th>
+            <th class="text-left py-3 px-5 text-2xs font-mono uppercase tracking-widest text-ink-muted font-medium">Persona</th>
+            <th class="text-right py-3 px-5 text-2xs font-mono uppercase tracking-widest text-ink-muted font-medium">Token reduction</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            rows.map((r) => (
+              <tr class="border-b border-border last:border-0">
+                <td class="py-3.5 px-5 text-ink-primary">{r.workflow}</td>
+                <td class="py-3.5 px-5 text-ink-secondary">{r.persona}</td>
+                <td class="py-3.5 px-5 text-right font-mono font-semibold" style={r.tone === "warm" ? "color: var(--accent);" : r.tone === "cool" ? "color: var(--grad-indigo);" : "color: var(--grad-magenta);"}>
+                  {r.reduction}
+                </td>
+              </tr>
+            ))
+          }
+          <tr class="bg-bg-2/40">
+            <td class="py-4 px-5 font-medium text-ink-primary">Average across all {totalScenarios} scenarios</td>
+            <td class="py-4 px-5 text-ink-muted">—</td>
+            <td class="py-4 px-5 text-right font-mono text-lg font-semibold" style="color: var(--accent);">{avg}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mt-6 grid sm:grid-cols-3 gap-4 text-sm">
+      <div>
+        <p class="text-2xs font-mono uppercase tracking-widest text-ink-muted">Reproducible</p>
+        <p class="mt-1.5 text-ink-secondary">Run <span class="font-mono text-ink-primary">python -m benchmarks.workflows.run_all</span> on a clean clone. Same numbers, every time.</p>
+      </div>
+      <div>
+        <p class="text-2xs font-mono uppercase tracking-widest" style="color: var(--accent);">Deterministic</p>
+        <p class="mt-1.5 text-ink-secondary">No live LLM calls in the harness. Token math from declarative step graphs. Verifiable, auditable.</p>
+      </div>
+      <div>
+        <p class="text-2xs font-mono uppercase tracking-widest text-ink-muted">Cross-checked</p>
+        <p class="mt-1.5 text-ink-secondary">Suite numbers verified against live <a href="https://github.com/nico-schindlbeck-jpg/plinth/tree/main/examples" class="text-ink-primary hover:underline">examples/</a> runs. Within ±5pp on the research scenario.</p>
+      </div>
+    </div>
+
+    <p class="mt-8 text-center text-sm text-ink-muted">
+      Full methodology + per-scenario notes:
+      <a href="https://github.com/nico-schindlbeck-jpg/plinth/blob/main/benchmarks/workflows/MODEL.md" class="text-ink-secondary hover:text-ink-primary underline underline-offset-4 decoration-border-strong">benchmarks/workflows/MODEL.md</a>
+    </p>
+  </div>
+</section>
