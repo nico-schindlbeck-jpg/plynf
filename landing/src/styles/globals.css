@@ -108,6 +108,10 @@ body {
   overflow-x: hidden;
 }
 
+/* Selection highlight. The background follows the line-box, so glyph
+   overshoot (especially round letters like O, C, G) can clip if the
+   line-height is too tight. Headlines bump line-height enough to
+   give the selection box vertical breathing room. */
 ::selection {
   background: var(--accent);
   color: #190612;
@@ -524,10 +528,13 @@ body {
 .section-title {
   margin-top: 0.75rem;
   font-size: clamp(2rem, 4.5vw, 3.5rem);
-  line-height: 1.04;
+  line-height: 1.14;
   letter-spacing: -0.04em;
   font-weight: 700;
   color: var(--text-primary);
+  /* Small padding-block so selection highlight clears glyph overshoot
+     (round letters: O, C, G, Q). Padding is invisible without selection. */
+  padding-block: 0.05em;
 }
 
 .section-subtitle {
@@ -545,9 +552,11 @@ body {
   font-size: clamp(3rem, 10vw, 8.5rem);
   font-weight: 700;
   letter-spacing: -0.055em;
-  line-height: 0.94;
+  line-height: 1.02;
   color: var(--text-primary);
   text-shadow: 0 0 80px rgba(255, 133, 81, 0.18);
+  /* Same selection-highlight padding fix as section-title. */
+  padding-block: 0.04em;
 }
 
 .hero-headline .line {
