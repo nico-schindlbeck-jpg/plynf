@@ -1,5 +1,9 @@
 ---
-const installCommand = "curl -fsSL https://plinth.dev/install.sh | sh";
+// While plinth.dev is not yet pointed at the install script, we serve from
+// the raw GitHub URL. After the domain is live + Netlify redirect is in,
+// this becomes "https://plinth.dev/install.sh".
+const installCommand =
+  "curl -fsSL https://raw.githubusercontent.com/nico-schindlbeck-jpg/plinth/main/install/install.sh | sh";
 ---
 
 <section class="shader-hero relative">
@@ -118,6 +122,9 @@ const installCommand = "curl -fsSL https://plinth.dev/install.sh | sh";
             </div>
             <div class="px-5 py-4 text-left">
               <pre class="font-mono text-sm text-ink-primary overflow-x-auto"><span class="text-accent">$</span> <span>{installCommand}</span></pre>
+            </div>
+            <div class="px-5 py-2.5 text-2xs font-mono text-ink-muted border-t border-border bg-bg-2/30">
+              Installs to <span class="text-ink-secondary">~/.plinth</span>, no sudo · macOS &amp; Linux · 5–8 min cold install
             </div>
           </div>
         </div>

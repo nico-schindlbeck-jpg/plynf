@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plinth — Overview</title>
+<style>
+  /* ============================================================
+     Page setup — A4 portrait, dark theme matching plinth.dev
+     ============================================================ */
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  :root {
+    --bg-0: #08070d;
+    --bg-1: #110e1f;
+    --bg-2: #1a1530;
+    --ink: #f8f7ff;
+    --ink-2: #b9b5d4;
+    --ink-3: #6e6a8a;
+    --accent: #ff8551;
+    --magenta: #d946ef;
+    --indigo: #6366f1;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.16);
+  }
+
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-0);
+    color: var(--ink);
+    font-family: -apple-system, "Inter", "Segoe UI", system-ui, sans-serif;
+    font-size: 11pt;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: "JetBrains Mono", "SF Mono", Menlo, monospace; }
+
+  .page {
+    width: 210mm;
+    height: 297mm;
+    padding: 22mm 20mm;
+    page-break-after: always;
+    page-break-inside: avoid;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-0);
+  }
+  .page:last-child { page-break-after: auto; }
+
+  /* Common type ramp */
+  h1 { font-size: 38pt; line-height: 1.02; letter-spacing: -0.04em; margin: 0 0 6mm; font-weight: 700; color: var(--ink); }
+  h2 { font-size: 20pt; line-height: 1.1; letter-spacing: -0.025em; margin: 0 0 4mm; font-weight: 600; color: var(--ink); }
+  h3 { font-size: 13pt; letter-spacing: -0.015em; margin: 0 0 2mm; font-weight: 600; color: var(--ink); }
+  p { margin: 0 0 3mm; color: var(--ink-2); }
+  p.lead { font-size: 13pt; line-height: 1.5; color: var(--ink); }
+
+  .eyebrow {
+    font-family: "JetBrains Mono", "SF Mono", monospace;
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--accent);
+    margin: 0 0 4mm;
+  }
+  .eyebrow.muted { color: var(--ink-3); }
+
+  .accent { color: var(--accent); }
+  .magenta { color: var(--magenta); }
+  .indigo { color: var(--indigo); }
+  .ink { color: var(--ink); }
+
+  .pill {
+    display: inline-block;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-2);
+    padding: 1.2mm 3mm;
+    border-radius: 100px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 8pt;
+    color: var(--ink-2);
+    letter-spacing: 0.08em;
+  }
+  .pill .dot {
+    display: inline-block;
+    width: 4pt; height: 4pt;
+    background: var(--accent);
+    border-radius: 50%;
+    margin-right: 2mm;
+    vertical-align: middle;
+  }
+
+  /* Page number / footer */
+  .page-footer {
+    position: absolute;
+    bottom: 12mm;
+    left: 20mm;
+    right: 20mm;
+    display: flex;
+    justify-content: space-between;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 7.5pt;
+    color: var(--ink-3);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* Card */
+  .card {
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0));
+    border-radius: 5mm;
+    padding: 6mm;
+  }
+  .card.glow { border-color: rgba(255, 133, 81, 0.32); }
+
+  /* Grid helpers */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4mm; }
+  .stack > * + * { margin-top: 4mm; }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+    margin: 6mm 0;
+  }
+
+  /* Logo mark */
+  .logo {
+    width: 8mm;
+    height: 8mm;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 2.5mm;
+  }
+  .brand {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    font-size: 13pt;
+  }
+  .brand-row {
+    display: flex;
+    align-items: center;
+    gap: 3mm;
+  }
+
+  /* Specific layouts */
+
+  /* ---------- COVER ---------- */
+  .cover { padding: 22mm 22mm; height: 297mm; min-height: 0; }
+  .cover-mesh {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    opacity: 0.55;
+    filter: blur(40px);
+  }
+  .cover-vignette {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: radial-gradient(ellipse at center, transparent 30%, rgba(8,7,13,0.7) 70%, var(--bg-0) 95%);
+  }
+  .cover-content {
+    position: relative;
+    z-index: 2;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .cover-title {
+    font-size: 64pt;
+    line-height: 0.96;
+    letter-spacing: -0.045em;
+    font-weight: 700;
+    margin: 0;
+  }
+  .cover-subtitle {
+    font-size: 15pt;
+    color: var(--ink-2);
+    line-height: 1.45;
+    max-width: 140mm;
+    margin-top: 8mm;
+  }
+  .cover-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 8.5pt;
+    color: var(--ink-3);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* ---------- CODE BLOCK ---------- */
+  .code {
+    background: #0d0c14;
+    border: 1px solid var(--border);
+    border-radius: 4mm;
+    padding: 5mm 6mm;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 8.5pt;
+    line-height: 1.55;
+    color: #e3e1ee;
+    white-space: pre-wrap;
+    overflow: hidden;
+  }
+  .code .c { color: #6e6a8a; }  /* comment */
+  .code .k { color: #d946ef; }  /* keyword */
+  .code .s { color: #93e0b2; }  /* string */
+  .code .f { color: #ff8551; }  /* function */
+  .code .v { color: #b9b5d4; }  /* variable */
+
+  /* ---------- DESK DIAGRAM ---------- */
+  svg .label-ink { fill: var(--ink); }
+  svg .label-secondary { fill: var(--ink-2); }
+  svg .label-muted { fill: var(--ink-3); }
+
+  /* ---------- METRIC ---------- */
+  .metric {
+    font-size: 34pt;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    color: var(--accent);
+  }
+  .metric-label {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 7.5pt;
+    color: var(--ink-3);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 2mm;
+  }
+
+  /* Comparison table */
+  table.compare {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5pt;
+  }
+  table.compare th, table.compare td {
+    padding: 3mm 3mm;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--border);
+  }
+  table.compare th {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-3);
+    font-weight: 500;
+    padding-bottom: 2mm;
+  }
+  table.compare tr:last-child td { border-bottom: 0; }
+
+  /* List with bullets */
+  ul.checked {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  ul.checked li {
+    position: relative;
+    padding-left: 8mm;
+    color: var(--ink-2);
+    margin-bottom: 3mm;
+    line-height: 1.45;
+  }
+  ul.checked li::before {
+    content: "→";
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 600;
+  }
+  ul.checked li strong { color: var(--ink); font-weight: 600; }
+
+  /* Tier card */
+  .tier {
+    border: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+    border-radius: 5mm;
+    padding: 5mm;
+    display: flex;
+    flex-direction: column;
+  }
+  .tier.featured { border-color: rgba(255, 133, 81, 0.42); position: relative; }
+  .tier.featured::before {
+    content: "POPULAR";
+    position: absolute;
+    top: -2.5mm;
+    left: 5mm;
+    background: var(--accent);
+    color: #190612;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 7pt;
+    padding: 1mm 2mm;
+    border-radius: 100px;
+    letter-spacing: 0.12em;
+  }
+  .tier .name { font-size: 12pt; font-weight: 600; }
+  .tier .price { font-size: 22pt; font-weight: 700; letter-spacing: -0.025em; line-height: 1; margin: 3mm 0 1mm; }
+  .tier .price small { font-size: 9pt; font-weight: 400; color: var(--ink-3); letter-spacing: 0; }
+  .tier ul { list-style: none; padding: 0; margin: 3mm 0 0; font-size: 9pt; }
+  .tier ul li { padding: 1.5mm 0; color: var(--ink-2); border-top: 1px solid var(--border); }
+
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     PAGE 1 — COVER
+     ============================================================ -->
+<section class="page cover">
+  <svg class="cover-mesh" viewBox="0 0 600 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <circle cx="120" cy="150" r="140" fill="#ff8551" opacity="0.55"/>
+    <circle cx="500" cy="220" r="170" fill="#6366f1" opacity="0.45"/>
+    <circle cx="280" cy="500" r="200" fill="#d946ef" opacity="0.40"/>
+    <circle cx="540" cy="650" r="150" fill="#ff8551" opacity="0.30"/>
+  </svg>
+  <div class="cover-vignette"></div>
+  <div class="cover-content">
+    <div>
+      <div class="brand-row">
+        <svg class="logo" viewBox="0 0 24 24" aria-hidden="true">
+          <defs>
+            <linearGradient id="rock" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#ff8551"/>
+              <stop offset="50%" stop-color="#d946ef"/>
+              <stop offset="100%" stop-color="#6366f1"/>
+            </linearGradient>
+          </defs>
+          <path d="M5 17 L8 9 L12 6 L17 6 L20 11 L20 17 Z" fill="url(#rock)" stroke="#1d1f29" stroke-width="0.6" stroke-linejoin="round"/>
+        </svg>
+        <span class="brand">Plinth</span>
+      </div>
+    </div>
+
+    <div>
+      <p class="eyebrow">Overview · May 2026</p>
+      <h1 class="cover-title">The runtime where production AI agents actually work.</h1>
+      <p class="cover-subtitle">A versioned workspace, a tool gateway, multi-agent channels. Designed for AI agents. Not retrofitted from human UIs.</p>
+    </div>
+
+    <div class="cover-meta">
+      <span>v1.7 · API v1 stable · Apache 2.0</span>
+      <span>plinth.dev</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     PAGE 2 — THE 60-SECOND STORY (everyone)
+     ============================================================ -->
+<section class="page">
+  <p class="eyebrow">The 60-second story</p>
+  <h2>What Plinth is, in plain English.</h2>
+  <p class="lead">Imagine you hired a freelance researcher to write you a report. Two ways to manage them.</p>
+
+  <div class="divider"></div>
+
+  <div class="grid-2">
+    <div class="card">
+      <p class="eyebrow muted">Way A</p>
+      <h3 class="ink">The phone call</h3>
+      <p>You keep them on a phone call the whole time. Every time they want to remember something, they read it back to you aloud. Every new source, they read aloud. By hour three the call is enormous, every minute costs a fortune, and they've half-forgotten what they decided in hour one.</p>
+      <p class="mono" style="color: var(--ink-3); font-size: 8pt; margin-top: 4mm;">→ This is how most AI agents work today.</p>
+    </div>
+
+    <div class="card glow">
+      <p class="eyebrow">Way B</p>
+      <h3 class="ink">The desk</h3>
+      <p>You give them a desk. They put notes down, pick them up, file research, label folders, bookmark pages. When they need something, they look it up. The desk has drawers. The drawers have labels. Three hours in, the desk has structure, and they remember what they decided in hour one because it is written on the desk.</p>
+      <p class="mono" style="color: var(--accent); font-size: 8pt; margin-top: 4mm;">→ This is Plinth.</p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <p>Plinth is the desk for AI agents. It is the part of the system that holds onto what the agent has learned, fetched, and decided — so the agent doesn't have to keep saying it out loud, over and over, to itself.</p>
+
+  <p>The phone-call problem is not theoretical. A naive 10-step research workflow sends the entire prior conversation back to the model with every step. By step 10 you're paying ten times what step one cost, every time. The bill scales with the square of the work — which is why most "production agents" are actually three-step demos that fall over the moment you ask them to do something serious.</p>
+
+  <p>Plinth replaces the phone-call architecture with the desk architecture. <span class="ink">Same agent, same model, same output. About 71% fewer tokens.</span> Measured, not marketed.</p>
+
+  <div class="page-footer">
+    <span>Plinth · Overview</span>
+    <span>02</span>
+  </div>
+</section>
+
+<!-- ============================================================
+     PAGE 3 — THREE PRIMITIVES
+     ============================================================ -->
+<section class="page">
+  <p class="eyebrow">What's in the runtime</p>
+  <h2>Three primitives. One coherent surface.</h2>
+  <p class="lead">Each one removes a category of plumbing every agent team rebuilds. They are designed together, not retrofitted.</p>
+
+  <div class="divider"></div>
+
+  <svg viewBox="0 0 540 220" style="width: 100%; height: auto; margin-bottom: 6mm;" aria-hidden="true">
+    <defs>
+      <radialGradient id="g1" cx="0.5" cy="0.5" r="0.6">
+        <stop offset="0%" stop-color="#ff8551" stop-opacity="0.8"/>
+        <stop offset="100%" stop-color="#ff8551" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="g2" cx="0.5" cy="0.5" r="0.6">
+        <stop offset="0%" stop-color="#d946ef" stop-opacity="0.8"/>
+        <stop offset="100%" stop-color="#d946ef" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="g3" cx="0.5" cy="0.5" r="0.6">
+        <stop offset="0%" stop-color="#6366f1" stop-opacity="0.8"/>
+        <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <!-- connection lines -->
+    <path d="M 145 110 L 270 110" stroke="#ff8551" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.6"/>
+    <path d="M 320 110 L 445 110" stroke="#d946ef" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.6"/>
+
+    <!-- node 1: workspace -->
+    <circle cx="100" cy="110" r="80" fill="url(#g1)"/>
+    <circle cx="100" cy="110" r="36" fill="#08070d" stroke="#ff8551" stroke-width="2"/>
+    <g stroke="#ff8551" stroke-width="1.8" fill="none">
+      <rect x="84" y="96" width="32" height="8" rx="1.5" fill="#ff8551" fill-opacity="0.18"/>
+      <rect x="84" y="108" width="32" height="8" rx="1.5" fill="#ff8551" fill-opacity="0.32"/>
+      <rect x="84" y="120" width="32" height="8" rx="1.5" fill="#ff8551" fill-opacity="0.5"/>
+    </g>
+    <text x="100" y="200" text-anchor="middle" class="label-ink" font-family="Inter" font-size="13" font-weight="600">Workspace</text>
+
+    <!-- node 2: gateway -->
+    <circle cx="295" cy="110" r="80" fill="url(#g2)"/>
+    <circle cx="295" cy="110" r="36" fill="#08070d" stroke="#d946ef" stroke-width="2"/>
+    <g stroke="#d946ef" stroke-width="2" stroke-linecap="round" fill="none">
+      <circle cx="295" cy="110" r="6" fill="#d946ef"/>
+      <line x1="295" y1="92" x2="295" y2="85"/>
+      <line x1="295" y1="128" x2="295" y2="135"/>
+      <line x1="277" y1="110" x2="270" y2="110"/>
+      <line x1="313" y1="110" x2="320" y2="110"/>
+      <line x1="282" y1="97" x2="277" y2="92"/>
+      <line x1="308" y1="123" x2="313" y2="128"/>
+      <line x1="282" y1="123" x2="277" y2="128"/>
+      <line x1="308" y1="97" x2="313" y2="92"/>
+    </g>
+    <text x="295" y="200" text-anchor="middle" class="label-ink" font-family="Inter" font-size="13" font-weight="600">Tool Gateway</text>
+
+    <!-- node 3: channels -->
+    <circle cx="470" cy="110" r="80" fill="url(#g3)"/>
+    <circle cx="470" cy="110" r="36" fill="#08070d" stroke="#6366f1" stroke-width="2"/>
+    <g stroke="#6366f1" stroke-width="1.8" fill="none">
+      <path d="M453 102 q0 -7 7 -7 h22 q7 0 7 7 v7 q0 7 -7 7 h-13 l-7 7 v-7 h-2 q-7 0 -7 -7 z" fill="#6366f1" fill-opacity="0.5"/>
+    </g>
+    <text x="470" y="200" text-anchor="middle" class="label-ink" font-family="Inter" font-size="13" font-weight="600">Channels</text>
+  </svg>
+
+  <div class="grid-3">
+    <div>
+      <p class="eyebrow" style="color: var(--accent);">01 · Persistent workspace</p>
+      <p style="font-size: 9.5pt;">Key-value store, files, snapshots, branches. Every write is versioned. The agent's memory survives crashes, restarts, and 50-step workflows. Take a labelled checkpoint before a risky tool call; restore in one line if it goes wrong.</p>
+    </div>
+    <div>
+      <p class="eyebrow" style="color: var(--magenta);">02 · Tool gateway</p>
+      <p style="font-size: 9.5pt;">Single boundary for every external tool. OAuth, caching, audit log, cost caps. The agent calls <span class="mono">tools.invoke("web.search", …)</span> and never sees a credential. Eight providers built-in: GitHub, Slack, Linear, Notion, Google, Atlassian, Salesforce, Asana.</p>
+    </div>
+    <div>
+      <p class="eyebrow" style="color: var(--indigo);">03 · Multi-agent channels</p>
+      <p style="font-size: 9.5pt;">Durable typed message queues between specialist agents. Researcher writes drafts; Writer reads them and composes; Reviewer reads and approves. Each agent keeps a narrow prompt. No agent has to know what the others are doing.</p>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>Plinth · Overview</span>
+    <span>03</span>
+  </div>
+</section>
+
+<!-- ============================================================
+     PAGE 4 — THE TOKEN MATH (for product folks)
+     ============================================================ -->
+<section class="page">
+  <p class="eyebrow">Why it matters financially</p>
+  <h2>The same agent, but the bill stops growing quadratically.</h2>
+
+  <div class="divider"></div>
+
+  <div class="grid-3" style="margin-bottom: 6mm;">
+    <div class="card">
+      <p class="metric">71%</p>
+      <p class="metric-label">Fewer tokens</p>
+      <p style="font-size: 9pt; margin-top: 3mm;">Measured on a 5-source research task. Reproducible from a clean clone via <span class="mono">make demo</span>.</p>
+    </div>
+    <div class="card">
+      <p class="metric magenta">$60→$3</p>
+      <p class="metric-label">30-PDF task</p>
+      <p style="font-size: 9pt; margin-top: 3mm;">Same model. Same output quality. The workspace stores docs; the prompt only carries handles and summaries.</p>
+    </div>
+    <div class="card">
+      <p class="metric indigo">~Linear</p>
+      <p class="metric-label">Cost vs work</p>
+      <p style="font-size: 9pt; margin-top: 3mm;">Chat-history architecture is quadratic. Workspace architecture is roughly linear. The gap widens with every step.</p>
+    </div>
+  </div>
+
+  <h3>The mechanism in one sentence</h3>
+  <p>Instead of re-sending the entire prior conversation with every model call, the agent gets back <strong class="ink">handles</strong> — short strings like <span class="mono">ws://my-research/sources/renewables.txt@v17</span> — and dereferences them only when needed, in slices.</p>
+
+  <div class="card" style="margin-top: 6mm;">
+    <p class="eyebrow muted">Concrete example · 30 PDFs research task</p>
+    <table class="compare">
+      <thead><tr><th>Step</th><th>Chat-history way</th><th>Plinth way</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="mono">1</span> Fetch all PDFs</td>
+          <td>600k tokens in chat history</td>
+          <td>30 handles in workspace, prompt ~3 KB</td>
+        </tr>
+        <tr>
+          <td><span class="mono">2</span> Summarise each</td>
+          <td>Prompt: 600k + "now summarise"</td>
+          <td>30 × 5 KB excerpts → 300-token summaries</td>
+        </tr>
+        <tr>
+          <td><span class="mono">3</span> Synthesise themes</td>
+          <td>Prompt: 605k + "now compare"</td>
+          <td>Prompt: ~12 KB (just the summaries)</td>
+        </tr>
+        <tr>
+          <td><span class="mono">∑</span> Total tokens</td>
+          <td>~6,000,000 token-equivalents</td>
+          <td class="ink">~200,000 token-equivalents</td>
+        </tr>
+        <tr>
+          <td><span class="mono">$</span> Total cost</td>
+          <td>$60 — $180</td>
+          <td class="accent">$1 — $3</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="page-footer">
+    <span>Plinth · Overview</span>
+    <span>04</span>
+  </div>
+</section>
+
+<!-- ============================================================
+     PAGE 5 — FOR DEVELOPERS (code + arch)
+     ============================================================ -->
+<section class="page">
+  <p class="eyebrow">For developers</p>
+  <h2>One SDK call. The runtime does the rest.</h2>
+  <p class="lead">The same primitives in Python, TypeScript, Go, Swift, and Kotlin. API v1 is locked: additive-only for at least 12 months.</p>
+
+  <div class="divider"></div>
+
+  <div class="code"><span class="c"># Python · the canonical SDK</span>
+<span class="k">from</span> <span class="v">plinth</span> <span class="k">import</span> Plinth
+
+<span class="v">client</span> = <span class="f">Plinth</span>(
+    workspace_url=<span class="s">"http://localhost:7421"</span>,
+    gateway_url=<span class="s">"http://localhost:7422"</span>,
+    api_key=<span class="s">"local-dev"</span>,
+)
+
+<span class="v">ws</span> = client.<span class="f">workspace</span>(<span class="s">"my-research"</span>)
+ws.kv.<span class="f">set</span>(<span class="s">"topic"</span>, <span class="s">"renewable energy"</span>)
+
+<span class="c"># Stored in workspace, doesn't bloat prompt history</span>
+<span class="v">sources</span> = client.tools.<span class="f">invoke</span>(<span class="s">"web.search"</span>, {<span class="s">"query"</span>: <span class="s">"renewable energy"</span>})
+<span class="k">for</span> <span class="v">src</span> <span class="k">in</span> sources[<span class="s">"results"</span>]:
+    <span class="v">content</span> = client.tools.<span class="f">invoke</span>(<span class="s">"web.fetch"</span>, {<span class="s">"url"</span>: src[<span class="s">"url"</span>]})  <span class="c"># cached</span>
+    ws.files.<span class="f">write</span>(<span class="f">f</span><span class="s">"sources/{slug(src['url'])}.txt"</span>, content)
+
+ws.<span class="f">snapshot</span>(<span class="s">"sources-collected"</span>)  <span class="c"># named checkpoint</span></div>
+
+  <div class="grid-2" style="margin-top: 6mm;">
+    <div>
+      <h3>What the SDK gives you</h3>
+      <ul class="checked">
+        <li><strong>Handles, not values.</strong> Reads return URIs; the model only sees content on explicit dereference.</li>
+        <li><strong>Auto-projections.</strong> Summaries, vector indexes, and outlines generated on write — async, no blocking.</li>
+        <li><strong>Branch &amp; merge.</strong> Fork the workspace, try three approaches in parallel, keep the winner.</li>
+        <li><strong>Lease-based workers.</strong> Crash mid-flight, pick up where you left off. Verified by a runnable demo.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>The contract you get</h3>
+      <ul class="checked">
+        <li><strong>API v1 is locked.</strong> Additive-only for 12+ months. Breaking changes go to a <span class="mono">/v2/</span> namespace with migration guide.</li>
+        <li><strong>Apache 2.0.</strong> The Cloud product runs identical code. No "community edition" with the good parts ripped out.</li>
+        <li><strong>2,867 tests green.</strong> Three SDKs in Python/TS/Go to API parity; Swift and Kotlin to feature parity in v2.</li>
+        <li><strong>Threat model published.</strong> 90-day fix window on vulnerabilities. Bounty matrix on /security.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>Plinth · Overview</span>
+    <span>05</span>
+  </div>
+</section>
+
+<!-- ============================================================
+     PAGE 6 — ARCHITECTURE
+     ============================================================ -->
+<section class="page">
+  <p class="eyebrow">Architecture</p>
+  <h2>A single coherent surface, composed from independent services.</h2>
+  <p class="lead">Each service runs as its own process. Replace, scale, or harden any one of them independently. No hidden coupling. No magic.</p>
+
+  <div class="divider"></div>
+
+  <svg viewBox="0 0 540 240" style="width: 100%; height: auto;" aria-hidden="true">
+    <defs>
+      <linearGradient id="archL" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#ff8551" stop-opacity="0.8"/>
+        <stop offset="50%" stop-color="#d946ef" stop-opacity="0.55"/>
+        <stop offset="100%" stop-color="#6366f1" stop-opacity="0.3"/>
+      </linearGradient>
+    </defs>
+
+    <!-- Agent box -->
+    <rect x="10" y="80" width="100" height="70" rx="8" fill="rgba(255,255,255,0.025)" stroke="rgba(255,255,255,0.16)"/>
+    <text x="22" y="100" font-family="Inter" font-size="8" font-weight="500" class="label-muted" letter-spacing="1.5">AGENT</text>
+    <text x="22" y="118" font-family="Inter" font-size="12" font-weight="600" class="label-ink">Your loop</text>
+    <text x="22" y="132" font-family="Inter" font-size="8" class="label-secondary">Python · TS · Go</text>
+    <text x="22" y="143" font-family="Inter" font-size="8" class="label-secondary">Swift · Kotlin</text>
+
+    <!-- Plinth core -->
+    <rect x="170" y="30" width="200" height="180" rx="10" fill="rgba(255,255,255,0.025)" stroke="rgba(255,133,81,0.42)"/>
+    <text x="182" y="48" font-family="Inter" font-size="8" font-weight="600" fill="#ff8551" letter-spacing="1.5">PLINTH</text>
+
+    <!-- workspace -->
+    <rect x="182" y="62" width="176" height="38" rx="6" fill="rgba(255,133,81,0.06)" stroke="rgba(255,133,81,0.32)"/>
+    <text x="192" y="80" font-family="Inter" font-size="11" font-weight="600" class="label-ink">Workspace</text>
+    <text x="192" y="93" font-family="Inter" font-size="8" class="label-secondary">KV · Files · Snapshots · Branches</text>
+    <text x="334" y="80" font-family="JetBrains Mono" font-size="8" fill="#ff8551">:21</text>
+
+    <!-- gateway -->
+    <rect x="182" y="108" width="176" height="38" rx="6" fill="rgba(217,70,239,0.06)" stroke="rgba(217,70,239,0.32)"/>
+    <text x="192" y="126" font-family="Inter" font-size="11" font-weight="600" class="label-ink">Tool Gateway</text>
+    <text x="192" y="139" font-family="Inter" font-size="8" class="label-secondary">Cache · Audit · OAuth · Cost-caps</text>
+    <text x="334" y="126" font-family="JetBrains Mono" font-size="8" fill="#d946ef">:22</text>
+
+    <!-- identity -->
+    <rect x="182" y="154" width="176" height="38" rx="6" fill="rgba(99,102,241,0.06)" stroke="rgba(99,102,241,0.32)"/>
+    <text x="192" y="172" font-family="Inter" font-size="11" font-weight="600" class="label-ink">Identity</text>
+    <text x="192" y="185" font-family="Inter" font-size="8" class="label-secondary">JWT · Tenants · RS256 · JWKS</text>
+    <text x="334" y="172" font-family="JetBrains Mono" font-size="8" fill="#6366f1">:25</text>
+
+    <!-- connection lines agent→plinth -->
+    <path d="M110 115 C 140 115, 155 100, 170 100" stroke="url(#archL)" stroke-width="1.5" fill="none"/>
+    <path d="M110 120 C 140 120, 155 127, 170 127" stroke="url(#archL)" stroke-width="1.5" fill="none"/>
+    <path d="M110 125 C 140 125, 155 173, 170 173" stroke="url(#archL)" stroke-width="1.5" fill="none"/>
+
+    <!-- Tools (right) -->
+    <g font-family="Inter" font-size="9" font-weight="500">
+      <rect x="400" y="40" width="125" height="22" rx="5" fill="rgba(255,255,255,0.025)" stroke="rgba(99,102,241,0.32)"/>
+      <circle cx="412" cy="51" r="4" fill="rgba(99,102,241,0.32)" stroke="rgba(99,102,241,0.7)"/>
+      <text x="422" y="54" class="label-ink">GitHub</text>
+
+      <rect x="400" y="68" width="125" height="22" rx="5" fill="rgba(255,255,255,0.025)" stroke="rgba(99,102,241,0.32)"/>
+      <circle cx="412" cy="79" r="4" fill="rgba(99,102,241,0.32)" stroke="rgba(99,102,241,0.7)"/>
+      <text x="422" y="82" class="label-ink">Slack</text>
+
+      <rect x="400" y="96" width="125" height="22" rx="5" fill="rgba(255,255,255,0.025)" stroke="rgba(99,102,241,0.32)"/>
+      <circle cx="412" cy="107" r="4" fill="rgba(99,102,241,0.32)" stroke="rgba(99,102,241,0.7)"/>
+      <text x="422" y="110" class="label-ink">Linear</text>
+
+      <rect x="400" y="124" width="125" height="22" rx="5" fill="rgba(255,255,255,0.025)" stroke="rgba(99,102,241,0.32)"/>
+      <circle cx="412" cy="135" r="4" fill="rgba(99,102,241,0.32)" stroke="rgba(99,102,241,0.7)"/>
+      <text x="422" y="138" class="label-ink">Notion</text>
+
+      <rect x="400" y="152" width="125" height="22" rx="5" fill="rgba(255,255,255,0.025)" stroke="rgba(99,102,241,0.32)"/>
+      <circle cx="412" cy="163" r="4" fill="rgba(99,102,241,0.32)" stroke="rgba(99,102,241,0.7)"/>
+      <text x="422" y="166" class="label-ink">Google · Atlassian</text>
+
+      <rect x="400" y="180" width="125" height="22" rx="5" fill="rgba(255,255,255,0.025)" stroke="rgba(99,102,241,0.32)"/>
+      <circle cx="412" cy="191" r="4" fill="rgba(99,102,241,0.32)" stroke="rgba(99,102,241,0.7)"/>
+      <text x="422" y="194" class="label-ink">Salesforce · Asana</text>
+    </g>
+
+    <!-- lines plinth → tools -->
+    <path d="M370 80 C 385 80, 390 51, 400 51" stroke="url(#archL)" stroke-width="1" opacity="0.65" fill="none"/>
+    <path d="M370 95 C 385 95, 390 79, 400 79" stroke="url(#archL)" stroke-width="1" opacity="0.65" fill="none"/>
+    <path d="M370 125 C 385 125, 390 107, 400 107" stroke="url(#archL)" stroke-width="1" opacity="0.65" fill="none"/>
+    <path d="M370 145 C 385 145, 390 191, 400 191" stroke="url(#archL)" stroke-width="1" opacity="0.65" fill="none"/>
+  </svg>
+
+  <div class="grid-3" style="margin-top: 5mm;">
+    <div>
+      <p class="eyebrow muted">Agent side</p>
+      <p style="font-size: 9pt;">SDK in five languages. One call, no glue code.</p>
+    </div>
+    <div>
+      <p class="eyebrow" style="color: var(--accent);">Plinth runtime</p>
+      <p style="font-size: 9pt;">Workspace + Gateway + Identity. All replaceable.</p>
+    </div>
+    <div>
+      <p class="eyebrow muted">Tools side</p>
+      <p style="font-size: 9pt;">Eight OAuth providers built-in. MCP for the rest.</p>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>Plinth · Overview</span>
+    <span>06</span>
+  </div>
+</section>
+
+<!-- ============================================================
+     PAGE 7 — PRICING + START
+     ============================================================ -->
+<section class="page">
+  <p class="eyebrow">Pricing</p>
+  <h2>Free for solo. Pro at $99. Enterprise on request.</h2>
+  <p class="lead">The runtime is Apache 2.0 — fully self-hostable. Cloud is the managed version, same code we run, you don't operate it.</p>
+
+  <div class="divider"></div>
+
+  <div class="grid-3" style="margin-bottom: 6mm;">
+    <div class="tier">
+      <div class="name">Free</div>
+      <div class="price">$0<small> / month</small></div>
+      <p style="font-size: 8.5pt; color: var(--ink-3);">For solo builders and OSS projects.</p>
+      <ul>
+        <li>5 workspaces</li>
+        <li>10k tool calls / mo</li>
+        <li>2 GB storage</li>
+        <li>Community support</li>
+      </ul>
+    </div>
+    <div class="tier featured">
+      <div class="name">Pro</div>
+      <div class="price">$99<small> / month</small></div>
+      <p style="font-size: 8.5pt; color: var(--ink-3);">For production-agent teams.</p>
+      <ul>
+        <li>Unlimited workspaces</li>
+        <li>500k tool calls / mo</li>
+        <li>100 GB storage</li>
+        <li>Audit log retention 12 months</li>
+        <li>Email support, 24h response</li>
+      </ul>
+    </div>
+    <div class="tier">
+      <div class="name">Enterprise</div>
+      <div class="price">Custom</div>
+      <p style="font-size: 8.5pt; color: var(--ink-3);">For Fortune-500 / regulated teams.</p>
+      <ul>
+        <li>Dedicated tenancy or on-prem</li>
+        <li>BYOK encryption</li>
+        <li>SOC 2 + DPA + MSA</li>
+        <li>Custom integrations</li>
+        <li>Solutions engineer + SLA</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <h3>How to get started in 3 minutes</h3>
+  <div class="grid-2">
+    <div>
+      <p class="eyebrow muted">Self-hosted</p>
+      <div class="code" style="font-size: 9pt;"><span class="c"># macOS · Linux</span>
+<span class="v">$</span> curl -fsSL https://plinth.dev/install.sh | sh
+
+<span class="c"># Dashboard opens at http://localhost:7420</span></div>
+    </div>
+    <div>
+      <p class="eyebrow muted">Cloud (when ready)</p>
+      <p style="font-size: 9pt;">Sign up at <span class="mono accent">plinth.dev/signup</span>, create your first workspace, paste your LLM key, run the sample task. Five minutes to a working demo with token-cost numbers you can take to your CTO.</p>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>Plinth · Overview</span>
+    <span>07</span>
+  </div>
+</section>
+
+<!-- ============================================================
+     PAGE 8 — CLOSING / NEXT STEPS
+     ============================================================ -->
+<section class="page">
+  <p class="eyebrow">Where to go next</p>
+  <h2>Three doors.</h2>
+
+  <div class="divider"></div>
+
+  <div class="stack">
+    <div class="card">
+      <p class="eyebrow" style="color: var(--accent);">For everyone</p>
+      <h3>Read the manifesto.</h3>
+      <p>Three pages on why agents deserve their own runtime, written for product people who don't want to learn what a vector store is.</p>
+      <p class="mono" style="color: var(--accent); margin-top: 3mm;">plinth.dev/manifesto</p>
+    </div>
+
+    <div class="card">
+      <p class="eyebrow" style="color: var(--magenta);">For engineers</p>
+      <h3>Clone the repo and run the demo.</h3>
+      <p>One command produces the 71% reduction number on your own laptop. The benchmark code is in the repo. The threat model is in the repo. The architecture decisions are in the repo as ADRs.</p>
+      <p class="mono" style="color: var(--magenta); margin-top: 3mm;">github.com/plinth/plinth</p>
+    </div>
+
+    <div class="card">
+      <p class="eyebrow" style="color: var(--indigo);">For teams</p>
+      <h3>Talk to us.</h3>
+      <p>If you're running production agents and the bill is climbing, we'd like to hear what's on fire. We run a 30-minute call, you share traces, we tell you honestly whether Plinth helps. No deck.</p>
+      <p class="mono" style="color: var(--indigo); margin-top: 3mm;">hello@plinth.dev</p>
+    </div>
+  </div>
+
+  <div style="position: absolute; bottom: 30mm; left: 20mm; right: 20mm;">
+    <div class="divider"></div>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div class="brand-row">
+        <svg class="logo" viewBox="0 0 24 24" aria-hidden="true">
+          <defs><linearGradient id="rock2" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#ff8551"/><stop offset="50%" stop-color="#d946ef"/><stop offset="100%" stop-color="#6366f1"/>
+          </linearGradient></defs>
+          <path d="M5 17 L8 9 L12 6 L17 6 L20 11 L20 17 Z" fill="url(#rock2)" stroke="#1d1f29" stroke-width="0.6" stroke-linejoin="round"/>
+        </svg>
+        <div>
+          <div class="brand">Plinth</div>
+          <div style="font-family: 'JetBrains Mono', monospace; font-size: 7.5pt; color: var(--ink-3); letter-spacing: 0.1em;">The runtime where production AI agents actually work.</div>
+        </div>
+      </div>
+      <div class="pill"><span class="dot"></span>v1.7 · API v1 stable</div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>Plinth · Overview</span>
+    <span>08</span>
+  </div>
+</section>
+
+</body>
+</html>
