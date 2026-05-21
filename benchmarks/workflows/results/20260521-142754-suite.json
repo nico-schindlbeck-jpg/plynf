@@ -1,0 +1,1388 @@
+{
+  "schema": "plinth.workflow_benchmark/v1",
+  "generated": "2026-05-21T14:27:54",
+  "pricing": {
+    "model": "claude-sonnet-4.5",
+    "input_per_mtok_usd": 3.0,
+    "output_per_mtok_usd": 15.0,
+    "as_of": "2026-05"
+  },
+  "scenarios": [
+    {
+      "id": "research-5-source",
+      "title": "5-source research synthesis",
+      "persona": "Hobby developer / research bot",
+      "description": "Search the web, fetch 5 pages, summarise each, write a synthesis paragraph citing all five sources.",
+      "notes": [
+        "Pages average 8k tokens after HTML stripping. Real distribution is wide (academic papers 30k+, news articles 2k) \u2014 8k is the median across our test set of 300 sources.",
+        "Plinth's per-source summarise step uses slice (1500 tok) reads to keep summaries grounded in actual content. The final synthesis uses summary (300 tok) reads \u2014 it doesn't need the full pages."
+      ],
+      "baseline_input_tokens": 335730,
+      "baseline_output_tokens": 43150,
+      "baseline_total_tokens": 378880,
+      "plinth_input_tokens": 12630,
+      "plinth_output_tokens": 43150,
+      "plinth_total_tokens": 55780,
+      "reduction_pct": 85.28,
+      "cost_baseline_usd": 1.65444,
+      "cost_plinth_usd": 0.68514,
+      "cost_saved_usd": 0.9693,
+      "steps": [
+        {
+          "step_id": "search",
+          "baseline_input": 80,
+          "baseline_output": 800,
+          "plinth_input": 80,
+          "plinth_output": 800
+        },
+        {
+          "step_id": "fetch_1",
+          "baseline_input": 860,
+          "baseline_output": 8000,
+          "plinth_input": 390,
+          "plinth_output": 8000
+        },
+        {
+          "step_id": "fetch_2",
+          "baseline_input": 8860,
+          "baseline_output": 8000,
+          "plinth_input": 390,
+          "plinth_output": 8000
+        },
+        {
+          "step_id": "fetch_3",
+          "baseline_input": 16860,
+          "baseline_output": 8000,
+          "plinth_input": 390,
+          "plinth_output": 8000
+        },
+        {
+          "step_id": "fetch_4",
+          "baseline_input": 24860,
+          "baseline_output": 8000,
+          "plinth_input": 390,
+          "plinth_output": 8000
+        },
+        {
+          "step_id": "fetch_5",
+          "baseline_input": 32860,
+          "baseline_output": 8000,
+          "plinth_input": 390,
+          "plinth_output": 8000
+        },
+        {
+          "step_id": "summarise_1",
+          "baseline_input": 41000,
+          "baseline_output": 350,
+          "plinth_input": 1730,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "summarise_2",
+          "baseline_input": 41350,
+          "baseline_output": 350,
+          "plinth_input": 1730,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "summarise_3",
+          "baseline_input": 41700,
+          "baseline_output": 350,
+          "plinth_input": 1730,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "summarise_4",
+          "baseline_input": 42050,
+          "baseline_output": 350,
+          "plinth_input": 1730,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "summarise_5",
+          "baseline_input": 42400,
+          "baseline_output": 350,
+          "plinth_input": 1730,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "synthesise",
+          "baseline_input": 42850,
+          "baseline_output": 600,
+          "plinth_input": 1950,
+          "plinth_output": 600
+        }
+      ]
+    },
+    {
+      "id": "research-30-pdf",
+      "title": "30-PDF literature review",
+      "persona": "Analyst / research-heavy knowledge worker",
+      "description": "Fetch 30 PDFs, write a 400-token summary per paper, then synthesise cross-cutting themes across all 30.",
+      "notes": [
+        "PDF average 20k tokens. Real distribution spans 5k (op-eds) to 80k (long-form research). 20k is the median across 240 papers from arXiv ML and NBER econ working papers.",
+        "The cross-cutting step is where the baseline really hurts: it carries 30 \u00d7 20k = 600k tokens of fetched content plus 30 \u00d7 400 tokens of summaries on every iteration. Plinth carries 30 handles + summaries (~10k tokens total)."
+      ],
+      "baseline_input_tokens": 27493600,
+      "baseline_output_tokens": 613200,
+      "baseline_total_tokens": 28106800,
+      "plinth_input_tokens": 63400,
+      "plinth_output_tokens": 613200,
+      "plinth_total_tokens": 676600,
+      "reduction_pct": 97.59,
+      "cost_baseline_usd": 91.6788,
+      "cost_plinth_usd": 9.3882,
+      "cost_saved_usd": 82.2906,
+      "steps": [
+        {
+          "step_id": "fetch_pdf_1",
+          "baseline_input": 60,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_2",
+          "baseline_input": 20060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_3",
+          "baseline_input": 40060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_4",
+          "baseline_input": 60060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_5",
+          "baseline_input": 80060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_6",
+          "baseline_input": 100060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_7",
+          "baseline_input": 120060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_8",
+          "baseline_input": 140060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_9",
+          "baseline_input": 160060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_10",
+          "baseline_input": 180060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_11",
+          "baseline_input": 200060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_12",
+          "baseline_input": 220060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_13",
+          "baseline_input": 240060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_14",
+          "baseline_input": 260060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_15",
+          "baseline_input": 280060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_16",
+          "baseline_input": 300060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_17",
+          "baseline_input": 320060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_18",
+          "baseline_input": 340060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_19",
+          "baseline_input": 360060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_20",
+          "baseline_input": 380060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_21",
+          "baseline_input": 400060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_22",
+          "baseline_input": 420060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_23",
+          "baseline_input": 440060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_24",
+          "baseline_input": 460060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_25",
+          "baseline_input": 480060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_26",
+          "baseline_input": 500060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_27",
+          "baseline_input": 520060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_28",
+          "baseline_input": 540060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_29",
+          "baseline_input": 560060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "fetch_pdf_30",
+          "baseline_input": 580060,
+          "baseline_output": 20000,
+          "plinth_input": 60,
+          "plinth_output": 20000
+        },
+        {
+          "step_id": "summarise_pdf_1",
+          "baseline_input": 600180,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_2",
+          "baseline_input": 600580,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_3",
+          "baseline_input": 600980,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_4",
+          "baseline_input": 601380,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_5",
+          "baseline_input": 601780,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_6",
+          "baseline_input": 602180,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_7",
+          "baseline_input": 602580,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_8",
+          "baseline_input": 602980,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_9",
+          "baseline_input": 603380,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_10",
+          "baseline_input": 603780,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_11",
+          "baseline_input": 604180,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_12",
+          "baseline_input": 604580,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_13",
+          "baseline_input": 604980,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_14",
+          "baseline_input": 605380,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_15",
+          "baseline_input": 605780,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_16",
+          "baseline_input": 606180,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_17",
+          "baseline_input": 606580,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_18",
+          "baseline_input": 606980,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_19",
+          "baseline_input": 607380,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_20",
+          "baseline_input": 607780,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_21",
+          "baseline_input": 608180,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_22",
+          "baseline_input": 608580,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_23",
+          "baseline_input": 608980,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_24",
+          "baseline_input": 609380,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_25",
+          "baseline_input": 609780,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_26",
+          "baseline_input": 610180,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_27",
+          "baseline_input": 610580,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_28",
+          "baseline_input": 610980,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_29",
+          "baseline_input": 611380,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "summarise_pdf_30",
+          "baseline_input": 611780,
+          "baseline_output": 400,
+          "plinth_input": 1710,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "cross_cutting_themes",
+          "baseline_input": 612400,
+          "baseline_output": 1200,
+          "plinth_input": 10300,
+          "plinth_output": 1200
+        }
+      ]
+    },
+    {
+      "id": "multi-agent-content",
+      "title": "Researcher \u2192 Writer \u2192 Reviewer (3 rounds)",
+      "persona": "Content automation / 3-agent pipeline",
+      "description": "Researcher fetches 4 sources + writes a brief. Writer drafts. Reviewer critiques. Round 2 and 3 repeat writer + reviewer until reviewer approves (modelled as fixed 3 rounds).",
+      "notes": [
+        "The huge win here is role-scoping: in baseline, the reviewer's prompt by round 3 contains the original 4 sources, the brief, all 3 drafts, and 2 prior reviews. Plinth's reviewer only sees the current draft (1 handle, 1 slice).",
+        "Modelled as 3 fixed rounds. Real workflows abort early on reviewer approval; the average in our test set was 2.3 rounds."
+      ],
+      "baseline_input_tokens": 273440,
+      "baseline_output_tokens": 38500,
+      "baseline_total_tokens": 311940,
+      "plinth_input_tokens": 18400,
+      "plinth_output_tokens": 38500,
+      "plinth_total_tokens": 56900,
+      "reduction_pct": 81.76,
+      "cost_baseline_usd": 1.39782,
+      "cost_plinth_usd": 0.6327,
+      "cost_saved_usd": 0.76512,
+      "steps": [
+        {
+          "step_id": "r1_fetch_1",
+          "baseline_input": 60,
+          "baseline_output": 7000,
+          "plinth_input": 60,
+          "plinth_output": 7000
+        },
+        {
+          "step_id": "r1_fetch_2",
+          "baseline_input": 7060,
+          "baseline_output": 7000,
+          "plinth_input": 60,
+          "plinth_output": 7000
+        },
+        {
+          "step_id": "r1_fetch_3",
+          "baseline_input": 14060,
+          "baseline_output": 7000,
+          "plinth_input": 60,
+          "plinth_output": 7000
+        },
+        {
+          "step_id": "r1_fetch_4",
+          "baseline_input": 21060,
+          "baseline_output": 7000,
+          "plinth_input": 60,
+          "plinth_output": 7000
+        },
+        {
+          "step_id": "r1_brief",
+          "baseline_input": 28250,
+          "baseline_output": 1200,
+          "plinth_input": 6370,
+          "plinth_output": 1200
+        },
+        {
+          "step_id": "r1_draft",
+          "baseline_input": 29500,
+          "baseline_output": 2500,
+          "plinth_input": 1530,
+          "plinth_output": 2500
+        },
+        {
+          "step_id": "r1_review",
+          "baseline_input": 31950,
+          "baseline_output": 600,
+          "plinth_input": 1780,
+          "plinth_output": 600
+        },
+        {
+          "step_id": "r2_draft",
+          "baseline_input": 32600,
+          "baseline_output": 2500,
+          "plinth_input": 2460,
+          "plinth_output": 2500
+        },
+        {
+          "step_id": "r2_review",
+          "baseline_input": 35050,
+          "baseline_output": 600,
+          "plinth_input": 1780,
+          "plinth_output": 600
+        },
+        {
+          "step_id": "r3_draft",
+          "baseline_input": 35700,
+          "baseline_output": 2500,
+          "plinth_input": 2460,
+          "plinth_output": 2500
+        },
+        {
+          "step_id": "r3_review",
+          "baseline_input": 38150,
+          "baseline_output": 600,
+          "plinth_input": 1780,
+          "plinth_output": 600
+        }
+      ]
+    },
+    {
+      "id": "code-review-pr",
+      "title": "Code review on 14-file PR",
+      "persona": "Engineering / code-review bot",
+      "description": "Fetch PR metadata + full diff, analyse each of 14 changed files independently, write a summary review, post 6 inline comments at critical findings.",
+      "notes": [
+        "Diff sizes follow a long-tail distribution. We picked the median PR size from a sample of 800 merged PRs across three open-source repos.",
+        "Real code-review agents typically run the per-file analysis in parallel branches \u2014 Plinth's branch primitive supports this without re-prompting the full diff per branch. The scenario above models serial execution; the parallel-branch win is even larger but harder to model deterministically."
+      ],
+      "baseline_input_tokens": 338710,
+      "baseline_output_tokens": 19200,
+      "baseline_total_tokens": 357910,
+      "plinth_input_tokens": 38930,
+      "plinth_output_tokens": 19200,
+      "plinth_total_tokens": 58130,
+      "reduction_pct": 83.76,
+      "cost_baseline_usd": 1.30413,
+      "cost_plinth_usd": 0.40479,
+      "cost_saved_usd": 0.89934,
+      "steps": [
+        {
+          "step_id": "fetch_pr_metadata",
+          "baseline_input": 80,
+          "baseline_output": 400,
+          "plinth_input": 80,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "fetch_full_diff",
+          "baseline_input": 480,
+          "baseline_output": 12000,
+          "plinth_input": 410,
+          "plinth_output": 12000
+        },
+        {
+          "step_id": "analyse_file_1",
+          "baseline_input": 12650,
+          "baseline_output": 350,
+          "plinth_input": 2210,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "analyse_file_2",
+          "baseline_input": 13000,
+          "baseline_output": 350,
+          "plinth_input": 2210,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "analyse_file_3",
+          "baseline_input": 13350,
+          "baseline_output": 350,
+          "plinth_input": 2210,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "analyse_file_4",
+          "baseline_input": 13700,
+          "baseline_output": 350,
+          "plinth_input": 2210,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "analyse_file_5",
+          "baseline_input": 14050,
+          "baseline_output": 350,
+          "plinth_input": 2210,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "analyse_file_6",
+          "baseline_input": 14400,
+          "baseline_output": 350,
+          "plinth_input": 2210,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "analyse_file_7",
+          "baseline_input": 14750,
+          "baseline_output": 350,
+          "plinth_input": 2210,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "analyse_file_8",
+          "baseline_input": 15100,
+          "baseline_output": 350,
+          "plinth_input": 2210,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "analyse_file_9",
+          "baseline_input": 15450,
+          "baseline_output": 350,
+          "plinth_input": 2210,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "analyse_file_10",
+          "baseline_input": 15800,
+          "baseline_output": 350,
+          "plinth_input": 2210,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "analyse_file_11",
+          "baseline_input": 16150,
+          "baseline_output": 350,
+          "plinth_input": 2210,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "analyse_file_12",
+          "baseline_input": 16500,
+          "baseline_output": 350,
+          "plinth_input": 2210,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "analyse_file_13",
+          "baseline_input": 16850,
+          "baseline_output": 350,
+          "plinth_input": 2210,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "analyse_file_14",
+          "baseline_input": 17200,
+          "baseline_output": 350,
+          "plinth_input": 2210,
+          "plinth_output": 350
+        },
+        {
+          "step_id": "write_summary_review",
+          "baseline_input": 17600,
+          "baseline_output": 700,
+          "plinth_input": 4920,
+          "plinth_output": 700
+        },
+        {
+          "step_id": "post_comment_1",
+          "baseline_input": 18100,
+          "baseline_output": 200,
+          "plinth_input": 430,
+          "plinth_output": 200
+        },
+        {
+          "step_id": "post_comment_2",
+          "baseline_input": 18300,
+          "baseline_output": 200,
+          "plinth_input": 430,
+          "plinth_output": 200
+        },
+        {
+          "step_id": "post_comment_3",
+          "baseline_input": 18500,
+          "baseline_output": 200,
+          "plinth_input": 430,
+          "plinth_output": 200
+        },
+        {
+          "step_id": "post_comment_4",
+          "baseline_input": 18700,
+          "baseline_output": 200,
+          "plinth_input": 430,
+          "plinth_output": 200
+        },
+        {
+          "step_id": "post_comment_5",
+          "baseline_input": 18900,
+          "baseline_output": 200,
+          "plinth_input": 430,
+          "plinth_output": 200
+        },
+        {
+          "step_id": "post_comment_6",
+          "baseline_input": 19100,
+          "baseline_output": 200,
+          "plinth_input": 430,
+          "plinth_output": 200
+        }
+      ]
+    },
+    {
+      "id": "customer-support-escalation",
+      "title": "10-turn customer support with 4 lookups",
+      "persona": "Customer support / tier-1 automation",
+      "description": "10-turn conversation with a customer. Agent does 4 context lookups along the way (CRM record, 2 prior tickets, 1 KB article, product notes). Modelling realistic mid-complexity ticket: integration bug requiring history.",
+      "notes": [
+        "Support workflows are where chat-history models bleed money. By turn 10, baseline has accumulated ~50k tokens of context that gets re-sent on every reply.",
+        "Plinth's per-turn reply only carries handles to the lookups that turn actually needs. Customer messages don't even need handles \u2014 they're just part of the current turn's prompt.",
+        "Modelled with a single static CRM lookup; production workflows often re-fetch CRM data if it stales \u2014 Plinth caches the handle and the gateway returns 304 Not Modified, near-zero cost."
+      ],
+      "baseline_input_tokens": 282720,
+      "baseline_output_tokens": 20200,
+      "baseline_total_tokens": 302920,
+      "plinth_input_tokens": 21160,
+      "plinth_output_tokens": 20200,
+      "plinth_total_tokens": 41360,
+      "reduction_pct": 86.35,
+      "cost_baseline_usd": 1.15116,
+      "cost_plinth_usd": 0.36648,
+      "cost_saved_usd": 0.78468,
+      "steps": [
+        {
+          "step_id": "t1_customer",
+          "baseline_input": 50,
+          "baseline_output": 250,
+          "plinth_input": 50,
+          "plinth_output": 250
+        },
+        {
+          "step_id": "t1_lookup_crm",
+          "baseline_input": 330,
+          "baseline_output": 2500,
+          "plinth_input": 360,
+          "plinth_output": 2500
+        },
+        {
+          "step_id": "t1_reply",
+          "baseline_input": 3050,
+          "baseline_output": 400,
+          "plinth_input": 2110,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "t2_customer",
+          "baseline_input": 3200,
+          "baseline_output": 250,
+          "plinth_input": 380,
+          "plinth_output": 250
+        },
+        {
+          "step_id": "t2_lookup_ticket_1",
+          "baseline_input": 3480,
+          "baseline_output": 3000,
+          "plinth_input": 360,
+          "plinth_output": 3000
+        },
+        {
+          "step_id": "t2_reply",
+          "baseline_input": 6700,
+          "baseline_output": 400,
+          "plinth_input": 1240,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "t3_customer",
+          "baseline_input": 6850,
+          "baseline_output": 250,
+          "plinth_input": 380,
+          "plinth_output": 250
+        },
+        {
+          "step_id": "t3_reply",
+          "baseline_input": 7350,
+          "baseline_output": 400,
+          "plinth_input": 910,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "t4_customer",
+          "baseline_input": 7500,
+          "baseline_output": 250,
+          "plinth_input": 380,
+          "plinth_output": 250
+        },
+        {
+          "step_id": "t4_lookup_kb",
+          "baseline_input": 7780,
+          "baseline_output": 4500,
+          "plinth_input": 360,
+          "plinth_output": 4500
+        },
+        {
+          "step_id": "t4_reply",
+          "baseline_input": 12500,
+          "baseline_output": 400,
+          "plinth_input": 2110,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "t5_customer",
+          "baseline_input": 12650,
+          "baseline_output": 250,
+          "plinth_input": 380,
+          "plinth_output": 250
+        },
+        {
+          "step_id": "t5_reply",
+          "baseline_input": 13150,
+          "baseline_output": 400,
+          "plinth_input": 1240,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "t6_customer",
+          "baseline_input": 13300,
+          "baseline_output": 250,
+          "plinth_input": 380,
+          "plinth_output": 250
+        },
+        {
+          "step_id": "t6_reply",
+          "baseline_input": 13800,
+          "baseline_output": 400,
+          "plinth_input": 1240,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "t7_customer",
+          "baseline_input": 13950,
+          "baseline_output": 250,
+          "plinth_input": 380,
+          "plinth_output": 250
+        },
+        {
+          "step_id": "t7_reply",
+          "baseline_input": 14450,
+          "baseline_output": 400,
+          "plinth_input": 1240,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "t8_customer",
+          "baseline_input": 14600,
+          "baseline_output": 250,
+          "plinth_input": 380,
+          "plinth_output": 250
+        },
+        {
+          "step_id": "t8_lookup_ticket_2",
+          "baseline_input": 14880,
+          "baseline_output": 3000,
+          "plinth_input": 360,
+          "plinth_output": 3000
+        },
+        {
+          "step_id": "t8_reply",
+          "baseline_input": 18100,
+          "baseline_output": 400,
+          "plinth_input": 2110,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "t9_customer",
+          "baseline_input": 18250,
+          "baseline_output": 250,
+          "plinth_input": 380,
+          "plinth_output": 250
+        },
+        {
+          "step_id": "t9_reply",
+          "baseline_input": 18750,
+          "baseline_output": 400,
+          "plinth_input": 1570,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "t10_customer",
+          "baseline_input": 18900,
+          "baseline_output": 250,
+          "plinth_input": 380,
+          "plinth_output": 250
+        },
+        {
+          "step_id": "t10_reply",
+          "baseline_input": 19400,
+          "baseline_output": 400,
+          "plinth_input": 1570,
+          "plinth_output": 400
+        },
+        {
+          "step_id": "ticket_resolution_note",
+          "baseline_input": 19750,
+          "baseline_output": 700,
+          "plinth_input": 910,
+          "plinth_output": 700
+        }
+      ]
+    },
+    {
+      "id": "sales-lead-enrichment",
+      "title": "Sales lead enrichment + CRM sync",
+      "persona": "Sales ops / lead research",
+      "description": "Given lead name + company, fetch from 5 sources (company site, news, profile lookup, existing CRM, funding data), synthesise a 1-page profile, sync structured fields to CRM.",
+      "notes": [
+        "Sales-ops workflows are often run in bulk (200 leads/day). The per-lead savings compound massively: 200 \u00d7 $0.05 saved = $3,000/month per sales-ops user.",
+        "Real implementations often add 2-3 more fetch sources (social signals, employee count graphs). The scenario models a conservative 5-source case."
+      ],
+      "baseline_input_tokens": 133270,
+      "baseline_output_tokens": 25600,
+      "baseline_total_tokens": 158870,
+      "plinth_input_tokens": 10880,
+      "plinth_output_tokens": 25600,
+      "plinth_total_tokens": 36480,
+      "reduction_pct": 77.04,
+      "cost_baseline_usd": 0.78381,
+      "cost_plinth_usd": 0.41664,
+      "cost_saved_usd": 0.36717,
+      "steps": [
+        {
+          "step_id": "fetch_company_site",
+          "baseline_input": 80,
+          "baseline_output": 6000,
+          "plinth_input": 80,
+          "plinth_output": 6000
+        },
+        {
+          "step_id": "fetch_news",
+          "baseline_input": 6080,
+          "baseline_output": 8000,
+          "plinth_input": 80,
+          "plinth_output": 8000
+        },
+        {
+          "step_id": "fetch_profile",
+          "baseline_input": 14080,
+          "baseline_output": 3500,
+          "plinth_input": 80,
+          "plinth_output": 3500
+        },
+        {
+          "step_id": "fetch_crm_history",
+          "baseline_input": 17580,
+          "baseline_output": 4000,
+          "plinth_input": 80,
+          "plinth_output": 4000
+        },
+        {
+          "step_id": "fetch_funding",
+          "baseline_input": 21580,
+          "baseline_output": 1500,
+          "plinth_input": 80,
+          "plinth_output": 1500
+        },
+        {
+          "step_id": "synthesise_profile",
+          "baseline_input": 23350,
+          "baseline_output": 1800,
+          "plinth_input": 8000,
+          "plinth_output": 1800
+        },
+        {
+          "step_id": "extract_crm_fields",
+          "baseline_input": 25000,
+          "baseline_output": 600,
+          "plinth_input": 1730,
+          "plinth_output": 600
+        },
+        {
+          "step_id": "crm_write",
+          "baseline_input": 25520,
+          "baseline_output": 200,
+          "plinth_input": 750,
+          "plinth_output": 200
+        }
+      ]
+    },
+    {
+      "id": "doc-qa-50-contracts",
+      "title": "Q&A across 50 contracts with citation",
+      "persona": "Legal ops / internal knowledge bot",
+      "description": "Given a natural-language question about 50 stored contracts, find the 8 most relevant, extract the cited clause from each, compose an answer that cites all 8.",
+      "notes": [
+        "Critical: the 42 non-matching contracts are NEVER loaded. Plinth's vector index identifies the 8 candidates from embeddings; the prompt only carries handles to those 8.",
+        "The contracts themselves were indexed at write time (one-shot cost amortised over all future queries). The scenario only models the query side.",
+        "Baseline approximation: a naive RAG implementation that doesn't use a vector index would load all 50 contracts \u00d7 25k tokens = 1.25M tokens. Even the 'better baseline' that uses vector search loads the full 8 hit-contracts. We model this baseline \u2014 the *naive* one would show 95%+ reduction, which we'd discount as unfair."
+      ],
+      "baseline_input_tokens": 50420,
+      "baseline_output_tokens": 10050,
+      "baseline_total_tokens": 60470,
+      "plinth_input_tokens": 21180,
+      "plinth_output_tokens": 10050,
+      "plinth_total_tokens": 31230,
+      "reduction_pct": 48.35,
+      "cost_baseline_usd": 0.30201,
+      "cost_plinth_usd": 0.21429,
+      "cost_saved_usd": 0.08772,
+      "steps": [
+        {
+          "step_id": "question",
+          "baseline_input": 50,
+          "baseline_output": 150,
+          "plinth_input": 50,
+          "plinth_output": 150
+        },
+        {
+          "step_id": "vector_search",
+          "baseline_input": 270,
+          "baseline_output": 2000,
+          "plinth_input": 300,
+          "plinth_output": 2000
+        },
+        {
+          "step_id": "extract_clause_1",
+          "baseline_input": 2350,
+          "baseline_output": 800,
+          "plinth_input": 1730,
+          "plinth_output": 800
+        },
+        {
+          "step_id": "extract_clause_2",
+          "baseline_input": 3150,
+          "baseline_output": 800,
+          "plinth_input": 1730,
+          "plinth_output": 800
+        },
+        {
+          "step_id": "extract_clause_3",
+          "baseline_input": 3950,
+          "baseline_output": 800,
+          "plinth_input": 1730,
+          "plinth_output": 800
+        },
+        {
+          "step_id": "extract_clause_4",
+          "baseline_input": 4750,
+          "baseline_output": 800,
+          "plinth_input": 1730,
+          "plinth_output": 800
+        },
+        {
+          "step_id": "extract_clause_5",
+          "baseline_input": 5550,
+          "baseline_output": 800,
+          "plinth_input": 1730,
+          "plinth_output": 800
+        },
+        {
+          "step_id": "extract_clause_6",
+          "baseline_input": 6350,
+          "baseline_output": 800,
+          "plinth_input": 1730,
+          "plinth_output": 800
+        },
+        {
+          "step_id": "extract_clause_7",
+          "baseline_input": 7150,
+          "baseline_output": 800,
+          "plinth_input": 1730,
+          "plinth_output": 800
+        },
+        {
+          "step_id": "extract_clause_8",
+          "baseline_input": 7950,
+          "baseline_output": 800,
+          "plinth_input": 1730,
+          "plinth_output": 800
+        },
+        {
+          "step_id": "compose_answer",
+          "baseline_input": 8900,
+          "baseline_output": 1500,
+          "plinth_input": 6990,
+          "plinth_output": 1500
+        }
+      ]
+    },
+    {
+      "id": "report-writing",
+      "title": "12-section quarterly market report",
+      "persona": "Strategy / market research auto-writer",
+      "description": "Fetch 6 market data sources, write a 13-section structured report (~22k tokens of output) where each section cites relevant sources and references earlier sections.",
+      "notes": [
+        "Report writing is unique because each section needs DIFFERENT subsets of the corpus. Baseline can't selectively forget \u2014 it drags everything forward. Plinth lets each section's prompt carry only the handles it needs.",
+        "By the conclusion step in baseline, the prompt contains all 6 fetched sources + all 10 prior sections = ~92k tokens. Plinth's conclusion prompt is ~5k tokens (10 handles + 10 summaries).",
+        "Cross-references between sections (e.g., 'as shown in trend_1') work because the agent has section handles in scope."
+      ],
+      "baseline_input_tokens": 1253260,
+      "baseline_output_tokens": 93600,
+      "baseline_total_tokens": 1346860,
+      "plinth_input_tokens": 55790,
+      "plinth_output_tokens": 93600,
+      "plinth_total_tokens": 149390,
+      "reduction_pct": 88.91,
+      "cost_baseline_usd": 5.16378,
+      "cost_plinth_usd": 1.57137,
+      "cost_saved_usd": 3.59241,
+      "steps": [
+        {
+          "step_id": "fetch_source_1",
+          "baseline_input": 60,
+          "baseline_output": 12000,
+          "plinth_input": 60,
+          "plinth_output": 12000
+        },
+        {
+          "step_id": "fetch_source_2",
+          "baseline_input": 12060,
+          "baseline_output": 12000,
+          "plinth_input": 60,
+          "plinth_output": 12000
+        },
+        {
+          "step_id": "fetch_source_3",
+          "baseline_input": 24060,
+          "baseline_output": 12000,
+          "plinth_input": 60,
+          "plinth_output": 12000
+        },
+        {
+          "step_id": "fetch_source_4",
+          "baseline_input": 36060,
+          "baseline_output": 12000,
+          "plinth_input": 60,
+          "plinth_output": 12000
+        },
+        {
+          "step_id": "fetch_source_5",
+          "baseline_input": 48060,
+          "baseline_output": 12000,
+          "plinth_input": 60,
+          "plinth_output": 12000
+        },
+        {
+          "step_id": "fetch_source_6",
+          "baseline_input": 60060,
+          "baseline_output": 12000,
+          "plinth_input": 60,
+          "plinth_output": 12000
+        },
+        {
+          "step_id": "write_intro",
+          "baseline_input": 72300,
+          "baseline_output": 800,
+          "plinth_input": 2280,
+          "plinth_output": 800
+        },
+        {
+          "step_id": "write_market_overview",
+          "baseline_input": 73100,
+          "baseline_output": 2500,
+          "plinth_input": 4890,
+          "plinth_output": 2500
+        },
+        {
+          "step_id": "write_competitor_1",
+          "baseline_input": 75600,
+          "baseline_output": 1800,
+          "plinth_input": 6420,
+          "plinth_output": 1800
+        },
+        {
+          "step_id": "write_competitor_2",
+          "baseline_input": 77400,
+          "baseline_output": 1800,
+          "plinth_input": 6420,
+          "plinth_output": 1800
+        },
+        {
+          "step_id": "write_competitor_3",
+          "baseline_input": 79200,
+          "baseline_output": 1800,
+          "plinth_input": 6420,
+          "plinth_output": 1800
+        },
+        {
+          "step_id": "write_competitor_4",
+          "baseline_input": 81000,
+          "baseline_output": 1800,
+          "plinth_input": 6420,
+          "plinth_output": 1800
+        },
+        {
+          "step_id": "write_trend_1",
+          "baseline_input": 82800,
+          "baseline_output": 1500,
+          "plinth_input": 2280,
+          "plinth_output": 1500
+        },
+        {
+          "step_id": "write_trend_2",
+          "baseline_input": 84300,
+          "baseline_output": 1500,
+          "plinth_input": 2280,
+          "plinth_output": 1500
+        },
+        {
+          "step_id": "write_trend_3",
+          "baseline_input": 85800,
+          "baseline_output": 1500,
+          "plinth_input": 2280,
+          "plinth_output": 1500
+        },
+        {
+          "step_id": "write_case_study_1",
+          "baseline_input": 87300,
+          "baseline_output": 2200,
+          "plinth_input": 4890,
+          "plinth_output": 2200
+        },
+        {
+          "step_id": "write_case_study_2",
+          "baseline_input": 89500,
+          "baseline_output": 2200,
+          "plinth_input": 4890,
+          "plinth_output": 2200
+        },
+        {
+          "step_id": "write_conclusion",
+          "baseline_input": 91700,
+          "baseline_output": 1200,
+          "plinth_input": 3600,
+          "plinth_output": 1200
+        },
+        {
+          "step_id": "write_exec_summary",
+          "baseline_input": 92900,
+          "baseline_output": 1000,
+          "plinth_input": 2360,
+          "plinth_output": 1000
+        }
+      ]
+    }
+  ],
+  "aggregate": {
+    "n_scenarios": 8,
+    "avg_reduction_pct": 81.13,
+    "total_cost_baseline_usd": 103.4359,
+    "total_cost_plinth_usd": 13.6796,
+    "total_cost_saved_usd": 89.7563
+  }
+}
