@@ -54,22 +54,30 @@ const stories: Story[] = [
 interface Row {
   workflow: string;
   persona: string;
-  reduction: string;
+  reduction: string;  // mean across 100 runs
+  range: string;      // p25 — p75 typical case
   highlight?: boolean;
 }
 
+// Numbers sourced from benchmarks/workflows/results/<latest>-simulation-n100.json
+// (800 total runs · seed=42 · md5-stable across processes).
+// Re-run after any scenario change with:
+//   python -m benchmarks.workflows.run_simulation
 const rows: Row[] = [
-  { workflow: "5-source research synthesis", persona: "Hobby developer · research bot", reduction: "85.3%" },
-  { workflow: "30-PDF literature review", persona: "Analyst · knowledge worker", reduction: "97.6%", highlight: true },
-  { workflow: "Researcher → Writer → Reviewer (3 rounds)", persona: "Content automation · 3-agent pipeline", reduction: "81.8%" },
-  { workflow: "Code review on 14-file PR", persona: "Engineering · review bot", reduction: "83.8%" },
-  { workflow: "10-turn customer support with lookups", persona: "Support ops · tier-1 automation", reduction: "86.3%" },
-  { workflow: "Sales lead enrichment + CRM sync", persona: "Sales ops · outbound research", reduction: "77.0%" },
-  { workflow: "Q&A across 50 contracts with citation", persona: "Legal ops · knowledge bot", reduction: "48.4%" },
-  { workflow: "12-section quarterly market report", persona: "Strategy · auto-writer", reduction: "88.9%" },
+  { workflow: "5-source research synthesis", persona: "Hobby developer · research bot", reduction: "84.4%", range: "83.6 — 85.5%" },
+  { workflow: "30-PDF literature review", persona: "Analyst · knowledge worker", reduction: "97.4%", range: "97.2 — 97.6%", highlight: true },
+  { workflow: "Researcher → Writer → Reviewer (3 rounds)", persona: "Content automation · 3-agent pipeline", reduction: "81.9%", range: "81.3 — 82.5%" },
+  { workflow: "Code review on 14-file PR", persona: "Engineering · review bot", reduction: "82.5%", range: "81.3 — 85.1%" },
+  { workflow: "10-turn customer support with lookups", persona: "Support ops · tier-1 automation", reduction: "83.5%", range: "81.9 — 85.8%" },
+  { workflow: "Sales lead enrichment + CRM sync", persona: "Sales ops · outbound research", reduction: "77.3%", range: "76.1 — 78.6%" },
+  { workflow: "Q&A across 50 contracts with citation", persona: "Legal ops · knowledge bot", reduction: "47.0%", range: "43.4 — 51.1%" },
+  { workflow: "12-section quarterly market report", persona: "Strategy · auto-writer", reduction: "88.7%", range: "88.5 — 89.2%" },
 ];
 
-const avg = "81.1%";
+// Headline aggregate from the same simulation run.
+const avg = "80.3%";
+const iqr = "78.6 — 87.4%";
+const nRuns = "800";
 
 const toneStyles = {
   orange: { color: "var(--accent)", glow: "rgba(255, 133, 81, 0.32)", border: "rgba(255, 133, 81, 0.4)" },
@@ -84,7 +92,7 @@ const toneStyles = {
          HEADER
          ──────────────────────────────────────────────────────────── -->
     <div class="max-w-3xl">
-      <p class="section-eyebrow">Across workloads</p>
+      <p class="section-eyebrow">Across workloads · {nRuns} simulated runs</p>
       <h2 class="section-title text-balance">
         It's not just research.
         <span class="gradient-text-accent">It's every kind of agent work.</span>
@@ -93,15 +101,47 @@ const toneStyles = {
         We measured eight different workflows across eight personas — from a hobby
         researcher to a 14-file code review, from a 10-turn support agent to a
         quarterly market report. <span class="text-ink-primary">The shape is the same everywhere:</span>
-        chat-history goes quadratic, Plinth stays roughly linear. The savings just
-        get bigger with the work.
+        chat-history goes quadratic, Plinth stays roughly linear. Token reduction
+        averages <span class="text-ink-primary font-semibold">{avg}</span> across {nRuns} Monte-Carlo runs,
+        typically <span class="text-ink-primary font-semibold">{iqr}</span> per workflow.
       </p>
+    </div>
+
+    <!-- ────────────────────────────────────────────────────────────
+         HEADLINE BANNER — 80.3% across 800 runs
+         ──────────────────────────────────────────────────────────── -->
+    <div class="mt-12 card relative overflow-hidden p-7 sm:p-9" style="border-color: rgba(255, 133, 81, 0.4);">
+      <div
+        aria-hidden="true"
+        class="absolute -top-24 -right-24 w-64 h-64 rounded-full pointer-events-none"
+        style="background: radial-gradient(circle, rgba(255, 133, 81, 0.32), transparent 70%); filter: blur(28px);"
+      />
+      <div class="relative grid gap-6 sm:grid-cols-[auto_1fr] sm:items-center">
+        <div>
+          <p class="text-2xs font-mono uppercase tracking-widest text-ink-muted">Headline · {nRuns} runs</p>
+          <p class="mt-2 font-semibold tracking-tightest" style="font-size: clamp(3.5rem, 7vw, 5.5rem); line-height: 1; color: var(--accent);">
+            {avg}
+          </p>
+          <p class="mt-2 text-2xs font-mono uppercase tracking-widest text-ink-muted">
+            mean token reduction
+          </p>
+        </div>
+        <div class="border-l border-border sm:pl-8">
+          <p class="text-lg text-ink-primary leading-snug">
+            Across <span class="font-semibold">8 workflows × 100 perturbed runs</span> with realistic variance on page sizes, file counts, and conversation turns. The shape is the same everywhere:
+          </p>
+          <p class="mt-3 text-base text-ink-secondary leading-relaxed">
+            <span class="text-ink-primary font-medium">Typical case: {iqr}</span> per workflow (IQR).
+            Stays above 76% for everything except RAG (where even good baselines compress aggressively). Stable across seeds — runs reproduce within ±0.5pp.
+          </p>
+        </div>
+      </div>
     </div>
 
     <!-- ────────────────────────────────────────────────────────────
          FOUR DRAMATIC MOMENTS
          ──────────────────────────────────────────────────────────── -->
-    <div class="mt-14 grid gap-5 sm:grid-cols-2">
+    <div class="mt-10 grid gap-5 sm:grid-cols-2">
       {
         stories.map((s) => {
           const tone = toneStyles[s.tone];
@@ -162,10 +202,10 @@ const toneStyles = {
     <div class="mt-14">
       <div class="flex items-end justify-between mb-4 flex-wrap gap-2">
         <p class="text-2xs font-mono uppercase tracking-widest text-ink-muted">
-          All eight workflows · measured · reproducible
+          All eight workflows · 100 runs each · seed-stable
         </p>
         <p class="text-2xs font-mono text-ink-muted">
-          Run yourself: <span class="text-ink-secondary">python -m benchmarks.workflows.run_all</span>
+          Run yourself: <span class="text-ink-secondary">python -m benchmarks.workflows.run_simulation</span>
         </p>
       </div>
 
@@ -174,8 +214,9 @@ const toneStyles = {
           <thead>
             <tr class="border-b border-border">
               <th class="text-left py-3 px-5 text-2xs font-mono uppercase tracking-widest text-ink-muted font-medium">Workflow</th>
-              <th class="text-left py-3 px-5 text-2xs font-mono uppercase tracking-widest text-ink-muted font-medium hidden sm:table-cell">Persona</th>
-              <th class="text-right py-3 px-5 text-2xs font-mono uppercase tracking-widest text-ink-muted font-medium">Reduction</th>
+              <th class="text-left py-3 px-5 text-2xs font-mono uppercase tracking-widest text-ink-muted font-medium hidden md:table-cell">Persona</th>
+              <th class="text-right py-3 px-5 text-2xs font-mono uppercase tracking-widest text-ink-muted font-medium">Mean</th>
+              <th class="text-right py-3 px-5 text-2xs font-mono uppercase tracking-widest text-ink-muted font-medium hidden sm:table-cell">Typical (p25–p75)</th>
             </tr>
           </thead>
           <tbody>
@@ -185,22 +226,28 @@ const toneStyles = {
                   <td class="py-3.5 px-5 text-ink-primary">
                     {r.workflow}
                   </td>
-                  <td class="py-3.5 px-5 text-ink-secondary hidden sm:table-cell">
+                  <td class="py-3.5 px-5 text-ink-secondary hidden md:table-cell">
                     {r.persona}
                   </td>
                   <td class="py-3.5 px-5 text-right font-mono font-semibold" style={r.highlight ? "color: var(--accent);" : "color: var(--ink-secondary);"}>
                     {r.reduction}
                   </td>
+                  <td class="py-3.5 px-5 text-right font-mono text-ink-muted hidden sm:table-cell" style="font-size: 0.85em;">
+                    {r.range}
+                  </td>
                 </tr>
               ))
             }
-            <tr>
+            <tr class="bg-bg-2/30">
               <td colspan="2" class="py-4 px-5 font-medium text-ink-primary">
-                <span class="hidden sm:inline">Average across all eight scenarios</span>
-                <span class="sm:hidden">Average · 8 scenarios</span>
+                <span class="hidden md:inline">Pooled across {nRuns} simulated runs</span>
+                <span class="md:hidden">{nRuns} pooled runs</span>
               </td>
               <td class="py-4 px-5 text-right font-mono text-lg font-semibold" style="color: var(--accent);">
                 {avg}
+              </td>
+              <td class="py-4 px-5 text-right font-mono text-ink-secondary hidden sm:table-cell" style="font-size: 0.85em;">
+                {iqr}
               </td>
             </tr>
           </tbody>
@@ -213,30 +260,32 @@ const toneStyles = {
          ──────────────────────────────────────────────────────────── -->
     <div class="mt-10 grid sm:grid-cols-3 gap-6 text-sm">
       <div>
-        <p class="text-2xs font-mono uppercase tracking-widest text-ink-muted">Reproducible</p>
+        <p class="text-2xs font-mono uppercase tracking-widest text-ink-muted">800 Monte-Carlo runs</p>
         <p class="mt-1.5 text-ink-secondary leading-relaxed">
-          Clean clone, one command, same numbers. CI runs the suite on every commit. No spreadsheets, no slides — just code.
+          Each scenario perturbed 100 times — realistic variance on page sizes, file counts, conversation turns. The mean across all 800 is the headline.
         </p>
       </div>
       <div>
-        <p class="text-2xs font-mono uppercase tracking-widest" style="color: var(--accent);">Deterministic</p>
+        <p class="text-2xs font-mono uppercase tracking-widest" style="color: var(--accent);">Reproducible · seed=42</p>
         <p class="mt-1.5 text-ink-secondary leading-relaxed">
-          The harness doesn't call a real LLM. Token math comes from declarative step graphs you can read in 100 lines. Falsifiable.
+          Md5-stable across processes, runs across Python invocations. Run with a different seed and you'll get within ±0.5pp of these numbers.
         </p>
       </div>
       <div>
         <p class="text-2xs font-mono uppercase tracking-widest text-ink-muted">Cross-checked</p>
         <p class="mt-1.5 text-ink-secondary leading-relaxed">
-          Suite vs live LLM runs match within ±5 percentage points. The headline 71% comes from a real run; 81% suite average is the upper bound.
+          Suite vs live LLM runs match within ±5 percentage points. The conservative <span class="font-mono text-ink-primary">71%</span> on the hero is from a real run; <span class="font-mono text-ink-primary">{avg}</span> is the upper-bound model.
         </p>
       </div>
     </div>
 
     <p class="mt-8 text-center text-sm text-ink-muted">
-      Methodology + per-scenario notes:
-      <a href="https://github.com/nico-schindlbeck-jpg/plinth/blob/main/benchmarks/workflows/MODEL.md" class="text-ink-secondary hover:text-ink-primary underline underline-offset-4 decoration-border-strong">benchmarks/workflows/MODEL.md</a>
-      · Last run:
-      <a href="https://github.com/nico-schindlbeck-jpg/plinth/tree/main/benchmarks/workflows/results" class="text-ink-secondary hover:text-ink-primary underline underline-offset-4 decoration-border-strong">latest JSON</a>
+      Methodology:
+      <a href="https://github.com/nico-schindlbeck-jpg/plinth/blob/main/benchmarks/workflows/MODEL.md" class="text-ink-secondary hover:text-ink-primary underline underline-offset-4 decoration-border-strong">MODEL.md</a>
+      · Simulation results:
+      <a href="https://github.com/nico-schindlbeck-jpg/plinth/blob/main/benchmarks/workflows/SIMULATION_RESULTS.md" class="text-ink-secondary hover:text-ink-primary underline underline-offset-4 decoration-border-strong">SIMULATION_RESULTS.md</a>
+      · Raw JSON:
+      <a href="https://github.com/nico-schindlbeck-jpg/plinth/tree/main/benchmarks/workflows/results" class="text-ink-secondary hover:text-ink-primary underline underline-offset-4 decoration-border-strong">/results</a>
     </p>
   </div>
 </section>
