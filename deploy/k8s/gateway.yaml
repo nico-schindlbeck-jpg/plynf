@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Plinth — Gateway service.
+# Plynf — Gateway service.
 ---
 apiVersion: v1
 kind: ConfigMap

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Plinth — Single-node Postgres for the prod overlay.
+# Plynf — Single-node Postgres for the prod overlay.
 #
 # This is a STARTING POINT. For production, use a managed Postgres
 # (RDS, Cloud SQL, Aiven, etc.) and point services at it via

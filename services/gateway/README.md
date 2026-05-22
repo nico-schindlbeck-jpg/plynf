@@ -1,6 +1,6 @@
 # plinth-gateway
 
-The Tool Gateway service for [Plinth](https://github.com/plinth) — an HTTP proxy that
+The Tool Gateway service for [Plynf](https://github.com/plinth) — an HTTP proxy that
 sits between AI agents and external tools (MCP servers, REST APIs).
 
 ## Features

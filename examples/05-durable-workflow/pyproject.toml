@@ -1,7 +1,7 @@
 [project]
 name = "plinth-example-durable-workflow"
 version = "0.5.0"
-description = "Plinth example #5: durable workflow execution via worker pool"
+description = "Plynf example #5: durable workflow execution via worker pool"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.11"
 dependencies = [

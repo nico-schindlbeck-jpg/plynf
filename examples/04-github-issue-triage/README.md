@@ -1,6 +1,6 @@
-# Plinth example: GitHub issue triage
+# Plynf example: GitHub issue triage
 
-> First "real-world tool integration" example for Plinth: an agent that
+> First "real-world tool integration" example for Plynf: an agent that
 > classifies issues on a GitHub repo (bug / feature / question / spam),
 > writes a Markdown triage report, and optionally posts a summary comment
 > on each issue.
@@ -50,7 +50,7 @@ The report itself is plain Markdown.
 1. Go to <https://github.com/settings/developers> → **OAuth Apps** →
    **New OAuth App**.
 2. Fill in:
-   * Application name: anything (e.g. `Plinth dev`).
+   * Application name: anything (e.g. `Plynf dev`).
    * Homepage URL: `http://localhost:7422`.
    * Authorization callback URL:
      `http://localhost:7422/v1/oauth/github/callback`.

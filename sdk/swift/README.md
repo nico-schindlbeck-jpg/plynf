@@ -1,6 +1,6 @@
-# Plinth SDK for Swift
+# Plynf SDK for Swift
 
-Idiomatic Swift client for [Plinth](https://github.com/plinth/plinth) — workspaces, KV, files, tools, and identity. Built with Swift Concurrency (`async/await`, `Sendable`) for iOS 16+ and macOS 13+. v0.1 covers the minimum-viable mobile surface; the Python/TypeScript SDKs remain the reference for advanced features (LLM facade, workflows, multi-region).
+Idiomatic Swift client for [Plynf](https://github.com/plinth/plinth) — workspaces, KV, files, tools, and identity. Built with Swift Concurrency (`async/await`, `Sendable`) for iOS 16+ and macOS 13+. v0.1 covers the minimum-viable mobile surface; the Python/TypeScript SDKs remain the reference for advanced features (LLM facade, workflows, multi-region).
 
 ## Status
 
@@ -8,7 +8,7 @@ Version `v0.1`. Foundation-only — no external dependencies.
 
 ## Installation
 
-In Xcode: **File → Add Packages…**, paste the repository URL, and select the `Plinth` library.
+In Xcode: **File → Add Packages…**, paste the repository URL, and select the `Plynf` library.
 
 In a `Package.swift`:
 
@@ -18,7 +18,7 @@ dependencies: [
 ],
 targets: [
     .target(name: "MyApp", dependencies: [
-        .product(name: "Plinth", package: "plinth"),
+        .product(name: "Plynf", package: "plinth"),
     ]),
 ]
 ```
@@ -28,9 +28,9 @@ Requires Swift 5.9 / Xcode 15 or later. Supported on iOS 16+ and macOS 13+.
 ## Quickstart
 
 ```swift
-import Plinth
+import Plynf
 
-let client = try Plinth(
+let client = try Plynf(
     workspaceURL: "http://localhost:7421",
     gatewayURL:   "http://localhost:7422",
     identityURL:  "http://localhost:7425",   // optional
@@ -107,7 +107,7 @@ The `code` property exposes the stable wire code (`"WORKSPACE_NOT_FOUND"`, etc.)
 
 ## Concurrency model
 
-`Plinth` is a value-type `struct` and conforms to `Sendable`. Every sub-client also conforms to `Sendable`, so you can freely share an instance across `Task`s and actors. Internally it wraps a `URLSession` (which is already thread-safe).
+`Plynf` is a value-type `struct` and conforms to `Sendable`. Every sub-client also conforms to `Sendable`, so you can freely share an instance across `Task`s and actors. Internally it wraps a `URLSession` (which is already thread-safe).
 
 ## Testing
 

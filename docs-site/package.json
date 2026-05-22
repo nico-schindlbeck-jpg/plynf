@@ -3,7 +3,7 @@
   "type": "module",
   "version": "1.5.0",
   "private": true,
-  "description": "Static documentation site for Plinth — the runtime where production AI agents actually work.",
+  "description": "Static documentation site for Plynf — the runtime where production AI agents actually work.",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build && pagefind --site dist",

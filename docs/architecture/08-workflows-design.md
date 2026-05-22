@@ -174,14 +174,14 @@ The choice to keep prior attempts as separate rows rather than mutating in place
 - **Audit.** Every retry has its own start time, error, and (if it ran far enough) snapshot. "How many times did the agent retry step `fetch`, and what error did each one produce?" is a single query.
 - **Observability.** A workflow with retries shows up clearly in the dashboard (arch doc 05 §2 v0.2 dashboard) without needing a separate retry log.
 
-What we don't have: built-in retry policies. Plinth doesn't decide whether to retry. The agent's loop does. The Plinth workflow primitive logs the attempts; it doesn't schedule them. This is a deliberate design choice — see §8.
+What we don't have: built-in retry policies. Plynf doesn't decide whether to retry. The agent's loop does. The Plynf workflow primitive logs the attempts; it doesn't schedule them. This is a deliberate design choice — see §8.
 
 ## 7. What we lose by rolling our own
 
 ADR 0008 covers the choice in full. For the architectural impact, the v0.2 workflow primitive is missing several things a real workflow engine would give you:
 
 - **No automatic retry policies.** Temporal lets you declare "retry up to 5x with exponential backoff and max 30s". v0.2's agent has to write that loop itself.
-- **No durable timers.** "Wait 24 hours, then continue" requires the agent to be running 24 hours from now. Plinth has no scheduler.
+- **No durable timers.** "Wait 24 hours, then continue" requires the agent to be running 24 hours from now. Plynf has no scheduler.
 - **No signals.** "Wait for a human approval, then continue" can be approximated with channels (arch doc 07) but isn't first-class.
 - **No exact-once tool execution semantics.** The gateway has idempotency keys (arch doc 03), but the workflow doesn't bind to them automatically. The agent has to pass `idempotency_key=step_id` itself if it wants exact-once.
 - **No determinism check.** Temporal enforces that workflow code is replay-deterministic; ours doesn't, because we don't replay code, we re-enter the agent at the next step.

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Plinth — Linear MCP server.
+# Plynf — Linear MCP server.
 ---
 apiVersion: v1
 kind: ConfigMap

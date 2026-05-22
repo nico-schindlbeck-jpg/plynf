@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Plinth — Horizontal Pod Autoscaler for the gateway.
+# Plynf — Horizontal Pod Autoscaler for the gateway.
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:

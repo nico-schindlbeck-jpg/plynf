@@ -5,11 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "plinth-bench"
 version = "0.5.0"
-description = "Stress benchmarks for the Plinth services (workspace + gateway + identity)."
+description = "Stress benchmarks for the Plynf services (workspace + gateway + identity)."
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.11"
-authors = [{name = "The Plinth Authors"}]
+authors = [{name = "The Plynf Authors"}]
 dependencies = [
     # HTTP/2 brings the bench harness closer to a realistic deployment;
     # the http2 extra pulls in the h2 wire codec.

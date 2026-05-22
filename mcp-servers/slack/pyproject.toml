@@ -1,7 +1,7 @@
 [project]
 name = "plinth-slack-mcp"
 version = "0.4.0"
-description = "MCP-style server exposing Slack Web API tools for Plinth agents"
+description = "MCP-style server exposing Slack Web API tools for Plynf agents"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.11"

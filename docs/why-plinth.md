@@ -1,4 +1,4 @@
-# Why Plinth?
+# Why Plynf?
 
 > The strategic context. Read this if you want to understand the bet, not just the code.
 
@@ -37,16 +37,16 @@ Three forces converge in 2025–26:
 2. **Real agents in production**. Devin, Sierra, internal agent platforms — there's a new class of buyer who feels the pain daily.
 3. **The token economics matter**. As models get cheaper *per token*, agentic workloads use more tokens. Reduction matters for unit economics.
 
-## What Plinth is (and isn't)
+## What Plynf is (and isn't)
 
-Plinth is **infrastructure for production agents**. It is:
+Plynf is **infrastructure for production agents**. It is:
 - A persistent workspace (KV + files + snapshots + branches)
 - A semantic tool gateway (caching + audit + auth + dry-run)
 - A coordination layer (multi-agent primitives) — *coming in v0.2*
 - An observability plane — *coming in v0.2*
 - An identity layer (capability tokens) — *coming in v0.2*
 
-Plinth is **not**:
+Plynf is **not**:
 - An agent framework (like LangChain) — frameworks are in-process, we're a hosted runtime
 - A vertical agent product (like Devin) — we're substrate, not endpoint
 - An LLM gateway (like OpenRouter) — we sit *above* model layer, agnostic to model
@@ -63,7 +63,7 @@ Sound like **Vercel for agent-runtimes**: developer love, opinionated defaults, 
 In 2–3 years, every team running production agents will have *some* form of this layer. Either:
 - They build it themselves (expensive, half-baked)
 - A hyperscaler ships it (vendor-locked to their model)
-- An independent platform wins (Plinth)
+- An independent platform wins (Plynf)
 
 We're building for the third option.
 

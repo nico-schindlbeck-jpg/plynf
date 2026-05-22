@@ -19,7 +19,7 @@ const stories: Story[] = [
     pct: "97.6%",
     cost_before: "$91.68",
     cost_after: "$9.39",
-    why: "Analyst hands the agent 30 papers. Naive baseline carries 600k tokens of fetched text on every synthesis step. Plinth keeps them on the desk, carries handles in the prompt.",
+    why: "Analyst hands the agent 30 papers. Naive baseline carries 600k tokens of fetched text on every synthesis step. Plynf keeps them on the desk, carries handles in the prompt.",
     tone: "orange",
   },
   {
@@ -28,7 +28,7 @@ const stories: Story[] = [
     pct: "86.3%",
     cost_before: "$1.15",
     cost_after: "$0.37",
-    why: "Every prior message + every CRM lookup gets re-sent on every reply in the baseline. Plinth's per-turn prompt only carries the handles that turn actually needs.",
+    why: "Every prior message + every CRM lookup gets re-sent on every reply in the baseline. Plynf's per-turn prompt only carries the handles that turn actually needs.",
     tone: "indigo",
   },
   {
@@ -37,7 +37,7 @@ const stories: Story[] = [
     pct: "83.8%",
     cost_before: "$1.30",
     cost_after: "$0.41",
-    why: "Per-file analysis. The agent reviewing file 12 doesn't need to see findings for files 1–11 in its prompt — but the baseline insists. Plinth scopes each step.",
+    why: "Per-file analysis. The agent reviewing file 12 doesn't need to see findings for files 1–11 in its prompt — but the baseline insists. Plynf scopes each step.",
     tone: "indigo",
   },
   {
@@ -46,7 +46,7 @@ const stories: Story[] = [
     pct: "88.9%",
     cost_before: "$5.16",
     cost_after: "$1.57",
-    why: "13 sections, each drawing on different parts of a 6-source corpus. Naive chains drag every source + every prior section forward. Plinth's prompt grows with the decision, not the data.",
+    why: "13 sections, each drawing on different parts of a 6-source corpus. Naive chains drag every source + every prior section forward. Plynf's prompt grows with the decision, not the data.",
     tone: "magenta",
   },
 ];
@@ -101,7 +101,7 @@ const toneStyles = {
         We measured eight different workflows across eight personas — from a hobby
         researcher to a 14-file code review, from a 10-turn support agent to a
         quarterly market report. <span class="text-ink-primary">The shape is the same everywhere:</span>
-        chat-history goes quadratic, Plinth stays roughly linear. Token reduction
+        chat-history goes quadratic, Plynf stays roughly linear. Token reduction
         averages <span class="text-ink-primary font-semibold">{avg}</span> across {nRuns} Monte-Carlo runs,
         typically <span class="text-ink-primary font-semibold">{iqr}</span> per workflow.
       </p>

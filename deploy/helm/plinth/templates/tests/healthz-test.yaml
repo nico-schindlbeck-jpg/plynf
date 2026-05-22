@@ -1,6 +1,6 @@
 {{- /*
 SPDX-License-Identifier: Apache-2.0
-Plinth — `helm test` smoke test.
+Plynf — `helm test` smoke test.
 
 Spins up a short-lived Pod that hits /healthz on every enabled service. Run
 after `helm install` / `helm upgrade` with:

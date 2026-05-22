@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
 import { getCollection } from "astro:content";
 
-const SITE = "https://plinth.dev";
+const SITE = "https://plynf.com";
 
 export const GET: APIRoute = async () => {
   const docs = await getCollection("docs");

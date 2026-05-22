@@ -14,14 +14,14 @@ interface Props {
 
 const {
   title,
-  description = "Plinth — the runtime where production AI agents actually work. A versioned workspace + tool gateway + multi-agent channels, with 71% fewer tokens on real workloads.",
+  description = "Plynf — the runtime where production AI agents actually work. A versioned workspace + tool gateway + multi-agent channels, with 71% fewer tokens on real workloads.",
   ogImage = "/og-image.svg",
   noindex = false,
   mainClass = "",
 } = Astro.props;
 
-const canonical = new URL(Astro.url.pathname, Astro.site ?? "https://plinth.dev").toString();
-const fullTitle = title === "Plinth" ? "Plinth — runtime for production AI agents" : `${title} · Plinth`;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? "https://plynf.com").toString();
+const fullTitle = title === "Plynf" ? "Plynf — runtime for production AI agents" : `${title} · Plynf`;
 ---
 
 <!doctype html>
@@ -42,14 +42,14 @@ const fullTitle = title === "Plinth" ? "Plinth — runtime for production AI age
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
-    <meta property="og:image" content={new URL(ogImage, Astro.site ?? "https://plinth.dev").toString()} />
-    <meta property="og:site_name" content="Plinth" />
+    <meta property="og:image" content={new URL(ogImage, Astro.site ?? "https://plynf.com").toString()} />
+    <meta property="og:site_name" content="Plynf" />
 
     {/* Twitter */}
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={fullTitle} />
     <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={new URL(ogImage, Astro.site ?? "https://plinth.dev").toString()} />
+    <meta name="twitter:image" content={new URL(ogImage, Astro.site ?? "https://plynf.com").toString()} />
 
     {/* Theme color */}
     <meta name="theme-color" content="#fafaf7" />

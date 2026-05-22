@@ -1,6 +1,6 @@
 # Multi-Region — Operator Playbook (v1.0)
 
-> **Status**: Plinth v1.0 ships **multi-region scaffolding**, not a turnkey
+> **Status**: Plynf v1.0 ships **multi-region scaffolding**, not a turnkey
 > multi-region deployment. The configuration knobs, replication primitives,
 > and SDK region-awareness are all in place; the cross-region orchestration
 > (the cron job / k8s sidecar / agent that actually streams writes between
@@ -8,7 +8,7 @@
 
 ## Why scaffolding only
 
-Plinth's storage primitives (SQLite by default, Postgres in production) are
+Plynf's storage primitives (SQLite by default, Postgres in production) are
 deployed close to the workspace + identity services for latency reasons.
 A "real" multi-region deploy means making three orthogonal choices:
 
@@ -23,13 +23,13 @@ choices are yours.
 
 ## Three modes
 
-Every Plinth service accepts `PLINTH_REPLICATION_MODE`:
+Every Plynf service accepts `PLINTH_REPLICATION_MODE`:
 
 | Mode         | Behaviour                                                    | When to use                  |
 | ------------ | ------------------------------------------------------------ | ---------------------------- |
 | `standalone` | Single-region (default). No replication. Identical to v0.6.  | Default — most deployments.  |
 | `primary`    | Accepts writes; appends every mutation to `replication_log`. | The authoritative region.    |
-| `replica`    | Read-only. Mutating verbs return `421 REPLICA_READ_ONLY` with `X-Plinth-Primary-Region` + `X-Plinth-Primary-URL`. | Geo-distributed read mirrors. |
+| `replica`    | Read-only. Mutating verbs return `421 REPLICA_READ_ONLY` with `X-Plynf-Primary-Region` + `X-Plynf-Primary-URL`. | Geo-distributed read mirrors. |
 
 `standalone` is the v0.6 behaviour exactly — your existing single-region
 deployment doesn't see any change unless you opt in.
@@ -98,7 +98,7 @@ You wire the actual replication. Common patterns:
    ```
 2. **k8s sidecar** — same shape, packaged as a controller; reconciles
    `status.next_since` against the primary.
-3. **Plinth agent** — write a tiny agent that uses the SDK and
+3. **Plynf agent** — write a tiny agent that uses the SDK and
    `client.gateway.invoke("plinth.replication.pull", ...)` if you want
    the audit trail / cost tracking that comes with the gateway.
 
@@ -107,7 +107,7 @@ In all cases, the apply endpoint dedupes by `seq`, so retries are safe.
 ## Failure modes
 
 - **Primary down**: replicas keep serving GETs. Writes still 421 with
-  `X-Plinth-Primary-Region` + `X-Plinth-Primary-URL`; the SDK sees those
+  `X-Plynf-Primary-Region` + `X-Plynf-Primary-URL`; the SDK sees those
   headers and routes to the next fallback region. Eventually consistent
   for reads, hard-fail for writes — by design.
 - **Replica behind**: `peers_lag` in `/status` shows the gap. Operators
@@ -124,9 +124,9 @@ In all cases, the apply endpoint dedupes by `seq`, so retries are safe.
 2. **primary → multi-replica**: spin up a second region with
    `replication_mode=replica` and the primary's URL in
    `region_peer_urls`. Wire the cron/sidecar puller. SDK clients
-   automatically fail over via `X-Plinth-Primary-Region`.
+   automatically fail over via `X-Plynf-Primary-Region`.
 3. **multi-replica → multi-primary** (out of scope for v1.0):
-   you're now in conflict-resolution territory. Plinth doesn't
+   you're now in conflict-resolution territory. Plynf doesn't
    ship a CRDT layer; use Postgres + Aurora Global / Spanner, or
    shard tenants across regions.
 
@@ -136,7 +136,7 @@ Both Python and TypeScript SDKs accept region + fallback parameters:
 
 ```python
 # Python
-client = Plinth(
+client = Plynf(
     workspace_url="https://workspace.eu-west.plinth.example",
     gateway_url="https://gateway.eu-west.plinth.example",
     region="eu-west-1",
@@ -152,7 +152,7 @@ client = Plinth(
 
 ```ts
 // TypeScript — same surface, camelCase
-const client = new Plinth({
+const client = new Plynf({
     workspaceUrl: "https://workspace.eu-west.plinth.example",
     gatewayUrl: "https://gateway.eu-west.plinth.example",
     region: "eu-west-1",
@@ -169,8 +169,8 @@ const client = new Plinth({
 The SDK retries fallbacks in declared order on:
 - connection errors
 - 503 / 502 / 504 responses
-- 421 (Misdirected Request) + `X-Plinth-Primary-Region` /
-  `X-Plinth-Primary-URL` (read-replica redirect; 409 is also accepted
+- 421 (Misdirected Request) + `X-Plynf-Primary-Region` /
+  `X-Plynf-Primary-URL` (read-replica redirect; 409 is also accepted
   for backwards compatibility with pre-spec deployments)
 
 A warning is logged on every failover. The redirect retry is bounded:
@@ -178,7 +178,7 @@ each unique base URL is tried at most once per request, so a misconfigured
 pair of replicas can never produce an infinite loop. 4xx errors other than
 421 are NOT retried; they surface to the caller unchanged.
 
-When the response carries `X-Plinth-Primary-URL`, the SDK trusts it
+When the response carries `X-Plynf-Primary-URL`, the SDK trusts it
 **only** if its origin matches a configured candidate URL (the primary
 or a `fallback_*_urls` entry). A hostile replica can't redirect the SDK
 at an attacker-controlled host.
@@ -229,8 +229,8 @@ curl -s https://us.plinth.example/v1/regions | jq .mode
 # A write to the replica returns 421 with both redirect headers
 curl -i -X POST https://us.plinth.example/v1/workspaces -d '{"name":"x"}'
 # HTTP/2 421
-# X-Plinth-Primary-Region: eu-west-1
-# X-Plinth-Primary-URL: https://eu.plinth.example
+# X-Plynf-Primary-Region: eu-west-1
+# X-Plynf-Primary-URL: https://eu.plinth.example
 # Location: https://eu.plinth.example/v1/workspaces
 ```
 
@@ -254,10 +254,10 @@ primary_conninfo = 'host=primary.db.internal user=replicator password=...'
 ```
 
 Then set `PLINTH_DATABASE_URL` on the replica to the local Postgres
-read endpoint, and `PLINTH_REPLICATION_MODE=replica` on the Plinth
-service. Plinth's middleware redirects writes; Postgres handles the
+read endpoint, and `PLINTH_REPLICATION_MODE=replica` on the Plynf
+service. Plynf's middleware redirects writes; Postgres handles the
 data. Managed services (RDS, Cloud SQL, Aurora Global) automate the
-streaming setup — same Plinth config either way.
+streaming setup — same Plynf config either way.
 
 ## SQLite log-shipping recipe
 
@@ -303,11 +303,11 @@ When the primary region fails and you need to promote a replica:
 5. Update the other replicas' `PLINTH_REGION_PRIMARY_URL` to point
    at the new primary, restart their pullers.
 6. Update SDK clients' `region` and `fallback_regions` configs (or
-   trust the SDK's `X-Plinth-Primary-URL` redirect during the
+   trust the SDK's `X-Plynf-Primary-URL` redirect during the
    transition window).
 7. When the dead region comes back, bring it up as `replica` first;
    only re-promote after a manual cutover. **Never** boot two primaries
-   simultaneously — Plinth doesn't ship conflict resolution.
+   simultaneously — Plynf doesn't ship conflict resolution.
 
 ## Replication latency expectations
 
@@ -328,7 +328,7 @@ reads to the primary and use replicas only for failover.
   agent. Build your own (it's ~30 lines of curl).
 - **Multi-primary writes** — only one region can be `primary` at a time.
   Promotion is a manual operator action.
-- **Geo-DNS routing** — Plinth doesn't manage the DNS layer; that's
+- **Geo-DNS routing** — Plynf doesn't manage the DNS layer; that's
   your load balancer / Cloudflare / Route53 territory.
 - **Conflict resolution for concurrent writes** — there isn't any.
   v1.0 is single-primary-eventual-replica.

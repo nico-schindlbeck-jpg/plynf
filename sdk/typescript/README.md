@@ -1,6 +1,6 @@
-# `@plinth/sdk` — Plinth TypeScript SDK
+# `@plinth/sdk` — Plynf TypeScript SDK
 
-The official TypeScript / JavaScript client for [Plinth](../../README.md),
+The official TypeScript / JavaScript client for [Plynf](../../README.md),
 the agent-native runtime layer.
 
 > **TL;DR:** A versioned workspace + tool gateway + identity service,
@@ -13,9 +13,9 @@ npm install @plinth/sdk
 ```
 
 ```ts
-import { Plinth } from "@plinth/sdk";
+import { Plynf } from "@plinth/sdk";
 
-const client = new Plinth({ apiKey: "local-dev" });
+const client = new Plynf({ apiKey: "local-dev" });
 const ws = await client.workspace("research-task-1");
 await ws.kv.set("topic", "renewable energy");
 const result = await client.tools.invoke("web.fetch", { url: "mock://ipcc-2023" });
@@ -78,9 +78,9 @@ Spin up the services (see the project [README](../../README.md) for
 `make serve`), then:
 
 ```ts
-import { Plinth } from "@plinth/sdk";
+import { Plynf } from "@plinth/sdk";
 
-const client = new Plinth({
+const client = new Plynf({
   workspaceUrl: "http://localhost:7421",
   gatewayUrl:   "http://localhost:7422",
   identityUrl:  "http://localhost:7425",   // optional, v0.3
@@ -109,11 +109,11 @@ console.log(result.cached, result.duration_ms);
 
 ## Authentication
 
-In v0.3 Plinth ships an identity service that issues JWT capability
+In v0.3 Plynf ships an identity service that issues JWT capability
 tokens. The TypeScript SDK accepts the encoded token as `apiKey`:
 
 ```ts
-const bootstrap = new Plinth({
+const bootstrap = new Plynf({
   identityUrl: "http://localhost:7425",
   apiKey: "bootstrap-secret",
 });
@@ -125,7 +125,7 @@ const issued = await bootstrap.identity.issueToken({
 });
 
 // Use the scoped token for the actual agent client.
-const agent = new Plinth({
+const agent = new Plynf({
   workspaceUrl: "http://localhost:7421",
   gatewayUrl:   "http://localhost:7422",
   apiKey: issued.token,
@@ -435,7 +435,7 @@ Capability tokens live on a separate identity service (`port 7425`).
 Configure it via `identityUrl`:
 
 ```ts
-const client = new Plinth({
+const client = new Plynf({
   identityUrl: "http://localhost:7425",
   apiKey:      "bootstrap-token",
 });
@@ -487,7 +487,7 @@ try {
 
 ## Token counting
 
-Plinth ships with offline token counting via the `cl100k_base` BPE
+Plynf ships with offline token counting via the `cl100k_base` BPE
 encoding (the closest publicly available BPE to Anthropic's tokenizer).
 Backed by [`gpt-tokenizer`](https://www.npmjs.com/package/gpt-tokenizer).
 
@@ -590,7 +590,7 @@ try {
 ## Configuration reference
 
 ```ts
-new Plinth({
+new Plynf({
   workspaceUrl: "http://localhost:7421",
   gatewayUrl:   "http://localhost:7422",
   identityUrl:  "http://localhost:7425",   // optional, v0.3
@@ -648,4 +648,4 @@ dependencies are `vitest` and `@types/node`.
 
 ## License
 
-Apache-2.0 © The Plinth Authors
+Apache-2.0 © The Plynf Authors

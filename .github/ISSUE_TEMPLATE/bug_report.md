@@ -28,7 +28,7 @@ assignees: ''
 
 ## Environment
 
-- Plinth version: <!-- e.g. v1.1.0 or a commit hash -->
+- Plynf version: <!-- e.g. v1.1.0 or a commit hash -->
 - Component: <!-- workspace / gateway / SDK / etc. -->
 - OS / Python version: <!-- macOS 14 / Python 3.12 -->
 - Deployment: <!-- local / docker-compose / k8s -->

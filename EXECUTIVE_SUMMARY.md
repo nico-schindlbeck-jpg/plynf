@@ -1,6 +1,6 @@
 <div align="center">
 
-# Plinth — Executive Summary
+# Plynf — Executive Summary
 
 **The runtime where production AI agents actually work.**
 
@@ -12,7 +12,7 @@
 
 ## 1. The 30-Second Pitch
 
-**Plinth is the operating layer for AI agents — the equivalent of what AWS is to servers, what Stripe is to payments, what Vercel is to websites.** Today's agents are bolted onto interfaces designed for humans, which makes them slow, unreliable, and grossly expensive to run at scale. Plinth replaces that with a purpose-built substrate: a persistent workspace, a single tool gateway, and the coordination machinery teams need to run agents in production. The result, demonstrated and reproducible, is **71% fewer tokens** on real research workloads — without changing the underlying model.
+**Plynf is the operating layer for AI agents — the equivalent of what AWS is to servers, what Stripe is to payments, what Vercel is to websites.** Today's agents are bolted onto interfaces designed for humans, which makes them slow, unreliable, and grossly expensive to run at scale. Plynf replaces that with a purpose-built substrate: a persistent workspace, a single tool gateway, and the coordination machinery teams need to run agents in production. The result, demonstrated and reproducible, is **71% fewer tokens** on real research workloads — without changing the underlying model.
 
 ---
 
@@ -22,9 +22,9 @@ Anyone shipping AI agents in 2026 has met the same wall. The model is fine. The 
 
 That structural problem compounds with operational fragility. When an agent crashes mid-task, work is lost. When two agents need to collaborate, they hand each other walls of text. Every new external tool — GitHub, Slack, Linear, internal systems — needs its own bespoke authentication, error handling, retry logic, audit trail, cost tracking. Teams end up building the same plumbing five times, badly, before they ever get to differentiation.
 
-The honest measurement: in the headline benchmark, a five-source research task running without Plinth burns through 23,704 to 26,292 tokens depending on topic. The same task running on Plinth uses 6,795 to 7,601. That is a measured 71-72% reduction across three independent topics, run end-to-end, fully reproducible from a clean clone.
+The honest measurement: in the headline benchmark, a five-source research task running without Plynf burns through 23,704 to 26,292 tokens depending on topic. The same task running on Plynf uses 6,795 to 7,601. That is a measured 71-72% reduction across three independent topics, run end-to-end, fully reproducible from a clean clone.
 
-> **Agents today are wrappers around interfaces built for humans. That's quadratically expensive. Plinth makes the agent the first-class user.**
+> **Agents today are wrappers around interfaces built for humans. That's quadratically expensive. Plynf makes the agent the first-class user.**
 
 ---
 
@@ -89,11 +89,11 @@ Imagine you've hired a freelance researcher to write you a report. There are two
 
 **Way A — today's typical agent:** you keep them on a phone call the whole time. Every time they want to remember something, they read it back to you out loud. Every time they pick up a new source, they read it aloud again. By hour three, the call is enormous, every minute costs a fortune, and they've half-forgotten what they decided in hour one.
 
-**Way B — Plinth:** they have a desk. They put sources on the desk. They write notes in a notebook. When they want to refer to source three, they pick it up off the desk — they don't read it aloud again. The desk is still there tomorrow. If they get sick, a colleague can sit at the same desk and continue exactly where they left off.
+**Way B — Plynf:** they have a desk. They put sources on the desk. They write notes in a notebook. When they want to refer to source three, they pick it up off the desk — they don't read it aloud again. The desk is still there tomorrow. If they get sick, a colleague can sit at the same desk and continue exactly where they left off.
 
-Plinth is the desk, the notebook, and the filing cabinet for AI agents.
+Plynf is the desk, the notebook, and the filing cabinet for AI agents.
 
-### What happens when an agent runs through Plinth
+### What happens when an agent runs through Plynf
 
 1. **The agent opens its workspace.** A private space appears, scoped to this agent and tenant, ready to receive structured state.
 2. **The agent calls external tools through the gateway.** If the same call was made recently with the same arguments, the cached answer comes back instantly at zero cost. Otherwise the gateway authenticates, checks rate limits and cost caps, calls the real tool, and records the entire interaction.
@@ -118,7 +118,7 @@ A non-technical reader walks away with: *the agent reasoned about a small, focus
 | v0.7 | Multi-tenant SaaS posture — TypeScript worker harness, per-tenant quotas, admin UI | Next |
 | v1.0 | General availability — multi-region, compliance certifications, stable interface guarantees | Future |
 
-> **v1.0 is the moment Plinth becomes the obvious purchase order: a horizontally-scaled, certified, multi-region substrate that any team running production agents would rather rent than rebuild.**
+> **v1.0 is the moment Plynf becomes the obvious purchase order: a horizontally-scaled, certified, multi-region substrate that any team running production agents would rather rent than rebuild.**
 
 ---
 
@@ -126,7 +126,7 @@ A non-technical reader walks away with: *the agent reasoned about a small, focus
 
 Three forces converge in the next eighteen months. First, every serious team running agents in production hits the same wall — the quadratic-cost wall, the resilience wall, the integration wall — and most of them try to build their own substrate before realizing how much non-differentiating plumbing that involves. Second, the standard for tool exposure has stabilized, which means an independent platform can sit cleanly above the protocol layer rather than trying to define one. Third, as model prices fall and agents take on bigger jobs, total token spend per workload climbs — making efficiency gains the difference between a unit economics that work and one that doesn't.
 
-The strategic question is not whether teams will need this layer. They will. The question is who provides it. The three plausible answers: each team builds it themselves (expensive, half-finished, non-differentiating), a hyperscaler ships it tied to their own model (vendor-locked, slow to evolve), or an independent platform wins (model-agnostic, focused, the obvious choice). Plinth is built for the third outcome. The moat compounds with every integration shipped, every benchmark improved, every customer whose workflows live on the platform.
+The strategic question is not whether teams will need this layer. They will. The question is who provides it. The three plausible answers: each team builds it themselves (expensive, half-finished, non-differentiating), a hyperscaler ships it tied to their own model (vendor-locked, slow to evolve), or an independent platform wins (model-agnostic, focused, the obvious choice). Plynf is built for the third outcome. The moat compounds with every integration shipped, every benchmark improved, every customer whose workflows live on the platform.
 
 The commercial story at v1.0 is straightforward: a usage-priced, multi-tenant, hosted runtime — with a self-hosted option for regulated buyers. The proof of concept is in the repository today: 1,621 tests passing, five end-to-end demos, a 71% efficiency benchmark anyone can reproduce in five minutes, and six versions shipped without a single breaking change. The platform exists. The question is how fast we get it in front of the buyers who already feel the problem.
 

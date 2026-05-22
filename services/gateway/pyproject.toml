@@ -5,11 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "plinth-gateway"
 version = "0.1.0"
-description = "Plinth tool gateway — MCP proxy with caching, audit, auth"
+description = "Plynf tool gateway — MCP proxy with caching, audit, auth"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.11"
-authors = [{name = "The Plinth Authors"}]
+authors = [{name = "The Plynf Authors"}]
 dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",

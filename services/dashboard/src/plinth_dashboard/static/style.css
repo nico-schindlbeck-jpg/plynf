@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-/* Copyright 2026 The Plinth Authors */
+/* Copyright 2026 The Plynf Authors */
 
 :root {
   --bg: #fafafa;
@@ -1483,7 +1483,7 @@ main {
   margin: 2px 0;
 }
 
-/* ---- v1.5 Plinth Studio --------------------------------------------- */
+/* ---- v1.5 Plynf Studio --------------------------------------------- */
 
 .studio-head {
   display: flex;

@@ -1,9 +1,9 @@
-# RFC 9116 security.txt for plinth.dev
+# RFC 9116 security.txt for plynf.com
 # Tells researchers how to report vulnerabilities.
 
-Contact: mailto:security@plinth.dev
+Contact: mailto:security@plynf.com
 Expires: 2027-05-31T23:59:59Z
 Preferred-Languages: en, de
-Canonical: https://plinth.dev/.well-known/security.txt
-Policy: https://plinth.dev/security
+Canonical: https://plynf.com/.well-known/security.txt
+Policy: https://plynf.com/security
 Acknowledgments: https://github.com/nico-schindlbeck-jpg/plinth/security/advisories

@@ -1,7 +1,7 @@
 {
   "name": "@plinth/sdk",
   "version": "0.3.0",
-  "description": "Plinth TypeScript SDK — the agent-native runtime client",
+  "description": "Plynf TypeScript SDK — the agent-native runtime client",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",

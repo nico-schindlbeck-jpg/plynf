@@ -2,13 +2,13 @@
 
 - **Status**: Accepted
 - **Date**: 2026-05-05
-- **Deciders**: The Plinth Authors
+- **Deciders**: The Plynf Authors
 
 ## Context
 
-Plinth has two qualitatively different kinds of state:
+Plynf has two qualitatively different kinds of state:
 
-1. **Metadata** — workspace records, KV entries with versions, file entries with content references, snapshots, branches, tools, audit events, cache lookups. Small rows, transactional, queried by indexed columns. Plinth's contract correctness depends on these being ACID.
+1. **Metadata** — workspace records, KV entries with versions, file entries with content references, snapshots, branches, tools, audit events, cache lookups. Small rows, transactional, queried by indexed columns. Plynf's contract correctness depends on these being ACID.
 2. **Blobs** — file content bytes referenced from `FileEntry` rows. Potentially large (KBs to MBs to GBs), append-only, content-addressed by SHA256, never updated in place.
 
 These have completely different access and scaling profiles. Putting them in the same store would either underutilize blob storage (Postgres bytea is fine but expensive at scale) or under-protect metadata (object stores have no transactions). The decision is two-part: pick a metadata store and pick a blob store, picking each twice — once for v0.1 (zero-ops PoC), once for v1.0 (production scale).
@@ -43,7 +43,7 @@ The path between them is **incremental** — see Migration below.
 
 ### Positive
 
-- **Zero-ops dev loop.** SQLite plus a directory means `make install` works, tests are fast, single-binary distribution is plausible. Newcomers get a working Plinth in minutes without standing up Postgres.
+- **Zero-ops dev loop.** SQLite plus a directory means `make install` works, tests are fast, single-binary distribution is plausible. Newcomers get a working Plynf in minutes without standing up Postgres.
 - **Real prod scaling.** Postgres handles the metadata workload comfortably to multi-million workspaces and well past it. S3 handles blob volumes that would crush any single-DB store, and is independently scalable from the metadata tier.
 - **Storage is the right cost shape.** Blobs in S3-compatible storage are roughly $0.015/GB/month on R2; Postgres rows are sized for transactional metadata. A workspace with 100GB of files but 100K rows of KV/metadata is not weirdly priced.
 - **Independence of failure domains.** Postgres outage doesn't lose blobs; S3 hiccup doesn't corrupt metadata. A subtle thing — content-addressed blobs mean we can re-reference an existing blob from new metadata without re-uploading.

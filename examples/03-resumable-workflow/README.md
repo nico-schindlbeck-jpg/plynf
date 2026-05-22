@@ -71,7 +71,7 @@ cd examples/03-resumable-workflow
 python crash_resume.py --topic "renewable energy"
 ```
 
-When the workspace service is reachable the agent uses the real Plinth
+When the workspace service is reachable the agent uses the real Plynf
 SDK: `ws.workflows.create(...)`, `ws.snapshot(...)`,
 `wf.resume_info()`, `wf.complete_step(...)`. The crash + resume
 narrative is identical; the difference is that the workflow state and
@@ -158,8 +158,8 @@ python workflow_agent.py --workspace my-ws --topic "..."
   ─────────────────────────────────────────────
   Saved by resume:               12,672 tokens
 ═══════════════════════════════════════════════════════════════════
-  Without Plinth's resume: every crash means starting over from scratch.
-  With Plinth: ~34% of work avoided on resume.
+  Without Plynf's resume: every crash means starting over from scratch.
+  With Plynf: ~34% of work avoided on resume.
 ═══════════════════════════════════════════════════════════════════
 ```
 
@@ -201,7 +201,7 @@ re-attempted from the prior snapshot's state.
 
 In a 6-step pipeline, a crash on step 4 with no resume support means
 redoing the 3 prior steps' tokens. That's 80%+ wasted work in the
-extract-heavy pipeline this demo runs. With Plinth's snapshots: 0%
+extract-heavy pipeline this demo runs. With Plynf's snapshots: 0%
 wasted work on resume.
 
 ### 5. Production reliability story
@@ -215,7 +215,7 @@ either:
 - Implements its own bespoke crash-recovery (and inevitably gets it
   wrong in subtle ways).
 
-Plinth's workspace + workflows API is the missing primitive: a
+Plynf's workspace + workflows API is the missing primitive: a
 ready-made "checkpoint here, resume from here" abstraction that any
 agent can opt into for free.
 
@@ -264,7 +264,7 @@ examples/03-resumable-workflow/
 └── reports/             # JSON reports go here
 ```
 
-## Dependencies on Plinth APIs
+## Dependencies on Plynf APIs
 
 The agent uses the following SDK surfaces (all defined in
 [`CONTRACTS.md`](../../CONTRACTS.md)):

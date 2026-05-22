@@ -1,8 +1,8 @@
 #!/bin/sh
 # Plinth installer — Stufe 1 (one-liner)
 # Usage:
-#   curl -fsSL https://plinth.dev/install.sh | sh
-#   curl -fsSL https://plinth.dev/install.sh | sh -s -- --verbose
+#   curl -fsSL https://plynf.com/install.sh | sh
+#   curl -fsSL https://plynf.com/install.sh | sh -s -- --verbose
 #
 # Flags:
 #   --verbose          Print every step (default: quiet)
@@ -126,8 +126,8 @@ usage() {
     cat <<'EOF'
 Plinth installer — Stufe 1 (one-liner)
 Usage:
-  curl -fsSL https://plinth.dev/install.sh | sh
-  curl -fsSL https://plinth.dev/install.sh | sh -s -- --verbose
+  curl -fsSL https://plynf.com/install.sh | sh
+  curl -fsSL https://plynf.com/install.sh | sh -s -- --verbose
 
 Flags:
   --verbose          Print every step (default: quiet)

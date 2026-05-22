@@ -1,4 +1,4 @@
-# Plinth — Internal API Contracts
+# Plynf — Internal API Contracts
 
 > **For implementers**: This document is the source of truth for inter-service contracts. All services and SDKs MUST conform to it. If you must deviate, update this file FIRST and note it in your PR.
 
@@ -253,9 +253,9 @@ The fetch tool has built-in fixtures: URLs starting with `mock://` return canned
 ## SDK Surface (Python)
 
 ```python
-from plinth import Plinth
+from plinth import Plynf
 
-client = Plinth(
+client = Plynf(
     workspace_url="http://localhost:7421",
     gateway_url="http://localhost:7422",
     api_key="local-dev",
@@ -299,9 +299,9 @@ def my_agent(ctx, topic: str):
 Mirrors Python where ergonomic. Subset for v0.1:
 
 ```typescript
-import { Plinth } from "@plinth/sdk";
+import { Plynf } from "@plinth/sdk";
 
-const client = new Plinth({
+const client = new Plynf({
   workspaceUrl: "http://localhost:7421",
   gatewayUrl: "http://localhost:7422",
   apiKey: "local-dev",
@@ -791,7 +791,7 @@ Health: `GET /healthz`
 
 ```python
 # Authenticate
-client = Plinth(
+client = Plynf(
     workspace_url=...,
     gateway_url=...,
     identity_url="http://localhost:7425",
@@ -803,7 +803,7 @@ token = client.identity.issue_token(
     scopes=["tool:web.fetch:read", "workspace:my-task:write"],
     ttl_seconds=3600,
 )
-client_with_token = Plinth(workspace_url=..., gateway_url=..., api_key=token.token)
+client_with_token = Plynf(workspace_url=..., gateway_url=..., api_key=token.token)
 
 # OAuth (server-side)
 auth_url = client.gateway.oauth_authorize_url("github", redirect_uri="...", scopes=["repo"])
@@ -1043,7 +1043,7 @@ PLINTH_OAUTH_LINEAR_SCOPES="read,write"
 | `linear.update_issue` | Update title / description / state / labels |
 | `linear.comment_on_issue` | Add comment |
 
-Both servers behave identically to the GitHub MCP server: read OAuth bearer from forwarded `Authorization` header, return Plinth-shaped error envelopes.
+Both servers behave identically to the GitHub MCP server: read OAuth bearer from forwarded `Authorization` header, return Plynf-shaped error envelopes.
 
 ## Stack additions (v0.4)
 
@@ -1865,12 +1865,12 @@ PLINTH_REPLICATION_MODE=primary|replica|standalone
 ### Replication
 
 - Workspace + Identity: log-shipping for SQLite-based deployments (a periodic SQL dump streamed to peers); native streaming replication for Postgres.
-- Read-replicas accept GET-only requests; redirect mutating requests to primary with `X-Plinth-Primary-Region` header.
+- Read-replicas accept GET-only requests; redirect mutating requests to primary with `X-Plynf-Primary-Region` header.
 
 ### SDK addition
 
 ```python
-client = Plinth(
+client = Plynf(
     workspace_url="https://workspace.plinth.example",
     region="eu-west-1",                # SDK can route region-aware
     fallback_regions=["us-east-1"],    # automatic failover on 503/connection
@@ -1946,7 +1946,7 @@ A deprecation header on a deprecated endpoint:
 ```
 Deprecation: true
 Sunset: Wed, 01 May 2027 00:00:00 GMT
-Link: <https://docs.plinth.dev/api/v2/migration>; rel="alternate"
+Link: <https://docs.plynf.com/api/v2/migration>; rel="alternate"
 ```
 
 ## Production Deployment Artifacts
@@ -2210,9 +2210,9 @@ no longer need to bring their own LLM library. v1.2 ships:
 ## SDK surface
 
 ```python
-from plinth import Plinth, LLMMessage
+from plinth import Plynf, LLMMessage
 
-client = Plinth(api_key="local-dev")
+client = Plynf(api_key="local-dev")
 
 # Anthropic auto-configures from ANTHROPIC_API_KEY when no provider is
 # explicitly set; otherwise:
@@ -2510,7 +2510,7 @@ chosen conservatively to balance noise vs detection latency.
 ## SDK additions (Python)
 
 ```python
-client = Plinth(api_key="local-dev")
+client = Plynf(api_key="local-dev")
 
 # Per-agent cost rollup over the last 24h.
 report = client.gateway.cost_by_agent(window="24h", top=10)
@@ -2566,7 +2566,7 @@ flood of `info` anomalies on a busy gateway (most likely
 `anomaly.py` and redeploy the gateway — changes take effect on the
 next request after the 30-second cache TTL elapses.
 
-# v1.5 Additions — Workflow Visualization v2 + Plinth Studio MVP
+# v1.5 Additions — Workflow Visualization v2 + Plynf Studio MVP
 
 v1.5 ships two related dashboard chunks that build on the existing v1.0
 workflow viz: a historical *replay* view for any workflow, and a
@@ -2650,7 +2650,7 @@ either clobber the cursor position or flood the workspace with calls.
 Operators who want a live view click the **"live view"** link in the
 header which navigates to the existing `/workflows/{id}` route.
 
-## Plinth Studio MVP (Dashboard route `/studio`)
+## Plynf Studio MVP (Dashboard route `/studio`)
 
 A visual workflow builder. Three-pane layout:
 
@@ -2784,7 +2784,7 @@ failing the whole request.
 ## Python SDK additions
 
 ```python
-# Plinth Studio import — round-trips a JSON definition through the
+# Plynf Studio import — round-trips a JSON definition through the
 # workspace import endpoint and returns a WorkflowHandle ready for the
 # normal step lifecycle.
 wf = ws.workflows.import_definition({
@@ -2856,7 +2856,7 @@ write:confluence-content offline_access`.
 After token exchange the gateway calls
 `https://api.atlassian.com/oauth/token/accessible-resources` and stores the
 first workspace's `id` as `connection.metadata.cloudid`. The MCP server reads
-it from the `X-Plinth-OAuth-Cloudid` header that the gateway proxy forwards
+it from the `X-Plynf-OAuth-Cloudid` header that the gateway proxy forwards
 on every invoke and addresses Jira/Confluence via the
 `/ex/jira/{cloudid}/...` and `/ex/confluence/{cloudid}/wiki/...` routes.
 
@@ -2878,7 +2878,7 @@ scopes: `api refresh_token offline_access`.
 The token-exchange response includes `instance_url` (the per-org REST API
 base, e.g. `https://acme.my.salesforce.com`). The gateway captures this into
 `connection.metadata.instance_url` and forwards it as
-`X-Plinth-OAuth-InstanceUrl` on every proxied invoke. The MCP server reads
+`X-Plynf-OAuth-InstanceUrl` on every proxied invoke. The MCP server reads
 the header and uses it as the per-call API base
 (`{instance_url}/services/data/{api_version}/...`).
 
@@ -2921,8 +2921,8 @@ metadata mapping table is:
 
 | Provider | Connection metadata key | Outbound header           |
 |----------|-------------------------|---------------------------|
-| Atlassian | `cloudid`              | `X-Plinth-OAuth-Cloudid`  |
-| Salesforce | `instance_url`        | `X-Plinth-OAuth-InstanceUrl` |
+| Atlassian | `cloudid`              | `X-Plynf-OAuth-Cloudid`  |
+| Salesforce | `instance_url`        | `X-Plynf-OAuth-InstanceUrl` |
 
 Other providers emit no extra headers.
 

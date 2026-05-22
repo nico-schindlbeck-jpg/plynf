@@ -9,7 +9,7 @@ description = "Unified `plinth` CLI — ops, workflow, audit, tenant, and benchm
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.11"
-authors = [{name = "The Plinth Authors"}]
+authors = [{name = "The Plynf Authors"}]
 keywords = ["plinth", "cli", "ops", "agents", "mcp"]
 classifiers = [
     "Development Status :: 4 - Beta",

@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-# Plinth Tool Gateway — OpenAPI 3.1 specification
+# Plynf Tool Gateway — OpenAPI 3.1 specification
 openapi: 3.1.0
 info:
-  title: Plinth Tool Gateway
+  title: Plynf Tool Gateway
   version: 0.1.0
   description: |
     The Tool Gateway is the universal proxy for MCP / HTTP / GraphQL tools used by

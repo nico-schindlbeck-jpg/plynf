@@ -242,6 +242,6 @@ The "fail closed on audit failure" is the most aggressive of these. We considere
 - **Cache compression.** Result JSON for `web.fetch` of large pages bloats the cache table. zstd at the boundary is a one-line addition once we measure that it matters.
 - **Per-tenant cache partitioning.** The cache is logically global today. With multi-tenant (ADR 0006), do we share cache across tenants for the same `(tool_id, args)`? Sharing is more efficient but reveals "another tenant fetched this URL" via timing. Default to per-tenant; offer opt-in sharing for non-sensitive tools.
 - **Cryptographic audit chaining.** Spec'd above; implementation is post-v0.1.
-- **MCP-spec extension.** `cache_ttl`, `idempotent`, `side_effects` are Plinth-specific tool metadata today. ADR 0003 covers our intent to upstream these to MCP.
+- **MCP-spec extension.** `cache_ttl`, `idempotent`, `side_effects` are Plynf-specific tool metadata today. ADR 0003 covers our intent to upstream these to MCP.
 
 For the API surface, see `CONTRACTS.md` §Gateway API. For why MCP at all, see ADR 0003. For the auth tiers, see arch doc 06 and ADR 0006.

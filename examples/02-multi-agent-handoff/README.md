@@ -2,7 +2,7 @@
 
 > Three agents — **Researcher → Writer → Reviewer** — collaborate on a
 > single research-and-write task, with structured handoffs through
-> Plinth's **Channels** primitive. Same workspace, three roles, one
+> Plynf's **Channels** primitive. Same workspace, three roles, one
 > auditable pipeline.
 
 ## What this demo does
@@ -120,7 +120,7 @@ each create one, and the messages won't reach the right one.
 
 ```
 ═══════════════════════════════════════════════════════════════════
-  PLINTH MULTI-AGENT PIPELINE — topic: 'renewable energy'
+  PLYNF MULTI-AGENT PIPELINE — topic: 'renewable energy'
 ═══════════════════════════════════════════════════════════════════
   Workspace : pipeline-renewable-energy-17FE58AFC719
   Workspace ID: ws_01KQY17P2RYPHH60PZ5VAW056Q

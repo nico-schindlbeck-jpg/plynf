@@ -1,6 +1,6 @@
-# Plinth Linear MCP Server
+# Plynf Linear MCP Server
 
-A minimal MCP-style server that wraps Linear's GraphQL API for use with Plinth
+A minimal MCP-style server that wraps Linear's GraphQL API for use with Plynf
 agents. Runs at `http://localhost:7428` by default.
 
 ## What it does
@@ -16,7 +16,7 @@ Exposes five tools that mirror the Linear GraphQL surface most agents need:
 | `linear.comment_on_issue`  | write        | Post a comment on an issue                            |
 
 Every tool advertises `auth_method=oauth2` with `auth_config.provider="linear"`
-in its metadata, so the Plinth gateway knows to inject the user's Linear token
+in its metadata, so the Plynf gateway knows to inject the user's Linear token
 on each call.
 
 ## Auth
@@ -24,11 +24,11 @@ on each call.
 This server **never holds the Linear access token**. The gateway forwards the
 user's bearer token via the `Authorization` header on each `POST /invoke/...`
 call; the tools then forward the same token to Linear's GraphQL endpoint. If
-the header is missing or unparseable, the server returns 401 with a Plinth
+the header is missing or unparseable, the server returns 401 with a Plynf
 error envelope.
 
 GraphQL errors (`errors` array in the response body) are translated into a
-Plinth error envelope. Authentication-class errors (`extensions.code` of
+Plynf error envelope. Authentication-class errors (`extensions.code` of
 `AUTHENTICATION_ERROR`/`UNAUTHENTICATED`, or messages mentioning
 "authentication") map to HTTP 401 / `UNAUTHORIZED`.
 
@@ -71,7 +71,7 @@ Env vars (prefix `PLINTH_LINEAR_MCP_`, all optional):
 1. Go to <https://linear.app/settings/api/applications>.
 2. Click **Create new application**.
 3. Set the **Redirect URLs** to
-   `http://localhost:7422/v1/oauth/linear/callback` (or whatever your Plinth
+   `http://localhost:7422/v1/oauth/linear/callback` (or whatever your Plynf
    gateway's `PLINTH_OAUTH_LINEAR_REDIRECT_URI` is set to).
 4. Request the scopes you need — at minimum `read` and `write`.
 5. Copy the **Client ID** and **Client secret**.

@@ -1,6 +1,6 @@
 # plinth-dashboard
 
-The **Dashboard service** for [Plinth](../../README.md) — a small
+The **Dashboard service** for [Plynf](../../README.md) — a small
 FastAPI service that serves a single-page, read-only HTML/JS app showing
 workspaces, channels, workflows, audit log, and cost rollups by polling
 the workspace + gateway services.

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Plinth — dev overlay.
+# Plynf — dev overlay.
 #
 # - 1 replica per service (default)
 # - SQLite-backed (no Postgres)
@@ -19,7 +19,7 @@ resources:
 
 commonLabels:
   app.kubernetes.io/instance: plinth-dev
-  app.plinth.dev/environment: dev
+  app.plynf.com/environment: dev
 
 # Patch all deployments to log at DEBUG.
 patches:

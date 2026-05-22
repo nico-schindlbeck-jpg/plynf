@@ -1,10 +1,10 @@
 [project]
 name = "plinth"
 version = "0.1.0"
-description = "Plinth Python SDK — the agent-native runtime client"
+description = "Plynf Python SDK — the agent-native runtime client"
 readme = "README.md"
 license = {text = "Apache-2.0"}
-authors = [{name = "The Plinth Authors"}]
+authors = [{name = "The Plynf Authors"}]
 requires-python = ">=3.11"
 keywords = ["ai", "agents", "mcp", "tools", "workspace", "llm"]
 classifiers = [

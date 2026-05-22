@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Plinth — Overview</title>
+<title>Plynf — Overview</title>
 <style>
   /* ============================================================
-     Page setup — A4 portrait, dark theme matching plinth.dev
+     Page setup — A4 portrait, dark theme matching plynf.com
      ============================================================ */
   @page {
     size: A4;
@@ -342,7 +342,7 @@
           </defs>
           <path d="M5 17 L8 9 L12 6 L17 6 L20 11 L20 17 Z" fill="url(#rock)" stroke="#1d1f29" stroke-width="0.6" stroke-linejoin="round"/>
         </svg>
-        <span class="brand">Plinth</span>
+        <span class="brand">Plynf</span>
       </div>
     </div>
 
@@ -354,7 +354,7 @@
 
     <div class="cover-meta">
       <span>v1.7 · API v1 stable · Apache 2.0</span>
-      <span>plinth.dev</span>
+      <span>plynf.com</span>
     </div>
   </div>
 </section>
@@ -364,7 +364,7 @@
      ============================================================ -->
 <section class="page">
   <p class="eyebrow">The 60-second story</p>
-  <h2>What Plinth is, in plain English.</h2>
+  <h2>What Plynf is, in plain English.</h2>
   <p class="lead">Imagine you hired a freelance researcher to write you a report. Two ways to manage them.</p>
 
   <div class="divider"></div>
@@ -381,20 +381,20 @@
       <p class="eyebrow">Way B</p>
       <h3 class="ink">The desk</h3>
       <p>You give them a desk. They put notes down, pick them up, file research, label folders, bookmark pages. When they need something, they look it up. The desk has drawers. The drawers have labels. Three hours in, the desk has structure, and they remember what they decided in hour one because it is written on the desk.</p>
-      <p class="mono" style="color: var(--accent); font-size: 8pt; margin-top: 4mm;">→ This is Plinth.</p>
+      <p class="mono" style="color: var(--accent); font-size: 8pt; margin-top: 4mm;">→ This is Plynf.</p>
     </div>
   </div>
 
   <div class="divider"></div>
 
-  <p>Plinth is the desk for AI agents. It is the part of the system that holds onto what the agent has learned, fetched, and decided — so the agent doesn't have to keep saying it out loud, over and over, to itself.</p>
+  <p>Plynf is the desk for AI agents. It is the part of the system that holds onto what the agent has learned, fetched, and decided — so the agent doesn't have to keep saying it out loud, over and over, to itself.</p>
 
   <p>The phone-call problem is not theoretical. A naive 10-step research workflow sends the entire prior conversation back to the model with every step. By step 10 you're paying ten times what step one cost, every time. The bill scales with the square of the work — which is why most "production agents" are actually three-step demos that fall over the moment you ask them to do something serious.</p>
 
-  <p>Plinth replaces the phone-call architecture with the desk architecture. <span class="ink">Same agent, same model, same output. About 71% fewer tokens.</span> Measured, not marketed.</p>
+  <p>Plynf replaces the phone-call architecture with the desk architecture. <span class="ink">Same agent, same model, same output. About 71% fewer tokens.</span> Measured, not marketed.</p>
 
   <div class="page-footer">
-    <span>Plinth · Overview</span>
+    <span>Plynf · Overview</span>
     <span>02</span>
   </div>
 </section>
@@ -479,7 +479,7 @@
   </div>
 
   <div class="page-footer">
-    <span>Plinth · Overview</span>
+    <span>Plynf · Overview</span>
     <span>03</span>
   </div>
 </section>
@@ -517,7 +517,7 @@
   <div class="card" style="margin-top: 6mm;">
     <p class="eyebrow muted">Concrete example · 30 PDFs research task</p>
     <table class="compare">
-      <thead><tr><th>Step</th><th>Chat-history way</th><th>Plinth way</th></tr></thead>
+      <thead><tr><th>Step</th><th>Chat-history way</th><th>Plynf way</th></tr></thead>
       <tbody>
         <tr>
           <td><span class="mono">1</span> Fetch all PDFs</td>
@@ -549,7 +549,7 @@
   </div>
 
   <div class="page-footer">
-    <span>Plinth · Overview</span>
+    <span>Plynf · Overview</span>
     <span>04</span>
   </div>
 </section>
@@ -565,9 +565,9 @@
   <div class="divider"></div>
 
   <div class="code"><span class="c"># Python · the canonical SDK</span>
-<span class="k">from</span> <span class="v">plinth</span> <span class="k">import</span> Plinth
+<span class="k">from</span> <span class="v">plinth</span> <span class="k">import</span> Plynf
 
-<span class="v">client</span> = <span class="f">Plinth</span>(
+<span class="v">client</span> = <span class="f">Plynf</span>(
     workspace_url=<span class="s">"http://localhost:7421"</span>,
     gateway_url=<span class="s">"http://localhost:7422"</span>,
     api_key=<span class="s">"local-dev"</span>,
@@ -606,7 +606,7 @@ ws.<span class="f">snapshot</span>(<span class="s">"sources-collected"</span>)  
   </div>
 
   <div class="page-footer">
-    <span>Plinth · Overview</span>
+    <span>Plynf · Overview</span>
     <span>05</span>
   </div>
 </section>
@@ -637,9 +637,9 @@ ws.<span class="f">snapshot</span>(<span class="s">"sources-collected"</span>)  
     <text x="22" y="132" font-family="Inter" font-size="8" class="label-secondary">Python · TS · Go</text>
     <text x="22" y="143" font-family="Inter" font-size="8" class="label-secondary">Swift · Kotlin</text>
 
-    <!-- Plinth core -->
+    <!-- Plynf core -->
     <rect x="170" y="30" width="200" height="180" rx="10" fill="rgba(255,255,255,0.025)" stroke="rgba(255,133,81,0.42)"/>
-    <text x="182" y="48" font-family="Inter" font-size="8" font-weight="600" fill="#ff8551" letter-spacing="1.5">PLINTH</text>
+    <text x="182" y="48" font-family="Inter" font-size="8" font-weight="600" fill="#ff8551" letter-spacing="1.5">PLYNF</text>
 
     <!-- workspace -->
     <rect x="182" y="62" width="176" height="38" rx="6" fill="rgba(255,133,81,0.06)" stroke="rgba(255,133,81,0.32)"/>
@@ -704,7 +704,7 @@ ws.<span class="f">snapshot</span>(<span class="s">"sources-collected"</span>)  
       <p style="font-size: 9pt;">SDK in five languages. One call, no glue code.</p>
     </div>
     <div>
-      <p class="eyebrow" style="color: var(--accent);">Plinth runtime</p>
+      <p class="eyebrow" style="color: var(--accent);">Plynf runtime</p>
       <p style="font-size: 9pt;">Workspace + Gateway + Identity. All replaceable.</p>
     </div>
     <div>
@@ -714,7 +714,7 @@ ws.<span class="f">snapshot</span>(<span class="s">"sources-collected"</span>)  
   </div>
 
   <div class="page-footer">
-    <span>Plinth · Overview</span>
+    <span>Plynf · Overview</span>
     <span>06</span>
   </div>
 </section>
@@ -774,18 +774,18 @@ ws.<span class="f">snapshot</span>(<span class="s">"sources-collected"</span>)  
     <div>
       <p class="eyebrow muted">Self-hosted</p>
       <div class="code" style="font-size: 9pt;"><span class="c"># macOS · Linux</span>
-<span class="v">$</span> curl -fsSL https://plinth.dev/install.sh | sh
+<span class="v">$</span> curl -fsSL https://plynf.com/install.sh | sh
 
 <span class="c"># Dashboard opens at http://localhost:7420</span></div>
     </div>
     <div>
       <p class="eyebrow muted">Cloud (when ready)</p>
-      <p style="font-size: 9pt;">Sign up at <span class="mono accent">plinth.dev/signup</span>, create your first workspace, paste your LLM key, run the sample task. Five minutes to a working demo with token-cost numbers you can take to your CTO.</p>
+      <p style="font-size: 9pt;">Sign up at <span class="mono accent">plynf.com/signup</span>, create your first workspace, paste your LLM key, run the sample task. Five minutes to a working demo with token-cost numbers you can take to your CTO.</p>
     </div>
   </div>
 
   <div class="page-footer">
-    <span>Plinth · Overview</span>
+    <span>Plynf · Overview</span>
     <span>07</span>
   </div>
 </section>
@@ -804,7 +804,7 @@ ws.<span class="f">snapshot</span>(<span class="s">"sources-collected"</span>)  
       <p class="eyebrow" style="color: var(--accent);">For everyone</p>
       <h3>Read the manifesto.</h3>
       <p>Three pages on why agents deserve their own runtime, written for product people who don't want to learn what a vector store is.</p>
-      <p class="mono" style="color: var(--accent); margin-top: 3mm;">plinth.dev/manifesto</p>
+      <p class="mono" style="color: var(--accent); margin-top: 3mm;">plynf.com/manifesto</p>
     </div>
 
     <div class="card">
@@ -817,8 +817,8 @@ ws.<span class="f">snapshot</span>(<span class="s">"sources-collected"</span>)  
     <div class="card">
       <p class="eyebrow" style="color: var(--indigo);">For teams</p>
       <h3>Talk to us.</h3>
-      <p>If you're running production agents and the bill is climbing, we'd like to hear what's on fire. We run a 30-minute call, you share traces, we tell you honestly whether Plinth helps. No deck.</p>
-      <p class="mono" style="color: var(--indigo); margin-top: 3mm;">hello@plinth.dev</p>
+      <p>If you're running production agents and the bill is climbing, we'd like to hear what's on fire. We run a 30-minute call, you share traces, we tell you honestly whether Plynf helps. No deck.</p>
+      <p class="mono" style="color: var(--indigo); margin-top: 3mm;">hello@plynf.com</p>
     </div>
   </div>
 
@@ -833,7 +833,7 @@ ws.<span class="f">snapshot</span>(<span class="s">"sources-collected"</span>)  
           <path d="M5 17 L8 9 L12 6 L17 6 L20 11 L20 17 Z" fill="url(#rock2)" stroke="#1d1f29" stroke-width="0.6" stroke-linejoin="round"/>
         </svg>
         <div>
-          <div class="brand">Plinth</div>
+          <div class="brand">Plynf</div>
           <div style="font-family: 'JetBrains Mono', monospace; font-size: 7.5pt; color: var(--ink-3); letter-spacing: 0.1em;">The runtime where production AI agents actually work.</div>
         </div>
       </div>
@@ -842,7 +842,7 @@ ws.<span class="f">snapshot</span>(<span class="s">"sources-collected"</span>)  
   </div>
 
   <div class="page-footer">
-    <span>Plinth · Overview</span>
+    <span>Plynf · Overview</span>
     <span>08</span>
   </div>
 </section>

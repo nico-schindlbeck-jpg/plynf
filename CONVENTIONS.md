@@ -1,4 +1,4 @@
-# Plinth — Development Conventions
+# Plynf — Development Conventions
 
 > **For implementers**: Read this before opening a PR. These conventions are non-negotiable for v0.1.
 
@@ -97,7 +97,7 @@ All services accept config via env vars, prefix `PLINTH_`. Examples:
 
 ```python
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 The Plinth Authors
+# Copyright 2026 The Plynf Authors
 ```
 
 (TypeScript files: same as JSDoc comment at top.)

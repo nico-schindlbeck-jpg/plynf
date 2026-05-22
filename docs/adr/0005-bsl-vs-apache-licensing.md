@@ -2,11 +2,11 @@
 
 - **Status**: Accepted
 - **Date**: 2026-05-05
-- **Deciders**: The Plinth Authors
+- **Deciders**: The Plynf Authors
 
 ## Context
 
-Plinth is open-source by design. The choice of *which* open-source license is a strategic decision with significant downstream consequences for adoption, community, monetisation, and competitive defensibility against hyperscalers.
+Plynf is open-source by design. The choice of *which* open-source license is a strategic decision with significant downstream consequences for adoption, community, monetisation, and competitive defensibility against hyperscalers.
 
 The recurring pattern in our space:
 
@@ -19,8 +19,8 @@ We have to pick our license posture *before* we have a hyperscaler problem, beca
 The constraints in our case:
 
 - **SDK adoption depends on permissive licensing.** Engineers will refuse a non-permissive SDK on the grounds that it might infect their own code's license. Adoption blockers here kill us.
-- **Self-hosters are the right default audience for v0.1.** People should be able to clone the repo, run Plinth on their infra, modify it, and ship products on top — without lawyers in the loop.
-- **A future managed offering is in our roadmap.** Plinth as substrate-as-a-service is a plausible business model. We should not paint ourselves into a corner where AWS can ship "Amazon Plinth" and capture the commercial value while we maintain the code.
+- **Self-hosters are the right default audience for v0.1.** People should be able to clone the repo, run Plynf on their infra, modify it, and ship products on top — without lawyers in the loop.
+- **A future managed offering is in our roadmap.** Plynf as substrate-as-a-service is a plausible business model. We should not paint ourselves into a corner where AWS can ship "Amazon Plynf" and capture the commercial value while we maintain the code.
 - **Customer trust requires source availability.** Enterprise buyers want the source even if they don't intend to fork. They want to audit it, fork it if we go away, and modify it if needed. A closed-source v1.0 is not credible.
 
 The licensing options that fit:
@@ -40,7 +40,7 @@ Specifically:
 - v0.1 (the PoC, this codebase as it stands): **all Apache 2.0**, declared at the repo root and per-package. This is the license under which the docs you are reading were written.
 - The split at v1.0:
   - `sdk/python`, `sdk/typescript`: **stay Apache 2.0 forever.** SDKs are user-facing code; permissive licensing here is non-negotiable for adoption.
-  - `services/workspace`, `services/gateway`, `services/identity`, `services/workflow` (the production-runtime services): **become BSL 1.1** with an Additional Use Grant permitting non-commercial use, internal use, and any use that does not constitute "offering Plinth as a managed service". Each release converts to Apache 2.0 four years after that release.
+  - `services/workspace`, `services/gateway`, `services/identity`, `services/workflow` (the production-runtime services): **become BSL 1.1** with an Additional Use Grant permitting non-commercial use, internal use, and any use that does not constitute "offering Plynf as a managed service". Each release converts to Apache 2.0 four years after that release.
   - `mock-mcp-server`, `examples/`, `docs/`: **stay Apache 2.0 forever.** These are reference material.
 - Specs (`specs/openapi`, `specs/proto`, `specs/schemas`): **stay Apache 2.0 forever**, plus an explicit grant that they may be implemented by anyone in any license. The protocol must be free; the implementation can be BSL.
 - Existing v0.1 contributions remain Apache 2.0 in perpetuity. The BSL change applies forward, not retroactively. We document a clear release note when the change happens.
@@ -52,10 +52,10 @@ Contributor License Agreement: we'll require a lightweight CLA from contributors
 ### Positive
 
 - **No adoption friction at v0.1.** Today's audience is engineers building agent prototypes. Apache everything means zero legal questions.
-- **Permissive SDKs forever.** The most-adopted surface of Plinth (the SDKs, especially Python and TS) will never have a license question. This is critical for embedding in customer codebases.
-- **BSL preserves the option of a commercial managed service.** When/if we offer hosted Plinth, hyperscalers can't trivially copy our service. This is the same playbook MariaDB, CockroachDB, and Sentry use, with documented success.
+- **Permissive SDKs forever.** The most-adopted surface of Plynf (the SDKs, especially Python and TS) will never have a license question. This is critical for embedding in customer codebases.
+- **BSL preserves the option of a commercial managed service.** When/if we offer hosted Plynf, hyperscalers can't trivially copy our service. This is the same playbook MariaDB, CockroachDB, and Sentry use, with documented success.
 - **4-year Apache transition is honest.** Old releases become permissive after 4 years. We're not pretending to be open-source forever while keeping a hostage; we're saying "we get 4 years of head start on each release, then it's free for anyone".
-- **Spec independence.** Anyone can build a Plinth-compatible service. The protocol is permissive even when the implementation isn't. This matters for ecosystem trust.
+- **Spec independence.** Anyone can build a Plynf-compatible service. The protocol is permissive even when the implementation isn't. This matters for ecosystem trust.
 
 ### Negative / Trade-offs
 
@@ -63,8 +63,8 @@ Contributor License Agreement: we'll require a lightweight CLA from contributors
 - **BSL is not OSI-approved.** Some buyers have policies that reject "non-OSI-approved" licenses. We accept this; the alternative (Apache forever for the production runtime) means tolerating hyperscaler appropriation. We can grant individual customers under custom commercial terms when policy is the blocker.
 - **Two-license repository complexity.** Maintaining "this directory is BSL, this is Apache" in a single repo is operationally fiddly. We will use SPDX headers per file and a top-level NOTICE that maps directories to licenses. CI checks reject mismatched headers.
 - **Contributor friction post-v1.0.** A CLA for production-runtime contributions is unusual in the agent-tooling ecosystem. Some developers won't sign a CLA on principle. We accept that some contributors will only contribute to SDKs (which is fine — that's where most contributions go anyway in our space).
-- **Forks are still possible.** A community fork at the last Apache-licensed v1.0-pre release is a real risk. We mitigate by making the BSL terms reasonable (the Additional Use Grant is generous, only the SaaS-of-Plinth case is restricted).
-- **Reputational risk in the OSS community.** Plinth would publicly join the "company that relicensed" club. We accept this; the precedents (MariaDB, CockroachDB, Sentry) survived and remain credible. Operations like Elastic's relicensing show how to do it badly; we'll study and not repeat.
+- **Forks are still possible.** A community fork at the last Apache-licensed v1.0-pre release is a real risk. We mitigate by making the BSL terms reasonable (the Additional Use Grant is generous, only the SaaS-of-Plynf case is restricted).
+- **Reputational risk in the OSS community.** Plynf would publicly join the "company that relicensed" club. We accept this; the precedents (MariaDB, CockroachDB, Sentry) survived and remain credible. Operations like Elastic's relicensing show how to do it badly; we'll study and not repeat.
 
 ## Alternatives Considered
 
@@ -72,7 +72,7 @@ Contributor License Agreement: we'll require a lightweight CLA from contributors
 
 The most permissive, most adoption-friendly option. Why we don't pick it for v1.0:
 
-- **AWS-rebrands-Plinth scenario.** A hyperscaler can wrap our services, brand them, and sell them. We get nothing for a software stack we maintain.
+- **AWS-rebrands-Plynf scenario.** A hyperscaler can wrap our services, brand them, and sell them. We get nothing for a software stack we maintain.
 - The companies that have stayed Apache (Kubernetes, Postgres, Linux) are all backed by foundations or have multiple commercial sponsors. We are a small startup; the same posture isn't tenable for us.
 
 ### MIT for everything
@@ -105,7 +105,7 @@ Considered briefly. Rejected because enterprise buyers want the source for self-
 
 ### Dual licensing (Apache + commercial)
 
-Some projects publish under Apache and offer commercial licenses for specific features. Considered. The challenge: most commercially-relevant features in Plinth (multi-tenancy, identity, observability) are platform-wide concerns, not optional add-ons we can license separately. The dual-license model works better for things like database-engine plugins. Not a fit.
+Some projects publish under Apache and offer commercial licenses for specific features. Considered. The challenge: most commercially-relevant features in Plynf (multi-tenancy, identity, observability) are platform-wide concerns, not optional add-ons we can license separately. The dual-license model works better for things like database-engine plugins. Not a fit.
 
 ## Notes / Links
 

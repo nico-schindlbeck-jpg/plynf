@@ -1,16 +1,16 @@
 ---
 title: Overview
-description: A two-page intro to Plinth — what it is, what state it's in, and how it works.
+description: A two-page intro to Plynf — what it is, what state it's in, and how it works.
 section: overview
 order: 1
 sourceFile: OVERVIEW.md
 ---
 
-A two-page intro for anyone who wants to understand what Plinth is, what state it's in, and how it works — without needing to read code.
+A two-page intro for anyone who wants to understand what Plynf is, what state it's in, and how it works — without needing to read code.
 
 ## TL;DR
 
-**Plinth is the runtime where production AI agents actually work.** Today's AI agents are wrapped around interfaces designed for humans — clicking buttons, parsing screenshots, re-reading the same content from chat history every step. That's slow, expensive, and brittle. Plinth flips the model: the **agent** becomes the first-class user of dedicated infrastructure.
+**Plynf is the runtime where production AI agents actually work.** Today's AI agents are wrapped around interfaces designed for humans — clicking buttons, parsing screenshots, re-reading the same content from chat history every step. That's slow, expensive, and brittle. Plynf flips the model: the **agent** becomes the first-class user of dedicated infrastructure.
 
 **Six things it gives every agent that runs on it:**
 
@@ -21,7 +21,7 @@ A two-page intro for anyone who wants to understand what Plinth is, what state i
 5. **Production safety** — JWT-based authentication, per-agent rate limits, cost ceilings, atomic transactions with rollback, schema validation, dead-letter queues.
 6. **Observability** — every action is auditable, every cost is attributable, performance is benchmarked.
 
-**Headline result:** A typical 5-source research task uses **71% fewer tokens** with Plinth than without — measured precisely, reproducible offline, three different topics. Not a theoretical claim, it's in the repo as a runnable demo.
+**Headline result:** A typical 5-source research task uses **71% fewer tokens** with Plynf than without — measured precisely, reproducible offline, three different topics. Not a theoretical claim, it's in the repo as a runnable demo.
 
 ## Current build status
 
@@ -64,9 +64,9 @@ Imagine you've hired a freelance researcher to write you a report. Two ways to m
 
 **Way A (today's typical agent):** You're on a phone call with them the whole time. Every time they want to remember something, they have to repeat it back to you in the conversation. Every time they pick up a new source, they read it aloud again. Every step, you're paying for the full conversation history. By hour three, the call costs are insane and they've forgotten what was decided in hour one.
 
-**Way B (Plinth):** They have a desk. They put sources on the desk. They write notes in a notebook. When they want to refer to source 3, they pick it up off the desk — they don't read it aloud again. When they finish for the day, the desk is still there tomorrow. If they get sick, a colleague can sit at the same desk and pick up exactly where they left off.
+**Way B (Plynf):** They have a desk. They put sources on the desk. They write notes in a notebook. When they want to refer to source 3, they pick it up off the desk — they don't read it aloud again. When they finish for the day, the desk is still there tomorrow. If they get sick, a colleague can sit at the same desk and pick up exactly where they left off.
 
-Plinth is the desk + notebook + filing cabinet for AI agents.
+Plynf is the desk + notebook + filing cabinet for AI agents.
 
 ### What happens when an agent runs
 
@@ -86,11 +86,11 @@ Six things happen behind the scenes for every meaningful agent action:
 
 The whole platform exists because of one number: **agent context size grows quadratically with steps if you do it naively.** Each new reasoning step inflates the prompt with everything that came before. By step ten, you're paying ~10× more per token than at step one.
 
-Plinth structurally prevents that. State lives in the workspace, referenced by key. Each reasoning step gets a focused, small prompt. The token bill stays *linear* in actual reasoning work, not quadratic in conversation history.
+Plynf structurally prevents that. State lives in the workspace, referenced by key. Each reasoning step gets a focused, small prompt. The token bill stays *linear* in actual reasoning work, not quadratic in conversation history.
 
 Measured across three real research topics:
 
-| Topic | Without Plinth | With Plinth | Saved |
+| Topic | Without Plynf | With Plynf | Saved |
 |-------|---------------:|------------:|------:|
 | renewable energy | 23,704 tokens / $0.0810 | 6,795 tokens / $0.0345 | **71.3 %** |
 | ai agents | 25,329 / $0.0858 | 7,092 / $0.0348 | **72.0 %** |
@@ -113,7 +113,7 @@ open http://localhost:7424/   # web dashboard
 
 ## What it is *not*
 
-- **Not a model.** Plinth is model-agnostic. You bring your own (Anthropic, OpenAI, local). It just handles everything around it.
+- **Not a model.** Plynf is model-agnostic. You bring your own (Anthropic, OpenAI, local). It just handles everything around it.
 - **Not an agent framework.** It doesn't tell you how to write an agent's reasoning loop. It gives you the substrate the agent runs on.
 - **Not a single point of failure.** Workspace, Gateway, Identity, MCP servers, Workers all run as separate processes. Any can be replicated, replaced, or scaled independently.
 
@@ -123,6 +123,6 @@ open http://localhost:7424/   # web dashboard
 |-----------------|------|
 | Run it yourself | [Quickstart](/docs/quickstart) |
 | Understand the architecture | [Architecture](/docs/architecture) |
-| Strategic thesis | [Why Plinth](/why) |
+| Strategic thesis | [Why Plynf](/why) |
 | API surface | `CONTRACTS.md` in the repo |
 | Production posture | [SLOs](/docs/slos), [Threat model](/docs/threat-model), [Compliance](/docs/compliance) |

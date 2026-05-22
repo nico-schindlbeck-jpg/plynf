@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Plinth — base kustomization.
+# Plynf — base kustomization.
 #
 # Apply directly with:
 #   kubectl apply -k deploy/k8s/

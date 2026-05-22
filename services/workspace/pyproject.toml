@@ -1,12 +1,12 @@
 [project]
 name = "plinth-workspace"
 version = "0.1.0"
-description = "Plinth workspace service — versioned KV + file storage for AI agents"
+description = "Plynf workspace service — versioned KV + file storage for AI agents"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.11"
 authors = [
-    {name = "The Plinth Authors"},
+    {name = "The Plynf Authors"},
 ]
 dependencies = [
     "fastapi>=0.110",

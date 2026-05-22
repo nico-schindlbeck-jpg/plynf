@@ -1,6 +1,6 @@
 # Architecture overview
 
-This diagram shows the runtime topology of Plinth at v0.1 plus the post-v0.1
+This diagram shows the runtime topology of Plynf at v0.1 plus the post-v0.1
 extensions sketched in `ARCHITECTURE.md`. Solid boxes ship in v0.1; dashed
 boxes are stubs scheduled for v0.2.
 
@@ -17,9 +17,9 @@ flowchart LR
     classDef external fill:#f5f5f5,stroke:#444,color:#222,stroke-width:1.2px;
 
     Agent["Agent code\n(Python / TypeScript)"]:::external
-    SDK["Plinth SDK\n@plinth/sdk · plinth"]:::shipped
+    SDK["Plynf SDK\n@plinth/sdk · plinth"]:::shipped
 
-    subgraph Services["Plinth services"]
+    subgraph Services["Plynf services"]
         Workspace["Workspace API\n:7421\nFastAPI"]:::shipped
         Gateway["Tool Gateway\n:7422\nFastAPI"]:::shipped
         Coord["Coordination [v0.2]\nChannels · Locks · Workflows"]:::future

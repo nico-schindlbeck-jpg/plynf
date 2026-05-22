@@ -47,7 +47,7 @@ When something needs to go away, it does not vanish from a v1.x release. Instead
    ```
    Deprecation: true
    Sunset: Wed, 01 May 2027 00:00:00 GMT
-   Link: <https://docs.plinth.dev/api/v2/migration>; rel="alternate"
+   Link: <https://docs.plynf.com/api/v2/migration>; rel="alternate"
    ```
 3. **SDK warnings.** The Python and TypeScript SDKs emit a runtime warning the first time a deprecated endpoint is hit per process.
 4. **Minimum 12 months.** No fewer than 12 months elapse between the first release that emits the deprecation signal and the first release that can stop emitting the endpoint.

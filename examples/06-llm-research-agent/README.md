@@ -1,6 +1,6 @@
 # Example 06 — LLM research agent
 
-A tiny research agent that exercises Plinth's v1.2 `client.llm`
+A tiny research agent that exercises Plynf's v1.2 `client.llm`
 namespace end-to-end. Mirrors example 01's state-externalising pattern
 but every reasoning step goes through the SDK's new LLM facade — you
 can swap providers (Anthropic, OpenAI, MockProvider) without changing

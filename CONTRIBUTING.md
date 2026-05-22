@@ -1,6 +1,6 @@
-# Contributing to Plinth
+# Contributing to Plynf
 
-Thanks for your interest! Plinth is in early PoC stage — the best contributions right now sharpen the primitives, the docs, and the demos.
+Thanks for your interest! Plynf is in early PoC stage — the best contributions right now sharpen the primitives, the docs, and the demos.
 
 ## Getting set up
 
@@ -27,7 +27,7 @@ Requirements: Python 3.11+, Node 20+ (only if working on the TS SDK), make.
 ## Good first PRs
 
 - Add a new tool to `mock-mcp-server/` (e.g., a calculator, a calendar, a mock GitHub)
-- Add an example agent in `examples/` that exercises a Plinth feature
+- Add an example agent in `examples/` that exercises a Plynf feature
 - Improve an existing ADR or write a new one for a design question
 - Add a missing test (especially edge cases for snapshots / branches)
 - Improve the TypeScript SDK toward parity with Python

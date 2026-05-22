@@ -2,7 +2,7 @@
 
 ## Status
 
-Plinth is currently a **proof-of-concept (v0.1)**. It is **NOT production-ready** and should not be used in production environments without significant hardening.
+Plynf is currently a **proof-of-concept (v0.1)**. It is **NOT production-ready** and should not be used in production environments without significant hardening.
 
 ## Known limitations in v0.1
 

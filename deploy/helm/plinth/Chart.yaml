@@ -2,7 +2,7 @@
 apiVersion: v2
 name: plinth
 description: |
-  Plinth — agent-native infrastructure platform.
+  Plynf — agent-native infrastructure platform.
   Deploys Workspace, Gateway, Identity, Dashboard, and the bundled MCP servers
   with sane defaults, optional Postgres, and Ingress / HPA / NetworkPolicy
   hooks suitable for production use.
@@ -11,7 +11,7 @@ type: application
 # Chart version — bumped independently of appVersion. SemVer.
 version: 1.0.0
 
-# Application version — pinned to a Plinth release.
+# Application version — pinned to a Plynf release.
 appVersion: "1.0.0"
 
 home: https://github.com/nico-schindlbeck-jpg/plinth
@@ -29,7 +29,7 @@ keywords:
   - gateway
 
 maintainers:
-  - name: The Plinth Authors
+  - name: The Plynf Authors
     url: https://github.com/nico-schindlbeck-jpg/plinth
 
 # Kubernetes version constraint — tested on 1.27+.
@@ -37,4 +37,4 @@ kubeVersion: ">=1.27.0-0"
 
 annotations:
   artifacthub.io/changes: |
-    - Initial Plinth Helm chart for v1.0 GA.
+    - Initial Plynf Helm chart for v1.0 GA.

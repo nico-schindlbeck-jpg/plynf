@@ -12,7 +12,7 @@ assignees: ''
 
 ## Proposed solution
 
-<!-- How would Plinth ideally solve this? -->
+<!-- How would Plynf ideally solve this? -->
 
 ## Alternatives considered
 
@@ -20,4 +20,4 @@ assignees: ''
 
 ## Why now / why us
 
-<!-- Why is this a good fit for Plinth specifically vs. an external tool? -->
+<!-- Why is this a good fit for Plynf specifically vs. an external tool? -->

@@ -41,7 +41,7 @@
       stroke-linejoin="round"
     />
   </g>
-  <text x="200" y="138" font-family="Inter, system-ui, sans-serif" font-size="32" font-weight="600" fill="#f4f5f8">plinth.dev</text>
+  <text x="200" y="138" font-family="Inter, system-ui, sans-serif" font-size="32" font-weight="600" fill="#f4f5f8">plynf.com</text>
   <text x="200" y="166" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="500" fill="#6b6f80">v1.5 · Production-ready agent runtime</text>
 
   <!-- headline -->

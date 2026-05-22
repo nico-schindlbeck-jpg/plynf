@@ -3,7 +3,7 @@
 Durable workflow worker for Node.js — TypeScript counterpart of the Python
 [`plinth-workflow-worker`](../worker/README.md).
 
-The worker process polls the Plinth workspace service for pending workflow
+The worker process polls the Plynf workspace service for pending workflow
 steps, acquires a lease, dispatches to a registered handler, then releases
 the lease. On crash, the workspace's lease reaper expires the worker's
 leases and reverts the steps back to `pending` so another worker can take
@@ -21,10 +21,10 @@ npm install @plinth/workflow-worker @plinth/sdk
 ## Quickstart — embedded worker
 
 ```ts
-import { Plinth } from "@plinth/sdk";
+import { Plynf } from "@plinth/sdk";
 import { Worker, WorkflowRuntime } from "@plinth/workflow-worker";
 
-const client = new Plinth({
+const client = new Plynf({
   workspaceUrl: "http://localhost:7421",
   gatewayUrl: "http://localhost:7422",
   apiKey: "local-dev",
@@ -50,10 +50,10 @@ Compile a small handlers module that exports `register(runtime, client)`:
 
 ```ts
 // handlers.ts
-import type { Plinth } from "@plinth/sdk";
+import type { Plynf } from "@plinth/sdk";
 import type { WorkflowRuntime } from "@plinth/workflow-worker";
 
-export function register(runtime: WorkflowRuntime, client: Plinth): void {
+export function register(runtime: WorkflowRuntime, client: Plynf): void {
   runtime.register("research-pipeline", "search", async (ctx) => {
     const { topic } = ctx.step.input as { topic: string };
     return { topic, when: new Date().toISOString() };
@@ -102,10 +102,10 @@ facade shipped in v1.2.1. Configure the provider once on the client; every
 handler can call it.
 
 ```typescript
-import { Plinth, AnthropicProvider } from "@plinth/sdk";
+import { Plynf, AnthropicProvider } from "@plinth/sdk";
 import { WorkflowRuntime, Worker } from "@plinth/workflow-worker";
 
-const client = new Plinth({ workspaceUrl: "...", gatewayUrl: "...", apiKey: "..." });
+const client = new Plynf({ workspaceUrl: "...", gatewayUrl: "...", apiKey: "..." });
 client.llm.useProvider("anthropic", { apiKey: process.env.ANTHROPIC_API_KEY! });
 
 const runtime = new WorkflowRuntime();
@@ -204,7 +204,7 @@ points explicit.
 ## Embedded worker — programmatic API
 
 ```ts
-import { Plinth } from "@plinth/sdk";
+import { Plynf } from "@plinth/sdk";
 import { Worker, WorkflowRuntime, type WorkerLogger } from "@plinth/workflow-worker";
 
 const logger: WorkerLogger = {

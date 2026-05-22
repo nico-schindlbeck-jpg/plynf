@@ -1,4 +1,4 @@
-# Plinth installer
+# Plynf installer
 
 This directory implements **Stufe 1** — the one-liner installer. End users do not
 need to read this file; it's a transparency log for operators who want to know
@@ -7,10 +7,10 @@ exactly what the script does before they pipe it to `sh`.
 ## TL;DR
 
 ```bash
-curl -fsSL https://plinth.dev/install.sh | sh
+curl -fsSL https://plynf.com/install.sh | sh
 ```
 
-Installs Plinth to `~/.plinth/`, drops a `plinth` CLI in `~/.local/bin/`,
+Installs Plynf to `~/.plinth/`, drops a `plinth` CLI in `~/.local/bin/`,
 registers a launchd (macOS) or systemd `--user` (Linux) auto-start unit, and
 opens the dashboard at <http://localhost:7424>. Total runtime ~2 minutes on a
 warm pip cache.
@@ -28,7 +28,7 @@ warm pip cache.
 | `tests/test_install_sh.sh` | Test harness — syntax check, idempotency, OS detection. |
 | `tests/shellcheck.sh` | Optional shellcheck pass (skipped if not installed). |
 
-## Where Plinth lives after install
+## Where Plynf lives after install
 
 ```
 ~/.plinth/
@@ -57,11 +57,11 @@ If `~/.local/bin` is not already in `PATH`, a single block is appended to your
 shell rc file (`.zshrc` / `.bashrc` / `.profile` depending on `$SHELL`):
 
 ```sh
-# >>> Plinth installer >>>
-# This block was added by the Plinth installer. To remove it, run
+# >>> Plynf installer >>>
+# This block was added by the Plynf installer. To remove it, run
 #   plinth uninstall
 export PATH="$HOME/.local/bin:$PATH"
-# <<< Plinth installer <<<
+# <<< Plynf installer <<<
 ```
 
 The markers are recognised by the uninstaller so removal is exact.
@@ -95,7 +95,7 @@ plinth logs [svc]     tail a service log (default: workspace)
 plinth dashboard      open http://localhost:7424
 plinth demo [topic]   run the headline token-comparison demo
 plinth update         git pull + re-install + restart
-plinth uninstall      remove Plinth from this system
+plinth uninstall      remove Plynf from this system
 plinth version        print installed version
 ```
 
@@ -126,7 +126,7 @@ If `KeepAlive` is keeping it in a crash loop, the supervisor exits with code
 
 ### Services not surviving logout on Linux
 
-Plinth ships as a `systemd --user` unit. To keep `--user` units running when
+Plynf ships as a `systemd --user` unit. To keep `--user` units running when
 the user is not logged in, enable linger (requires sudo, one-time):
 
 ```sh
@@ -167,7 +167,7 @@ plinth uninstall --purge  # nuke ~/.plinth too, no prompt
 * The supervisor (`run_all.py`) binds services to `localhost`. They are not
   exposed on the network.
 * The launchd / systemd units run as the invoking user only, not root.
-* All state — including any secrets the user adds via Plinth itself — lives
+* All state — including any secrets the user adds via Plynf itself — lives
   under `~/.plinth/state/` and is removed by `plinth uninstall --purge`.
 
 ## Verification (for CI)

@@ -2,9 +2,9 @@
 
 > **Why this exists.** This document is the map. It covers how the v0.1 services compose, where the isolation boundaries live, what happens during a single request, and how the same shape scales to a multi-node production cluster. Read this before any of the component-specific docs — they assume the topology described here.
 
-## 1. Where Plinth sits in the stack
+## 1. Where Plynf sits in the stack
 
-Plinth is **infrastructure that lives between the agent and the world**. It does not run the model. It does not own the orchestration loop. It owns the *substrate* the agent reads from and writes to, and the gateway every external action passes through.
+Plynf is **infrastructure that lives between the agent and the world**. It does not run the model. It does not own the orchestration loop. It owns the *substrate* the agent reads from and writes to, and the gateway every external action passes through.
 
 ```mermaid
 flowchart LR
@@ -13,7 +13,7 @@ flowchart LR
       SDK[plinth SDK]
       A --> SDK
     end
-    subgraph "Plinth (these are the docs)"
+    subgraph "Plynf (these are the docs)"
       WS[Workspace service<br/>:7421]
       GW[Tool Gateway<br/>:7422]
     end
@@ -29,13 +29,13 @@ flowchart LR
 
 Three things to internalise from this picture:
 
-1. **The agent loop is not in Plinth.** Plinth is HTTP services. Frameworks like LangGraph, the OpenAI Agents SDK, or hand-rolled loops sit in front of it.
-2. **The model API call does not go through Plinth.** Tokens go directly from the caller to the LLM. Plinth's value is in *how much state the caller has to put into those tokens* — which is where the 60%+ reduction comes from.
+1. **The agent loop is not in Plynf.** Plynf is HTTP services. Frameworks like LangGraph, the OpenAI Agents SDK, or hand-rolled loops sit in front of it.
+2. **The model API call does not go through Plynf.** Tokens go directly from the caller to the LLM. Plynf's value is in *how much state the caller has to put into those tokens* — which is where the 60%+ reduction comes from.
 3. **The gateway, not the agent, talks to MCP servers.** Tool calls leave the agent process as a single `POST /v1/invoke` and re-enter as a JSON result. Caching, audit, and auth all happen on the server side of that boundary.
 
 ## 2. Deployment shapes
 
-Plinth is designed to run in two materially different shapes. v0.1 ships only the first; v1.0 targets the second.
+Plynf is designed to run in two materially different shapes. v0.1 ships only the first; v1.0 targets the second.
 
 ### 2.1 Single-node PoC (v0.1)
 
@@ -89,7 +89,7 @@ The shape that matters here is not the boxes but the **statefulness boundary**: 
 
 ## 3. Request flow — a single agent action end to end
 
-Here is what happens when an agent issues `ctx.tools.invoke("web.fetch", {"url": "https://x.com/y"})`. This is the canonical shape of a Plinth request and is worth understanding precisely.
+Here is what happens when an agent issues `ctx.tools.invoke("web.fetch", {"url": "https://x.com/y"})`. This is the canonical shape of a Plynf request and is worth understanding precisely.
 
 ```mermaid
 sequenceDiagram

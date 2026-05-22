@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-This directory contains the load-bearing decisions behind Plinth. Each ADR captures a single decision, its context, the alternatives considered, and the trade-offs we accepted. They are immutable once Accepted — superseding decisions get a new ADR that references the old one.
+This directory contains the load-bearing decisions behind Plynf. Each ADR captures a single decision, its context, the alternatives considered, and the trade-offs we accepted. They are immutable once Accepted — superseding decisions get a new ADR that references the old one.
 
 ## Format
 

@@ -1,6 +1,6 @@
 ---
 title: Threat Model
-description: STRIDE analysis of Plinth services, the SDK surface, and external integration points.
+description: STRIDE analysis of Plynf services, the SDK surface, and external integration points.
 section: operations
 order: 3
 sourceFile: docs/threat-model.md
@@ -8,7 +8,7 @@ sourceFile: docs/threat-model.md
 
 > Status: v1.0 baseline. Updated whenever a new attacker class or mitigation lands.
 
-This page applies STRIDE (Spoofing-Tampering-Repudiation-Information-Disclosure-Denial-Elevation) to Plinth's three core services (`workspace`, `gateway`, `identity`), the SDK surface, and external integration points (OAuth providers, MCP servers, OTLP collectors). The output is a catalogue of concrete threats, the v1.0 mitigations that exist for each, and the residual risks an operator inherits.
+This page applies STRIDE (Spoofing-Tampering-Repudiation-Information-Disclosure-Denial-Elevation) to Plynf's three core services (`workspace`, `gateway`, `identity`), the SDK surface, and external integration points (OAuth providers, MCP servers, OTLP collectors). The output is a catalogue of concrete threats, the v1.0 mitigations that exist for each, and the residual risks an operator inherits.
 
 The adversary is assumed **on the network**: they can send arbitrary HTTP, observe TLS-terminated traffic at the load balancer, and — for the "compromised-agent" class — already hold a valid scoped JWT for one tenant.
 
@@ -16,16 +16,16 @@ The adversary is assumed **on the network**: they can send arbitrary HTTP, obser
 
 **In scope** for v1.0:
 
-- The three Plinth services (`workspace`, `gateway`, `identity`) and the storage they own (SQLite/Postgres + on-disk blob trees).
-- The SDK surface (Python + TypeScript) where it terminates a session against a Plinth deployment.
-- External integration points where Plinth makes outbound calls (MCP servers, OAuth providers, OTLP collectors).
+- The three Plynf services (`workspace`, `gateway`, `identity`) and the storage they own (SQLite/Postgres + on-disk blob trees).
+- The SDK surface (Python + TypeScript) where it terminates a session against a Plynf deployment.
+- External integration points where Plynf makes outbound calls (MCP servers, OAuth providers, OTLP collectors).
 - The deployment topology described in `deploy/k8s/`, `deploy/helm/`, and `deploy/terraform/aws-example/`.
 
 **Out of scope** for v1.0 (operator responsibility):
 
 - Physical security of the host hardware.
 - Underlying database engine vulnerabilities (CVEs in SQLite/Postgres).
-- DDoS at the network/CDN layer — Plinth's load shedding is a last-resort, not an edge mitigation.
+- DDoS at the network/CDN layer — Plynf's load shedding is a last-resort, not an edge mitigation.
 - Compromised SDK distribution (PyPI / npm supply chain attacks).
 - Operator-supplied integrations (custom MCP servers, custom OAuth providers).
 
@@ -38,7 +38,7 @@ The adversary is assumed **on the network**: they can send arbitrary HTTP, obser
             └────────────────────────────────────────────────┘
                                      │
             ┌─────────────────────────────────────────────────┐
-            │             Plinth Service Mesh                 │
+            │             Plynf Service Mesh                 │
             │  identity ◄────► gateway ◄────► workspace       │
             │     │              │              │             │
             │     ▼              ▼              ▼             │

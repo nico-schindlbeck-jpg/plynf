@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Plinth — Workspace service.
+# Plynf — Workspace service.
 # ConfigMap + PersistentVolumeClaim + Deployment + Service.
 ---
 apiVersion: v1

@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-# Plinth Workspace API — OpenAPI 3.1 specification
+# Plynf Workspace API — OpenAPI 3.1 specification
 openapi: 3.1.0
 info:
-  title: Plinth Workspace API
+  title: Plynf Workspace API
   version: 0.1.0
   description: |
     The Workspace service is the persistent, structured memory layer for agents. It

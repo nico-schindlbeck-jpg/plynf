@@ -1,6 +1,6 @@
-# Plinth Production-Readiness Checklist — v1.0
+# Plynf Production-Readiness Checklist — v1.0
 
-> **Audience**: enterprise SRE going live with Plinth. Treat this as a
+> **Audience**: enterprise SRE going live with Plynf. Treat this as a
 > tick-box exercise: every item should be either ✅ or have a written
 > remediation plan with owner + ETA.
 
@@ -74,7 +74,7 @@ path, JIRA ticket, runbook URL, screenshot, etc.
 - [ ] Log retention policy set (≥ 90 days for audit + compliance,
       ≥ 30 days for app logs).
 - [ ] Log volume budgeted with the log vendor (Datadog, Honeycomb, etc.).
-- [ ] Trace sampling configured at the OTel collector (Plinth itself
+- [ ] Trace sampling configured at the OTel collector (Plynf itself
       doesn't sample).
 
 ## Security

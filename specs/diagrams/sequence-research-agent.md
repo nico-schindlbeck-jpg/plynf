@@ -15,7 +15,7 @@ touch the backend.
 sequenceDiagram
     autonumber
     actor Agent as Agent code
-    participant SDK as Plinth SDK
+    participant SDK as Plynf SDK
     participant WS as Workspace API\n:7421
     participant GW as Tool Gateway\n:7422
     participant MCP as mock-mcp\n:7423

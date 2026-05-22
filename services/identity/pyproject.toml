@@ -1,12 +1,12 @@
 [project]
 name = "plinth-identity"
 version = "0.3.0"
-description = "Plinth identity service — JWT capability tokens with revocation"
+description = "Plynf identity service — JWT capability tokens with revocation"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.11"
 authors = [
-    {name = "The Plinth Authors"},
+    {name = "The Plynf Authors"},
 ]
 dependencies = [
     "fastapi>=0.110",

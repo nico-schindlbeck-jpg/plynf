@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🪨 Plinth
+# 🪨 Plynf
 
 **The substrate where production agents actually work.**
 
@@ -18,11 +18,11 @@
 
 ---
 
-## Why Plinth?
+## Why Plynf?
 
 Today's AI agents are wrapped around interfaces designed for humans — clicking buttons, parsing screenshots, re-reading the same content from chat history. This is **slow, expensive, and brittle**.
 
-Plinth flips the model: **the agent is the first-class user**. We give it:
+Plynf flips the model: **the agent is the first-class user**. We give it:
 
 - **A persistent, versioned workspace** — files, structured KV, snapshots, branches. The agent's memory survives crashes, restarts, and hand-offs.
 - **A semantic tool gateway** — one auth boundary for every MCP / REST / GraphQL tool, with caching, idempotency, dry-run, audit, rate limits, cost caps, and real OAuth flows for **GitHub, Slack, and Linear**.
@@ -34,9 +34,9 @@ Plinth flips the model: **the agent is the first-class user**. We give it:
 - **OpenTelemetry observability** — emit every tool invocation as an OTLP log to Datadog, Tempo, Honeycomb, or any OTLP collector. (v0.4)
 - **Token economics that actually work** — caching at the gateway and structured state in the workspace cuts agent context usage by 50–70 % on real workloads.
 
-> **Headline result from `examples/01-research-agent/`**: A 5-source research-and-report task uses **71 % fewer tokens** with Plinth than without (measured across 3 topics, full stack with all services running). See [the demo](#headline-demo) below.
+> **Headline result from `examples/01-research-agent/`**: A 5-source research-and-report task uses **71 % fewer tokens** with Plynf than without (measured across 3 topics, full stack with all services running). See [the demo](#headline-demo) below.
 >
-> **Multi-agent demo** (`examples/02-multi-agent-handoff/`): three agents collaborate via Plinth channels in 8.7k total tokens.
+> **Multi-agent demo** (`examples/02-multi-agent-handoff/`): three agents collaborate via Plynf channels in 8.7k total tokens.
 >
 > **Resumable workflow** (`examples/03-resumable-workflow/`): a 6-step pipeline crashes mid-flight; resume saves **32 %** of the work versus restart-from-scratch.
 
@@ -112,22 +112,22 @@ After step 5 you should see something like:
 ═══════════════════════════════════════════════════════════════════
   TOKEN-USAGE COMPARISON — research-agent on topic "renewable energy"
 ═══════════════════════════════════════════════════════════════════
-  Baseline (no Plinth):        23,704 tokens   |   $0.0810
-  With Plinth:                  6,795 tokens   |   $0.0345
+  Baseline (no Plynf):        23,704 tokens   |   $0.0810
+  With Plynf:                  6,795 tokens   |   $0.0345
   ─────────────────────────────────────────────
   Reduction:                     71.3 %        |   $0.0464 saved
 ═══════════════════════════════════════════════════════════════════
-  Wall-clock time:        Baseline   0.1 s   |   Plinth   0.2 s
-  Tool calls:             Baseline     6   |   Plinth     6   (cached on second run)
+  Wall-clock time:        Baseline   0.1 s   |   Plynf   0.2 s
+  Tool calls:             Baseline     6   |   Plynf     6   (cached on second run)
 ═══════════════════════════════════════════════════════════════════
   Mode: simulation | Topic: renewable energy
-  Baseline LLM calls: 8 | Plinth LLM calls: 7
+  Baseline LLM calls: 8 | Plynf LLM calls: 7
 ═══════════════════════════════════════════════════════════════════
 ```
 
 Measured across all three bundled topics:
 
-| Topic | Baseline | Plinth | Reduction |
+| Topic | Baseline | Plynf | Reduction |
 |-------|---------:|-------:|----------:|
 | renewable energy | 23,704 tokens | 6,795 tokens | **71.3 %** |
 | ai agents | 25,329 tokens | 7,092 tokens | **72.0 %** |
@@ -248,16 +248,16 @@ Set `PLINTH_OTLP_ENABLED=true` and `PLINTH_OTLP_ENDPOINT=http://your-collector:4
 
 ## Headline Demo
 
-The `01-research-agent` example shows where Plinth's token savings come from:
+The `01-research-agent` example shows where Plynf's token savings come from:
 
-**Baseline agent** (no Plinth):
+**Baseline agent** (no Plynf):
 1. Receives the topic
 2. Searches the web (1 tool call)
 3. For each of 5 sources: fetches full content, sends back to LLM with full conversation history
 4. Re-reads sources at every reasoning step (because the chat history is the only memory)
 5. Each subsequent step balloons the context
 
-**Plinth agent**:
+**Plynf agent**:
 1. Receives the topic, creates/opens workspace
 2. Searches once (gateway-cached if repeated)
 3. Fetches each source — gateway caches; identical fetches are free
@@ -285,6 +285,6 @@ Apache 2.0 — see [LICENSE](./LICENSE). Note: a production hosted runtime would
 
 ## The bigger picture
 
-Plinth is a PoC of a thesis: **the next infrastructure layer is the agent-native substrate** — analogous to what AWS is for servers, Stripe for payments, Vercel for frontends. The PoC proves the primitives. The platform comes next.
+Plynf is a PoC of a thesis: **the next infrastructure layer is the agent-native substrate** — analogous to what AWS is for servers, Stripe for payments, Vercel for frontends. The PoC proves the primitives. The platform comes next.
 
 For the longer-form thinking behind this, see [docs/why-plinth.md](./docs/why-plinth.md).

@@ -69,7 +69,7 @@ We considered Macaroons (lovely model, immature ecosystem), opaque session token
 ```mermaid
 sequenceDiagram
     participant Human as User
-    participant UI as Plinth Console
+    participant UI as Plynf Console
     participant ID as Identity service
     participant Agent
     participant GW as Gateway
@@ -159,9 +159,9 @@ This is the most important diagram in this document:
 
 ```mermaid
 flowchart LR
-    User -->|"once: 'allow Plinth to access GitHub'"| OAuthIdP[GitHub OAuth]
+    User -->|"once: 'allow Plynf to access GitHub'"| OAuthIdP[GitHub OAuth]
     OAuthIdP -->|long-lived refresh token| GW[Gateway<br/>credential store]
-    User -->|"per session: 'authorize my agent'"| ID[Plinth Identity]
+    User -->|"per session: 'authorize my agent'"| ID[Plynf Identity]
     ID -->|short-lived capability JWT| Agent
     Agent -->|capability JWT| GW
     GW -->|OAuth bearer<br/>refreshed as needed| GitHubAPI[GitHub API]
@@ -169,20 +169,20 @@ flowchart LR
 
 The user has done **two distinct consents**:
 
-1. *Once*, the user authorized Plinth itself (via OAuth) to act on GitHub. The gateway holds the resulting refresh token.
-2. *Per session*, the user authorized **their agent** to use specific tools through Plinth, with constraints. The Identity service mints a capability for that.
+1. *Once*, the user authorized Plynf itself (via OAuth) to act on GitHub. The gateway holds the resulting refresh token.
+2. *Per session*, the user authorized **their agent** to use specific tools through Plynf, with constraints. The Identity service mints a capability for that.
 
 The agent never sees the GitHub credentials. The agent gets a token that says "can call `github.create_pr`" — and the gateway translates that into an actual GitHub OAuth call when the time comes.
 
 This decoupling is the central value of the gateway being an auth boundary. It means:
 
-- Users can revoke an agent's capability without revoking Plinth's OAuth grant.
-- Plinth can rotate OAuth refresh tokens without re-consenting agents.
+- Users can revoke an agent's capability without revoking Plynf's OAuth grant.
+- Plynf can rotate OAuth refresh tokens without re-consenting agents.
 - The blast radius of a stolen agent token is bounded by its scopes, not by a user's full GitHub permissions.
 
 ## 8. Service-to-service identity
 
-Inside Plinth, the workspace and gateway services need to authenticate to each other (workspace must trust that "this gateway request comes from the actual gateway"). For v0.2:
+Inside Plynf, the workspace and gateway services need to authenticate to each other (workspace must trust that "this gateway request comes from the actual gateway"). For v0.2:
 
 - **mTLS** with certificates issued by an internal CA managed by the deployment.
 - A short-lived **internal JWT** signed by a service-account key, used when mTLS is impractical (e.g. behind a load balancer that terminates TLS).
@@ -206,7 +206,7 @@ The v0.2 transition is roughly:
 
 ## 10. Open questions / future directions
 
-- **Capability constraint language.** `args_constraints` is JSON-schema-shaped today (`{"path": {"prefix": "drafts/"}}`). For richer cases (rate limits per arg, content filters), we may need a proper expression DSL — Cedar / Rego / a Plinth-specific subset. This is the policy-engine work in v0.5.
+- **Capability constraint language.** `args_constraints` is JSON-schema-shaped today (`{"path": {"prefix": "drafts/"}}`). For richer cases (rate limits per arg, content filters), we may need a proper expression DSL — Cedar / Rego / a Plynf-specific subset. This is the policy-engine work in v0.5.
 - **User-facing consent UI.** Showing a human "your agent wants to: write to fs.write paths under drafts/, send up to $5/hour, expire in 4 hours" is a UX problem with security teeth. We sketch the API; the UI is v0.5 work.
 - **Cross-tenant capability tokens.** Can an agent in tenant A invoke a tool in tenant B? Default: no. Explicit cross-grants are a v1.0 enterprise feature.
 - **Hardware-backed agent identity.** An agent's `agent_id` is, today, just an opaque string. For very high trust use cases, we may bind it to an attested hardware key (TPM, Nitro, SEV-SNP). Far future.

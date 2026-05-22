@@ -21,46 +21,46 @@
 
   ],
   "swiftCommands" : {
-    "C.Plinth-arm64-apple-macosx26.0-debug.module" : {
+    "C.Plynf-arm64-apple-macosx26.0-debug.module" : {
       "executable" : "/Library/Developer/CommandLineTools/usr/bin/swiftc",
-      "fileList" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/sources",
+      "fileList" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/sources",
       "importPath" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Modules",
       "inputs" : [
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Errors.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Errors.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Files.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Files.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/HTTPClient.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/HTTPClient.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Identity.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Identity.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/KV.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/KV.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Models.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Models.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Plinth.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Plynf.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Tools.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Tools.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Workspace.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Workspace.swift"
         },
         {
           "kind" : "file",
@@ -68,22 +68,22 @@
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/sources"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/sources"
         }
       ],
       "isLibrary" : true,
-      "moduleName" : "Plinth",
-      "moduleOutputPath" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Modules/Plinth.swiftmodule",
+      "moduleName" : "Plynf",
+      "moduleOutputPath" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Modules/Plynf.swiftmodule",
       "objects" : [
-        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Errors.swift.o",
-        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Files.swift.o",
-        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/HTTPClient.swift.o",
-        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Identity.swift.o",
-        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/KV.swift.o",
-        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Models.swift.o",
-        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Plinth.swift.o",
-        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Tools.swift.o",
-        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Workspace.swift.o"
+        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Errors.swift.o",
+        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Files.swift.o",
+        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/HTTPClient.swift.o",
+        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Identity.swift.o",
+        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/KV.swift.o",
+        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Models.swift.o",
+        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Plynf.swift.o",
+        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Tools.swift.o",
+        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Workspace.swift.o"
       ],
       "otherArguments" : [
         "-target",
@@ -105,7 +105,7 @@
         "-parse-as-library",
         "-emit-objc-header",
         "-emit-objc-header-path",
-        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/include/Plinth-Swift.h",
+        "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/include/Plynf-Swift.h",
         "-swift-version",
         "5",
         "-I",
@@ -128,62 +128,62 @@
         "-package-name",
         "swift"
       ],
-      "outputFileMapPath" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/output-file-map.json",
+      "outputFileMapPath" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/output-file-map.json",
       "outputs" : [
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Errors.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Errors.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Files.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Files.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/HTTPClient.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/HTTPClient.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Identity.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Identity.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/KV.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/KV.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Models.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Models.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Plinth.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Plynf.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Tools.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Tools.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Workspace.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Workspace.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Modules/Plinth.swiftmodule"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Modules/Plynf.swiftmodule"
         }
       ],
       "prepareForIndexing" : false,
       "sources" : [
-        "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Errors.swift",
-        "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Files.swift",
-        "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/HTTPClient.swift",
-        "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Identity.swift",
-        "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/KV.swift",
-        "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Models.swift",
-        "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Plinth.swift",
-        "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Tools.swift",
-        "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Workspace.swift"
+        "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Errors.swift",
+        "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Files.swift",
+        "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/HTTPClient.swift",
+        "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Identity.swift",
+        "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/KV.swift",
+        "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Models.swift",
+        "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Plynf.swift",
+        "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Tools.swift",
+        "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Workspace.swift"
       ],
-      "tempsPath" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build",
+      "tempsPath" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build",
       "wholeModuleOptimization" : false
     },
     "C.PlinthPackageTests-arm64-apple-macosx26.0-debug.module" : {
@@ -322,7 +322,7 @@
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Modules/Plinth.swiftmodule"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Modules/Plynf.swiftmodule"
         },
         {
           "kind" : "file",
@@ -448,22 +448,22 @@
 
   },
   "swiftTargetScanArgs" : {
-    "Plinth" : [
+    "Plynf" : [
       "/Library/Developer/CommandLineTools/usr/bin/swiftc",
       "-module-name",
-      "Plinth",
+      "Plynf",
       "-package-name",
       "swift",
       "-c",
-      "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Errors.swift",
-      "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Files.swift",
-      "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/HTTPClient.swift",
-      "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Identity.swift",
-      "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/KV.swift",
-      "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Models.swift",
-      "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Plinth.swift",
-      "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Tools.swift",
-      "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Workspace.swift",
+      "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Errors.swift",
+      "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Files.swift",
+      "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/HTTPClient.swift",
+      "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Identity.swift",
+      "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/KV.swift",
+      "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Models.swift",
+      "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Plynf.swift",
+      "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Tools.swift",
+      "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Workspace.swift",
       "-I",
       "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Modules",
       "-target",
@@ -485,7 +485,7 @@
       "-parse-as-library",
       "-emit-objc-header",
       "-emit-objc-header-path",
-      "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/include/Plinth-Swift.h",
+      "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/include/Plynf-Swift.h",
       "-swift-version",
       "5",
       "-I",
@@ -627,15 +627,15 @@
     ]
   },
   "targetDependencyMap" : {
-    "Plinth" : [
+    "Plynf" : [
 
     ],
     "PlinthPackageTests" : [
       "PlinthTests",
-      "Plinth"
+      "Plynf"
     ],
     "PlinthTests" : [
-      "Plinth"
+      "Plynf"
     ]
   },
   "testDiscoveryCommands" : {
@@ -660,7 +660,7 @@
     }
   },
   "writeCommands" : {
-    "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/sources" : {
+    "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/sources" : {
       "alwaysOutOfDate" : false,
       "inputs" : [
         {
@@ -669,42 +669,42 @@
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Errors.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Errors.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Files.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Files.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/HTTPClient.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/HTTPClient.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Identity.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Identity.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/KV.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/KV.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Models.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Models.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Plinth.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Plynf.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Tools.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Tools.swift"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plinth/Workspace.swift"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/Sources/Plynf/Workspace.swift"
         }
       ],
-      "outputFilePath" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/sources"
+      "outputFilePath" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/sources"
     },
     "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/PlinthPackageTests.build/sources" : {
       "alwaysOutOfDate" : false,
@@ -729,39 +729,39 @@
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Errors.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Errors.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Files.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Files.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/HTTPClient.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/HTTPClient.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Identity.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Identity.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/KV.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/KV.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Models.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Models.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Plinth.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Plynf.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Tools.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Tools.swift.o"
         },
         {
           "kind" : "file",
-          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plinth.build/Workspace.swift.o"
+          "name" : "/Users/nico/Code/plinth/sdk/swift/.build/arm64-apple-macosx/debug/Plynf.build/Workspace.swift.o"
         },
         {
           "kind" : "file",

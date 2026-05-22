@@ -1,4 +1,4 @@
-# Plinth — Technical Reference
+# Plynf — Technical Reference
 
 | | |
 |---|---|
@@ -9,7 +9,7 @@
 | **License** | Apache 2.0 — see [`LICENSE`](./LICENSE) |
 | **Source of truth** | [`CONTRACTS.md`](./CONTRACTS.md), [`docs/architecture/`](./docs/architecture/), [`docs/adr/`](./docs/adr/) |
 
-This document is the holistic, end-to-end engineering reference for Plinth. It consolidates the architecture overview, the API contracts, the operational runbook, and the contribution playbook into a single, cross-linked document. A senior engineer should be able to deploy, debug, contribute to, and explain Plinth using only this file plus the source. Where this document and [`CONTRACTS.md`](./CONTRACTS.md) disagree, `CONTRACTS.md` wins.
+This document is the holistic, end-to-end engineering reference for Plynf. It consolidates the architecture overview, the API contracts, the operational runbook, and the contribution playbook into a single, cross-linked document. A senior engineer should be able to deploy, debug, contribute to, and explain Plynf using only this file plus the source. Where this document and [`CONTRACTS.md`](./CONTRACTS.md) disagree, `CONTRACTS.md` wins.
 
 ---
 
@@ -64,7 +64,7 @@ This document is the holistic, end-to-end engineering reference for Plinth. It c
                           └────────────────────────────────────┘
 ```
 
-The agent loop and the LLM call live **outside** Plinth. Plinth owns the substrate: the persistent state the agent reads/writes, and the gateway that every external action passes through. See [`docs/architecture/01-system-overview.md`](./docs/architecture/01-system-overview.md) for the deeper walk-through.
+The agent loop and the LLM call live **outside** Plynf. Plynf owns the substrate: the persistent state the agent reads/writes, and the gateway that every external action passes through. See [`docs/architecture/01-system-overview.md`](./docs/architecture/01-system-overview.md) for the deeper walk-through.
 
 ### 1.2 Service Inventory
 
@@ -198,7 +198,7 @@ A KV write is therefore one INSERT — never an UPDATE. Tombstones (`DELETE`) ar
 | Postgres | 15+ | Optional — production storage backend | `brew install postgresql@15` |
 | OTLP collector | any | Optional — observability sink | OpenTelemetry Collector or Datadog/Tempo/Honeycomb |
 
-Plinth runs offline by default: Mock MCP fixtures live in [`mock-mcp-server/`](./mock-mcp-server/), and OAuth flows have a simulation mode for the GitHub demo.
+Plynf runs offline by default: Mock MCP fixtures live in [`mock-mcp-server/`](./mock-mcp-server/), and OAuth flows have a simulation mode for the GitHub demo.
 
 ### 2.2 First-Time Install
 
@@ -773,7 +773,7 @@ In-memory + filesystem fixtures at `$PLINTH_MOCK_FIXTURES_DIR`; no durable state
 
 #### 3.6.1 Purpose
 
-Real GitHub REST API integration. Reads OAuth bearer from forwarded `Authorization` header (the gateway attaches it). Returns Plinth-shaped error envelopes.
+Real GitHub REST API integration. Reads OAuth bearer from forwarded `Authorization` header (the gateway attaches it). Returns Plynf-shaped error envelopes.
 
 #### 3.6.2 Port and URL
 
@@ -846,7 +846,7 @@ No persistent storage. Outbound: Slack Web API. 23 tests using `respx`.
 
 #### 3.8.1 Purpose
 
-Real Linear GraphQL API integration. Same pattern. Linear's GraphQL schema requires translating Plinth's REST-shaped tool calls into GraphQL queries; the translation lives in `mcp-servers/linear/src/linear_mcp/queries.py`.
+Real Linear GraphQL API integration. Same pattern. Linear's GraphQL schema requires translating Plynf's REST-shaped tool calls into GraphQL queries; the translation lives in `mcp-servers/linear/src/linear_mcp/queries.py`.
 
 #### 3.8.2 Port and URL
 
@@ -887,10 +887,10 @@ pip install -e ./sdk/python
 ```
 
 ```python
-from plinth import Plinth
+from plinth import Plynf
 
 # Permissive mode — any non-empty token works for v0.1 compat
-client = Plinth(
+client = Plynf(
     workspace_url="http://localhost:7421",
     gateway_url="http://localhost:7422",
     identity_url="http://localhost:7425",   # optional; only needed for capability flows
@@ -902,7 +902,7 @@ When `verify_local`/`verify_remote` mode is enabled on the services, `api_key` m
 
 #### 4.1.2 Surface Map
 
-The Python SDK is structured as facades on the `Plinth` client. Each namespace mirrors a concern in the substrate:
+The Python SDK is structured as facades on the `Plynf` client. Each namespace mirrors a concern in the substrate:
 
 ```python
 client.workspace("name")              # → Workspace handle (gets-or-creates)
@@ -1116,9 +1116,9 @@ The token counter is offline (no network call) and uses the same encoding as Ant
 #### 4.2.1 Surface
 
 ```typescript
-import { Plinth } from "@plinth/sdk";
+import { Plynf } from "@plinth/sdk";
 
-const client = new Plinth({
+const client = new Plynf({
   workspaceUrl: "http://localhost:7421",
   gatewayUrl:   "http://localhost:7422",
   identityUrl:  "http://localhost:7425",
@@ -1161,13 +1161,13 @@ A worker is a long-running Python process that pulls **pending workflow steps** 
 
 ### 5.2 The Handler Decorator Pattern
 
-Handlers are registered against the Plinth client with `@client.workflow_handler(workflow_name, step=step_name)`. Source: [`sdk/python/src/plinth/workflow_runtime.py`](./sdk/python/src/plinth/workflow_runtime.py) and the spec in [`CONTRACTS.md`](./CONTRACTS.md) §"Durable Workflow Executor".
+Handlers are registered against the Plynf client with `@client.workflow_handler(workflow_name, step=step_name)`. Source: [`sdk/python/src/plinth/workflow_runtime.py`](./sdk/python/src/plinth/workflow_runtime.py) and the spec in [`CONTRACTS.md`](./CONTRACTS.md) §"Durable Workflow Executor".
 
 ```python
 # myapp/handlers.py
-from plinth import Plinth, HandlerContext
+from plinth import Plynf, HandlerContext
 
-client = Plinth(api_key="…", workspace_url="…", gateway_url="…")
+client = Plynf(api_key="…", workspace_url="…", gateway_url="…")
 
 @client.workflow_handler("research-pipeline", step="search")
 def handle_search(ctx: HandlerContext, step):
@@ -1294,17 +1294,17 @@ Every demo is a standalone Python project under `examples/` with its own `pyproj
 
 ### 6.1 Demo 01 — Research Agent (Token Comparison)
 
-- **What it shows**: Plinth's central thesis. Same agent task (search 5 sources, write a report) executed two ways: (a) baseline, all state in chat history; (b) Plinth, sources stored in workspace KV referenced by key, gateway-cached fetches.
+- **What it shows**: Plynf's central thesis. Same agent task (search 5 sources, write a report) executed two ways: (a) baseline, all state in chat history; (b) Plynf, sources stored in workspace KV referenced by key, gateway-cached fetches.
 - **Headline result**: 71.3 % token reduction across 3 bundled topics (`renewable energy`, `ai agents`, `climate policy`).
 - **Files involved**: [`examples/01-research-agent/`](./examples/01-research-agent/) — `compare.py`, `agent_baseline.py`, `agent_plinth.py`, fixtures under `examples/fixtures/`.
 - **Run**: `make demo` (or `cd examples/01-research-agent && python compare.py --topic "renewable energy"`)
 - **Expected output**:
   ```
-    Baseline (no Plinth):        23,704 tokens   |   $0.0810
-    With Plinth:                  6,795 tokens   |   $0.0345
+    Baseline (no Plynf):        23,704 tokens   |   $0.0810
+    With Plynf:                  6,795 tokens   |   $0.0345
     Reduction:                     71.3 %        |   $0.0464 saved
-    Wall-clock:        Baseline 0.1 s   |   Plinth 0.2 s
-    Tool calls:        Baseline   6     |   Plinth   6  (cached on second run)
+    Wall-clock:        Baseline 0.1 s   |   Plynf 0.2 s
+    Tool calls:        Baseline   6     |   Plynf   6  (cached on second run)
   ```
 - **How to extend**: drop new topics into `examples/fixtures/`; pass `--topic`. The token counter uses tiktoken `cl100k_base`; pricing is Anthropic Sonnet ($3/M in, $15/M out), override-able in `compare.py:price_estimate`.
 
@@ -1451,9 +1451,9 @@ The verifier matches longest-prefix-wins. `tool:web.fetch` covers `tool:web.fetc
 ### 7.4 Token Issuance (Identity Service)
 
 ```python
-from plinth import Plinth
+from plinth import Plynf
 
-client = Plinth(identity_url="http://localhost:7425", api_key="<bootstrap>")
+client = Plynf(identity_url="http://localhost:7425", api_key="<bootstrap>")
 
 response = client.identity.issue_token(
     agent_id="my-agent",
@@ -1640,7 +1640,7 @@ On invoke, the gateway looks up the matching `OAuthConnection` for the agent's t
 2. Add `PLINTH_OAUTH_NOTION_*` env vars to `services/gateway/src/plinth_gateway/settings.py`.
 3. Add a provider entry to `OAuthProviders` in `services/gateway/src/plinth_gateway/oauth.py` — `authorize_url`, `token_url`, `userinfo_url`, default scopes, response shape (Slack-style flat vs OAuth-2-standard nested — both are supported).
 4. If the provider returns scope strings differently (e.g. Slack's flat `scope: "a,b,c"`), implement a `_parse_scopes` hook.
-5. Build an MCP server under `mcp-servers/notion/` that reads `Authorization` from the forwarded request, calls the provider's API, and returns Plinth-shaped JSON.
+5. Build an MCP server under `mcp-servers/notion/` that reads `Authorization` from the forwarded request, calls the provider's API, and returns Plynf-shaped JSON.
 6. Add tests under `services/gateway/tests/test_oauth_notion.py`.
 7. Document scopes in [`CONTRACTS.md`](./CONTRACTS.md) §"Tool registration with OAuth".
 8. Add a row to the demo-04-equivalent example if you want a runnable showcase.
@@ -2248,7 +2248,7 @@ See [`CONVENTIONS.md`](./CONVENTIONS.md). Highlights:
 - ID prefix scheme: `ws_`, `kv_`, `file_`, `snap_`, `br_`, `tool_`, `evt_`, `tx_`, `step_`, `wf_`, `tok_`, `conn_`, `worker_`, `txc_`. ULID format: 26 chars Crockford base32.
 - Per-Python-service layout: `pyproject.toml`, `src/<package>/{__init__, __main__, api.py, models.py, settings.py, …}`, `tests/`.
 - Every public function/class has a Google-style docstring.
-- Every Python file: `# SPDX-License-Identifier: Apache-2.0` then `# Copyright 2026 The Plinth Authors`.
+- Every Python file: `# SPDX-License-Identifier: Apache-2.0` then `# Copyright 2026 The Plynf Authors`.
 - Every test must run offline (no real network calls) — use `respx` or fixtures.
 - Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`.
 - README quickstart must work in CI on every PR.
@@ -2270,7 +2270,7 @@ See [`CONVENTIONS.md`](./CONVENTIONS.md). Highlights:
 2. `mcp-servers/<slug>/` with `pyproject.toml`, `src/<slug>_mcp/`, `tests/` (use `respx` to mock the provider).
 3. Implement `__main__.py` exposing `GET /healthz`, `GET /tools`, `POST /invoke/{tool_id}`.
 4. Read `Authorization` header, forward as-is to the provider's API.
-5. Map provider errors to Plinth error envelopes (`{"error":{"code":"...", "message":"..."}}`).
+5. Map provider errors to Plynf error envelopes (`{"error":{"code":"...", "message":"..."}}`).
 6. Register the server in `docker-compose.yml`, `Makefile`, and `.claude/launch.json`.
 7. Add OAuth provider config to the gateway if needed (see [§8.6](#86-adding-a-new-provider-step-by-step)).
 8. Document tools in [`CONTRACTS.md`](./CONTRACTS.md) §"<provider> MCP server".
@@ -2331,7 +2331,7 @@ Per-version theme + counts. Source: [`CHANGELOG.md`](./CHANGELOG.md).
 
 | Term | Definition |
 |---|---|
-| **Agent** | A first-class principal in Plinth — a software entity with its own identity, scopes, and audit trail. The unit of capability-token issuance. |
+| **Agent** | A first-class principal in Plynf — a software entity with its own identity, scopes, and audit trail. The unit of capability-token issuance. |
 | **Audit event** | An immutable row in `audit_events` recording one tool invocation. Every `/v1/invoke` writes one synchronously. |
 | **Branch** | A writable workspace fork from a snapshot. Reads see branch-specific writes first, then fall through to the source snapshot. |
 | **Capability token** | A short-lived signed JWT that explicitly enumerates what an agent may do (scopes). Issued by Identity, verified at Workspace + Gateway. |
@@ -2341,15 +2341,15 @@ Per-version theme + counts. Source: [`CHANGELOG.md`](./CHANGELOG.md).
 | **DLQ** | Dead-letter queue — a hidden `<channel>.deadletter` sub-channel where messages that fail JSON-Schema validation are routed. |
 | **Drain** | A worker's graceful-shutdown signal. After draining, it acquires no new leases but finishes in-flight steps. |
 | **Federated revocation** | The v0.6 mechanism by which a `revoke` on one Identity replica propagates to all Workspace + Gateway verifiers via cursor-paginated polling. |
-| **Gateway** | The Plinth service that proxies every external tool call. Owns auth, cache, audit, rate limits, OAuth, and OTLP export. |
+| **Gateway** | The Plynf service that proxies every external tool call. Owns auth, cache, audit, rate limits, OAuth, and OTLP export. |
 | **GC** | Garbage collection — the per-workspace sweeper that deletes versions / snapshots / blobs not retained by any policy or referenced by any snapshot. |
-| **Identity** | The Plinth service that issues + verifies + revokes JWT capability tokens, manages tenants, and rotates RS256 signing keys. |
+| **Identity** | The Plynf service that issues + verifies + revokes JWT capability tokens, manages tenants, and rotates RS256 signing keys. |
 | **JWKS** | JSON Web Key Set — the public-key metadata Identity publishes at `/v1/.well-known/jwks.json` so verifiers can validate RS256 tokens without a network round-trip per request. |
 | **Lease** | A time-bounded ownership claim a worker holds on a workflow step. Heartbeats extend it; expiry frees the step for another worker. |
 | **Lock** | A generic named resource lock (v0.6). Race-safe upsert with TTL + heartbeats; used for inter-agent mutual exclusion. |
-| **MCP** | Model Context Protocol — Anthropic's open tool-exposure standard. Plinth's gateway is an MCP client; backend tools are MCP servers. |
+| **MCP** | Model Context Protocol — Anthropic's open tool-exposure standard. Plynf's gateway is an MCP client; backend tools are MCP servers. |
 | **OTLP** | OpenTelemetry Protocol. The gateway optionally emits each audit event as an OTLP Log to a configured collector. |
-| **PKCE** | Proof Key for Code Exchange — the OAuth 2.0 extension that prevents authorization-code interception. Plinth's OAuth client implementation is PKCE-correct for all 3 providers. |
+| **PKCE** | Proof Key for Code Exchange — the OAuth 2.0 extension that prevents authorization-code interception. Plynf's OAuth client implementation is PKCE-correct for all 3 providers. |
 | **Snapshot** | An immutable, named point-in-time capture of every key + path version on a timeline. Cheap (metadata only). Used for resumability and audit. |
 | **Tenant** | An isolation boundary above workspaces. Realised in v0.6 as a `tenant_id` column on every state-bearing table; tokens carry `tenant_id` claim. |
 | **Tombstone** | A KV/file delete that writes a new version with `deleted=1`, preserving history. |

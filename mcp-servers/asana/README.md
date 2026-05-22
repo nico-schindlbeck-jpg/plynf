@@ -1,7 +1,7 @@
-# Plinth Asana MCP Server
+# Plynf Asana MCP Server
 
 A minimal MCP-style server that wraps the Asana REST API for use with
-Plinth agents. Runs at `http://localhost:7433` by default.
+Plynf agents. Runs at `http://localhost:7433` by default.
 
 ## What it does
 
@@ -23,7 +23,7 @@ Every tool advertises `auth_method=oauth2` with `auth_config.provider="asana"`.
 This server **never holds the Asana access token**. The gateway forwards the
 user's bearer token via the `Authorization` header on each `POST /invoke/...`
 call; the tools then forward the same token to Asana. If the header is
-missing or unparseable, the server returns 401 with a Plinth error envelope.
+missing or unparseable, the server returns 401 with a Plynf error envelope.
 
 ## Endpoints
 

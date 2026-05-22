@@ -2,7 +2,7 @@ import { defineConfig } from "astro/config";
 import tailwind from "@astrojs/tailwind";
 
 export default defineConfig({
-  site: "https://plinth.dev",
+  site: "https://plynf.com",
   integrations: [
     tailwind({ applyBaseStyles: false }),
   ],

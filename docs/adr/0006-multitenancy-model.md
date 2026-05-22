@@ -2,11 +2,11 @@
 
 - **Status**: Proposed
 - **Date**: 2026-05-05
-- **Deciders**: The Plinth Authors
+- **Deciders**: The Plynf Authors
 
 ## Context
 
-Plinth's v0.1 is single-tenant: one running cluster serves one user/org. This is fine for a PoC running on a developer's laptop, and inadequate for any commercial use. The multi-tenancy model determines:
+Plynf's v0.1 is single-tenant: one running cluster serves one user/org. This is fine for a PoC running on a developer's laptop, and inadequate for any commercial use. The multi-tenancy model determines:
 
 - The blast radius of a bug or compromise (does tenant A see tenant B's data?)
 - The operational footprint (one cluster per tenant vs. many tenants per cluster)
@@ -21,7 +21,7 @@ The standard models for multi-tenant SaaS, from cheapest/most-shared to most-exp
 3. **Database per tenant.** Each tenant gets its own database in the same cluster. Stronger still; harder to operate; has scale limits.
 4. **Cluster per tenant.** Each tenant gets dedicated services and storage. Maximum isolation; highest cost; the "enterprise" tier.
 
-Plinth's specific data shape complicates this:
+Plynf's specific data shape complicates this:
 
 - **Workspace data is the hot path.** KV reads, file reads, snapshot capture. Filter performance matters.
 - **Audit log is high-write.** Every tool call appends a row. Index pressure and partition pressure rise quickly.
@@ -30,7 +30,7 @@ Plinth's specific data shape complicates this:
 
 ## Decision
 
-Plinth adopts a **tiered multi-tenancy model**, evolving through three stages:
+Plynf adopts a **tiered multi-tenancy model**, evolving through three stages:
 
 ### v0.1: Single-tenant
 One cluster, one tenant, no `tenant_id` columns. Documented as "PoC only, do not deploy multi-tenant".
@@ -51,7 +51,7 @@ One cluster, one tenant, no `tenant_id` columns. Documented as "PoC only, do not
 
 ### v1.0+: Cluster-per-tenant for regulated / dedicated
 - Optional offering for customers with hard isolation requirements (HIPAA, defense, government).
-- Plinth services + Postgres + S3 bucket all dedicated.
+- Plynf services + Postgres + S3 bucket all dedicated.
 - Operationally expensive, priced accordingly.
 
 ```mermaid
@@ -69,7 +69,7 @@ The progression is one-way: a tenant promoted to a higher isolation tier doesn't
 
 - **The cheapest tier is online by v0.2.** We can serve real customers shortly after the v0.1 PoC, with isolation strong enough for early-stage adopters.
 - **Defense in depth via RLS.** A bug in application code that forgets a `WHERE tenant_id = ?` clause is caught by Postgres at the row-policy layer. This is genuinely valuable; many shared-schema systems get this wrong.
-- **Clear upgrade path.** Customers who outgrow shared-schema isolation can migrate to schema-per-tenant without changing their integration. The Plinth API is stable across the tiers.
+- **Clear upgrade path.** Customers who outgrow shared-schema isolation can migrate to schema-per-tenant without changing their integration. The Plynf API is stable across the tiers.
 - **Cost-pricing alignment.** Lighter tiers cost less to operate, are priced lower; higher tiers cost more, priced for enterprise. We're not promising one-size-fits-all.
 - **Enterprise compliance story.** Schema-per-tenant and cluster-per-tenant tiers give us answers to SOC2 / ISO27001 / FedRAMP audits we'd struggle to give from shared-schema alone.
 
@@ -88,7 +88,7 @@ The progression is one-way: a tenant promoted to a higher isolation tier doesn't
 
 Maximum isolation; no shared-state risks; conceptually simple. Why we don't:
 
-- Operationally untenable for early-stage customers. A free trial costs us a full Plinth cluster's worth of resources.
+- Operationally untenable for early-stage customers. A free trial costs us a full Plynf cluster's worth of resources.
 - We can't compete on price with shared-schema offerings if every tenant gets their own infrastructure.
 - The right answer for *some* customers, not for the default.
 

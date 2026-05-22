@@ -10,12 +10,12 @@ interface Props {
 
 const {
   title,
-  description = "Plinth is the runtime where production AI agents actually work. Persistent workspace, tool gateway, multi-agent channels. Designed for AI agents, not retrofitted from human UIs.",
+  description = "Plynf is the runtime where production AI agents actually work. Persistent workspace, tool gateway, multi-agent channels. Designed for AI agents, not retrofitted from human UIs.",
   canonical,
   ogImage = "/og-image.svg",
 } = Astro.props;
 
-const fullTitle = title.includes("Plinth") ? title : `${title} · Plinth`;
+const fullTitle = title.includes("Plynf") ? title : `${title} · Plynf`;
 const url = canonical ?? new URL(Astro.url.pathname, Astro.site).toString();
 ---
 
@@ -40,7 +40,7 @@ const url = canonical ?? new URL(Astro.url.pathname, Astro.site).toString();
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:image" content={new URL(ogImage, Astro.site).toString()} />
-    <meta property="og:site_name" content="Plinth" />
+    <meta property="og:site_name" content="Plynf" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />

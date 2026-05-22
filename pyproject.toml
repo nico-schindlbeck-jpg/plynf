@@ -1,4 +1,4 @@
-# Plinth — top-level repo metadata.
+# Plynf — top-level repo metadata.
 # Each component (services/*, sdk/python, mock-mcp-server, examples/*) has its own
 # pyproject.toml. This file exists to mark the repo root and host shared dev tool config.
 

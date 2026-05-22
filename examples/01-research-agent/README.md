@@ -1,9 +1,9 @@
 # 01 — Research Agent (Token-Comparison Demo)
 
-> The headline demo for Plinth. A 5-source research-and-report task,
+> The headline demo for Plynf. A 5-source research-and-report task,
 > run twice on the same topic with the same fixtures, the same prompts,
-> and the same mock LLM — once *without* Plinth and once *with*.
-> Same task. Same outputs. **~70% fewer tokens with Plinth.**
+> and the same mock LLM — once *without* Plynf and once *with*.
+> Same task. Same outputs. **~70% fewer tokens with Plynf.**
 
 ## What this demo does
 
@@ -18,7 +18,7 @@ the same recipe:
 The two implementations are deliberately constructed to be identical
 in everything *except* how state is held and how tools are called:
 
-| Aspect | Baseline | Plinth |
+| Aspect | Baseline | Plynf |
 |---|---|---|
 | Source of truth for LLM context | conversation history | workspace KV/files |
 | Source content storage | inlined into history | written to workspace, read by key |
@@ -41,7 +41,7 @@ well-engineered one for the same task. At production volumes, the
 difference is the line between an agent product that has gross margins
 and one that loses money on every interaction.
 
-Plinth's claim is that *most* of that wastage comes from a small set of
+Plynf's claim is that *most* of that wastage comes from a small set of
 recurring patterns:
 
 - **Re-reading content from chat history** because there is nowhere
@@ -53,7 +53,7 @@ recurring patterns:
 - **Ad-hoc state** that drifts and forces re-derivation rather than
   building structured artifacts that downstream steps can reference.
 
-The Plinth substrate provides the missing pieces: a versioned workspace
+The Plynf substrate provides the missing pieces: a versioned workspace
 (persistent, structured state) and a tool gateway (caching, audit, one
 auth boundary). This demo is the most concrete possible illustration of
 what those primitives buy you on a single workload.
@@ -75,7 +75,7 @@ python compare.py --per-step    # see the per-LLM-call breakdown
 
 The simulation mode is **fully self-contained**: the example bundles
 fixture content for three topics so it runs from a fresh clone with no
-infrastructure. If the Plinth services are running it will use them
+infrastructure. If the Plynf services are running it will use them
 (real workspace, real gateway with real caching); otherwise the demo
 simulates the workspace + gateway in-process so the comparison still
 reflects the value prop.
@@ -107,7 +107,7 @@ ANTHROPIC_API_KEY=sk-ant-... python compare.py --mode live
 Live mode makes real Anthropic Sonnet API calls instead of the
 deterministic mock. The token counts will vary slightly from the
 simulation (because the real model produces different-length responses)
-but the structural difference between baseline and Plinth — the *ratio*
+but the structural difference between baseline and Plynf — the *ratio*
 that the demo highlights — is robust.
 
 If `ANTHROPIC_API_KEY` is not set, live mode prints a warning and falls
@@ -119,16 +119,16 @@ back to simulation.
 ═══════════════════════════════════════════════════════════════════
   TOKEN-USAGE COMPARISON — research-agent on topic "renewable energy"
 ═══════════════════════════════════════════════════════════════════
-  Baseline (no Plinth):        22,745 tokens   |   $0.0781
-  With Plinth:                  6,726 tokens   |   $0.0339
+  Baseline (no Plynf):        22,745 tokens   |   $0.0781
+  With Plynf:                  6,726 tokens   |   $0.0339
   ─────────────────────────────────────────────
   Reduction:                     70.4 %        |   $0.0441 saved
 ═══════════════════════════════════════════════════════════════════
-  Wall-clock time:        Baseline   0.0 s   |   Plinth   0.0 s
-  Tool calls:             Baseline     6   |   Plinth     6   (0 cached)
+  Wall-clock time:        Baseline   0.0 s   |   Plynf   0.0 s
+  Tool calls:             Baseline     6   |   Plynf     6   (0 cached)
 ═══════════════════════════════════════════════════════════════════
   Mode: simulation | Topic: renewable energy
-  Baseline LLM calls: 8 | Plinth LLM calls: 7
+  Baseline LLM calls: 8 | Plynf LLM calls: 7
   Report saved: reports/2026-05-05T15-45-46-comparison.json
 ```
 
@@ -146,7 +146,7 @@ difference obvious:
 ```
                              Per-phase token totals
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
-┃ Phase                         ┃ Baseline tokens ┃ Plinth tokens ┃ Δ (tokens) ┃
+┃ Phase                         ┃ Baseline tokens ┃ Plynf tokens ┃ Δ (tokens) ┃
 ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
 │ search  (1b / 1p calls)       │              99 │            39 │        +60 │
 │ decide-fetch (per source)     │          11,166 │             - │    +11,166 │
@@ -160,19 +160,19 @@ difference obvious:
 
 The story the table tells:
 
-- **search** is comparable across both (Plinth saves a small amount
+- **search** is comparable across both (Plynf saves a small amount
   by not maintaining a long-running system prompt).
 - **decide-fetch** is the killer for the baseline. Each of 5 per-source
   fetch decisions sends the *growing* conversation history to the LLM,
   with previously-fetched source content inlined in the prompt. The
-  Plinth agent has no equivalent phase — gateway calls are direct, not
+  Plynf agent has no equivalent phase — gateway calls are direct, not
   mediated by an LLM reasoning step.
 - **extract** is roughly equal across both. Baseline does it once on a
-  giant context; Plinth does it 5 times on small per-source contexts.
+  giant context; Plynf does it 5 times on small per-source contexts.
   The structurally different shapes wash out to almost the same total —
   this is the real work in either approach.
-- **synthesise** is the second big win for Plinth. Baseline includes
-  all source content in the prompt (~6000 tokens); Plinth includes
+- **synthesise** is the second big win for Plynf. Baseline includes
+  all source content in the prompt (~6000 tokens); Plynf includes
   only structured fact summaries (~1200 tokens).
 
 ## How the design produces the reduction
@@ -199,7 +199,7 @@ The pattern is reasonable-looking, common in real agent code, and
 **the tokens add up super-linearly with the number of steps**. Each
 source effectively costs ~1500 tokens *per subsequent reasoning step*.
 
-### The Plinth pattern
+### The Plynf pattern
 
 ```python
 # Pseudocode of the structured pattern
@@ -280,7 +280,7 @@ rather than model-generated. Two consequences:
    variable-length responses, but the input-side savings dominate).
 
 What simulation *is* meant to do, and does well: provide a fast,
-regression-safe demonstration of the structural advantage Plinth
+regression-safe demonstration of the structural advantage Plynf
 provides at the prompt-construction level.
 
 ## File map
@@ -291,8 +291,8 @@ examples/01-research-agent/
 ├── pyproject.toml            # depends on plinth, tiktoken, httpx, rich
 ├── topics.json               # topics + expected source counts
 ├── shared.py                 # fixtures, mock LLM, token counter, backends
-├── baseline.py               # the no-Plinth agent
-├── with_plinth.py            # the Plinth agent
+├── baseline.py               # the no-Plynf agent
+├── with_plinth.py            # the Plynf agent
 ├── compare.py                # entry point: runs both and prints the table
 └── reports/                  # JSON comparison reports go here
 ```

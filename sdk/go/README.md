@@ -1,6 +1,6 @@
-# Plinth SDK for Go
+# Plynf SDK for Go
 
-Idiomatic Go client for [Plinth](https://github.com/plinth/plinth) — workspaces, tools, identity, workers, and workflows. Built for the cloud-native ecosystem (Kubernetes operators, Go-based services) and brings parity with the Python and TypeScript SDKs for the v1.0 core surface.
+Idiomatic Go client for [Plynf](https://github.com/plinth/plinth) — workspaces, tools, identity, workers, and workflows. Built for the cloud-native ecosystem (Kubernetes operators, Go-based services) and brings parity with the Python and TypeScript SDKs for the v1.0 core surface.
 
 ## Status
 
@@ -140,4 +140,4 @@ The `plinth_test/helpers_test.go` file exposes a small `MockServer` if you want 
 
 ## License
 
-Apache-2.0. Same as every other Plinth component.
+Apache-2.0. Same as every other Plynf component.

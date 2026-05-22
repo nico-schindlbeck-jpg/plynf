@@ -1,6 +1,6 @@
 # Workflow Benchmark Suite — Methodology
 
-How we measure the token-cost difference between agent workflows running on Plinth versus a naive chat-history-only baseline. Designed to be reproducible, falsifiable, and honest about its limits.
+How we measure the token-cost difference between agent workflows running on Plynf versus a naive chat-history-only baseline. Designed to be reproducible, falsifiable, and honest about its limits.
 
 ## What we measure
 
@@ -10,11 +10,11 @@ For each workflow scenario, the suite computes:
 |---|---|
 | `baseline_input_tokens` | Sum of all input tokens sent to the model across all steps in the naive (chat-history) implementation |
 | `baseline_output_tokens` | Sum of all output tokens produced by the model |
-| `plinth_input_tokens` | Same, but for the Plinth implementation that uses handles, snapshots, and channels |
+| `plinth_input_tokens` | Same, but for the Plynf implementation that uses handles, snapshots, and channels |
 | `plinth_output_tokens` | Same |
 | `reduction_pct` | `1 - (plinth_total / baseline_total)`, rounded to one decimal place |
 | `cost_baseline_usd` | Priced at Claude Sonnet 4.5 list: $3/M input, $15/M output (May 2026) |
-| `cost_plinth_usd` | Same pricing applied to the Plinth-side tokens |
+| `cost_plinth_usd` | Same pricing applied to the Plynf-side tokens |
 | `cost_saved_usd` | `cost_baseline - cost_plinth` |
 
 The suite is **deterministic**: no real LLM calls. Each scenario specifies its step structure as data; the harness computes the token math from that structure. This makes the numbers reproducible in CI and immune to model-side variance.
@@ -51,9 +51,9 @@ baseline_input(step_i) = prompt_overhead(step_i) + sum(produces_tokens(step_j) f
 
 This is the "chat history" model — every model call sees the entire prior conversation. It's how LangChain's default agent loop, vanilla OpenAI function calling, and most LangGraph configurations work today.
 
-### Plinth accounting
+### Plynf accounting
 
-The Plinth implementation:
+The Plynf implementation:
 - Tool calls write outputs to the workspace; return a **handle** to the agent (~30 tokens).
 - Model calls require **only the handles to the prior outputs they need**, plus a small `read_size_tokens` budget per handle for selective dereference.
 - Multi-agent handoffs send messages on **typed channels**; each agent reads only what's addressed to it.
@@ -78,13 +78,13 @@ CLAUDE_SONNET_INPUT   = 3.00    # $/M tokens, May 2026 list
 CLAUDE_SONNET_OUTPUT  = 15.00   # $/M tokens
 ```
 
-Output tokens are equal between baseline and Plinth — the model produces the same response whatever you put in the prompt; we're not measuring quality differences. The savings come exclusively from the input side, but we report total (input + output) for honesty.
+Output tokens are equal between baseline and Plynf — the model produces the same response whatever you put in the prompt; we're not measuring quality differences. The savings come exclusively from the input side, but we report total (input + output) for honesty.
 
 ## What the suite is NOT measuring
 
-- **Wall-clock latency.** Plinth adds a small overhead for workspace I/O (~20-50ms per write). For workflows of 5+ steps, the latency wins on Plinth's side because parallel branches reduce serial chain length. The suite doesn't claim a latency number; we have separate `bench` runs for that.
+- **Wall-clock latency.** Plynf adds a small overhead for workspace I/O (~20-50ms per write). For workflows of 5+ steps, the latency wins on Plynf's side because parallel branches reduce serial chain length. The suite doesn't claim a latency number; we have separate `bench` runs for that.
 - **Output quality.** Two prompts that differ in structure but contain the same information should produce equivalent quality. Anecdotally this holds for the workflows we've measured; rigorously, we'd need eval grading and that's a separate workstream.
-- **Cache hits.** The tool gateway caches responses, which makes the second run of any workflow much cheaper. The suite assumes a cold cache for both baseline and Plinth — the comparison is on first-run tokens.
+- **Cache hits.** The tool gateway caches responses, which makes the second run of any workflow much cheaper. The suite assumes a cold cache for both baseline and Plynf — the comparison is on first-run tokens.
 - **Streaming output.** Both implementations stream the same way. Not a differentiator.
 
 ## Sanity checks
@@ -100,6 +100,6 @@ Two safeguards against the suite cooking the numbers:
 python -m benchmarks.workflows.run_all
 ```
 
-Produces a Rich-formatted comparison table on stdout and a JSON report at `benchmarks/workflows/results/<timestamp>-suite.json`. Each scenario gets its own row showing baseline vs Plinth tokens, reduction percentage, and cost-saved dollars.
+Produces a Rich-formatted comparison table on stdout and a JSON report at `benchmarks/workflows/results/<timestamp>-suite.json`. Each scenario gets its own row showing baseline vs Plynf tokens, reduction percentage, and cost-saved dollars.
 
 The JSON report is the canonical artefact for citing in marketing copy, sales decks, or technical write-ups. Always link to a specific run, not the latest, so the numbers you quote can be reproduced.

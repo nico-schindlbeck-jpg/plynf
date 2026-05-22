@@ -1,8 +1,8 @@
 <div align="center">
 
-# Plinth Playbook
+# Plynf Playbook
 
-**The founder's manual for showing Plinth and selling Plinth.**
+**The founder's manual for showing Plynf and selling Plynf.**
 
 `v1.0 GA` · `2066 tests` · `5 demos` · `May 8, 2026` · `API v1 stable`
 
@@ -10,7 +10,7 @@
 
 ---
 
-This document gives you (a) the exact mechanic to demo Plinth live, click by click, in 30 minutes, and (b) the storyline to position Plinth as the agent-native substrate the next decade of AI infrastructure will be built on.
+This document gives you (a) the exact mechanic to demo Plynf live, click by click, in 30 minutes, and (b) the storyline to position Plynf as the agent-native substrate the next decade of AI infrastructure will be built on.
 
 Opinionated on purpose. When two phrasings exist, only the stronger one is here. Where something is rough, it is named as such — quietly.
 
@@ -90,7 +90,7 @@ This is the script. You can paraphrase, but the time budget and the **order** ar
 **The hook.** No small talk past minute 1.
 
 **What you say:**
-> *"Today's agents are wrappers around interfaces designed for humans — clicking buttons, reading screens, re-loading the same conversation history every step. That's slow, expensive, and it's why agent products die in production. Plinth flips it. The agent becomes the first-class user of dedicated infrastructure. Let me show you the headline number."*
+> *"Today's agents are wrappers around interfaces designed for humans — clicking buttons, reading screens, re-loading the same conversation history every step. That's slow, expensive, and it's why agent products die in production. Plynf flips it. The agent becomes the first-class user of dedicated infrastructure. Let me show you the headline number."*
 
 **What you run:**
 
@@ -101,8 +101,8 @@ make demo
 **What the audience sees:** The boxed token-comparison table prints on screen.
 
 ```
-  Baseline (no Plinth):        23,704 tokens   |   $0.0810
-  With Plinth:                  6,795 tokens   |   $0.0345
+  Baseline (no Plynf):        23,704 tokens   |   $0.0810
+  With Plynf:                  6,795 tokens   |   $0.0345
   Reduction:                     71.3 %        |   $0.0464 saved
 ```
 
@@ -155,7 +155,7 @@ make demo-resume
 **What you say at the resume:**
 > *"It read the workflow manifest from durable storage, found the next pending step, restored the workspace from snapshot, and continued. The agent code didn't change. Resume is automatic."*
 
-> The line that lands: *"In a 6-step pipeline, a crash on step 4 with no resume support means redoing 3 steps' worth of tokens. Plinth makes long-running agents viable in production. That's the whole game."*
+> The line that lands: *"In a 6-step pipeline, a crash on step 4 with no resume support means redoing 3 steps' worth of tokens. Plynf makes long-running agents viable in production. That's the whole game."*
 
 **Optional power move (if time allows, ~3 extra minutes):** Switch to demo 05 and **kill a real worker** mid-flight in front of them. `Ctrl+C` in terminal 1, then `plinth-workflow-worker --handlers-module handlers --concurrency 2` again. The lease reaper expires the dead lease, the new worker picks up. This is more dramatic but takes longer because the default reaper interval is ~60 seconds.
 
@@ -181,7 +181,7 @@ make demo-triage
 **What you say:**
 > *"Eight services running coordinated right now: workspace, gateway, identity, dashboard, mock-MCP, plus three real OAuth-backed MCP servers — GitHub, Slack, Linear. The agent itself never touches a token. The gateway holds OAuth state, encrypted at rest with AES-256-GCM, and forwards bearer tokens at the edge."*
 
-> The line that lands: *"Most agent frameworks are one process and a Python loop. Plinth is **nine deployable units** sharing JWT capability tokens, with auto-rotating RS256 keys and per-tenant cost caps. This is what real production posture looks like."*
+> The line that lands: *"Most agent frameworks are one process and a Python loop. Plynf is **nine deployable units** sharing JWT capability tokens, with auto-rotating RS256 keys and per-tenant cost caps. This is what real production posture looks like."*
 
 **What can go wrong:** Triage demo says `(example 04 not built yet)`. Recovery: *"Let me show the dashboard view of the same data"* — the workspace and audit log from the prior demos still tells the story.
 
@@ -211,7 +211,7 @@ make demo-triage
 **What you say (pick one based on stakeholder):**
 
 - *"What I want from this conversation is a follow-up next week with two of your portfolio CTOs. I want their pushback on the architecture before I go raise."*
-- *"What I want is a 30-day design partnership: one of your real workflows, behind your firewall, on Plinth. No fee. I learn what breaks; you learn whether this saves you the 70%."*
+- *"What I want is a 30-day design partnership: one of your real workflows, behind your firewall, on Plynf. No fee. I learn what breaks; you learn whether this saves you the 70%."*
 - *"What I want is honest 5-minute feedback now, then a yes/no on whether this is in your fund's scope."*
 
 Then: stop talking. Wait.
@@ -267,9 +267,9 @@ A wrong pitch kills a right product. This part is what you say across the next 1
 
 ## 2.1 — The Core Thesis
 
-> **The next infrastructure layer is the agent-native substrate. Plinth is the substrate.**
+> **The next infrastructure layer is the agent-native substrate. Plynf is the substrate.**
 
-Every cloud era was unlocked by a layer designed for the new first-class user: AWS for servers, Stripe for payments, Vercel for frontends. The current era's first-class user is the **AI agent** — and today it's stuck running on infrastructure built for humans (chat history as memory, browsers as tools, retries as recovery). Every production agent rebuilds the same missing pieces — workspace, tool gateway, channels, durable workflows, identity — badly, in-process, non-portably. **Plinth is those pieces, designed-in from day one, with a measured 71% token reduction on a real workload as proof the primitives are right.**
+Every cloud era was unlocked by a layer designed for the new first-class user: AWS for servers, Stripe for payments, Vercel for frontends. The current era's first-class user is the **AI agent** — and today it's stuck running on infrastructure built for humans (chat history as memory, browsers as tools, retries as recovery). Every production agent rebuilds the same missing pieces — workspace, tool gateway, channels, durable workflows, identity — badly, in-process, non-portably. **Plynf is those pieces, designed-in from day one, with a measured 71% token reduction on a real workload as proof the primitives are right.**
 
 That paragraph is your North Star. Everything below is its ammunition.
 
@@ -286,7 +286,7 @@ Three frames. Each answers a different prospect's question. **Lead with the one 
 **Talking points:**
 - Agent context grows **quadratically** when chat history is the only memory. By step 10, you pay ~10× per token vs. step 1.
 - Anthropic Sonnet is $3 per million input tokens. A naive agent burns 20-50k tokens for a 5-source research task; a well-engineered one does it in 6-7k. At scale, the gap is gross-margin vs. money-pit.
-- Plinth structurally kills the quadratic by holding state in the workspace, not the prompt. Each reasoning step gets a focused prompt referencing keys, not history.
+- Plynf structurally kills the quadratic by holding state in the workspace, not the prompt. Each reasoning step gets a focused prompt referencing keys, not history.
 
 **Proof in the repo:**
 - 71.3% / 72.0% / 71.1% on three topics, measured exact via `tiktoken`.
@@ -303,7 +303,7 @@ Three frames. Each answers a different prospect's question. **Lead with the one 
 
 **Talking points:**
 - Long-running agents will crash. Networks blip, LLM APIs time out, processes get OOM-killed. Without durable state, every crash means starting over.
-- Plinth ships durable execution with **lease + heartbeat** worker semantics (v0.5). Kill a worker mid-step, the lease reaper reverts the step to pending, another worker picks it up. No bespoke recovery code in the agent.
+- Plynf ships durable execution with **lease + heartbeat** worker semantics (v0.5). Kill a worker mid-step, the lease reaper reverts the step to pending, another worker picks it up. No bespoke recovery code in the agent.
 - Workflow transactions support **Saga-style compensating actions** (v0.5). Typed channels with **dead-letter queues** catch malformed messages.
 - Migration framework, advisory locks, federated revocation, generic resource locks (v0.6) — production-shaped concerns designed-in, not retrofitted.
 
@@ -322,9 +322,9 @@ Three frames. Each answers a different prospect's question. **Lead with the one 
 
 **Talking points:**
 - Multi-agent systems fail when agents share LLM context — token bills explode, debugging becomes impossible.
-- Plinth provides **channels**: durable, monotonically-sequenced, optionally-typed queues. Agents communicate via small typed messages, not concatenated prompts.
+- Plynf provides **channels**: durable, monotonically-sequenced, optionally-typed queues. Agents communicate via small typed messages, not concatenated prompts.
 - Each agent stays small, single-purpose, and **horizontally composable** — add a fact-checker between Writer and Reviewer without touching either.
-- Plinth is **the substrate, not another framework**. We don't tell you how to write the reasoning loop. We give you the OS the agent runs on.
+- Plynf is **the substrate, not another framework**. We don't tell you how to write the reasoning loop. We give you the OS the agent runs on.
 
 **Proof in the repo:**
 - `make demo-handoff`: Researcher → Writer → Reviewer in **8,737 tokens total** for a 547-word reviewed report.
@@ -337,7 +337,7 @@ Three frames. Each answers a different prospect's question. **Lead with the one 
 
 ## 2.3 — The Unfair Advantage
 
-Why is Plinth structurally hard to copy? Pick the four sharpest defensibilities. Don't pad.
+Why is Plynf structurally hard to copy? Pick the four sharpest defensibilities. Don't pad.
 
 **1. Agent-native primitives, designed-in.** Workspace + tool gateway + channels + workflows + identity, conceived together, with the same JWT carrying tenant + scope + cost-cap claims across all of them. Existing tools retrofit one piece (Temporal has durable execution; LangChain has agent loops; Auth0 has identity) and assume the rest exists. The integration work is the moat — and it's done.
 
@@ -372,15 +372,15 @@ All three share a **core** — sentences that never change. The rest adapts. Mem
 
 ### The 30-second pitch (elevator)
 
-> *"Plinth is the substrate where production AI agents actually work. Today's agents run on infrastructure designed for humans — chat history as memory, browsers as tools — and that's why they're slow, expensive, and brittle in production. We give the agent its own workspace, a unified tool gateway, durable workflows, and identity — measured 71% token reduction on a real workload, reproducible from a clean clone. Six versions, 1621 tests, in two days. Looking for design partners now."*
+> *"Plynf is the substrate where production AI agents actually work. Today's agents run on infrastructure designed for humans — chat history as memory, browsers as tools — and that's why they're slow, expensive, and brittle in production. We give the agent its own workspace, a unified tool gateway, durable workflows, and identity — measured 71% token reduction on a real workload, reproducible from a clean clone. Six versions, 1621 tests, in two days. Looking for design partners now."*
 
 ### The 3-minute pitch (call opener)
 
-> *"AI agents are the new infrastructure user. The cloud platform for them doesn't exist yet — every team rebuilds the same five primitives badly, in-process, locked to one model provider. Plinth is those primitives, designed-in from day one.*
+> *"AI agents are the new infrastructure user. The cloud platform for them doesn't exist yet — every team rebuilds the same five primitives badly, in-process, locked to one model provider. Plynf is those primitives, designed-in from day one.*
 >
-> *Five things every agent that runs on Plinth gets: a versioned persistent workspace, a unified tool gateway with caching and OAuth, durable workflows with lease-and-heartbeat recovery, durable typed channels for multi-agent handoffs, and a JWT identity layer with per-tenant cost caps. Nine deployable units, 8 services, 3 real OAuth providers, fully OTLP-instrumented.*
+> *Five things every agent that runs on Plynf gets: a versioned persistent workspace, a unified tool gateway with caching and OAuth, durable workflows with lease-and-heartbeat recovery, durable typed channels for multi-agent handoffs, and a JWT identity layer with per-tenant cost caps. Nine deployable units, 8 services, 3 real OAuth providers, fully OTLP-instrumented.*
 >
-> *Headline result: a 5-source research task uses 71% fewer tokens with Plinth than without. Measured exact, three topics, reproducible in 15 minutes from a clean clone. We have five end-to-end demos including a multi-agent pipeline at 8,700 tokens and a workflow that crashes mid-step and resumes from snapshot.*
+> *Headline result: a 5-source research task uses 71% fewer tokens with Plynf than without. Measured exact, three topics, reproducible in 15 minutes from a clean clone. We have five end-to-end demos including a multi-agent pipeline at 8,700 tokens and a workflow that crashes mid-step and resumes from snapshot.*
 >
 > *We're at v0.6 — production-credible for design partners, pre-GA. Apache 2.0. Velocity proof: six versions in two days, 1621 tests passing, every demo from v0.1 still produces unchanged output. We're talking to design partners and seed investors right now. What I'd love is 15 more minutes to show you the demo live."*
 
@@ -400,7 +400,7 @@ This is the 3-minute pitch, slowed down, with a slide per layer:
 
 The **core sentences** that appear in every variation:
 
-- *"Plinth is the substrate where production AI agents actually work."*
+- *"Plynf is the substrate where production AI agents actually work."*
 - *"Measured 71% token reduction on a real workload, reproducible from a clean clone."*
 - *"Six versions, 1621 tests, in two days."*
 
@@ -432,7 +432,7 @@ Tactical, not aspirational. Each row is a specific first move.
 
 | Channel | First move | What "winning" looks like |
 |---|---|---|
-| **Hacker News (Show HN)** | Title: `Show HN: Plinth — agents survive crashes and use 71% fewer tokens (open source)`. Body: repo link, the headline number, one paragraph per primitive, the 15-minute claim. | Top 5 within 6 hours; 100+ comments; 500+ stars in 48h |
+| **Hacker News (Show HN)** | Title: `Show HN: Plynf — agents survive crashes and use 71% fewer tokens (open source)`. Body: repo link, the headline number, one paragraph per primitive, the 15-minute claim. | Top 5 within 6 hours; 100+ comments; 500+ stars in 48h |
 | **LinkedIn (founder-led, 3-post series)** | Post 1: pain frame. Post 2: 60-90 sec demo video (`make demo` + `make demo-resume`). Post 3: roadmap + design-partner ask. | 5+ qualified DM replies from CTOs / VPs Eng |
 | **AI engineer podcasts** | One-pager to *Latent Space*, *AI Engineer*, *Practical AI*. Lead with the 71%, the 9-service architecture, the velocity story. | One booking inside 6 weeks |
 | **Twitter/X** | 90-second screen-capture of crash-resume — exit 99 → resume → completion. No voiceover; let output tell the story. | 50k+ views in 48h; reposts from 3+ AI infra accounts |

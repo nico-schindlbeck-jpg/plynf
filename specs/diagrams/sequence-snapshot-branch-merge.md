@@ -12,7 +12,7 @@ source snapshot. Branch writes never affect the parent timeline until merge.
 sequenceDiagram
     autonumber
     actor Agent as Agent code
-    participant SDK as Plinth SDK
+    participant SDK as Plynf SDK
     participant WS as Workspace API\n:7421
     participant DB as SQLite + blobs
 

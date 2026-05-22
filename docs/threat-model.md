@@ -1,4 +1,4 @@
-# Plinth Threat Model
+# Plynf Threat Model
 
 > Status: v1.0 baseline. Updated whenever a new attacker class or
 > mitigation lands. Section anchors are stable for citation from
@@ -6,7 +6,7 @@
 
 This document applies STRIDE
 (Spoofing-Tampering-Repudiation-Information-Disclosure-Denial-Elevation)
-to Plinth's three core services (`workspace`, `gateway`, `identity`),
+to Plynf's three core services (`workspace`, `gateway`, `identity`),
 the SDK surface, and external integration points (OAuth providers, MCP
 servers, OTLP collectors). The output is a catalogue of concrete
 threats, the v1.0 mitigations that exist for each, and the residual
@@ -21,11 +21,11 @@ one tenant.
 
 **In scope** for v1.0:
 
-- The three Plinth services (`workspace`, `gateway`, `identity`) and
+- The three Plynf services (`workspace`, `gateway`, `identity`) and
   the storage they own (SQLite/Postgres + on-disk blob trees).
 - The SDK surface (Python + TypeScript) where it terminates a session
-  against a Plinth deployment.
-- External integration points where Plinth makes outbound calls (MCP
+  against a Plynf deployment.
+- External integration points where Plynf makes outbound calls (MCP
   servers, OAuth providers, OTLP collectors).
 - The deployment topology described in `deploy/k8s/`, `deploy/helm/`,
   and `deploy/terraform/aws-example/`.
@@ -34,11 +34,11 @@ one tenant.
 
 - Physical security of the host hardware.
 - Underlying database engine vulnerabilities (CVEs in SQLite/Postgres).
-- DDoS at the network/CDN layer — Plinth's load shedding is a
+- DDoS at the network/CDN layer — Plynf's load shedding is a
   last-resort, not an edge mitigation.
 - Compromised SDK distribution (PyPI / npm supply chain attacks).
 - Operator-supplied integrations (custom MCP servers, custom OAuth
-  providers) beyond the protocol-level controls Plinth enforces.
+  providers) beyond the protocol-level controls Plynf enforces.
 
 ## Trust boundaries
 
@@ -51,7 +51,7 @@ one tenant.
             └────────────────────────────────────────────────┘
                                      │
             ┌─────────────────────────────────────────────────┐
-            │             Plinth Service Mesh                 │
+            │             Plynf Service Mesh                 │
             │                                                 │
             │  identity ◄────► gateway ◄────► workspace       │
             │     │              │              │             │
@@ -199,7 +199,7 @@ Trust transitions:
 - Cost caps depend on `pricing.py`. A tool with zero/unconfigured
   pricing contributes 0 — audit when registering paid integrations.
 - DDoS at infra layer (volumetric L3/L4) is the operator's
-  responsibility — Plinth's load shedding is a last-resort, not an
+  responsibility — Plynf's load shedding is a last-resort, not an
   edge mitigation.
 
 ### E — Elevation of privilege
@@ -231,7 +231,7 @@ the operator:
 
 - **Postgres-level data-at-rest encryption**: operator responsibility
   via CloudSQL CMEK, RDS KMS, or equivalent.
-- **DDoS at infra layer**: operator responsibility — front Plinth with
+- **DDoS at infra layer**: operator responsibility — front Plynf with
   a CDN / WAF / volumetric scrubber.
 - **Compromised SDK distribution**: out of scope. Operators pin SDK
   versions and verify checksums.
@@ -247,7 +247,7 @@ the operator:
 - **Rate limits in standalone-replica mode**: per-agent buckets are
   per-instance. A multi-replica deployment without a shared rate
   limiter will see the bucket multiplied by the replica count.
-  Operators in this topology should front Plinth with an edge rate
+  Operators in this topology should front Plynf with an edge rate
   limiter (Envoy, NGINX, Cloudflare).
 
 ## Future work

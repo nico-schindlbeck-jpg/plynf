@@ -3,9 +3,9 @@ const tabs = [
   {
     id: "python",
     label: "Python",
-    code: `from plinth import Plinth
+    code: `from plinth import Plynf
 
-client = Plinth(
+client = Plynf(
     workspace_url="http://localhost:7421",
     gateway_url="http://localhost:7422",
     api_key="...",
@@ -24,9 +24,9 @@ print(result.cached, result.cost_usd)`,
   {
     id: "typescript",
     label: "TypeScript",
-    code: `import { Plinth } from "@plinth/sdk";
+    code: `import { Plynf } from "@plinth/sdk";
 
-const client = new Plinth({
+const client = new Plynf({
   workspaceUrl: "http://localhost:7421",
   gatewayUrl: "http://localhost:7422",
   apiKey: "...",
@@ -64,7 +64,7 @@ fmt.Println(result.Cached, result.CostUSD)`,
   {
     id: "swift",
     label: "Swift",
-    code: `let client = try Plinth(
+    code: `let client = try Plynf(
     workspaceURL: URL(string: "http://localhost:7421")!,
     gatewayURL:   URL(string: "http://localhost:7422")!,
     apiKey: "..."
@@ -83,7 +83,7 @@ print(result.cached, result.costUSD)`,
   {
     id: "kotlin",
     label: "Kotlin",
-    code: `val client = Plinth(
+    code: `val client = Plynf(
     PlinthConfig(
         workspaceUrl = "http://localhost:7421",
         gatewayUrl   = "http://localhost:7422",
