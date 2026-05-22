@@ -130,7 +130,11 @@ from .workflows import WorkflowStore, _row_to_step
 # App factory
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    embedded: bool = False,
+) -> FastAPI:
     """Build the FastAPI application.
 
     Tests build a fresh app per session with a tmp-dir backed ``Settings``;
@@ -338,6 +342,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         description="Plinth workspace service — versioned KV + file storage.",
         lifespan=lifespan,
     )
+    app.state.embedded = embedded
 
     # Stash dependencies on the app so handlers can pull them via Depends.
     app.state.settings = settings

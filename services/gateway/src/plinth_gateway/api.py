@@ -110,7 +110,11 @@ def _scope_tenant(request: Request) -> str | None:
     return getattr(request.state, "tenant_id", "default")
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    embedded: bool = False,
+) -> FastAPI:
     """Construct a FastAPI app instance.
 
     A factory keeps tests isolated — each test can pass a custom Settings and
@@ -321,6 +325,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         description="Agent-native HTTP/MCP tool proxy with caching, audit, and dry-run.",
         lifespan=lifespan,
     )
+    app.state.embedded = embedded
 
     # v1.0 — Prometheus metrics. Constructed in outer scope (not inside the
     # lifespan) so the metrics middleware below has a stable reference; the

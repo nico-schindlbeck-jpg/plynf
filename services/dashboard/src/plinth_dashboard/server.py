@@ -57,6 +57,7 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 def create_app(
     settings: Settings | None = None,
     *,
+    embedded: bool = False,
     overview: OverviewBuilder | None = None,
 ) -> FastAPI:
     """Build the FastAPI application.
@@ -97,6 +98,7 @@ def create_app(
         description="Plinth dashboard — read-only observability UI.",
         lifespan=lifespan,
     )
+    app.state.embedded = embedded
     app.state.settings = settings
 
     # v1.0 — Prometheus metrics. Pre-declares dashboard-specific series so
