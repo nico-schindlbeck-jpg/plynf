@@ -30,18 +30,18 @@
   [headers.values]
     Cache-Control = "public, max-age=604800"
 
-# ─── Installer pipes (200-rewrite so curl|sh works in one hop) ────────
-[[redirects]]
-  from = "/install.sh"
-  to = "https://raw.githubusercontent.com/nico-schindlbeck-jpg/plinth/main/install/install.sh"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/install.ps1"
-  to = "https://raw.githubusercontent.com/nico-schindlbeck-jpg/plinth/main/install/install.ps1"
-  status = 200
-  force = true
+# ─── Installer pipes ──────────────────────────────────────────────────
+# install.sh is served DIRECTLY from landing/public/install.sh — no
+# redirect needed. The previous setup pointed at raw.githubusercontent.com
+# which 404s while the repo is private. Source of truth stays in
+# install/install.sh; landing/public/install.sh is a deploy-time copy.
+#
+# install.ps1 doesn't exist yet — when added, place it in public/ same way.
+[[headers]]
+  for = "/install.sh"
+  [headers.values]
+    Content-Type = "text/x-shellscript; charset=utf-8"
+    Cache-Control = "public, max-age=300, must-revalidate"
 
 # ─── GitHub aliases ───────────────────────────────────────────────────
 [[redirects]]
