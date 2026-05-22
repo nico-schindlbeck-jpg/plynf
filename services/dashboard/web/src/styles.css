@@ -1,0 +1,366 @@
+/* Plynf dashboard — wizard + overview styles.
+ *
+ * Inherits the brand: dark base, orange/magenta/indigo accents, Inter
+ * for prose, JetBrains Mono for code. Same tokens as the landing site
+ * so visual coherence carries through.
+ */
+
+:root {
+  --bg-0: #08070d;
+  --bg-1: #110e1f;
+  --bg-2: #1a1530;
+  --ink: #f8f7ff;
+  --ink-2: #b9b5d4;
+  --ink-3: #7a7595;
+  --accent: #ff8551;
+  --accent-deep: #cc5a2e;
+  --magenta: #d946ef;
+  --indigo: #6366f1;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --danger: #ff6b8b;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, "Inter", "Segoe UI", system-ui, sans-serif;
+  background: var(--bg-0);
+  color: var(--ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mono { font-family: "JetBrains Mono", "SF Mono", Menlo, monospace; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ─── Loading ─────────────────────────────────────────────────────── */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: 1rem;
+  color: var(--ink-2);
+}
+
+/* ─── Layout ──────────────────────────────────────────────────────── */
+.container {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem;
+}
+
+/* ─── Wizard ──────────────────────────────────────────────────────── */
+.wizard {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 4rem;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.wizard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 3rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+.progress {
+  display: flex;
+  gap: 0.5rem;
+}
+.progress .dot {
+  width: 0.5rem; height: 0.5rem;
+  border-radius: 50%;
+  background: var(--border-strong);
+  transition: background 0.18s ease;
+}
+.progress .dot.filled { background: var(--accent); }
+
+.step-card { animation: fade-up 0.3s ease-out; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.step-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  margin: 0 0 0.75rem;
+}
+
+.step-hint {
+  color: var(--ink-2);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin: 0 0 2rem;
+}
+
+.step-body { display: flex; flex-direction: column; gap: 1.5rem; }
+
+.input {
+  width: 100%;
+  background: var(--bg-1);
+  border: 1px solid var(--border-strong);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  color: var(--ink);
+  font-size: 1rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.input:focus {
+  border-color: var(--accent);
+  background: var(--bg-2);
+}
+.input::placeholder { color: var(--ink-3); }
+
+.choice-row { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.choice {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.85rem 1rem;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.choice:hover { border-color: var(--border-strong); }
+.choice.selected {
+  border-color: var(--accent);
+  background: rgba(255, 133, 81, 0.08);
+}
+.choice .label {
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+.choice .sublabel {
+  font-size: 0.825rem;
+  color: var(--ink-3);
+  margin-top: 0.2rem;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.4rem 1rem;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 1rem 1.2rem;
+  margin: 0;
+}
+.summary dt {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.75rem;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding-top: 0.15rem;
+}
+.summary dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.api-key-display {
+  background: #0d0c14;
+  border: 1px solid rgba(255, 133, 81, 0.4);
+  border-radius: 0.5rem;
+  padding: 1rem 1.2rem;
+  word-break: break-all;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: var(--accent);
+  position: relative;
+}
+.api-key-display .copy-btn {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--ink-2);
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.3rem;
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.api-key-display .copy-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.confirm {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.95rem;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.confirm input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--accent);
+}
+
+.error {
+  background: rgba(255, 107, 139, 0.1);
+  border: 1px solid rgba(255, 107, 139, 0.35);
+  border-radius: 0.4rem;
+  padding: 0.7rem 1rem;
+  color: var(--danger);
+  font-size: 0.9rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.btn {
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.7rem 1.4rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+  border: 1px solid transparent;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-deep));
+  color: #190612;
+  border-color: var(--accent-deep);
+}
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(255, 133, 81, 0.3);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--ink-2);
+  border-color: var(--border-strong);
+}
+.btn-secondary:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+
+/* ─── Overview ────────────────────────────────────────────────────── */
+.overview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 2rem;
+}
+.overview-header h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+
+.sample-task-card {
+  background: linear-gradient(180deg, rgba(255,133,81,0.08), rgba(255,133,81,0));
+  border: 1px solid rgba(255, 133, 81, 0.4);
+  border-radius: 0.6rem;
+  padding: 1.5rem 1.8rem;
+  margin-bottom: 2rem;
+}
+.sample-task-card .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+.sample-task-card h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+.sample-task-card .dismiss {
+  background: transparent;
+  border: none;
+  color: var(--ink-3);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.sample-task-card .dismiss:hover { color: var(--ink); }
+.sample-task-card p {
+  color: var(--ink-2);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin: 0.5rem 0 1.2rem;
+}
+
+.workspace-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.workspace-list a {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.4rem;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  color: var(--ink);
+  text-decoration: none;
+  transition: border-color 0.18s ease;
+}
+.workspace-list a:hover {
+  border-color: var(--border-strong);
+}
+.workspace-list .name { font-weight: 500; }
+.workspace-list .version { color: var(--ink-3); font-size: 0.85rem; }
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 4rem 1rem;
+  color: var(--ink-2);
+}
