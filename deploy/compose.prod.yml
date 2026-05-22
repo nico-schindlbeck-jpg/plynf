@@ -1,0 +1,277 @@
+# Plynf — production stack from GHCR pre-built images.
+#
+# Usage:
+#   export PLYNF_ORG="plynf"   # or the future plynf GitHub org
+#   export PLYNF_VERSION="v1.7"               # or any released tag
+#   docker compose -f deploy/compose.prod.yml pull
+#   docker compose -f deploy/compose.prod.yml up -d --wait
+#
+# Differences from the root docker-compose.yml:
+#   - No `build:` directives. Images are pulled from ghcr.io, not built
+#     locally. Cold-start time drops from 8-15 min (local build) to
+#     30-90s (parallel pull).
+#   - `pull_policy: always` so a `compose up` always picks up newer tags
+#     when PLYNF_VERSION moves.
+#   - Images are signed (cosign keyless) and have SBOM attestations
+#     attached. See deploy/registry.md for verification.
+#
+# Internal env vars keep their PLINTH_ prefix — that's the runtime API
+# contract baked into services. Don't rename without coordinating a
+# migration (would break existing users' data dirs and config).
+#
+# To pin to immutable digests instead of mutable tags, run:
+#   scripts/pin-compose-digests.sh deploy/compose.prod.yml v1.7
+# Produces deploy/compose.prod.pinned.yml with @sha256:... refs.
+
+# ─── Shared YAML anchors ──────────────────────────────────────────────
+x-defaults: &defaults
+  pull_policy: always
+  restart: unless-stopped
+
+x-logging: &logging
+  PLINTH_LOG_LEVEL: "${PLINTH_LOG_LEVEL:-INFO}"
+  PLINTH_LOG_FORMAT: "${PLINTH_LOG_FORMAT:-json}"
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 10s
+  timeout: 3s
+  retries: 5
+  start_period: 8s
+
+services:
+  # ─── Core platform services ─────────────────────────────────────────
+
+  workspace:
+    <<: *defaults
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-workspace:${PLYNF_VERSION:-latest}
+    container_name: plynf-workspace
+    ports:
+      - "${PLINTH_WORKSPACE_PORT:-7421}:7421"
+    environment:
+      <<: *logging
+      PLINTH_DATA_DIR: /data
+      PLINTH_WORKSPACE_PORT: "7421"
+    volumes:
+      - plynf_data:/data
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7421/healthz\").read()'"]
+
+  gateway:
+    <<: *defaults
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-gateway:${PLYNF_VERSION:-latest}
+    container_name: plynf-gateway
+    ports:
+      - "${PLINTH_GATEWAY_PORT:-7422}:7422"
+    environment:
+      <<: *logging
+      PLINTH_DATA_DIR: /data
+      PLINTH_GATEWAY_PORT: "7422"
+      PLINTH_WORKSPACE_URL: "http://workspace:7421"
+      PLINTH_IDENTITY_URL: "http://identity:7425"
+    volumes:
+      - plynf_data:/data
+    depends_on:
+      workspace:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7422/healthz\").read()'"]
+
+  identity:
+    <<: *defaults
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-identity:${PLYNF_VERSION:-latest}
+    container_name: plynf-identity
+    ports:
+      - "${PLINTH_IDENTITY_PORT:-7425}:7425"
+    environment:
+      <<: *logging
+      PLINTH_IDENTITY_DATA_DIR: /data
+      PLINTH_IDENTITY_PORT: "7425"
+    volumes:
+      - plynf_data:/data
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7425/healthz\").read()'"]
+
+  dashboard:
+    <<: *defaults
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-dashboard:${PLYNF_VERSION:-latest}
+    container_name: plynf-dashboard
+    ports:
+      - "${PLINTH_DASHBOARD_PORT:-7424}:7424"
+    environment:
+      <<: *logging
+      PLINTH_DASHBOARD_PORT: "7424"
+      PLINTH_WORKSPACE_URL: "http://workspace:7421"
+      PLINTH_GATEWAY_URL: "http://gateway:7422"
+      PLINTH_IDENTITY_URL: "http://identity:7425"
+    depends_on:
+      workspace:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7424/healthz\").read()'"]
+
+  # ─── Mock MCP (for demos + tests without real OAuth) ────────────────
+
+  mock-mcp:
+    <<: *defaults
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-mock-mcp:${PLYNF_VERSION:-latest}
+    container_name: plynf-mock-mcp
+    ports:
+      - "${PLINTH_MOCK_MCP_PORT:-7423}:7423"
+    environment:
+      PLINTH_MOCK_PORT: "7423"
+      PLINTH_MOCK_FIXTURES_DIR: /tmp/plynf-mock-fixtures
+      PLINTH_MOCK_LOG_LEVEL: "${PLINTH_LOG_LEVEL:-INFO}"
+      PLINTH_MOCK_LOG_FORMAT: "${PLINTH_LOG_FORMAT:-json}"
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7423/healthz\").read()'"]
+
+  # ─── OAuth MCP servers (eight providers) ────────────────────────────
+
+  github-mcp:
+    <<: *defaults
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-github-mcp:${PLYNF_VERSION:-latest}
+    container_name: plynf-github-mcp
+    ports:
+      - "${PLINTH_GITHUB_MCP_PORT:-7426}:7426"
+    environment:
+      <<: *logging
+      PLINTH_GITHUB_MCP_PORT: "7426"
+      PLINTH_IDENTITY_URL: "http://identity:7425"
+    depends_on:
+      identity:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7426/healthz\").read()'"]
+
+  slack-mcp:
+    <<: *defaults
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-slack-mcp:${PLYNF_VERSION:-latest}
+    container_name: plynf-slack-mcp
+    ports:
+      - "${PLINTH_SLACK_MCP_PORT:-7427}:7427"
+    environment:
+      <<: *logging
+      PLINTH_SLACK_MCP_PORT: "7427"
+      PLINTH_IDENTITY_URL: "http://identity:7425"
+    depends_on:
+      identity:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7427/healthz\").read()'"]
+
+  linear-mcp:
+    <<: *defaults
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-linear-mcp:${PLYNF_VERSION:-latest}
+    container_name: plynf-linear-mcp
+    ports:
+      - "${PLINTH_LINEAR_MCP_PORT:-7428}:7428"
+    environment:
+      <<: *logging
+      PLINTH_LINEAR_MCP_PORT: "7428"
+      PLINTH_IDENTITY_URL: "http://identity:7425"
+    depends_on:
+      identity:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7428/healthz\").read()'"]
+
+  notion-mcp:
+    <<: *defaults
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-notion-mcp:${PLYNF_VERSION:-latest}
+    container_name: plynf-notion-mcp
+    ports:
+      - "${PLINTH_NOTION_MCP_PORT:-7429}:7429"
+    environment:
+      <<: *logging
+      PLINTH_NOTION_MCP_PORT: "7429"
+      PLINTH_IDENTITY_URL: "http://identity:7425"
+    depends_on:
+      identity:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7429/healthz\").read()'"]
+
+  google-mcp:
+    <<: *defaults
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-google-mcp:${PLYNF_VERSION:-latest}
+    container_name: plynf-google-mcp
+    ports:
+      - "${PLINTH_GOOGLE_MCP_PORT:-7430}:7430"
+    environment:
+      <<: *logging
+      PLINTH_GOOGLE_MCP_PORT: "7430"
+      PLINTH_IDENTITY_URL: "http://identity:7425"
+    depends_on:
+      identity:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7430/healthz\").read()'"]
+
+  atlassian-mcp:
+    <<: *defaults
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-atlassian-mcp:${PLYNF_VERSION:-latest}
+    container_name: plynf-atlassian-mcp
+    ports:
+      - "${PLINTH_ATLASSIAN_MCP_PORT:-7431}:7431"
+    environment:
+      <<: *logging
+      PLINTH_ATLASSIAN_MCP_PORT: "7431"
+      PLINTH_IDENTITY_URL: "http://identity:7425"
+    depends_on:
+      identity:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7431/healthz\").read()'"]
+
+  salesforce-mcp:
+    <<: *defaults
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-salesforce-mcp:${PLYNF_VERSION:-latest}
+    container_name: plynf-salesforce-mcp
+    ports:
+      - "${PLINTH_SALESFORCE_MCP_PORT:-7432}:7432"
+    environment:
+      <<: *logging
+      PLINTH_SALESFORCE_MCP_PORT: "7432"
+      PLINTH_IDENTITY_URL: "http://identity:7425"
+    depends_on:
+      identity:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7432/healthz\").read()'"]
+
+  asana-mcp:
+    <<: *defaults
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-asana-mcp:${PLYNF_VERSION:-latest}
+    container_name: plynf-asana-mcp
+    ports:
+      - "${PLINTH_ASANA_MCP_PORT:-7433}:7433"
+    environment:
+      <<: *logging
+      PLINTH_ASANA_MCP_PORT: "7433"
+      PLINTH_IDENTITY_URL: "http://identity:7425"
+    depends_on:
+      identity:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7433/healthz\").read()'"]
+
+volumes:
+  plynf_data:
+    name: plynf_data

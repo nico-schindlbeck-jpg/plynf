@@ -1,0 +1,220 @@
+name: release-images
+
+# Builds, signs, and publishes Docker images for all 13 Plynf services
+# to GitHub Container Registry. Triggered on tag push or manual dispatch.
+#
+# Outputs per service: linux/amd64 + linux/arm64 images, signed with
+# cosign (keyless OIDC), SBOM attached via syft.
+#
+# Pre-flight (one-time):
+#   - GHCR is enabled by default for any GitHub org/user namespace.
+#   - The org publishing to (variable `PLYNF_ORG` below) must allow
+#     this workflow to publish packages. Settings → Actions →
+#     "Workflow permissions" → "Read and write permissions".
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Override version tag (defaults to git ref)"
+        required: false
+      push:
+        description: "Actually push images (false = dry-run build only)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write    # GHCR push
+  id-token: write    # cosign keyless OIDC
+  attestations: write  # GitHub-native attestations
+
+env:
+  REGISTRY: ghcr.io
+  # Resolves to "ghcr.io/<repo-owner>" — e.g. ghcr.io/<org>.
+  # If/when the dedicated 'plynf' GitHub org exists, set this via
+  # workflow_dispatch input OR a repository variable PLYNF_ORG.
+  PLYNF_ORG: ${{ vars.PLYNF_ORG || github.repository_owner }}
+
+jobs:
+  build:
+    name: ${{ matrix.service }} (${{ matrix.platform }})
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - { name: workspace,     context: services/workspace }
+          - { name: gateway,       context: services/gateway }
+          - { name: identity,      context: services/identity }
+          - { name: dashboard,     context: services/dashboard }
+          - { name: mock-mcp,      context: mock-mcp-server }
+          - { name: github-mcp,    context: mcp-servers/github }
+          - { name: slack-mcp,     context: mcp-servers/slack }
+          - { name: linear-mcp,    context: mcp-servers/linear }
+          - { name: notion-mcp,    context: mcp-servers/notion }
+          - { name: google-mcp,    context: mcp-servers/google-workspace }
+          - { name: atlassian-mcp, context: mcp-servers/atlassian }
+          - { name: salesforce-mcp,context: mcp-servers/salesforce }
+          - { name: asana-mcp,     context: mcp-servers/asana }
+        platform:
+          - linux/amd64
+          - linux/arm64
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version
+        id: meta
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF#refs/tags/v}"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag_full=${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service.name }}:${version}" >> "$GITHUB_OUTPUT"
+          echo "tag_latest=${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service.name }}:latest" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU (for cross-build)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: ${{ github.event_name == 'push' || inputs.push }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and (optionally) push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.service.context }}
+          platforms: ${{ matrix.platform }}
+          push: ${{ github.event_name == 'push' || inputs.push == true }}
+          tags: |
+            ${{ steps.meta.outputs.tag_full }}
+            ${{ steps.meta.outputs.tag_latest }}
+          cache-from: type=gha,scope=${{ matrix.service.name }}-${{ matrix.platform }}
+          cache-to: type=gha,scope=${{ matrix.service.name }}-${{ matrix.platform }},mode=max
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.title=plynf-${{ matrix.service.name }}
+            org.opencontainers.image.licenses=Apache-2.0
+
+  sign-and-sbom:
+    name: Sign + SBOM ${{ matrix.service }}
+    needs: build
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || inputs.push == true
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - workspace
+          - gateway
+          - identity
+          - dashboard
+          - mock-mcp
+          - github-mcp
+          - slack-mcp
+          - linear-mcp
+          - notion-mcp
+          - google-mcp
+          - atlassian-mcp
+          - salesforce-mcp
+          - asana-mcp
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: sigstore/cosign-installer@v3
+
+      - uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}:${{ needs.build.outputs.version }}
+          format: spdx-json
+          artifact-name: plynf-${{ matrix.service }}.spdx.json
+          upload-artifact: true
+
+      - name: Log in to GHCR (for cosign)
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: cosign sign (keyless OIDC)
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          image="${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}:${{ needs.build.outputs.version }}"
+          # Resolve to digest first so signatures pin to bytes not tag
+          digest=$(docker buildx imagetools inspect "${image}" --format '{{json .Manifest}}' | jq -r '.digest')
+          cosign sign --yes "${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}@${digest}"
+          echo "Signed ${image}@${digest}"
+
+      - name: cosign attest (attach SBOM as in-toto attestation)
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          image="${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}:${{ needs.build.outputs.version }}"
+          digest=$(docker buildx imagetools inspect "${image}" --format '{{json .Manifest}}' | jq -r '.digest')
+          cosign attest --yes --type spdxjson \
+            --predicate "$(ls plynf-${{ matrix.service }}.spdx.json)" \
+            "${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}@${digest}"
+
+  smoke-test:
+    name: Smoke-test pulled images
+    needs: [build, sign-and-sbom]
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || inputs.push == true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull and start stack from compose.prod.yml
+        env:
+          PLYNF_ORG: ${{ env.PLYNF_ORG }}
+          PLYNF_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          docker compose -f deploy/compose.prod.yml pull
+          docker compose -f deploy/compose.prod.yml up -d --wait --wait-timeout 180
+
+      - name: Verify all 13 services healthy
+        run: |
+          for port in 7421 7422 7423 7424 7425 7426 7427 7428 7429 7430 7431 7432 7433; do
+            curl -sf "http://localhost:${port}/healthz" >/dev/null || {
+              echo "✘ port ${port} not healthy"
+              docker compose -f deploy/compose.prod.yml logs --tail 50
+              exit 1
+            }
+          done
+          echo "✔ All 13 services healthy"
+
+      - name: Verify cosign signatures
+        run: |
+          cosign version
+          for svc in workspace gateway identity dashboard mock-mcp \
+                    github-mcp slack-mcp linear-mcp notion-mcp \
+                    google-mcp atlassian-mcp salesforce-mcp asana-mcp; do
+            cosign verify \
+              "${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${svc}:${{ needs.build.outputs.version }}" \
+              --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+              --certificate-identity-regexp "^https://github.com/${{ env.PLYNF_ORG }}/.+" \
+              >/dev/null || { echo "✘ ${svc} signature invalid"; exit 1; }
+          done
+          echo "✔ All signatures verified"
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f deploy/compose.prod.yml down -v
