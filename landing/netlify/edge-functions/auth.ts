@@ -1,71 +1,59 @@
-// Plynf preview-site password gate.
+// Plynf preview-site password gate (Netlify Edge Function).
 //
-// HTTP Basic Auth. Browser shows the native "Sign in" prompt; any username
-// works, the password is what counts. Returns 401 with WWW-Authenticate so
-// search engines don't index. No JS in the page, no third-party dependency.
+// Browser shows the native "Sign in" prompt; any username works, the
+// password below is the gate. Returns 401 (with WWW-Authenticate header)
+// so search engines don't index. /.well-known/* stays public for ACME
+// cert renewal + security.txt.
 //
-// To unlock: enter any username (e.g. "plynf") and the password below.
 // To change the password: edit PASSWORD and re-deploy.
-// To remove the gate entirely: delete this file and remove the
-// [[edge_functions]] block from netlify.toml.
+// To remove the gate: delete this file + the [[edge_functions]] block
+// in netlify.toml.
 
-const REALM = "Plynf — preview site";
 const PASSWORD = "Rogginger";
 
-/** Constant-time string compare to avoid timing-attack inference. */
-function safeEqual(a, b) {
-  if (a.length !== b.length) return false;
-  let acc = 0;
-  for (let i = 0; i < a.length; i++) {
-    acc |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return acc === 0;
-}
-
-function challenge(message) {
-  return new Response(message || "Authentication required", {
+function unauthorized() {
+  return new Response("Authentication required\n", {
     status: 401,
     headers: {
-      "WWW-Authenticate": 'Basic realm="' + REALM + '", charset="UTF-8"',
-      "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-store",
+      "WWW-Authenticate": 'Basic realm="Plynf preview"',
+      "Content-Type": "text/plain",
     },
   });
 }
 
 export default async (request, context) => {
-  const url = new URL(request.url);
-
-  // ACME http-01 challenges + RFC 9116 security.txt stay public so cert
-  // renewal and vulnerability disclosure are never gated.
-  if (url.pathname.startsWith("/.well-known/")) {
-    return context.next();
-  }
-
-  const auth = request.headers.get("authorization") || "";
-
-  if (!auth.startsWith("Basic ")) {
-    return challenge();
-  }
-
-  let decoded;
   try {
-    decoded = atob(auth.slice(6).trim());
+    const url = new URL(request.url);
+
+    // ACME challenges + security.txt stay public.
+    if (url.pathname.startsWith("/.well-known/")) {
+      return context.next();
+    }
+
+    const auth = request.headers.get("authorization");
+
+    if (auth && auth.startsWith("Basic ")) {
+      try {
+        const decoded = atob(auth.slice(6).trim());
+        // Basic auth = "user:password" — split only on FIRST colon so
+        // passwords with colons in them still work.
+        const colon = decoded.indexOf(":");
+        const password = colon === -1 ? "" : decoded.slice(colon + 1);
+        if (password === PASSWORD) {
+          return context.next();
+        }
+      } catch (_) {
+        // malformed base64 — fall through to 401
+      }
+    }
+
+    return unauthorized();
   } catch (_) {
-    return challenge("Invalid Authorization header");
+    // Should never reach this in normal flow, but Netlify shows a generic
+    // crash page on uncaught exceptions — better to fall back to 401 than
+    // leak an error UI.
+    return unauthorized();
   }
-
-  // Basic header form: "username:password" — colon is the separator.
-  // Password itself may contain colons; only split on the first one.
-  const colonIdx = decoded.indexOf(":");
-  const password = colonIdx === -1 ? "" : decoded.slice(colonIdx + 1);
-
-  if (!safeEqual(password, PASSWORD)) {
-    return challenge("Invalid credentials");
-  }
-
-  // Auth passed — let Netlify continue serving the actual page.
-  return context.next();
 };
 
 export const config = {
