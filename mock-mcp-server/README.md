@@ -1,6 +1,6 @@
 # Mock MCP Server
 
-A minimal MCP-style server that exposes 6 demo tools used by the Plinth
+A minimal MCP-style server that exposes 6 demo tools used by the Plynf
 research-agent demo and other examples. Designed to run **fully offline**
 with bundled fixture content, so anyone can clone the repo and exercise
 the tool surface without network or API keys.
@@ -30,7 +30,7 @@ GET  /tools
 POST /invoke/{tool_name}
 ```
 
-Errors follow the standard Plinth envelope:
+Errors follow the standard Plynf envelope:
 
 ```json
 {"error": {"code": "INVALID_ARGUMENTS", "message": "...", "details": {}}}

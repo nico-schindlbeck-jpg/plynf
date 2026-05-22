@@ -1,6 +1,6 @@
-# Plinth — Python SDK
+# Plynf — Python SDK
 
-The official Python client for [Plinth](../../README.md), the agent-native
+The official Python client for [Plynf](../../README.md), the agent-native
 runtime layer.
 
 > **TL;DR:** A versioned workspace + tool gateway, wrapped in an ergonomic Python
@@ -12,9 +12,9 @@ pip install plinth
 ```
 
 ```python
-from plinth import Plinth
+from plinth import Plynf
 
-client = Plinth(api_key="local-dev")
+client = Plynf(api_key="local-dev")
 ws = client.workspace("research-task-1")
 ws.kv.set("topic", "renewable energy")
 result = client.tools.invoke("web.fetch", {"url": "mock://ipcc-2023"})
@@ -27,7 +27,7 @@ That's it. Five lines, persistent state, audited tools.
 
 ## Table of contents
 
-- [Why Plinth?](#why-plinth)
+- [Why Plynf?](#why-plinth)
 - [Installation](#installation)
 - [Quickstart](#quickstart)
 - [Workspaces](#workspaces)
@@ -50,11 +50,11 @@ That's it. Five lines, persistent state, audited tools.
 
 ---
 
-## Why Plinth?
+## Why Plynf?
 
 Today's agents are wrapped around interfaces designed for humans — clicking
 buttons, parsing screenshots, re-reading the same content from chat history.
-Plinth flips the model: the agent is the first-class user. We give it a
+Plynf flips the model: the agent is the first-class user. We give it a
 persistent versioned workspace and a single tool gateway, both designed for
 machines first.
 
@@ -76,9 +76,9 @@ Spin up the services (see the project [README](../../README.md) for `make
 serve`), then:
 
 ```python
-from plinth import Plinth
+from plinth import Plynf
 
-client = Plinth(
+client = Plynf(
     workspace_url="http://localhost:7421",
     gateway_url="http://localhost:7422",
     api_key="local-dev",          # any non-empty string in dev
@@ -428,7 +428,7 @@ client.tools.clear_cache(tool_id="web.fetch")
 
 ## Token counting
 
-Plinth ships with offline token counting via `tiktoken`'s `cl100k_base`
+Plynf ships with offline token counting via `tiktoken`'s `cl100k_base`
 encoding, which is a close-enough approximation for Anthropic's tokenizer.
 The encoding is loaded lazily and cached at module level.
 
@@ -518,7 +518,7 @@ topic = ws.kv.get("topic", default="renewable energy")
 ## Configuration reference
 
 ```python
-Plinth(
+Plynf(
     workspace_url="http://localhost:7421",
     gateway_url="http://localhost:7422",
     api_key="local-dev",
@@ -539,7 +539,7 @@ The client supports the context-manager protocol so you can scope its
 lifetime explicitly:
 
 ```python
-with Plinth(api_key="local-dev") as client:
+with Plynf(api_key="local-dev") as client:
     ws = client.workspace("...")
     ...
 ```

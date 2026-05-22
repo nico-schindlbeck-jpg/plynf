@@ -1,6 +1,6 @@
-# Plinth Documentation Site
+# Plynf Documentation Site
 
-Static site for **plinth.dev**. Built with Astro + Tailwind. Zero external services, no analytics, no trackers.
+Static site for **plynf.com**. Built with Astro + Tailwind. Zero external services, no analytics, no trackers.
 
 ## Develop locally
 

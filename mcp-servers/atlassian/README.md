@@ -1,7 +1,7 @@
-# Plinth Atlassian MCP Server
+# Plynf Atlassian MCP Server
 
 A minimal MCP-style server that wraps the Atlassian (Jira + Confluence) REST
-APIs for use with Plinth agents. Runs at `http://localhost:7431` by default.
+APIs for use with Plynf agents. Runs at `http://localhost:7431` by default.
 
 ## What it does
 
@@ -20,7 +20,7 @@ need:
 | `atlassian.confluence_create_page`     | write        | Create a page in a space                        |
 
 Every tool advertises `auth_method=oauth2` with `auth_config.provider="atlassian"`
-in its metadata, so the Plinth gateway knows to inject the user's Atlassian
+in its metadata, so the Plynf gateway knows to inject the user's Atlassian
 token + cloudid on each call.
 
 ## Auth + cloudid
@@ -30,15 +30,15 @@ single OAuth grant can span multiple "cloud" workspaces — every REST call
 needs to specify which workspace via the `cloudid` (a UUID returned by
 `https://api.atlassian.com/oauth/token/accessible-resources`).
 
-The Plinth gateway captures the cloudid at OAuth callback time and stores
+The Plynf gateway captures the cloudid at OAuth callback time and stores
 it in `connection.metadata`. On every proxied invoke it forwards both:
 
 * `Authorization: Bearer <access_token>`
-* `X-Plinth-OAuth-Cloudid: <cloudid>`
+* `X-Plynf-OAuth-Cloudid: <cloudid>`
 
 This MCP server reads both headers and forms per-call URLs like
 `https://api.atlassian.com/ex/jira/{cloudid}/rest/api/3/...`. Missing
-`Authorization` returns 401; missing `X-Plinth-OAuth-Cloudid` returns 400
+`Authorization` returns 401; missing `X-Plynf-OAuth-Cloudid` returns 400
 with `code=ATLASSIAN_CLOUDID_MISSING`.
 
 ## Endpoints

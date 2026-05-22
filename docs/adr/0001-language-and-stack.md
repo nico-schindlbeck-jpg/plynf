@@ -2,17 +2,17 @@
 
 - **Status**: Accepted
 - **Date**: 2026-05-05
-- **Deciders**: The Plinth Authors
+- **Deciders**: The Plynf Authors
 
 ## Context
 
-Plinth is two FastAPI-shaped services (workspace, gateway), a primary SDK, and (for parity with the Node-side agent ecosystem) a secondary TS SDK. The choice of language stack here is load-bearing: it drives hiring, library availability, ergonomics for AI/ML callers, and the operational posture of the runtime. The decision needs to be made once at v0.1 because changing it post-PoC would invalidate large swaths of work.
+Plynf is two FastAPI-shaped services (workspace, gateway), a primary SDK, and (for parity with the Node-side agent ecosystem) a secondary TS SDK. The choice of language stack here is load-bearing: it drives hiring, library availability, ergonomics for AI/ML callers, and the operational posture of the runtime. The decision needs to be made once at v0.1 because changing it post-PoC would invalidate large swaths of work.
 
 The relevant constraints when this decision was made:
 
 - The dominant agent-development ecosystem in 2025–26 is Python-first. LangChain, LangGraph, LlamaIndex, the OpenAI Agents SDK, the Anthropic SDK, every research tool — Python.
 - The frontend / Node side has its own (smaller but real) agent-runtime presence: Vercel AI SDK, Mastra, frontend agents embedded in webapps. A TS SDK is a credibility minimum for adoption there.
-- Plinth's services are I/O-bound, not CPU-bound. The hot paths are HTTP, JSON, SQL — none of which benefit dramatically from a systems language at this stage.
+- Plynf's services are I/O-bound, not CPU-bound. The hot paths are HTTP, JSON, SQL — none of which benefit dramatically from a systems language at this stage.
 - We are a small team (PoC). Optimising for development velocity matters more than optimising for runtime efficiency in v0.1.
 - Our buyers (production-agent platform teams) have engineers who can read both Python and Go fluently; they expect to *operate* something written in a language they know. Operationally, "Python with uvicorn" is unsurprising and reviewable.
 
@@ -38,7 +38,7 @@ Tooling:
 
 ### Positive
 
-- **Idiomatic for callers.** Agent code is mostly Python; `from plinth import Plinth` lives in the same file as `from anthropic import Anthropic`. No FFI, no code-gen.
+- **Idiomatic for callers.** Agent code is mostly Python; `from plinth import Plynf` lives in the same file as `from anthropic import Anthropic`. No FFI, no code-gen.
 - **Library leverage.** `httpx` for HTTP, `pydantic` for models (already in CONTRACTS.md), `tiktoken` for token counting offline, `structlog` for logging — battle-tested and fast.
 - **FastAPI's specifics matter.** OpenAPI spec generation is automatic; we publish `specs/openapi/*.yaml` directly from the route definitions. Pydantic models live in one place and serve as both runtime validation and documentation.
 - **Velocity.** Small team, fast iteration, no compile step. Deploy a service in seconds.
@@ -79,4 +79,4 @@ Briefly considered, immediately rejected. The TS SDK has to be idiomatic TS for 
 - Full conventions: [`CONVENTIONS.md`](../../CONVENTIONS.md)
 - Service layout: [`docs/architecture/01-system-overview.md`](../architecture/01-system-overview.md)
 - Future Rust hot-path: see Open Questions in [`docs/architecture/03-tool-gateway-design.md`](../architecture/03-tool-gateway-design.md)
-- Multi-SDK strategy is also informed by ADR 0003 (MCP) — clients in any language can use Plinth via the HTTP API directly, the SDKs are ergonomic wrappers, not a hard gate.
+- Multi-SDK strategy is also informed by ADR 0003 (MCP) — clients in any language can use Plynf via the HTTP API directly, the SDKs are ergonomic wrappers, not a hard gate.

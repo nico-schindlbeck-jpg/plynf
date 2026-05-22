@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://plinth.dev/schemas/capability-token.schema.json",
-  "title": "Plinth Capability Token (claims)",
+  "$id": "https://plynf.com/schemas/capability-token.schema.json",
+  "title": "Plynf Capability Token (claims)",
   "description": "JWT claim set issued by the v0.2 Identity service. Capability tokens are short-lived bearer credentials that encode exactly which tools and workspaces an agent may touch. The verifier (gateway) MUST reject tokens whose claims do not match this schema.",
   "type": "object",
   "additionalProperties": false,
@@ -105,8 +105,8 @@
   "examples": [
     {
       "sub": "agent:research-bot",
-      "iss": "https://identity.plinth.dev",
-      "aud": "https://gateway.plinth.dev",
+      "iss": "https://identity.plynf.com",
+      "aud": "https://gateway.plynf.com",
       "exp": 1798761600,
       "iat": 1798758000,
       "jti": "cap_01HZX9V5K4M7N0Q1R2S3T4V5W6",

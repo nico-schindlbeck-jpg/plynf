@@ -1,7 +1,7 @@
 # `plinth` — unified CLI
 
 `plinth-cli` is the single command-line entry point for operating a
-Plinth deployment. It consolidates service control, schema migrations,
+Plynf deployment. It consolidates service control, schema migrations,
 workflow inspection, audit queries, tenant administration, and the
 benchmark harness behind one ergonomic Click app.
 
@@ -9,7 +9,7 @@ benchmark harness behind one ergonomic Click app.
 $ plinth --help
 Usage: plinth [OPTIONS] COMMAND [ARGS]...
 
-  Plinth — unified ops + admin CLI.
+  Plynf — unified ops + admin CLI.
 
   Manage services, run migrations, inspect workflows, query audit events,
   administer tenants, and run benchmarks from one place.
@@ -26,8 +26,8 @@ Commands:
   audit       Query the gateway audit log.
   bench       Run + compare benchmark suites.
   completion  Print or install shell completion scripts.
-  config      Read/write the Plinth CLI config.
-  health      Hit /healthz on every Plinth service.
+  config      Read/write the Plynf CLI config.
+  health      Hit /healthz on every Plynf service.
   migrate     Apply schema migrations.
   services    Manage backing services.
   tenant      Administer tenants.

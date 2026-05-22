@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Plinth — PodDisruptionBudgets so cluster maintenance never knocks the
+# Plynf — PodDisruptionBudgets so cluster maintenance never knocks the
 # gateway/dashboard down to zero.
 ---
 apiVersion: policy/v1

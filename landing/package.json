@@ -3,7 +3,7 @@
   "type": "module",
   "version": "1.0.0",
   "private": true,
-  "description": "Marketing landing page for plinth.dev — the runtime where production AI agents actually work.",
+  "description": "Marketing landing page for plynf.com — the runtime where production AI agents actually work.",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",

@@ -1,16 +1,16 @@
-# Plinth — Architecture Overview
+# Plynf — Architecture Overview
 
-> A 10-minute read for anyone wanting to understand how Plinth fits together. For component-level depth, see `docs/architecture/`. For decisions and trade-offs, see `docs/adr/`.
+> A 10-minute read for anyone wanting to understand how Plynf fits together. For component-level depth, see `docs/architecture/`. For decisions and trade-offs, see `docs/adr/`.
 
 ## 1. The thesis
 
 Most AI agents today are wrappers around interfaces designed for humans. The cost is high: tokens spent re-reading state from chat, latency from human-paced UI flows, errors from visual ambiguity, no way to resume after crashes.
 
-Plinth's bet: **the next infrastructure layer is the agent-native substrate**. Treat the agent as the first-class user. Give it persistent state, semantic tools, observability, and identity — purpose-built for how agents actually reason.
+Plynf's bet: **the next infrastructure layer is the agent-native substrate**. Treat the agent as the first-class user. Give it persistent state, semantic tools, observability, and identity — purpose-built for how agents actually reason.
 
 ## 2. The five primitives
 
-Plinth is built around five independent-but-composable primitives:
+Plynf is built around five independent-but-composable primitives:
 
 1. **Persistent Structured Workspace** — versioned KV + files + snapshots + branches. The agent's memory across sessions, with rollback semantics.
 2. **Universal Tool Gateway** — one auth boundary for all MCP / REST / GraphQL tools, with caching, idempotency, dry-run, and audit.
@@ -151,7 +151,7 @@ Agent → POST /v1/invoke {tool_id, args, workspace_id?}
 - **Locks/Leases** — prevent two agents from conflicting on the same resource.
 - **Workflow transactions** — group tool calls into atomic units with compensating actions.
 
-The right substrate is probably Temporal underneath, with Plinth-native primitives layered on top. ADR 0004 covers it.
+The right substrate is probably Temporal underneath, with Plynf-native primitives layered on top. ADR 0004 covers it.
 
 ### Observability
 - v0.1: per-tool audit log in the gateway.

@@ -1,4 +1,4 @@
-# Plinth Roadmap
+# Plynf Roadmap
 
 A living document. Reorder by community pull and demo data.
 
@@ -11,7 +11,7 @@ A living document. Reorder by community pull and demo data.
 - [x] Python SDK
 - [x] TypeScript SDK skeleton
 - [x] Mock MCP server (6 tools, offline-capable)
-- [x] Research-agent demo (baseline vs Plinth, 71 % token reduction measured)
+- [x] Research-agent demo (baseline vs Plynf, 71 % token reduction measured)
 - [x] Docker Compose
 - [x] OpenAPI specs, ADRs, architecture docs
 
@@ -94,7 +94,7 @@ A living document. Reorder by community pull and demo data.
 - [x] **Per-tenant resource quotas** (workspaces / storage / channels / workflows / tokens / OAuth / cost / RPM) with `QUOTA_EXCEEDED` enforcement
 - [x] **Tenant Admin UI** in Dashboard — `/tenants` CRUD + per-tenant detail (members, quotas, OAuth, audit, cost)
 - [x] **Channel Schema Evolution Wizard** — Dashboard modal for set/check/replay-all/purge
-- [x] **Multi-region scaffolding** — region_id, peers, replica-mode 421 redirect with `X-Plinth-Primary-URL`, SDK auto-failover
+- [x] **Multi-region scaffolding** — region_id, peers, replica-mode 421 redirect with `X-Plynf-Primary-URL`, SDK auto-failover
 - [x] **Unified `plinth` CLI** — services, migrate, workflow, audit, tenant, bench, health, completion (101 tests)
 - [x] **GDPR data export** — async ZIP-bundled cross-service dump with token redaction
 - [x] **GDPR data deletion** — two-phase cascade across Workspace + Gateway + Identity

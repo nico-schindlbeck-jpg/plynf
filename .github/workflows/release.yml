@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Plinth — release workflow.
+# Plynf — release workflow.
 # Builds + pushes multi-arch images to GHCR for every `v*` tag, then cuts a
 # GitHub release with auto-generated notes.
 
@@ -71,7 +71,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
           labels: |
             org.opencontainers.image.title=plinth-${{ matrix.service.name }}
-            org.opencontainers.image.vendor=Plinth Authors
+            org.opencontainers.image.vendor=Plynf Authors
             org.opencontainers.image.licenses=Apache-2.0
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
 

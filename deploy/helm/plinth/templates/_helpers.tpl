@@ -1,6 +1,6 @@
 {{/*
 SPDX-License-Identifier: Apache-2.0
-Plinth — chart helpers.
+Plynf — chart helpers.
 */}}
 
 {{/* Chart name + chart version, for labels. */}}
@@ -28,7 +28,7 @@ contain it, otherwise just "<service>". Final length capped at 63.
 {{- printf "%s" $name | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
-{{/* Common labels shared by every Plinth resource. */}}
+{{/* Common labels shared by every Plynf resource. */}}
 {{- define "plinth.labels" -}}
 app.kubernetes.io/name: plinth
 helm.sh/chart: {{ include "plinth.chart" . }}
@@ -44,7 +44,7 @@ app.kubernetes.io/part-of: plinth
 {{- with .ctx -}}
 {{ include "plinth.labels" . }}
 app.kubernetes.io/component: {{ $svc }}
-plinth.dev/service: {{ $svc }}
+plynf.com/service: {{ $svc }}
 {{- end -}}
 {{- end -}}
 
@@ -55,7 +55,7 @@ plinth.dev/service: {{ $svc }}
 app.kubernetes.io/name: plinth
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/part-of: plinth
-plinth.dev/service: {{ $svc }}
+plynf.com/service: {{ $svc }}
 {{- end -}}
 {{- end -}}
 

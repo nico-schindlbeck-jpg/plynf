@@ -1,6 +1,6 @@
-# Plinth SDK for Kotlin
+# Plynf SDK for Kotlin
 
-Idiomatic Kotlin client for [Plinth](https://github.com/plinth/plinth) — workspaces, KV, files, tools, and identity. Coroutine-friendly (`suspend fun` everywhere), JSON via kotlinx.serialization, transport via OkHttp. Suitable for Android (API 26+) and JVM 17+ services.
+Idiomatic Kotlin client for [Plynf](https://github.com/plinth/plinth) — workspaces, KV, files, tools, and identity. Coroutine-friendly (`suspend fun` everywhere), JSON via kotlinx.serialization, transport via OkHttp. Suitable for Android (API 26+) and JVM 17+ services.
 
 ## Status
 
@@ -29,13 +29,13 @@ Requires JDK 17. On Android, also requires `minSdk = 26` (because OkHttp 4.12 se
 ## Quickstart
 
 ```kotlin
-import dev.plinth.sdk.Plinth
+import dev.plinth.sdk.Plynf
 import dev.plinth.sdk.PlinthConfig
 import dev.plinth.sdk.Tools
 import kotlinx.coroutines.runBlocking
 
 fun main() = runBlocking {
-    val client = Plinth(PlinthConfig(
+    val client = Plynf(PlinthConfig(
         workspaceUrl = "http://localhost:7421",
         gatewayUrl   = "http://localhost:7422",
         identityUrl  = "http://localhost:7425",   // optional

@@ -1,7 +1,7 @@
-# Plinth Google Workspace MCP Server
+# Plynf Google Workspace MCP Server
 
 A minimal MCP-style server that wraps Google Workspace APIs (Drive, Docs,
-Sheets, Calendar, Gmail) for use with Plinth agents. Runs at
+Sheets, Calendar, Gmail) for use with Plynf agents. Runs at
 `http://localhost:7430` by default.
 
 ## What it does
@@ -20,7 +20,7 @@ Exposes eight tools that mirror the Google Workspace surface most agents need:
 | `google.gmail_list_messages`      | read         | List inbox messages with header summary     |
 
 Every tool advertises `auth_method=oauth2` with `auth_config.provider="google"`
-in its metadata, so the Plinth gateway knows to inject the user's Google
+in its metadata, so the Plynf gateway knows to inject the user's Google
 token on each call.
 
 ## Auth
@@ -28,7 +28,7 @@ token on each call.
 This server **never holds the Google access token**. The gateway forwards the
 user's bearer token via the `Authorization` header on each `POST /invoke/...`
 call; the tools then forward the same token to Google. If the header is
-missing or unparseable, the server returns 401 with a Plinth error envelope.
+missing or unparseable, the server returns 401 with a Plynf error envelope.
 
 ## Endpoints
 

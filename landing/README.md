@@ -1,8 +1,8 @@
-# plinth.dev — landing page
+# plynf.com — landing page
 
-The marketing front for Plinth — the runtime where production AI agents actually work. Astro + Tailwind, fully static, dark-mode-first, designed to feel like the same studio that built linear.app and resend.com.
+The marketing front for Plynf — the runtime where production AI agents actually work. Astro + Tailwind, fully static, dark-mode-first, designed to feel like the same studio that built linear.app and resend.com.
 
-> This site is **separate** from `docs-site/` (which is documentation). This site is the thing that loads when someone tweets `plinth.dev`.
+> This site is **separate** from `docs-site/` (which is documentation). This site is the thing that loads when someone tweets `plynf.com`.
 
 ## Develop
 
@@ -29,7 +29,7 @@ The repo ships with a `netlify.toml` — Netlify auto-detects everything. Two pa
 npm i -g netlify-cli       # one-time
 netlify login              # one-time
 netlify init               # one-time — link to a Netlify site
-netlify deploy --prod      # ships /dist to plinth.dev
+netlify deploy --prod      # ships /dist to plynf.com
 ```
 
 **Continuous deploy:** push to `main` and let Netlify auto-build via the `netlify.toml`. Recommended.
@@ -88,4 +88,4 @@ src/
 
 ## License
 
-Apache 2.0 — same as the Plinth runtime.
+Apache 2.0 — same as the Plynf runtime.

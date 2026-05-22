@@ -4,7 +4,7 @@ version: 2
 # - GitHub Actions: minor + patch only auto-PRed; majors require manual ignore-removal
 #   (actions occasionally introduce breaking input changes on majors).
 # - Docker Python base image: pinned to 3.11 family — we explicitly ignore 3.12+
-#   majors here because Plinth code targets 3.11+ but production images stay on
+#   majors here because Plynf code targets 3.11+ but production images stay on
 #   3.11-slim for stability. Lift this when we decide to upgrade.
 # - npm major bumps (vitest, prettier, etc): allowed but require human review
 #   before merge.

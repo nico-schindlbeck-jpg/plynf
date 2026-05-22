@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://plinth.dev/schemas/event.schema.json",
-  "title": "Plinth Observability Event",
-  "description": "Canonical schema for the unified semantic event stream emitted by all Plinth services. v0.1 emits a subset of these (gateway audit only); v0.2 will fan out the full taxonomy via OTLP-compatible exporters.",
+  "$id": "https://plynf.com/schemas/event.schema.json",
+  "title": "Plynf Observability Event",
+  "description": "Canonical schema for the unified semantic event stream emitted by all Plynf services. v0.1 emits a subset of these (gateway audit only); v0.2 will fan out the full taxonomy via OTLP-compatible exporters.",
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "timestamp", "type", "actor", "subject"],

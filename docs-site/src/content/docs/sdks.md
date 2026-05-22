@@ -1,18 +1,18 @@
 ---
 title: SDKs
-description: Plinth client libraries for Python, TypeScript, Go, Swift, and Kotlin.
+description: Plynf client libraries for Python, TypeScript, Go, Swift, and Kotlin.
 section: guides
 order: 2
 ---
 
-Plinth ships first-party SDKs in five languages. All five are at API parity for the v1 surface (workspace, gateway, identity).
+Plynf ships first-party SDKs in five languages. All five are at API parity for the v1 surface (workspace, gateway, identity).
 
 | Language    | Package                  | Test count |
 |-------------|--------------------------|-----------:|
 | Python      | `plinth` (PyPI)          | 1,901      |
 | TypeScript  | `@plinth/sdk` (npm)      | 165        |
 | Go          | `github.com/.../plinth-go` | 312      |
-| Swift       | `Plinth` (SwiftPM)       | 244        |
+| Swift       | `Plynf` (SwiftPM)       | 244        |
 | Kotlin      | `dev.plinth:plinth-kotlin` | 245      |
 
 Across all 7 SDK test suites: **~2,867** tests passing.
@@ -43,9 +43,9 @@ The simplest possible interaction: open a workspace, set a key, read it back.
 ### Python
 
 ```python
-from plinth import Plinth
+from plinth import Plynf
 
-client = Plinth(
+client = Plynf(
     workspace_url="http://localhost:7421",
     gateway_url="http://localhost:7422",
     api_key="...",
@@ -58,9 +58,9 @@ print(ws.kv.get("topic"))  # "renewable energy"
 ### TypeScript
 
 ```typescript
-import { Plinth } from "@plinth/sdk";
+import { Plynf } from "@plinth/sdk";
 
-const client = new Plinth({
+const client = new Plynf({
   workspaceUrl: "http://localhost:7421",
   gatewayUrl: "http://localhost:7422",
   apiKey: "...",
@@ -87,7 +87,7 @@ fmt.Println(v)
 ### Swift
 
 ```swift
-let client = try Plinth(
+let client = try Plynf(
     workspaceURL: URL(string: "http://localhost:7421")!,
     gatewayURL: URL(string: "http://localhost:7422")!,
     apiKey: "..."
@@ -100,7 +100,7 @@ print(try await ws.kv.get(key: "topic") ?? "")
 ### Kotlin
 
 ```kotlin
-val client = Plinth(
+val client = Plynf(
     PlinthConfig(
         workspaceUrl = "http://localhost:7421",
         gatewayUrl = "http://localhost:7422",

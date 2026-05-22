@@ -1,6 +1,6 @@
 # plinth-workspace
 
-The **Workspace service** for [Plinth](../../README.md) — agent-native versioned
+The **Workspace service** for [Plynf](../../README.md) — agent-native versioned
 KV + file storage with snapshot and branch semantics.
 
 It is a single FastAPI process that persists state to:

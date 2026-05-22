@@ -1,22 +1,22 @@
 ---
 title: Architecture
-description: How the pieces fit together. A 10-minute walkthrough of Plinth's primitives and services.
+description: How the pieces fit together. A 10-minute walkthrough of Plynf's primitives and services.
 section: overview
 order: 2
 sourceFile: ARCHITECTURE.md
 ---
 
-A 10-minute read for anyone wanting to understand how Plinth fits together. For component-level depth, see `docs/architecture/` in the repo.
+A 10-minute read for anyone wanting to understand how Plynf fits together. For component-level depth, see `docs/architecture/` in the repo.
 
 ## The thesis
 
 Most AI agents today are wrappers around interfaces designed for humans. The cost is high: tokens spent re-reading state from chat, latency from human-paced UI flows, errors from visual ambiguity, no way to resume after crashes.
 
-Plinth's bet: **the next infrastructure layer is the agent-native substrate**. Treat the agent as the first-class user. Give it persistent state, semantic tools, observability, and identity — purpose-built for how agents actually reason.
+Plynf's bet: **the next infrastructure layer is the agent-native substrate**. Treat the agent as the first-class user. Give it persistent state, semantic tools, observability, and identity — purpose-built for how agents actually reason.
 
 ## The five primitives
 
-Plinth is built around five independent-but-composable primitives:
+Plynf is built around five independent-but-composable primitives:
 
 1. **Persistent Structured Workspace** — versioned KV + files + snapshots + branches. The agent's memory across sessions, with rollback semantics.
 2. **Universal Tool Gateway** — one auth boundary for all MCP / REST / GraphQL tools, with caching, idempotency, dry-run, and audit.

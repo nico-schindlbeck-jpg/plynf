@@ -1,6 +1,6 @@
-# Plinth — Kubernetes manifests
+# Plynf — Kubernetes manifests
 
-Plain `kubectl apply -k` overlay-friendly manifests for every Plinth service.
+Plain `kubectl apply -k` overlay-friendly manifests for every Plynf service.
 Use this when you want fine-grained control without the abstractions of the
 Helm chart (which lives one directory over at `../helm/plinth/`).
 

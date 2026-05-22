@@ -1,9 +1,9 @@
-# Plinth Helm chart
+# Plynf Helm chart
 
-This chart deploys the full Plinth stack (Workspace, Gateway, Identity,
+This chart deploys the full Plynf stack (Workspace, Gateway, Identity,
 Dashboard, and the bundled MCP servers) onto a Kubernetes 1.27+ cluster.
 
-It is the recommended way to run Plinth in any environment more permanent
+It is the recommended way to run Plynf in any environment more permanent
 than `docker compose`.
 
 ## Quick start
@@ -84,7 +84,7 @@ helm upgrade plinth ./deploy/helm/plinth \
   --set global.imageTag=1.1.0
 ```
 
-Plinth services run database migrations on startup (`auto_migrate: true`).
+Plynf services run database migrations on startup (`auto_migrate: true`).
 For zero-downtime upgrades, schedule the upgrade during low traffic and
 verify the readiness probe passes before pulling the trigger on a rolling
 restart.

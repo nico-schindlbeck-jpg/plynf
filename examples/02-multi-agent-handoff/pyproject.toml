@@ -1,7 +1,7 @@
 [project]
 name = "plinth-example-multi-agent-handoff"
 version = "0.1.0"
-description = "Plinth — multi-agent pipeline demo (research → write → review)"
+description = "Plynf — multi-agent pipeline demo (research → write → review)"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.11"
 dependencies = [

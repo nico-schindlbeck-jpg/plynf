@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Plinth — example nginx Ingress for Dashboard + Gateway.
+# Plynf — example nginx Ingress for Dashboard + Gateway.
 #
 # This is intentionally NOT in the base kustomization.yaml so that operators
 # without an Ingress controller don't get errored apply attempts. Layer it

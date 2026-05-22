@@ -2,7 +2,7 @@
 
 JWT capability-token issuance, verification, and revocation.
 
-The identity service is the trust root for Plinth in v0.3. It mints HS256 JWTs
+The identity service is the trust root for Plynf in v0.3. It mints HS256 JWTs
 that carry agent + tenant + workspace + scope claims, persists metadata for
 introspection and revocation, and exposes a verify endpoint other services
 can call (or replicate locally with the shared secret).

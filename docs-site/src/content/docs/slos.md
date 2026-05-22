@@ -1,14 +1,14 @@
 ---
 title: SLOs
-description: Plinth v1.0 service level objectives — 26 published targets across 4 services.
+description: Plynf v1.0 service level objectives — 26 published targets across 4 services.
 section: operations
 order: 1
 sourceFile: docs/slos.md
 ---
 
-> **Audience**: SREs and operators running Plinth in production. Product engineering also reads this to understand what guarantees the platform claims and how those guarantees are measured.
+> **Audience**: SREs and operators running Plynf in production. Product engineering also reads this to understand what guarantees the platform claims and how those guarantees are measured.
 
-This page summarises the published SLOs for Plinth v1.0, how they're measured, the error-budget calculation, and the escalation policy. It is intentionally short and operator-actionable: every target below is something you can write a Grafana alert against.
+This page summarises the published SLOs for Plynf v1.0, how they're measured, the error-budget calculation, and the escalation policy. It is intentionally short and operator-actionable: every target below is something you can write a Grafana alert against.
 
 ## Methodology
 

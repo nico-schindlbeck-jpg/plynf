@@ -6,11 +6,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "plinth-contract-tests"
 version = "1.0.0"
-description = "Plinth — OpenAPI contract test suite. Verifies that running services match the v1 specs and flags breaking changes between snapshots."
+description = "Plynf — OpenAPI contract test suite. Verifies that running services match the v1 specs and flags breaking changes between snapshots."
 readme = "README.md"
 license = { text = "Apache-2.0" }
 authors = [
-    { name = "The Plinth Authors" },
+    { name = "The Plynf Authors" },
 ]
 requires-python = ">=3.11"
 

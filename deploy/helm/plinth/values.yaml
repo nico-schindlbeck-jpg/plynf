@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Plinth — Helm chart default values.
+# Plynf — Helm chart default values.
 
 # Optional: name of an externally-managed Secret containing the keys listed
 # in `deploy/k8s/secrets.example.yaml`. When set, the chart will NOT create
@@ -305,5 +305,5 @@ ingress:
 networkPolicy:
   enabled: false
   # Only services with the `app.kubernetes.io/part-of: plinth` label can
-  # talk to other Plinth services. Egress to internet is allowed (for
+  # talk to other Plynf services. Egress to internet is allowed (for
   # external MCP server traffic / OAuth flows).

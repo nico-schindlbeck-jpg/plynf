@@ -1,6 +1,6 @@
 # Workflow Benchmark Suite
 
-Deterministic token-cost comparison: naive chat-history baseline vs Plinth, across **8 agentic workflows** covering 8 distinct personas.
+Deterministic token-cost comparison: naive chat-history baseline vs Plynf, across **8 agentic workflows** covering 8 distinct personas.
 
 ## TL;DR
 

@@ -1,12 +1,12 @@
 ---
 title: Quickstart
-description: Run Plinth locally and see the 71% token savings demo in five minutes.
+description: Run Plynf locally and see the 71% token savings demo in five minutes.
 section: guides
 order: 1
 sourceFile: README.md
 ---
 
-Get Plinth running locally and watch the token-savings demo in about five minutes. No external services, no API keys required.
+Get Plynf running locally and watch the token-savings demo in about five minutes. No external services, no API keys required.
 
 ## Prerequisites
 
@@ -80,8 +80,8 @@ You should see something like:
 ═══════════════════════════════════════════════════════════════════
   TOKEN-USAGE COMPARISON — research-agent on topic "renewable energy"
 ═══════════════════════════════════════════════════════════════════
-  Baseline (no Plinth):        23,704 tokens   |   $0.0810
-  With Plinth:                  6,795 tokens   |   $0.0345
+  Baseline (no Plynf):        23,704 tokens   |   $0.0810
+  With Plynf:                  6,795 tokens   |   $0.0345
   ─────────────────────────────────────────────
   Reduction:                     71.3 %        |   $0.0464 saved
 ═══════════════════════════════════════════════════════════════════
@@ -95,7 +95,7 @@ Token counts are exact (`cl100k_base` via tiktoken). Cost estimates use Anthropi
 make demo-handoff
 ```
 
-Researcher → Writer → Reviewer collaborate via Plinth channels in 8.7k total tokens.
+Researcher → Writer → Reviewer collaborate via Plynf channels in 8.7k total tokens.
 
 ### Demo 03 — resumable workflow
 

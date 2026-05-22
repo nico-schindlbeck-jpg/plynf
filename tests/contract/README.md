@@ -1,4 +1,4 @@
-# Plinth — Contract tests
+# Plynf — Contract tests
 
 Verifies that the running services match the OpenAPI specs in
 `specs/openapi/` and flags breaking changes between snapshots.

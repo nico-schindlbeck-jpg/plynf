@@ -85,7 +85,7 @@ flowchart LR
     WF --> Q
     Q --> E
     E --> EXT[(Honeycomb / Tempo / Datadog)]
-    Q --> DASH[Plinth dashboard v0.4]
+    Q --> DASH[Plynf dashboard v0.4]
 ```
 
 ## 3. Event store
@@ -127,7 +127,7 @@ The v0.2 SQLite pass is intentionally a starter — it stops being plausible som
 
 We commit to OTLP-compatible export from day one. The mapping:
 
-| Plinth event | OTLP equivalent |
+| Plynf event | OTLP equivalent |
 |---|---|
 | `tool.invoke` | Span, with `db.system="plinth-gateway"`, `db.operation="invoke"`, attribs for `tool_id`, `cached`, `cost.estimate_usd` |
 | `kv.write` / `file.write` | Span, kind=client, with `plinth.workspace_id`, `plinth.key`, `plinth.version` |
@@ -235,7 +235,7 @@ This is additive. v0.1 callers don't break; v0.2 callers get the unified stream.
 
 - **Sampling decisions.** Do we sample at the producer or at the exporter? Producer-side avoids the cost of constructing redacted events that get dropped anyway; exporter-side keeps consistent sampling semantics. Probably a hybrid: hot-path events sampled at the producer, others always emitted and sampled at export.
 - **Event versioning.** Schema will evolve. Each event carries `schema_version`; consumers must tolerate forward-compatible additions but reject removed-field references.
-- **Distributed tracing across services.** Once we have multiple Plinth nodes, span IDs need to propagate via headers. OTLP gives us the standard headers (`traceparent`); we just have to carry them through the SDK.
+- **Distributed tracing across services.** Once we have multiple Plynf nodes, span IDs need to propagate via headers. OTLP gives us the standard headers (`traceparent`); we just have to carry them through the SDK.
 - **What about *debugging* events?** Per-call HTTP trace, SQL queries, etc. These belong in *logs*, not the semantic event stream. We expect to ship a separate structured-logs pipeline (already in the v0.1 logging conventions, see `CONVENTIONS.md`) that runs in parallel.
 - **Privacy review for `model.call`.** Capturing the prompt is potentially capturing PII or proprietary data. The default-off stance is right; the exact opt-in semantics deserve a security review before we ship that in production.
 - **Cost accuracy for non-token costs.** Tool-side costs (e.g. a paid web-search API at $0.005/call) need a way for the tool to report its cost back. We're proposing a `cost_usd` field in tool responses that the gateway pulls into the event. Conventions for this in MCP would be a useful upstream contribution (ADR 0003).

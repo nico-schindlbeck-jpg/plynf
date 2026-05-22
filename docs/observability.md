@@ -1,10 +1,10 @@
-# Plinth Observability — v1.0
+# Plynf Observability — v1.0
 
-> **Audience**: Operators wiring Plinth into their existing monitoring
+> **Audience**: Operators wiring Plynf into their existing monitoring
 > stack (Prometheus, Grafana, Datadog, Honeycomb), and developers debugging
 > production incidents using the data the platform exposes.
 
-Plinth has three first-class observability surfaces. Use all three; each
+Plynf has three first-class observability surfaces. Use all three; each
 answers a different question:
 
 1. **Prometheus metrics** — for SLO tracking, alerting, capacity planning.
@@ -15,14 +15,14 @@ answers a different question:
    what happened?" surface, used for compliance + incident forensics.
 
 The first two are designed to be plumbed into your existing observability
-stack with zero Plinth-specific tooling. The third is queried via the
+stack with zero Plynf-specific tooling. The third is queried via the
 gateway's `/v1/audit/*` REST endpoints + the dashboard.
 
 ---
 
 ## Surface 1: Prometheus metrics
 
-Every Plinth service exposes `GET /metrics` returning the standard
+Every Plynf service exposes `GET /metrics` returning the standard
 Prometheus text exposition format (v0.0.4). The endpoint is unauthenticated
 by design — Prometheus scrapers don't authenticate, and the data is
 non-sensitive aggregate counters/gauges.
@@ -98,7 +98,7 @@ MCP servers; the `tool` label is the MCP tool ID (e.g. `web.fetch`,
 ### Cardinality warnings
 
 Prometheus pricing scales with active series — every unique label-value
-combination across a metric is a series. Plinth's labels are designed to
+combination across a metric is a series. Plynf's labels are designed to
 keep cardinality bounded:
 
 * `tenant_id`, `workspace_id`, `agent_id`: typically tens to hundreds.
@@ -114,7 +114,7 @@ keep cardinality bounded:
   scrape config: `metric_relabel_configs: [{regex: 'path', action: labeldrop}]`.
 * `status`: 2xx/4xx/5xx ranges → ~10 distinct values, safe.
 
-A healthy Plinth deployment carries ~5,000–20,000 active series across
+A healthy Plynf deployment carries ~5,000–20,000 active series across
 all 4 services; an unhealthy one (high tenant churn + raw paths) can
 balloon to 100k+. Watch `prometheus_tsdb_symbol_table_size_bytes` over
 time as your canary.
@@ -134,7 +134,7 @@ fidelity and increases scrape cost linearly.
 
 ### Wiring to Prometheus
 
-A minimal `prometheus.yml` snippet to scrape every Plinth service:
+A minimal `prometheus.yml` snippet to scrape every Plynf service:
 
 ```yaml
 scrape_configs:
@@ -172,7 +172,7 @@ call).
 
 ### Canonical OTLP attribute set (v1.0)
 
-This is the contract between Plinth and downstream consumers. Any field
+This is the contract between Plynf and downstream consumers. Any field
 documented here is guaranteed to be present in the indicated scope.
 
 #### Common (every event)
@@ -265,10 +265,10 @@ export PLINTH_OTLP_HEADERS_JSON='{"x-honeycomb-team":"<your-key>"}'
 
 ### Sampling
 
-Plinth does NOT sample by default — every audit event is emitted.
+Plynf does NOT sample by default — every audit event is emitted.
 Operators with extreme volumes should tune at the OTLP collector layer
 (Otel collector `tail_sampling_processor`) rather than dropping events
-inside Plinth: the audit table is still the system of record and we
+inside Plynf: the audit table is still the system of record and we
 don't want sampling logic in two places.
 
 ---
@@ -314,7 +314,7 @@ Minimum alert set every production deployment should run:
   → ticket. Means a tenant is bumping their cap and the operator should
   decide whether to raise it.
 * **OTLP collector unreachable** — `rate(otlp_flush_errors[10m]) > 0` →
-  ticket. Plinth keeps working but downstream observability is degraded.
+  ticket. Plynf keeps working but downstream observability is degraded.
 
 A complete `prometheus-rules.yaml` ships in `deploy/prometheus/alerts/`.
 
@@ -429,11 +429,11 @@ service:
       exporters: [loki]
 ```
 
-Then point Plinth at it: `PLINTH_OTLP_ENDPOINT=http://otel-collector:4318`.
+Then point Plynf at it: `PLINTH_OTLP_ENDPOINT=http://otel-collector:4318`.
 
 ### Retention windows
 
-Plinth's three observability surfaces have **different retention regimes**.
+Plynf's three observability surfaces have **different retention regimes**.
 Operators should plan storage with these in mind:
 
 | Surface          | Default retention            | Storage location         | How to extend                                                         |

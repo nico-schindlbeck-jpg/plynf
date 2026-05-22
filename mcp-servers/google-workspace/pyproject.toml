@@ -1,7 +1,7 @@
 [project]
 name = "plinth-google-workspace-mcp"
 version = "1.1.0"
-description = "MCP-style server exposing Google Workspace API tools for Plinth agents"
+description = "MCP-style server exposing Google Workspace API tools for Plynf agents"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.11"

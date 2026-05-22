@@ -1,6 +1,6 @@
-# Plinth GitHub MCP Server
+# Plynf GitHub MCP Server
 
-A minimal MCP-style server that wraps the GitHub REST API for use with Plinth
+A minimal MCP-style server that wraps the GitHub REST API for use with Plynf
 agents. Runs at `http://localhost:7426` by default.
 
 ## What it does
@@ -18,7 +18,7 @@ Exposes seven tools that mirror the GitHub REST surface most agents need:
 | `github.search_code`       | read         | Code search (optionally scoped to a repo)    |
 
 Every tool advertises `auth_method=oauth2` with `auth_config.provider="github"`
-in its metadata, so the Plinth gateway knows to inject the user's GitHub token
+in its metadata, so the Plynf gateway knows to inject the user's GitHub token
 on each call.
 
 ## Auth
@@ -26,7 +26,7 @@ on each call.
 This server **never holds the GitHub access token**. The gateway forwards the
 user's bearer token via the `Authorization` header on each `POST /invoke/...`
 call; the tools then forward the same token to GitHub. If the header is
-missing or unparseable, the server returns 401 with a Plinth error envelope.
+missing or unparseable, the server returns 401 with a Plynf error envelope.
 
 ## Endpoints
 

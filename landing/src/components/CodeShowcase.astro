@@ -5,9 +5,9 @@ const theme = "vesper";
 
 const snippets = {
   python: `# Python
-from plinth import Plinth
+from plinth import Plynf
 
-client = Plinth(
+client = Plynf(
     workspace_url="http://localhost:7421",
     gateway_url="http://localhost:7422",
     api_key="local-dev",
@@ -24,9 +24,9 @@ for src in sources["results"]:
 
 ws.snapshot("sources-collected")`,
   typescript: `// TypeScript
-import { Plinth } from "@plinth/sdk";
+import { Plynf } from "@plinth/sdk";
 
-const client = new Plinth({
+const client = new Plynf({
   workspaceUrl: "http://localhost:7421",
   gatewayUrl: "http://localhost:7422",
   apiKey: "local-dev",
@@ -78,9 +78,9 @@ func main() {
     _ = ws.Snapshot(ctx, "sources-collected")
 }`,
   swift: `// Swift
-import Plinth
+import Plynf
 
-let client = Plinth(
+let client = Plynf(
     workspaceURL: URL(string: "http://localhost:7421")!,
     gatewayURL:   URL(string: "http://localhost:7422")!,
     apiKey: "local-dev"
@@ -104,10 +104,10 @@ for src in sources.results {
 
 try await ws.snapshot("sources-collected")`,
   kotlin: `// Kotlin
-import dev.plinth.Plinth
+import dev.plinth.Plynf
 
 suspend fun main() {
-    val client = Plinth(
+    val client = Plynf(
         workspaceUrl = "http://localhost:7421",
         gatewayUrl   = "http://localhost:7422",
         apiKey       = "local-dev",
@@ -233,7 +233,7 @@ for (const { id, lang } of langs) {
       <span class="font-mono text-accent">→</span>
       Result: a 5-source research task uses
       <span class="text-ink-primary font-medium">71% fewer tokens</span>
-      than the same task without Plinth. Measured across three topics, fully reproducible.
+      than the same task without Plynf. Measured across three topics, fully reproducible.
     </p>
   </div>
 </section>

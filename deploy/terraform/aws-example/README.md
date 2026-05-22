@@ -1,6 +1,6 @@
-# Plinth on AWS — example Terraform module
+# Plynf on AWS — example Terraform module
 
-This module stands up an opinionated Plinth environment on AWS:
+This module stands up an opinionated Plynf environment on AWS:
 
 - VPC across 3 AZs with public + private subnets and NAT gateways
 - EKS cluster (configurable Kubernetes version, default 1.30)
@@ -8,7 +8,7 @@ This module stands up an opinionated Plinth environment on AWS:
 - RDS Postgres (db.t3.medium, 50 GB, encrypted at rest)
 - S3 bucket for future blob storage (versioned, encrypted, public access blocked)
 - IRSA role for the `plinth` ServiceAccount with read/write on the blob bucket
-- A `helm_release` installing the Plinth chart from `../../helm/plinth`
+- A `helm_release` installing the Plynf chart from `../../helm/plinth`
 
 > **This is a STARTING POINT, not a turnkey production module.** Before
 > applying anywhere serious, read `main.tf` end-to-end and tighten every
@@ -67,7 +67,7 @@ See `variables.tf` for the full list. The most-tweaked values:
 | `node_instance_types` | `["t3.medium"]` | Node EC2 types. |
 | `rds_instance_class` | `db.t3.medium` | RDS Postgres size. |
 | `rds_allocated_storage_gb` | `50` | RDS storage. |
-| `plinth_image_tag` | `1.0.0` | Plinth container image tag. |
+| `plinth_image_tag` | `1.0.0` | Plynf container image tag. |
 | `plinth_values_files` | `[values.yaml, values.prod.yaml]` | Helm values to layer. |
 
 ## Outputs
@@ -79,7 +79,7 @@ See `variables.tf` for the full list. The most-tweaked values:
 | `kubeconfig_command` | One-liner to update `~/.kube/config`. |
 | `rds_endpoint` | RDS Postgres `host:port`. |
 | `blobs_bucket_name` | S3 bucket reserved for future blob storage. |
-| `plinth_irsa_role_arn` | IAM role bound to the Plinth ServiceAccount. |
+| `plinth_irsa_role_arn` | IAM role bound to the Plynf ServiceAccount. |
 | `plinth_namespace` | Kubernetes namespace. |
 
 ## Destroy

@@ -188,7 +188,7 @@ Two strands of work, neither in v0.1:
 - **Three-way semantic merge for KV values.** When both sides modified a JSON object, attempt a deep merge (added/removed keys disjoint, modified keys conflict). For lists, more interesting strategies (append-only sets, position-keyed maps).
 - **CRDT-shaped types as opt-in.** A key declared `LWW-counter` or `OR-set` can merge automatically. We expect this to matter once multi-agent workflows actively concurrently mutate shared state — a scenario v0.1 doesn't have.
 
-We are not building a Git-style DAG. Branches in Plinth are short-lived (an experiment, a hand-off staging area), not long-running development lines. The complexity of full DAG resolution doesn't pay back.
+We are not building a Git-style DAG. Branches in Plynf are short-lived (an experiment, a hand-off staging area), not long-running development lines. The complexity of full DAG resolution doesn't pay back.
 
 ## 6. Garbage collection
 

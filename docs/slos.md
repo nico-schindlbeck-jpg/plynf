@@ -1,10 +1,10 @@
-# Plinth Service Level Objectives — v1.0
+# Plynf Service Level Objectives — v1.0
 
-> **Audience**: SREs and operators running Plinth in production. Product
+> **Audience**: SREs and operators running Plynf in production. Product
 > engineering also reads this to understand what guarantees the platform
 > claims and how those guarantees are measured.
 
-This document defines the published SLOs for Plinth v1.0, how they are
+This document defines the published SLOs for Plynf v1.0, how they are
 measured, the error-budget calculation, and the escalation policy. It is
 intentionally short and operator-actionable: every line below should be
 something you can write a Grafana alert against.
@@ -156,7 +156,7 @@ A sample alerting rule (Prometheus YAML lives in
 
 * **Page** alerts go to the on-call SRE rotation via PagerDuty (default
   group `plinth-sre`). The runbook lives at `docs/runbooks/<slo-name>.md`.
-* **Ticket** alerts open a JIRA ticket in the `PLINTH-OPS` project. They
+* **Ticket** alerts open a JIRA ticket in the `PLYNF-OPS` project. They
   do *not* page; an SRE picks them up within one business day.
 * For any SLO violation the on-call writes a brief incident report into
   `docs/incidents/YYYY-MM-DD-<slug>.md` within 72 hours.

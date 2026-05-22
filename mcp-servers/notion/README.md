@@ -1,6 +1,6 @@
-# Plinth Notion MCP Server
+# Plynf Notion MCP Server
 
-A minimal MCP-style server that wraps the Notion API for use with Plinth
+A minimal MCP-style server that wraps the Notion API for use with Plynf
 agents. Runs at `http://localhost:7429` by default.
 
 ## What it does
@@ -18,7 +18,7 @@ Exposes seven tools that mirror the Notion REST surface most agents need:
 | `notion.query_database`    | read         | Query a database with filter/sort               |
 
 Every tool advertises `auth_method=oauth2` with `auth_config.provider="notion"`
-in its metadata, so the Plinth gateway knows to inject the user's Notion
+in its metadata, so the Plynf gateway knows to inject the user's Notion
 token on each call.
 
 ## Auth
@@ -26,7 +26,7 @@ token on each call.
 This server **never holds the Notion access token**. The gateway forwards the
 user's bearer token via the `Authorization` header on each `POST /invoke/...`
 call; the tools then forward the same token to Notion. If the header is
-missing or unparseable, the server returns 401 with a Plinth error envelope.
+missing or unparseable, the server returns 401 with a Plynf error envelope.
 
 ## Endpoints
 

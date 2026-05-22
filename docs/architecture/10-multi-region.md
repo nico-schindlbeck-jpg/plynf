@@ -12,7 +12,7 @@ Three commitments shape the v1.0 multi-region surface:
    bit-for-bit identical to the v0.6 deployment. Operators see no
    behaviour change unless they flip `PLINTH_REPLICATION_MODE`.
 2. **Operator-side orchestration** — the actual cross-region pull /
-   replay is a cron job, sidecar, or agent. Plinth provides the API
+   replay is a cron job, sidecar, or agent. Plynf provides the API
    surface; you wire the plumbing. This keeps the platform out of the
    way of operators who already have replication infrastructure.
 3. **Idempotent everywhere** — the apply endpoint dedupes on `seq`,
@@ -108,8 +108,8 @@ when `replication_mode=replica`:
 - The methods POST / PUT / DELETE / PATCH return `421 REPLICA_READ_ONLY`.
   421 (Misdirected Request, RFC 7540 §9.1.2) is the right status: the
   request is syntactically fine but addressed to the wrong host.
-- The response carries `X-Plinth-Primary-Region: <region_id>` and
-  `X-Plinth-Primary-URL: <base_url>` so the SDK can retry transparently.
+- The response carries `X-Plynf-Primary-Region: <region_id>` and
+  `X-Plynf-Primary-URL: <base_url>` so the SDK can retry transparently.
 - A `Location` header points at the primary URL when configured (curl
   / browser-style follow-redirects).
 - An allowlist exempts `/healthz`, `/v1/regions`, `/metrics`, and the
@@ -131,7 +131,7 @@ primary is always tried first. On any of:
 
 - `httpx.ConnectError` / `httpx.ConnectTimeout` / fetch network error
 - 5xx / 503 response
-- 409 + `X-Plinth-Primary-Region` header pointing at a known fallback
+- 409 + `X-Plynf-Primary-Region` header pointing at a known fallback
 
 …the next candidate runs. 4xx errors (other than the redirect 409) are
 not retried — they surface unchanged to the caller. This matches how
@@ -148,19 +148,19 @@ The recommended Postgres production topology:
 1. **Aurora Global** (or equivalent): a primary cluster in one region,
    read-replica clusters in others, with cross-region replication
    handled by the managed service. Lag typically <1s.
-2. **Plinth wired to read-replica DB endpoints**: each replica region
+2. **Plynf wired to read-replica DB endpoints**: each replica region
    sets `PLINTH_DATABASE_URL` to its local read-replica's endpoint and
-   `PLINTH_REPLICATION_MODE=replica`. The Plinth replica middleware
+   `PLINTH_REPLICATION_MODE=replica`. The Plynf replica middleware
    handles the write redirect; the database layer handles the actual
    data replication.
 3. **Failover** is a database-level operation. Promote a read-replica
-   to primary, update DNS / config, flip the Plinth `replication_mode`
-   to `primary` on the new region. The Plinth replication-log table
+   to primary, update DNS / config, flip the Plynf `replication_mode`
+   to `primary` on the new region. The Plynf replication-log table
    is empty in this topology — Postgres replication did all the work.
 
 For SQLite-based deployments, `litestream` is the obvious choice:
 continuous WAL streaming to S3, with point-in-time-restore on the
-replica side. Combined with the Plinth `replication_log` for write
+replica side. Combined with the Plynf `replication_log` for write
 introspection, this gives you a serviceable SQLite-multi-region setup
 without heavyweight infrastructure.
 
@@ -190,7 +190,7 @@ without heavyweight infrastructure.
 | `replication_log` table             | (didn't exist)    | created empty     | None — only written when `mode=primary` |
 | `/v1/regions`                       | (didn't exist)    | new endpoint      | Additive                   |
 | `/v1/admin/replication/*`           | (didn't exist)    | new endpoints     | Additive, admin-only       |
-| `X-Plinth-Primary-Region` header    | (didn't exist)    | only on 409       | Additive                   |
+| `X-Plynf-Primary-Region` header    | (didn't exist)    | only on 409       | Additive                   |
 | SDK `region` / `fallback_regions`   | (didn't exist)    | optional kwargs   | Additive — old code unchanged |
 
 A v0.6 client talking to a v1.0 service sees the same wire protocol it

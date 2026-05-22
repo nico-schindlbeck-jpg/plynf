@@ -1,4 +1,4 @@
-Plinth {{ .Chart.AppVersion }} has been installed into namespace {{ .Release.Namespace }}.
+Plynf {{ .Chart.AppVersion }} has been installed into namespace {{ .Release.Namespace }}.
 
 Release name: {{ .Release.Name }}
 Chart version: {{ .Chart.Version }}

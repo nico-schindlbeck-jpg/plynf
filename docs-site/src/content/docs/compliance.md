@@ -1,6 +1,6 @@
 ---
 title: Compliance
-description: Plinth's v1.0 compliance posture — SOC 2, GDPR Art. 17/20/32 mappings.
+description: Plynf's v1.0 compliance posture — SOC 2, GDPR Art. 17/20/32 mappings.
 section: operations
 order: 2
 sourceFile: docs/compliance.md
@@ -8,11 +8,11 @@ sourceFile: docs/compliance.md
 
 > v1.0 baseline. Endpoints listed here are the contractual surface operators integrate against; tests cover each mapping point.
 
-This page maps Plinth's v1.0 compliance scaffolding to SOC 2 Common Criteria, GDPR Articles 17 and 20, and Article 32 security-of-processing. It does **not** make Plinth "SOC 2 compliant" — compliance is an organisational property — but gives an operator a defensible answer to each control question.
+This page maps Plynf's v1.0 compliance scaffolding to SOC 2 Common Criteria, GDPR Articles 17 and 20, and Article 32 security-of-processing. It does **not** make Plynf "SOC 2 compliant" — compliance is an organisational property — but gives an operator a defensible answer to each control question.
 
 ## SOC 2 Common Criteria mapping
 
-| CC ref | Topic | Plinth feature |
+| CC ref | Topic | Plynf feature |
 |---|---|---|
 | CC1 / CC2 | Control environment + communication | Documented runtime in `OVERVIEW.md`, `ARCHITECTURE.md`, `CONTRACTS.md` |
 | CC3 | Risk assessment | [Threat model](/docs/threat-model) |
@@ -67,7 +67,7 @@ Phase 1 mints a one-shot `confirm_token` (10 min TTL). Phase 2 consumes it and r
 
 ## GDPR Article 32 — Security of processing
 
-| Article 32 control | Plinth feature |
+| Article 32 control | Plynf feature |
 |---|---|
 | Encryption at rest of personal data | OAuth tokens AES-256-GCM; RSA private keys AES-256-GCM |
 | Pseudonymisation | Audit `arguments_hash` + `result_hash` are sha256 — operators can store hashes without bodies |

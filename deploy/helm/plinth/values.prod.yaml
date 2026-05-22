@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Plinth — prod values override.
+# Plynf — prod values override.
 #
 # Recommended invocation:
 #   helm upgrade --install plinth ./deploy/helm/plinth \

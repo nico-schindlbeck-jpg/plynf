@@ -1,7 +1,7 @@
-# Plinth — API v1 Stability Promise
+# Plynf — API v1 Stability Promise
 
 > **Status**: Active as of v1.0.0 GA.
-> **Owner**: Plinth maintainers.
+> **Owner**: Plynf maintainers.
 > **Audience**: SDK consumers, integrators, operators planning long-lived
 > deployments, and anyone reasoning about upgrade risk.
 
@@ -70,7 +70,7 @@ Instead:
    ```
    Deprecation: true
    Sunset: Wed, 01 May 2027 00:00:00 GMT
-   Link: <https://docs.plinth.dev/api/v2/migration>; rel="alternate"
+   Link: <https://docs.plynf.com/api/v2/migration>; rel="alternate"
    ```
    The `Sunset` header uses RFC 1123 dates (RFC 8594). The `Link` header
    points at the v2 equivalent.
@@ -122,7 +122,7 @@ When the v2 line opens:
   tables freely.
 - Log line formats, log levels, log key names. These are operational
   diagnostics, not contract.
-- Internal IPC between Plinth services (e.g. how Workspace and Gateway
+- Internal IPC between Plynf services (e.g. how Workspace and Gateway
   communicate). Treat these as private.
 - Helm chart values structure. The chart has its own SemVer (`Chart.yaml`
   `version:`) and follows independent compatibility rules.
@@ -137,7 +137,7 @@ When the v2 line opens:
 
 ## Versioning detail
 
-Plinth uses standard SemVer for the project as a whole:
+Plynf uses standard SemVer for the project as a whole:
 
 - `MAJOR` (e.g. v1 → v2): breaking changes to the v1 surface allowed.
 - `MINOR` (e.g. v1.0 → v1.1): additive changes only. New endpoints, new
@@ -149,17 +149,17 @@ and are released independently.
 
 ## Header stability
 
-Plinth services emit a small set of response headers that are part of the
+Plynf services emit a small set of response headers that are part of the
 v1 contract. Their **names and semantics** are frozen for v1; their values
 are runtime-defined and may change request-to-request.
 
 | Header | Emitted by | Meaning |
 |--------|------------|---------|
-| `X-Plinth-Request-Id` | every service | ULID for the request. Echoed in audit log entries and OTLP spans. |
-| `X-Plinth-Tenant-Id` | every service when the bearer token resolves to a tenant | Tenant the request was authorized under. |
-| `X-Plinth-Region` | every service when `PLINTH_REGION_ID` is set | Region that handled the request. |
-| `X-Plinth-Cache` | gateway `/v1/invoke` | `hit` or `miss`. |
-| `X-Plinth-Cost-Usd` | gateway `/v1/invoke` | Aggregated USD cost of the call (string-encoded decimal). |
+| `X-Plynf-Request-Id` | every service | ULID for the request. Echoed in audit log entries and OTLP spans. |
+| `X-Plynf-Tenant-Id` | every service when the bearer token resolves to a tenant | Tenant the request was authorized under. |
+| `X-Plynf-Region` | every service when `PLINTH_REGION_ID` is set | Region that handled the request. |
+| `X-Plynf-Cache` | gateway `/v1/invoke` | `hit` or `miss`. |
+| `X-Plynf-Cost-Usd` | gateway `/v1/invoke` | Aggregated USD cost of the call (string-encoded decimal). |
 | `Deprecation` | endpoints scheduled for removal | Always `true` when present. |
 | `Sunset` | endpoints scheduled for removal | RFC 1123 date when the endpoint will stop being emitted. |
 | `Link` | endpoints scheduled for removal | URL of the v2 equivalent / migration guide, with `rel="alternate"`. |
@@ -205,7 +205,7 @@ The error envelope is fixed at v1.0.0:
   for v1.0.0. Codes are frozen: clients can pattern-match on them.
 - `error.message` is human-readable and **not** stable — wording may
   improve between releases.
-- `error.request_id` matches `X-Plinth-Request-Id`.
+- `error.request_id` matches `X-Plynf-Request-Id`.
 - `error.details` is an open object whose keys we may extend additively.
 
 Currently frozen codes (per CONTRACTS.md):
@@ -245,7 +245,7 @@ release line, v1.0.0 also locks in:
 
 - **Multi-region scaffolding (additive).** `PLINTH_REGION_ID`,
   `PLINTH_REPLICATION_MODE`, `PLINTH_REGION_PEERS` env vars and the
-  `X-Plinth-Region` header are now part of the v1 contract.
+  `X-Plynf-Region` header are now part of the v1 contract.
 - **OAuth flow endpoints (additive).** `/v1/oauth/{provider}/start`,
   `/v1/oauth/{provider}/callback`, `/v1/oauth/connections` on Gateway are
   promoted from v0.4 to v1 and frozen.

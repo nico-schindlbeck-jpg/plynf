@@ -6,7 +6,7 @@
 
 A naive multi-agent setup uses chat messages to coordinate: agent A says "I'm done", agent B reads the chat and starts. This breaks for the same reason single-agent chat-as-state breaks: the channel is unstructured, there's no durability, no replay, and "did B actually pick up the message?" is a guess.
 
-The three primitives Plinth proposes to formalise this:
+The three primitives Plynf proposes to formalise this:
 
 1. **Channels** — typed, durable, ordered message passing between named agents.
 2. **Locks / leases** — one agent holds a named resource for a bounded time.
@@ -16,7 +16,7 @@ These are not novel in distributed systems. They are novel in *agent-substrate* 
 
 ```mermaid
 flowchart LR
-    subgraph "Plinth coordination plane"
+    subgraph "Plynf coordination plane"
       C[Channels]
       L[Locks]
       W[Workflows]
@@ -101,7 +101,7 @@ Every channel keeps messages for `retention_seconds`. `GET /channels/{id}/replay
 
 ### Concept
 
-A **lease** on a named resource means: "for the next T seconds, only this agent may treat this resource as exclusively held". The mechanism is advisory — Plinth does not enforce that the resource isn't touched by other paths. But it gives agents a coordination point.
+A **lease** on a named resource means: "for the next T seconds, only this agent may treat this resource as exclusively held". The mechanism is advisory — Plynf does not enforce that the resource isn't touched by other paths. But it gives agents a coordination point.
 
 ### Proposed API
 
@@ -149,7 +149,7 @@ Resource names are namespaced strings. Conventions:
 - `tool:{tool_id}:rate-window:{minute}` — application-level rate-limiting via leases (cute hack, occasionally useful)
 - `external:{your-resource-name}` — agent-defined
 
-Plinth does not validate names against a schema; conventions are documentation, not enforcement.
+Plynf does not validate names against a schema; conventions are documentation, not enforcement.
 
 ### Failure scenarios
 
@@ -164,7 +164,7 @@ Plinth does not validate names against a schema; conventions are documentation, 
 
 ### Concept
 
-A workflow is **a named sequence of tool calls and workspace writes that should either fully succeed or roll back via compensating actions**. Plinth runs the workflow durably: progress is persisted at every step, the workflow can resume after a crash, and on failure the compensations run in reverse.
+A workflow is **a named sequence of tool calls and workspace writes that should either fully succeed or roll back via compensating actions**. Plynf runs the workflow durably: progress is persisted at every step, the workflow can resume after a crash, and on failure the compensations run in reverse.
 
 ### Proposed API
 
@@ -231,15 +231,15 @@ If `write-report` fails, the engine runs `kv_delete sources` (the compensation f
 
 ### How this maps to Temporal/Restate underneath
 
-ADR 0004 covers the choice. Short version: we plan to use **Temporal** as the durable execution engine for v0.3. The Plinth workflow API becomes a thin shim that translates `WorkflowDef` into Temporal workflows and Plinth steps into Temporal activities. We get retries, durable timers, signals, and replay-from-history for free.
+ADR 0004 covers the choice. Short version: we plan to use **Temporal** as the durable execution engine for v0.3. The Plynf workflow API becomes a thin shim that translates `WorkflowDef` into Temporal workflows and Plynf steps into Temporal activities. We get retries, durable timers, signals, and replay-from-history for free.
 
 The reason we **don't** just expose Temporal directly:
 
 - Agents don't speak Java/Go. The Temporal client SDKs are not LLM-friendly.
-- The Plinth workflow is a *typed list of steps*, suitable to plan/inspect/validate before execution. Temporal workflows are arbitrary code.
+- The Plynf workflow is a *typed list of steps*, suitable to plan/inspect/validate before execution. Temporal workflows are arbitrary code.
 - The compensation model is first-class in our API; in Temporal it's a code pattern (saga).
 
-So Temporal becomes the executor. Plinth provides the schema, the API, the audit binding, and the workspace integration.
+So Temporal becomes the executor. Plynf provides the schema, the API, the audit binding, and the workspace integration.
 
 ### Failure scenarios
 

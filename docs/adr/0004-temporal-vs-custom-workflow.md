@@ -2,7 +2,7 @@
 
 - **Status**: Proposed
 - **Date**: 2026-05-05
-- **Deciders**: The Plinth Authors
+- **Deciders**: The Plynf Authors
 
 ## Context
 
@@ -27,7 +27,7 @@ Decision drivers, in priority order:
 
 1. **Durability and replay correctness.** Workflow engines exist because writing this correctly is hard. We weight maturity heavily.
 2. **Python SDK quality.** Per ADR 0001, services and the primary SDK are Python. We need to define workflows in Python ergonomically.
-3. **Operational footprint.** Adding a heavyweight piece of infrastructure to Plinth's deployment story has a cost; lighter is better.
+3. **Operational footprint.** Adding a heavyweight piece of infrastructure to Plynf's deployment story has a cost; lighter is better.
 4. **Multi-language reach.** Some customers may want to register tools or workflows from Go/TS/etc. Multi-language SDKs are a tiebreaker.
 5. **Vendor risk / open-source posture.** We should be able to self-host indefinitely.
 
@@ -37,13 +37,13 @@ Decision drivers, in priority order:
 
 Specifically:
 
-- Plinth ships a **`services/workflow` shim** that translates our `WorkflowDef` (see arch doc 04 §4) into Temporal workflows and Plinth steps into Temporal activities.
-- The Plinth API (`POST /v1/workflows/{id}/start`, etc.) is unchanged; Temporal sits behind it.
+- Plynf ships a **`services/workflow` shim** that translates our `WorkflowDef` (see arch doc 04 §4) into Temporal workflows and Plynf steps into Temporal activities.
+- The Plynf API (`POST /v1/workflows/{id}/start`, etc.) is unchanged; Temporal sits behind it.
 - Self-hosters can choose between:
   - **Temporal cluster** (recommended for production at scale): self-hosted or Temporal Cloud.
-  - **Inngest dev server / cloud** (recommended for smaller deployments): a Plinth adapter targeting Inngest's durable-functions API.
+  - **Inngest dev server / cloud** (recommended for smaller deployments): a Plynf adapter targeting Inngest's durable-functions API.
 - The shim **abstracts the engine**. If a customer wants to swap engines, they re-target the shim, not their workflow definitions.
-- Plinth's own *coordination primitives* — channels, locks — do **not** depend on the workflow engine. They live in the workspace/gateway services. Workflows compose with them, but a Plinth deployment can choose to enable workflows or not, independent of the rest.
+- Plynf's own *coordination primitives* — channels, locks — do **not** depend on the workflow engine. They live in the workspace/gateway services. Workflows compose with them, but a Plynf deployment can choose to enable workflows or not, independent of the rest.
 
 ## Consequences
 
@@ -51,17 +51,17 @@ Specifically:
 
 - **Don't reinvent the durable-execution wheel.** Temporal has 7+ years of production hardening. Replay correctness (the core invariant of durable workflows) is something Temporal has shipped, debugged, and battle-tested.
 - **Python SDK is mature.** `temporalio` is first-class, async-native, and integrates well with FastAPI. Workflow definitions are decorated Python functions with all the type hints that gives us.
-- **Multi-language reach for advanced users.** A customer can write a workflow in Go targeting our Plinth shim, if they want to. Most won't, but the option matters for enterprise.
+- **Multi-language reach for advanced users.** A customer can write a workflow in Go targeting our Plynf shim, if they want to. Most won't, but the option matters for enterprise.
 - **Operability under control.** Temporal's UI, CLI, and observability story are well understood. SREs who've operated Temporal can operate ours.
-- **Time travel and replay** are built in, which dovetails with Plinth's own replay story (arch doc 05 §5).
+- **Time travel and replay** are built in, which dovetails with Plynf's own replay story (arch doc 05 §5).
 
 ### Negative / Trade-offs
 
 - **Heavyweight runtime.** A Temporal cluster is multiple services (frontend, history, matching, worker), backed by Cassandra or Postgres. Even the dev image is non-trivial. We'd be a serious step up from the v0.1 "everything fits on a laptop" promise.
 - **Latency overhead.** Workflow start, activity dispatch, and cursor advancement all hit the Temporal service. For very short workflows, the overhead can dominate. We accept that workflows are for *durable, multi-step, possibly-long-running* work; a single tool call is not a workflow.
-- **Operational complexity for self-hosters.** "Run Plinth" goes from "two FastAPI services + SQLite" to "two FastAPI services + Postgres/S3 + Temporal cluster". The Inngest fallback exists to mitigate this for smaller deployments.
-- **Lock-in risk to Temporal's programming model.** Temporal workflows have specific constraints (deterministic code, no direct I/O outside activities). Our shim absorbs this for the Plinth `WorkflowDef` shape, but anyone authoring workflows directly against Temporal will need to learn the rules.
-- **Dual SDK surfaces.** We end up maintaining the Plinth workflow API + an internal Temporal binding. Conceptually clean, more code to maintain.
+- **Operational complexity for self-hosters.** "Run Plynf" goes from "two FastAPI services + SQLite" to "two FastAPI services + Postgres/S3 + Temporal cluster". The Inngest fallback exists to mitigate this for smaller deployments.
+- **Lock-in risk to Temporal's programming model.** Temporal workflows have specific constraints (deterministic code, no direct I/O outside activities). Our shim absorbs this for the Plynf `WorkflowDef` shape, but anyone authoring workflows directly against Temporal will need to learn the rules.
+- **Dual SDK surfaces.** We end up maintaining the Plynf workflow API + an internal Temporal binding. Conceptually clean, more code to maintain.
 
 ## Alternatives Considered
 
@@ -71,7 +71,7 @@ Genuinely tempting. Restate is light, has a simpler operational story (a single 
 
 - **Maturity gap.** As of 2026-05, Restate is shipping production users but is younger than Temporal by several years. For a critical-path piece, we want the option of "this is what Coinbase uses".
 - **Multi-language SDK breadth.** Restate's SDKs are good but don't cover Go, which is a tiebreaker for enterprise customers.
-- **Future option.** If Restate continues to mature, swapping our shim's backend from Temporal to Restate is contemplated and explicitly preserved in the design. The Plinth `WorkflowDef` API is the abstraction that makes this possible.
+- **Future option.** If Restate continues to mature, swapping our shim's backend from Temporal to Restate is contemplated and explicitly preserved in the design. The Plynf `WorkflowDef` API is the abstraction that makes this possible.
 
 We will reassess this choice at v0.4 once we have actual workflow workloads.
 
@@ -96,8 +96,8 @@ Build our own durable executor: a `workflows` table with cursor and step results
 The case against (which we judged decisive):
 
 - Replay correctness is hard. Years of Temporal bugs and fixes are not easily replicated; we'd ship subtle races in week 1.
-- Maintaining a workflow engine is a full-time investment we cannot afford while also building the rest of Plinth.
-- It's not where we differentiate. Customers buy Plinth for the agent-native substrate; whether the workflow engine underneath is Temporal or homegrown is invisible to them.
+- Maintaining a workflow engine is a full-time investment we cannot afford while also building the rest of Plynf.
+- It's not where we differentiate. Customers buy Plynf for the agent-native substrate; whether the workflow engine underneath is Temporal or homegrown is invisible to them.
 
 Strong rejection for v0.3. We may reconsider for very-small-scale deployments at v1.0 if we observe customers won't run a Temporal cluster.
 
@@ -106,14 +106,14 @@ Strong rejection for v0.3. We may reconsider for very-small-scale deployments at
 A "database as a workflow runtime" library — workflows are Python/TS functions whose state lives in Postgres directly. Conceptually elegant, especially given we already use Postgres. Rejected because:
 
 - Maturity is lower than Restate, let alone Temporal.
-- The library shape means the Plinth runtime hosts the workflows in-process, which complicates the multi-replica scaling story.
-- We prefer a clear separation between "the workflow service" and "the rest of Plinth" for failure-isolation reasons.
+- The library shape means the Plynf runtime hosts the workflows in-process, which complicates the multi-replica scaling story.
+- We prefer a clear separation between "the workflow service" and "the rest of Plynf" for failure-isolation reasons.
 
 ### Step Functions / Workflows-as-a-service from a cloud vendor
 
 Considered (AWS Step Functions, GCP Workflows, Azure Durable Functions). Rejected:
 
-- Vendor lock-in for a critical piece of Plinth's architecture is contrary to our positioning.
+- Vendor lock-in for a critical piece of Plynf's architecture is contrary to our positioning.
 - Self-host story collapses.
 - We cannot ship a v0.3 that runs *only* on AWS.
 

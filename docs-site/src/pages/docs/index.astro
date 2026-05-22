@@ -5,8 +5,8 @@ import { getCollection } from "astro:content";
 const docs = await getCollection("docs");
 
 const SECTION_ORDER = [
-  { id: "overview", label: "Get Started", desc: "What Plinth is and how it fits together." },
-  { id: "guides", label: "Guides", desc: "Run Plinth, build with the SDK, ship demos." },
+  { id: "overview", label: "Get Started", desc: "What Plynf is and how it fits together." },
+  { id: "guides", label: "Guides", desc: "Run Plynf, build with the SDK, ship demos." },
   { id: "api", label: "API", desc: "The v1 contract — stability promises and the deprecation policy." },
   { id: "operations", label: "Operations", desc: "SLOs, compliance posture, threat model — for production." },
 ] as const;
@@ -21,14 +21,14 @@ const grouped = SECTION_ORDER.map((sec) => ({
 
 <BaseLayout
   title="Documentation"
-  description="Plinth documentation — overview, quickstart, architecture, SDKs, API stability, SLOs, compliance, threat model."
+  description="Plynf documentation — overview, quickstart, architecture, SDKs, API stability, SLOs, compliance, threat model."
 >
   <section class="bg-rock-50 border-b border-rock-200">
     <div class="container-narrow py-12 md:py-16">
       <div class="max-w-3xl">
         <div class="text-[12px] font-bold uppercase tracking-[0.1em] text-amber-700">Documentation</div>
         <h1 class="mt-3 text-4xl md:text-5xl font-extrabold tracking-tight text-rock-900">
-          Everything you need to ship on Plinth.
+          Everything you need to ship on Plynf.
         </h1>
         <p class="mt-4 text-rock-600 text-lg leading-relaxed">
           Concise, up-to-date with v1.5. Each page maps back to a source-of-truth file in the repository — search

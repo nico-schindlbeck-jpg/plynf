@@ -1,7 +1,7 @@
 {
   "name": "@plinth/workflow-worker",
   "version": "0.6.1",
-  "description": "Plinth durable-workflow worker for Node.js",
+  "description": "Plynf durable-workflow worker for Node.js",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",

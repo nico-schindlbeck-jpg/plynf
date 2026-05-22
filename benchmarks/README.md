@@ -1,6 +1,6 @@
 # plinth-bench
 
-Stress benchmarks for the Plinth services (workspace + gateway + identity).
+Stress benchmarks for the Plynf services (workspace + gateway + identity).
 
 ## Why
 

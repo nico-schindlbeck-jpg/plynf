@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Plinth — Mock MCP server (used by demos + smoke tests).
+# Plynf — Mock MCP server (used by demos + smoke tests).
 ---
 apiVersion: v1
 kind: ConfigMap

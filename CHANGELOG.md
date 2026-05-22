@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Plinth are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [SemVer](https://semver.org).
+All notable changes to Plynf are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning is [SemVer](https://semver.org).
 
 ## [1.7.0] — 2026-05-15
 
@@ -38,14 +38,14 @@ Landing page: complete visual overhaul to shadergradient.co aesthetic. Vibrant f
 ### Backwards compatibility
 - All page routes unchanged
 - No service/SDK changes
-- Other Plinth code untouched
+- Other Plynf code untouched
 
 ## [1.6.0] — 2026-05-15
 
-Stufe-1-Installer + Silicon-Valley-Marketing-Page. Plinth shifts from "developer tool" toward "consumer-installable product".
+Stufe-1-Installer + Silicon-Valley-Marketing-Page. Plynf shifts from "developer tool" toward "consumer-installable product".
 
 ### Added
-- **`install/install.sh`** — One-liner POSIX-sh installer. `curl -fsSL plinth.dev/install.sh | sh` clones repo to `~/.plinth/`, sets up Python venv, installs the 5 core services, registers launchd (macOS) or systemd (Linux) auto-start, and opens the dashboard. Idempotent. No sudo. ~2 minutes total. 485 lines.
+- **`install/install.sh`** — One-liner POSIX-sh installer. `curl -fsSL plynf.com/install.sh | sh` clones repo to `~/.plinth/`, sets up Python venv, installs the 5 core services, registers launchd (macOS) or systemd (Linux) auto-start, and opens the dashboard. Idempotent. No sudo. ~2 minutes total. 485 lines.
 - **`install/plinth`** — Single-binary CLI wrapper at `~/.local/bin/plinth`: `status`, `start`, `stop`, `restart`, `logs`, `dashboard`, `demo`, `update`, `uninstall`, `version`. Short aliases (`st`, `up`, `down`, `dash`). 238 lines.
 - **`install/run_all.py`** — Stdlib-only supervisor: spawns 5 services as child processes, handles SIGTERM/SIGINT/SIGHUP, crash-loop guard (3 crashes/60s → exit 75 so launchd/systemd back off properly). 232 lines.
 - **`install/launchd/` + `install/systemd/`** — auto-start unit templates with placeholder substitution; KeepAlive on macOS, Restart=always on Linux.
@@ -53,7 +53,7 @@ Stufe-1-Installer + Silicon-Valley-Marketing-Page. Plinth shifts from "developer
 - **`install/tests/test_install_sh.sh`** — 22-test harness (no bats needed). Plus `shellcheck.sh` wrapper.
 - **New CI job `installer`** — shellcheck strict, syntax check, self-test, dry-run install.
 
-- **`landing/`** — Silicon-Valley-style marketing site at plinth.dev. Astro 4 + Tailwind + Shiki (build-time syntax highlighting). 32 hand-written files: 14 components, 5 pages, dark-mode-first, animated metrics, 5-SDK code tabs, animated SVG architecture diagram. 844 KB total dist, 112 KB first-paint gzip. `netlify.toml` configured with strict CSP, immutable cache for assets, redirects for `/install.sh` + `/github` + `/docs`.
+- **`landing/`** — Silicon-Valley-style marketing site at plynf.com. Astro 4 + Tailwind + Shiki (build-time syntax highlighting). 32 hand-written files: 14 components, 5 pages, dark-mode-first, animated metrics, 5-SDK code tabs, animated SVG architecture diagram. 844 KB total dist, 112 KB first-paint gzip. `netlify.toml` configured with strict CSP, immutable cache for assets, redirects for `/install.sh` + `/github` + `/docs`.
 
 ### Notes
 - Landing-site is separate from `docs-site/` — landing is marketing-front-of-funnel, docs-site is the documentation portal.
@@ -69,7 +69,7 @@ Stufe-1-Installer + Silicon-Valley-Marketing-Page. Plinth shifts from "developer
 Studio v2: real drag-drop replaces v1.5's click-to-insert.
 
 ### Added
-- **Plinth Studio v2** drag-drop in Dashboard:
+- **Plynf Studio v2** drag-drop in Dashboard:
   - Toolbox tiles are `draggable="true"` with custom MIME types (`application/x-plinth-step-{type|id}`)
   - Canvas insertion-line indicators between every row (drop here to insert at position)
   - Existing rows draggable for reorder
@@ -99,7 +99,7 @@ Studio v2: real drag-drop replaces v1.5's click-to-insert.
 Patch release: docs site, TS-worker LLM parity, CI cost reduction.
 
 ### Added
-- **`docs-site/`** (new top-level package, Astro + Tailwind, ~40 files): static site for plinth.dev. Hero + feature grid + SDK tabs (5 languages) + demo comparison + content collection ingesting OVERVIEW/ARCHITECTURE/COMPLIANCE/THREAT-MODEL/SLOs. 13 routes, 2.6 MB dist, 2.9 KB site-wide JS, Pagefind search baked at build, GitHub Pages deploy workflow.
+- **`docs-site/`** (new top-level package, Astro + Tailwind, ~40 files): static site for plynf.com. Hero + feature grid + SDK tabs (5 languages) + demo comparison + content collection ingesting OVERVIEW/ARCHITECTURE/COMPLIANCE/THREAT-MODEL/SLOs. 13 routes, 2.6 MB dist, 2.9 KB site-wide JS, Pagefind search baked at build, GitHub Pages deploy workflow.
 - **TS-worker LLM-handler parity** — `examples/05-durable-workflow/handlers.ts` extract-step now uses real `ctx.client.llm.complete(...)` with auto-detected provider. 7 new worker-ts tests demonstrating LLM-using handlers (incl. audit-recording verification). README "LLM-Using Step Handlers" section.
 
 ### Fixed (CI)
@@ -123,7 +123,7 @@ Tier-2 sweep: closes the remaining Tier-2 items from the post-v1.0 audit. Visual
 
 ### Added
 
-**Workflow Visualization v2 + Plinth Studio MVP** (Dashboard):
+**Workflow Visualization v2 + Plynf Studio MVP** (Dashboard):
 - `/workflows/{id}/replay` — historical timeline scrubber + per-step state reconstruction + error-attribution graph + restore-to-snapshot helper
 - `/studio` — visual workflow builder. Click-to-insert toolbox (Tool / LLM / Channel / Manual-Approval steps) → canvas → save → POST `/v1/workspaces/{ws_id}/workflows/import` creates real workflow
 - `WorkflowDefinition` JSON shape + workspace `import_workflow()` endpoint
@@ -133,7 +133,7 @@ Tier-2 sweep: closes the remaining Tier-2 items from the post-v1.0 audit. Visual
 - **Atlassian** (Jira + Confluence) — port 7431, 8 tools, PKCE OAuth, cloudid metadata flow
 - **Salesforce** — port 7432, 6 tools (SOQL + CRUD + list_objects), `instance_url` metadata flow
 - **Asana** — port 7433, 6 tools (workspaces / projects / tasks)
-- Gateway PROVIDERS extended; per-connection metadata stored (cloudid for Atlassian, instance_url for Salesforce); proxy injects provider-specific headers (`X-Plinth-OAuth-Cloudid`, `X-Plinth-OAuth-InstanceUrl`)
+- Gateway PROVIDERS extended; per-connection metadata stored (cloudid for Atlassian, instance_url for Salesforce); proxy injects provider-specific headers (`X-Plynf-OAuth-Cloudid`, `X-Plynf-OAuth-InstanceUrl`)
 
 **Go SDK** (new — `sdk/go/`, `github.com/plinth/sdk-go`):
 - Stdlib-only, no external deps for v0.1
@@ -343,13 +343,13 @@ All v0.1–v1.0 demos produce unchanged output (verified — research-agent: 70.
 - **Per-tenant resource quotas** (Identity-driven, enforced in Workspace + Gateway): max workspaces, max storage GB, max channels per workspace, max workflows per workspace, max active tokens, max OAuth connections, max cost USD/day + USD/month, max invocations/minute. Returns 429 + `QUOTA_EXCEEDED` envelope. Opt-in via `PLINTH_QUOTAS_ENABLED=true` (default false to preserve v0.6 demos).
 - **Tenant Admin UI** in Dashboard — `/tenants` route with create/edit/delete + quota editor + per-tenant detail page (members, OAuth connections, audit, cost).
 - **Channel Schema Evolution Wizard** — Dashboard modal for `set_schema`, `schema/check`, `replay-all` DLQ, `purge`. JSON validation in-browser.
-- **Multi-region scaffolding** — `region_id` + `region_replication_mode` settings, peer probe, `GET /v1/regions` per service, replica-mode middleware that returns 421 (Misdirected Request) with `X-Plinth-Primary-Region` + `X-Plinth-Primary-URL` for mutating calls. SDKs (Python + TypeScript) auto-retry once against primary on 421; fall back across `fallback_regions` on connection errors.
+- **Multi-region scaffolding** — `region_id` + `region_replication_mode` settings, peer probe, `GET /v1/regions` per service, replica-mode middleware that returns 421 (Misdirected Request) with `X-Plynf-Primary-Region` + `X-Plynf-Primary-URL` for mutating calls. SDKs (Python + TypeScript) auto-retry once against primary on 421; fall back across `fallback_regions` on connection errors.
 - **Unified `plinth` CLI** (new top-level `cli/` package, `pip install plinth-cli`): commands `services`, `migrate`, `workflow`, `audit`, `tenant`, `bench`, `health`, `completion`. Click + Rich output. `~/.plinth/config.toml` profiles + env-var override. 101 tests.
 - **GDPR data export** — async export job pipeline: Identity coordinates, Workspace + Gateway each expose `/v1/admin/tenants/{id}/data_dump` (admin-scoped). Output: ZIP with workspaces, KV/files JSONL, audit, oauth (token-redacted), tenants, quotas. 7-day expiry.
 - **GDPR data deletion** — two-phase confirm (request → confirm token → cascade delete across services). Block if pending exports.
 - **Tamper-evident audit chain** in Gateway — every audit event now carries `prev_hash` + `event_hash` (SHA-256 over canonical-JSON). New endpoint `GET /v1/audit/verify` walks the chain and reports first hash mismatch.
 - **Threat model** — `docs/threat-model.md`, 2,623 words, STRIDE-based, 45 specifically numbered threats, 8 attacker classes.
-- **Compliance operator guide** — `docs/compliance.md` mapping SOC2 controls to Plinth features, GDPR walkthrough, audit-chain how-to, key-rotation cookbook.
+- **Compliance operator guide** — `docs/compliance.md` mapping SOC2 controls to Plynf features, GDPR walkthrough, audit-chain how-to, key-rotation cookbook.
 - **Production deployment artifacts**:
   - `deploy/k8s/` — namespace + Deployments + Services + ConfigMaps + Secrets + Ingress + kustomization for all 8 services + Postgres (optional StatefulSet)
   - `deploy/helm/plinth/` — Helm chart 1.0.0 with values, values-prod.yaml, ingress, HPA, NetworkPolicy, ServiceAccount, helm-test pod
@@ -604,7 +604,7 @@ Initial proof-of-concept release. Working end-to-end slice of the agent-native s
 - **Python SDK (`plinth`)** — full client surface for workspaces, KV, files, snapshots, branches, tool invocation, token counting (tiktoken cl100k_base), and an `@agent` decorator. 23 files, 92 tests, 99% coverage.
 - **TypeScript SDK (`@plinth/sdk`)** — skeleton at parity for basic operations. 15 files, 28 tests, strict-mode TypeScript.
 - **Mock MCP server** — 6 demo tools (`web.fetch`, `web.search`, `fs.read`, `fs.write`, `notes.add`, `notes.list`) with bundled fixtures for 3 topics, all offline-capable. 13 files, 33 tests, 96% coverage.
-- **Headline demo** (`examples/01-research-agent`) — baseline vs Plinth-enabled research agent with token-exact comparison via tiktoken. **Measured 71%+ token reduction** across all 3 bundled topics.
+- **Headline demo** (`examples/01-research-agent`) — baseline vs Plynf-enabled research agent with token-exact comparison via tiktoken. **Measured 71%+ token reduction** across all 3 bundled topics.
 - **Specifications** — OpenAPI 3.1 specs for both services (validated with `openapi-spec-validator`), JSON Schemas for the observability event format and capability tokens, gRPC proto sketches for v1.0.
 - **Documentation** — 6 architecture sub-documents (1645–2108 words each), 6 ADRs (1064–1535 words each), 5 Mermaid diagrams.
 - **Integration** — `Makefile` (install/test/serve/demo/stop), `docker-compose.yml`, healthcheck script, GitHub Actions CI workflow.

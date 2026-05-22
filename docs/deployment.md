@@ -1,10 +1,10 @@
-# Plinth — Deployment Handbook
+# Plynf — Deployment Handbook
 
-> **Audience**: Operators standing up Plinth in dev, staging, or production.
+> **Audience**: Operators standing up Plynf in dev, staging, or production.
 > **Status**: Active as of v1.0.0 GA.
 
 This document covers how to install, upgrade, back up, and troubleshoot a
-Plinth deployment. Three deployment shapes are supported in tree:
+Plynf deployment. Three deployment shapes are supported in tree:
 
 1. **Docker Compose** — laptop / single-node demos.
 2. **Kubernetes manifests** (`deploy/k8s/`) — bring-your-own-Kustomize.
@@ -15,7 +15,7 @@ It is a starting point, not a turnkey production module.
 
 ## Architecture recap
 
-A Plinth install consists of four core services plus optional MCP servers:
+A Plynf install consists of four core services plus optional MCP servers:
 
 | Service | Port | Stateful? | Scales horizontally? |
 | --- | --- | --- | --- |
@@ -118,7 +118,7 @@ scale horizontally — bump replicas to match the gateway.
 
 ## Database options
 
-Plinth speaks two backends: SQLite (default, embedded) and Postgres
+Plynf speaks two backends: SQLite (default, embedded) and Postgres
 (required for HA + horizontal scaling).
 
 ### SQLite (dev, small prod)
@@ -141,7 +141,7 @@ Plinth speaks two backends: SQLite (default, embedded) and Postgres
 
 ## Secret management
 
-Plinth needs three classes of secret:
+Plynf needs three classes of secret:
 
 1. **`jwt-secret`** — HS256 signing secret used by Identity. Required.
    Generate with `openssl rand -base64 48 | tr -d '\n'`. Rotate every 90
@@ -267,7 +267,7 @@ Won't work — SQLite is single-writer. Either drop to one replica or set
 Confirm the backend service is up:
 `kubectl -n plinth port-forward svc/plinth-dashboard 7424:7424`. If the
 port-forward works, the issue is in the Ingress controller / TLS config,
-not in Plinth.
+not in Plynf.
 
 ### Storage class confusion
 

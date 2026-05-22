@@ -1,6 +1,6 @@
-# Plinth Slack MCP Server
+# Plynf Slack MCP Server
 
-A minimal MCP-style server that wraps the Slack Web API for use with Plinth
+A minimal MCP-style server that wraps the Slack Web API for use with Plynf
 agents. Runs at `http://localhost:7427` by default.
 
 ## What it does
@@ -15,7 +15,7 @@ Exposes four tools that mirror the Slack Web API surface most agents need:
 | `slack.get_user`       | read         | Profile info for one user (`users.info`)           |
 
 Every tool advertises `auth_method=oauth2` with `auth_config.provider="slack"`
-in its metadata, so the Plinth gateway knows to inject the user's Slack token
+in its metadata, so the Plynf gateway knows to inject the user's Slack token
 on each call.
 
 ## Auth
@@ -23,7 +23,7 @@ on each call.
 This server **never holds the Slack access token**. The gateway forwards the
 user's bearer token via the `Authorization` header on each `POST /invoke/...`
 call; the tools then forward the same token to Slack. If the header is
-missing or unparseable, the server returns 401 with a Plinth error envelope.
+missing or unparseable, the server returns 401 with a Plynf error envelope.
 
 Slack's Web API returns `HTTP 200` even on application-level errors (with an
 `{"ok": false, "error": "..."}` body). The server detects this and translates
@@ -71,7 +71,7 @@ Env vars (prefix `PLINTH_SLACK_MCP_`, all optional):
 2. Pick a name + workspace.
 3. Under **OAuth & Permissions**:
    * Add the **Redirect URL** `http://localhost:7422/v1/oauth/slack/callback`
-     (or whatever your Plinth gateway's `PLINTH_OAUTH_SLACK_REDIRECT_URI` is set to).
+     (or whatever your Plynf gateway's `PLINTH_OAUTH_SLACK_REDIRECT_URI` is set to).
    * Under **Bot Token Scopes**, add at minimum:
      * `channels:read`
      * `chat:write`

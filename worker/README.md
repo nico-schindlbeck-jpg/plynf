@@ -1,8 +1,8 @@
 # plinth-workflow-worker
 
-Durable workflow worker for the Plinth platform.
+Durable workflow worker for the Plynf platform.
 
-The worker process polls the Plinth workspace service for pending workflow steps,
+The worker process polls the Plynf workspace service for pending workflow steps,
 acquires a lease, dispatches to a registered handler, then releases the lease.
 On crash, the workspace's lease reaper expires the worker's leases and reverts
 the steps back to `pending` so another worker can take over.
@@ -30,9 +30,9 @@ plinth-workflow-worker \
 on startup, expecting it to register handlers via:
 
 ```python
-from plinth import Plinth
+from plinth import Plynf
 
-client = Plinth(workspace_url=..., gateway_url=..., api_key=...)
+client = Plynf(workspace_url=..., gateway_url=..., api_key=...)
 
 @client.workflow_handler("research-pipeline", step="search")
 def search_step(ctx):
@@ -40,7 +40,7 @@ def search_step(ctx):
     return ctx.tools.invoke("web.search", {"query": topic, "k": 5})
 ```
 
-The worker reuses the `Plinth` instance defined in your handlers module so the
+The worker reuses the `Plynf` instance defined in your handlers module so the
 registry, HTTP clients, and tool gateway all match what your handlers expect.
 
 ## Settings

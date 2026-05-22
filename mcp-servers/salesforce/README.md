@@ -1,7 +1,7 @@
-# Plinth Salesforce MCP Server
+# Plynf Salesforce MCP Server
 
 A minimal MCP-style server that wraps the Salesforce REST API for use with
-Plinth agents. Runs at `http://localhost:7432` by default.
+Plynf agents. Runs at `http://localhost:7432` by default.
 
 ## What it does
 
@@ -21,18 +21,18 @@ Every tool advertises `auth_method=oauth2` with `auth_config.provider="salesforc
 ## Auth + instance_url
 
 Salesforce's OAuth flow returns an `instance_url` per token (the per-org REST
-API base, e.g. `https://acme.my.salesforce.com`). The Plinth gateway captures
+API base, e.g. `https://acme.my.salesforce.com`). The Plynf gateway captures
 this from the token-exchange response, persists it in
 `connection.metadata.instance_url`, and forwards it on every proxied invoke as:
 
 * `Authorization: Bearer <access_token>`
-* `X-Plinth-OAuth-InstanceUrl: <instance_url>`
+* `X-Plynf-OAuth-InstanceUrl: <instance_url>`
 
 This MCP server reads both headers and forms per-call URLs like
 `{instance_url}/services/data/{api_version}/...`. The instance_url is
 validated as an HTTPS URL pointing at a known Salesforce domain
 (`*.salesforce.com`, `*.force.com`, etc.) before being used. Missing
-`Authorization` returns 401; missing `X-Plinth-OAuth-InstanceUrl` returns
+`Authorization` returns 401; missing `X-Plynf-OAuth-InstanceUrl` returns
 400 with `code=SALESFORCE_INSTANCE_URL_MISSING`.
 
 ## Endpoints

@@ -19,12 +19,12 @@
     <circle cx="156" cy="42" r="8" fill="#f59e0b"/>
   </g>
   <g transform="translate(380 220)" font-family="Inter, sans-serif" fill="#1f1d18">
-    <text x="0" y="0" font-size="68" font-weight="800" letter-spacing="-0.02em">Plinth</text>
+    <text x="0" y="0" font-size="68" font-weight="800" letter-spacing="-0.02em">Plynf</text>
     <text x="0" y="60" font-size="28" font-weight="500" fill="#5c5749">The runtime where production AI</text>
     <text x="0" y="98" font-size="28" font-weight="500" fill="#5c5749">agents actually work.</text>
     <text x="0" y="170" font-size="22" font-weight="700" fill="#d97706">71% fewer tokens · 5 SDKs · v1.5 stable</text>
   </g>
   <g transform="translate(120 540)" font-family="JetBrains Mono, monospace" font-size="18" fill="#7a7466">
-    <text>plinth.dev</text>
+    <text>plynf.com</text>
   </g>
 </svg>

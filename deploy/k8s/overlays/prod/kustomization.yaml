@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Plinth — prod overlay.
+# Plynf — prod overlay.
 #
 # - 3 replicas for Gateway + Dashboard (stateless)
 # - HPA for Gateway (CPU-driven, 3..10 replicas)
@@ -28,7 +28,7 @@ resources:
 
 commonLabels:
   app.kubernetes.io/instance: plinth-prod
-  app.plinth.dev/environment: prod
+  app.plynf.com/environment: prod
 
 replicas:
   - name: plinth-gateway

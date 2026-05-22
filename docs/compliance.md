@@ -1,17 +1,17 @@
-# Plinth Compliance Posture
+# Plynf Compliance Posture
 
 > v1.0 baseline. Endpoints are the contractual surface operators
 > integrate against; tests cover each mapping point.
 
-Maps Plinth's v1.0 compliance scaffolding to SOC 2 Common Criteria,
+Maps Plynf's v1.0 compliance scaffolding to SOC 2 Common Criteria,
 GDPR Articles 17 / 20, and Article 32 security-of-processing. This
-does **not** make Plinth "SOC 2 compliant" — compliance is an
+does **not** make Plynf "SOC 2 compliant" — compliance is an
 organisational property — but gives an operator a defensible answer
 to each control question.
 
 ## SOC 2 Common Criteria mapping
 
-| CC ref | Topic | Plinth feature |
+| CC ref | Topic | Plynf feature |
 |---|---|---|
 | CC1 / CC2 | Control environment + communication | Documented runtime in `OVERVIEW.md`, `ARCHITECTURE.md`, `CONTRACTS.md` |
 | CC3 | Risk assessment | `docs/threat-model.md` |
@@ -88,7 +88,7 @@ steps and surfaces the error in `deleted_counts`.
 
 ## GDPR Article 32 — Security of processing
 
-| Article 32 control | Plinth feature |
+| Article 32 control | Plynf feature |
 |---|---|
 | Encryption at rest of personal data | OAuth tokens AES-256-GCM (`encryption.py`); RSA private keys AES-256-GCM (`keys.py`) |
 | Pseudonymisation | Audit `arguments_hash` + `result_hash` are sha256 — operators can store hashes without bodies |
@@ -125,7 +125,7 @@ PLINTH_REGION_PEERS=us-east-1,ap-south-1
 PLINTH_REPLICATION_MODE=primary|replica|standalone
 ```
 
-Operators pin the data plane to a region by deploying Plinth services
+Operators pin the data plane to a region by deploying Plynf services
 into that region only, with `PLINTH_REPLICATION_MODE=standalone`. The
 SQLite/Postgres database stays in-region by virtue of the deployment
 topology; cross-region traffic only happens when the operator opts in.
@@ -133,6 +133,6 @@ The `GET /v1/regions` endpoint reports the configured region + peers
 so a client can verify residency at runtime.
 
 For multi-tenant deployments where each tenant needs its own residency
-guarantee, the recommended pattern is **one Plinth deployment per
-residency zone** — a single Plinth cluster does not currently shard
+guarantee, the recommended pattern is **one Plynf deployment per
+residency zone** — a single Plynf cluster does not currently shard
 storage by tenant region.

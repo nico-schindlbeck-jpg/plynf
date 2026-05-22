@@ -1,6 +1,6 @@
 # 07 — Channels Design
 
-> **Why this exists.** The moment Plinth grows past one agent, agents need a way to hand off work to one another that isn't "stuff a JSON blob in KV and hope the next agent polls". v0.2 ships **channels** — a workspace-scoped, durable, ordered message queue inside the workspace service. This document covers the implemented design, the deliberate omissions, and the path to a production-grade event substrate. The implementation lives at `services/workspace/src/plinth_workspace/channels.py`; the API surface is `CONTRACTS.md` §Channels.
+> **Why this exists.** The moment Plynf grows past one agent, agents need a way to hand off work to one another that isn't "stuff a JSON blob in KV and hope the next agent polls". v0.2 ships **channels** — a workspace-scoped, durable, ordered message queue inside the workspace service. This document covers the implemented design, the deliberate omissions, and the path to a production-grade event substrate. The implementation lives at `services/workspace/src/plinth_workspace/channels.py`; the API surface is `CONTRACTS.md` §Channels.
 
 ## 1. Mental model
 
