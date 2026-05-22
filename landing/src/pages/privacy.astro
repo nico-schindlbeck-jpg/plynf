@@ -48,7 +48,17 @@ const lastUpdated = "May 2026";
           </div>
 
           <div>
-            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">3. What we collect in the hosted cloud</h2>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">3. What the self-hosted runtime sends back to us</h2>
+            <p class="mt-3">
+              <span class="text-ink-primary font-medium">Nothing. Period.</span> The Plynf runtime you install on your own infrastructure does not phone home, does not send install pings, does not collect usage analytics, does not check for updates over the network unless you explicitly run <span class="font-mono">plynf update</span>. The only outbound traffic the runtime initiates is to the model providers you configure (Anthropic, OpenAI) and the OAuth-tool endpoints you connect (GitHub, Slack, etc.).
+            </p>
+            <p class="mt-3">
+              We can verify this claim from outside, and so can you: <span class="font-mono">tcpdump</span> or your firewall logs will show zero packets to any plynf.com endpoint from a running self-hosted install.
+            </p>
+          </div>
+
+          <div>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">4. What we collect in the hosted cloud</h2>
             <p class="mt-3">
               If you create a Plynf Cloud account: your email, account name, billing details (handled by Stripe, see their policy), and the workspaces, files, and tool-call metadata that you push to the platform.
             </p>
@@ -58,14 +68,14 @@ const lastUpdated = "May 2026";
           </div>
 
           <div>
-            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">4. Cookies</h2>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">5. Cookies</h2>
             <p class="mt-3">
               The marketing site does not set tracking cookies. The hosted dashboard sets a single, strictly-necessary session cookie when you log in. That is the entire list.
             </p>
           </div>
 
           <div>
-            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">5. Third parties</h2>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">6. Third parties</h2>
             <ul class="mt-3 space-y-2 list-disc list-inside">
               <li><span class="text-ink-primary">Stripe</span> for payments (cloud customers only)</li>
               <li><span class="text-ink-primary">Cloudflare</span> for DDoS protection and CDN</li>
@@ -77,28 +87,28 @@ const lastUpdated = "May 2026";
           </div>
 
           <div>
-            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">6. Where data lives</h2>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">7. Where data lives</h2>
             <p class="mt-3">
               EU customers: data stays in eu-central-1 (Frankfurt). US customers: us-east-1 (Virginia). You pick the region at signup. Cross-region replication only happens if you explicitly opt in.
             </p>
           </div>
 
           <div>
-            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">7. Your rights (GDPR + CCPA)</h2>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">8. Your rights (GDPR + CCPA)</h2>
             <p class="mt-3">
               You can request a full export of your data, ask us to delete your account and everything in it, or correct anything we got wrong. Email privacy@plynf.com. We respond within 30 days, usually faster.
             </p>
           </div>
 
           <div>
-            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">8. Changes</h2>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">9. Changes</h2>
             <p class="mt-3">
               If we change this policy in any material way, we will email every account holder at least 30 days before the new version takes effect. The diff lives in the open-source repo so you can audit it.
             </p>
           </div>
 
           <div>
-            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">9. Contact</h2>
+            <h2 class="text-xl font-semibold text-ink-primary tracking-tight">10. Contact</h2>
             <p class="mt-3">
               <a href="mailto:privacy@plynf.com" class="text-accent hover:underline">privacy@plynf.com</a> for anything covered above. <a href="mailto:security@plynf.com" class="text-accent hover:underline">security@plynf.com</a> for vulnerability reports. Postal address on the <a href="/imprint" class="text-accent hover:underline">imprint</a> page.
             </p>
