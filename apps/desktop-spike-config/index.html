@@ -1,0 +1,90 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Plynf Spike — iframe pattern test</title>
+    <style>
+      html, body { margin: 0; padding: 0; height: 100vh; overflow: hidden; }
+      body { font-family: -apple-system, system-ui, sans-serif; background: #08070d; color: #f8f7ff; }
+      iframe { width: 100vw; height: 100vh; border: 0; display: block; }
+      .status-overlay {
+        position: fixed; top: 8px; right: 8px; z-index: 9999;
+        background: rgba(8, 7, 13, 0.85);
+        border: 1px solid rgba(255, 133, 81, 0.4);
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 11px;
+        font-family: "JetBrains Mono", "SF Mono", monospace;
+      }
+      .status-overlay.ok { border-color: rgba(147, 224, 178, 0.5); color: #93e0b2; }
+      .status-overlay.fail { border-color: rgba(255, 107, 139, 0.5); color: #ff6b8b; }
+    </style>
+  </head>
+  <body>
+    <div id="status" class="status-overlay">checking…</div>
+    <iframe id="frame" src="http://127.0.0.1:7420" loading="eager"></iframe>
+
+    <script>
+      // Verification harness: track whether the iframe loaded successfully
+      // and whether postMessage works in both directions.
+      const status = document.getElementById("status");
+      const frame  = document.getElementById("frame");
+
+      let frameLoaded   = false;
+      let postReceived  = false;
+      let timer = null;
+
+      function render() {
+        let icon = "·", cls = "";
+        if (frameLoaded && postReceived)      { icon = "✓"; cls = "ok"; }
+        else if (frameLoaded && !postReceived) { icon = "~"; cls = ""; }
+        else                                    { icon = "…"; cls = ""; }
+
+        status.className = "status-overlay " + cls;
+        status.textContent =
+          `${icon} iframe:${frameLoaded ? "loaded" : "waiting"} ` +
+          `· postMessage:${postReceived ? "ok" : "waiting"}`;
+      }
+
+      // Listen for any postMessage from the iframe.
+      window.addEventListener("message", (e) => {
+        console.log("[Tauri host] message from iframe:", e.data);
+        postReceived = true;
+        render();
+      });
+
+      frame.addEventListener("load", () => {
+        frameLoaded = true;
+        render();
+
+        // Attempt a postMessage round-trip after a tiny delay.
+        // The iframe might not have a listener — that's fine, this is just
+        // a one-way smoke test that the frame is reachable from the host.
+        setTimeout(() => {
+          try {
+            frame.contentWindow.postMessage({ from: "tauri-host", test: 1 }, "*");
+          } catch (err) {
+            console.error("[Tauri host] postMessage threw:", err);
+            status.className = "status-overlay fail";
+            status.textContent = "✘ postMessage blocked: " + err.message;
+          }
+        }, 500);
+      });
+
+      frame.addEventListener("error", () => {
+        status.className = "status-overlay fail";
+        status.textContent = "✘ iframe failed to load";
+      });
+
+      // After 8s, if nothing loaded, declare failure.
+      timer = setTimeout(() => {
+        if (!frameLoaded) {
+          status.className = "status-overlay fail";
+          status.textContent = "✘ iframe load timeout — is the backend running on :7420?";
+        }
+      }, 8000);
+
+      render();
+    </script>
+  </body>
+</html>
