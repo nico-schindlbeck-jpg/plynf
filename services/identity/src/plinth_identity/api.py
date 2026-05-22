@@ -92,7 +92,11 @@ UTC = timezone.utc  # noqa: UP017
 ROTATION_CHECK_SECONDS = 3600
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    embedded: bool = False,
+) -> FastAPI:
     """Build the FastAPI application.
 
     Tests build a fresh app per session with a tmp-dir backed ``Settings``;
@@ -250,6 +254,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         description="Plinth identity service — JWT capability tokens.",
         lifespan=lifespan,
     )
+    app.state.embedded = embedded
 
     app.state.settings = settings
     # v0.5 — migration runner. Constructed eagerly so admin endpoints

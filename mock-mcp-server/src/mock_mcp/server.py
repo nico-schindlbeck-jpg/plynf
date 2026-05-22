@@ -78,7 +78,11 @@ def _record_mcp_invocation(
         pass
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    embedded: bool = False,
+) -> FastAPI:
     """Build a FastAPI app instance.
 
     Args:
@@ -113,6 +117,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version=__version__,
         lifespan=lifespan,
     )
+    app.state.embedded = embedded
 
     # v1.0 — Prometheus metrics. Pre-declared so a fresh server returns the
     # canonical schema even before any tool has been invoked.
