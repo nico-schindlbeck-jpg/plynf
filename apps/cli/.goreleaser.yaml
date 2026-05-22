@@ -1,0 +1,114 @@
+# goreleaser config — builds the plynf CLI for 6 target platforms.
+#
+# Triggered by the release-cli.yml workflow on tag push. Outputs:
+#   - GitHub Release with 6 binaries + checksums.txt
+#   - Homebrew tap PR (plynf/homebrew-tap)
+#   - SBOM per binary (syft)
+#   - cosign signature on every artifact
+#
+# Local test:
+#   cd apps/cli
+#   goreleaser release --snapshot --clean
+
+version: 2
+
+project_name: plynf
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: plynf-cli
+    main: ./
+    binary: plynf
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/plynf/plynf/apps/cli/cmd.version={{.Version}}
+      - -X github.com/plynf/plynf/apps/cli/cmd.gitCommit={{.Commit}}
+      - -X github.com/plynf/plynf/apps/cli/cmd.buildDate={{.Date}}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64        # Windows arm64 is fine, kept for future
+
+archives:
+  - id: plynf-cli
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "plynf_{{.Version}}_{{.Os}}_{{.Arch}}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  name_template: "{{ .Version }}-dev+{{ .ShortCommit }}"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+      - "Merge branch"
+
+# SBOM via syft, attached to the release
+sboms:
+  - artifacts: archive
+    documents:
+      - "${artifact}.spdx.json"
+
+# Sign every artifact with cosign keyless
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sig"
+    args:
+      - "sign-blob"
+      - "--yes"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+    artifacts: all
+    output: true
+
+# Homebrew tap: pushes a PR to plynf/homebrew-tap with the new formula
+brews:
+  - name: plynf
+    homepage: "https://plynf.com"
+    description: "The runtime where production AI agents actually work"
+    license: "Apache-2.0"
+    repository:
+      owner: plynf
+      name: homebrew-tap
+      branch: main
+      pull_request:
+        enabled: true
+    install: |
+      bin.install "plynf"
+    test: |
+      system "#{bin}/plynf --version"
+
+release:
+  github:
+    owner: plynf
+    name: plynf
+  draft: false
+  prerelease: auto
+  name_template: "Plynf CLI {{.Version}}"
