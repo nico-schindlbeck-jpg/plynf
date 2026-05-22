@@ -6,6 +6,15 @@
   NODE_VERSION = "20"
   NPM_VERSION = "10"
 
+# ─── Preview-site password gate ───────────────────────────────────────
+# Edge function below requires HTTP Basic Auth on every request except
+# /.well-known/* (kept open so ACME cert challenges and security.txt
+# remain reachable). Remove this block + delete the function file when
+# we go fully public.
+[[edge_functions]]
+  function = "auth"
+  path = "/*"
+
 [[headers]]
   for = "/*"
   [headers.values]
