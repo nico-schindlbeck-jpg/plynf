@@ -6,7 +6,7 @@ Pre-built, multi-arch, signed images for every Plynf service. Pull and run, no s
 
 ```bash
 # Pin the version + org you want
-export PLYNF_ORG=nico-schindlbeck-jpg            # or 'plynf' once the org exists
+export PLYNF_ORG=plynf            # # org now exists
 export PLYNF_VERSION=v1.7                        # any tag from https://github.com/<org>/plynf/releases
 
 # Pull and start the full 13-service stack
@@ -21,23 +21,23 @@ done
 
 ## Image catalog
 
-All thirteen services. Replace `<ORG>` with `nico-schindlbeck-jpg` (current) or `plynf` (future).
+All thirteen services. Replace `plynf` with `plynf` (current) or `plynf` (future).
 
 | Image | Port | Service role |
 |---|---:|---|
-| `ghcr.io/<ORG>/plynf-workspace` | 7421 | Versioned KV + file storage |
-| `ghcr.io/<ORG>/plynf-gateway` | 7422 | Tool gateway (OAuth, cache, audit) |
-| `ghcr.io/<ORG>/plynf-mock-mcp` | 7423 | Mock MCP for demos and tests |
-| `ghcr.io/<ORG>/plynf-dashboard` | 7424 | Browser dashboard SPA + API |
-| `ghcr.io/<ORG>/plynf-identity` | 7425 | JWT, tenants, RS256, JWKS |
-| `ghcr.io/<ORG>/plynf-github-mcp` | 7426 | GitHub OAuth integration |
-| `ghcr.io/<ORG>/plynf-slack-mcp` | 7427 | Slack OAuth integration |
-| `ghcr.io/<ORG>/plynf-linear-mcp` | 7428 | Linear OAuth integration |
-| `ghcr.io/<ORG>/plynf-notion-mcp` | 7429 | Notion OAuth integration |
-| `ghcr.io/<ORG>/plynf-google-mcp` | 7430 | Google Workspace OAuth |
-| `ghcr.io/<ORG>/plynf-atlassian-mcp` | 7431 | Atlassian (Jira/Confluence) OAuth |
-| `ghcr.io/<ORG>/plynf-salesforce-mcp` | 7432 | Salesforce OAuth |
-| `ghcr.io/<ORG>/plynf-asana-mcp` | 7433 | Asana OAuth |
+| `ghcr.io/plynf/plynf-workspace` | 7421 | Versioned KV + file storage |
+| `ghcr.io/plynf/plynf-gateway` | 7422 | Tool gateway (OAuth, cache, audit) |
+| `ghcr.io/plynf/plynf-mock-mcp` | 7423 | Mock MCP for demos and tests |
+| `ghcr.io/plynf/plynf-dashboard` | 7424 | Browser dashboard SPA + API |
+| `ghcr.io/plynf/plynf-identity` | 7425 | JWT, tenants, RS256, JWKS |
+| `ghcr.io/plynf/plynf-github-mcp` | 7426 | GitHub OAuth integration |
+| `ghcr.io/plynf/plynf-slack-mcp` | 7427 | Slack OAuth integration |
+| `ghcr.io/plynf/plynf-linear-mcp` | 7428 | Linear OAuth integration |
+| `ghcr.io/plynf/plynf-notion-mcp` | 7429 | Notion OAuth integration |
+| `ghcr.io/plynf/plynf-google-mcp` | 7430 | Google Workspace OAuth |
+| `ghcr.io/plynf/plynf-atlassian-mcp` | 7431 | Atlassian (Jira/Confluence) OAuth |
+| `ghcr.io/plynf/plynf-salesforce-mcp` | 7432 | Salesforce OAuth |
+| `ghcr.io/plynf/plynf-asana-mcp` | 7433 | Asana OAuth |
 
 ## Available tags
 
@@ -55,7 +55,7 @@ Every image is built for **both** `linux/amd64` and `linux/arm64`. Docker auto-s
 To force a specific architecture for testing:
 
 ```bash
-docker pull --platform linux/arm64 ghcr.io/<ORG>/plynf-workspace:v1.7
+docker pull --platform linux/arm64 ghcr.io/plynf/plynf-workspace:v1.7
 ```
 
 ## Verifying signatures
@@ -64,9 +64,9 @@ Every image is signed with [cosign](https://github.com/sigstore/cosign) using ke
 
 ```bash
 cosign verify \
-  "ghcr.io/<ORG>/plynf-workspace:v1.7" \
+  "ghcr.io/plynf/plynf-workspace:v1.7" \
   --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-  --certificate-identity-regexp "^https://github.com/<ORG>/.+"
+  --certificate-identity-regexp "^https://github.com/plynf/.+"
 ```
 
 Successful output ends with:
@@ -74,7 +74,7 @@ Successful output ends with:
 [
   {
     "critical": {
-      "identity": {"docker-reference": "ghcr.io/<ORG>/plynf-workspace"},
+      "identity": {"docker-reference": "ghcr.io/plynf/plynf-workspace"},
       "image": {"docker-manifest-digest": "sha256:..."},
       "type": "cosign container image signature"
     },
@@ -94,7 +94,7 @@ To pull and inspect:
 ```bash
 cosign download attestation \
   --predicate-type "https://spdx.dev/Document" \
-  "ghcr.io/<ORG>/plynf-workspace:v1.7" \
+  "ghcr.io/plynf/plynf-workspace:v1.7" \
   | jq -r '.payload | @base64d' | jq '.predicate' > sbom.spdx.json
 
 # Then feed sbom.spdx.json into Trivy / Grype / Snyk / your tool of choice
@@ -106,7 +106,7 @@ Floating tags like `:latest` or even `:v1.7` are mutable in theory (a `docker pu
 
 ```bash
 # Resolve the digest for a tag once
-docker buildx imagetools inspect ghcr.io/<ORG>/plynf-workspace:v1.7 \
+docker buildx imagetools inspect ghcr.io/plynf/plynf-workspace:v1.7 \
   --format '{{json .Manifest.Digest}}'
 # → "sha256:a3f8e5..."
 

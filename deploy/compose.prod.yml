@@ -1,7 +1,7 @@
 # Plynf — production stack from GHCR pre-built images.
 #
 # Usage:
-#   export PLYNF_ORG="nico-schindlbeck-jpg"   # or the future plynf GitHub org
+#   export PLYNF_ORG="plynf"   # or the future plynf GitHub org
 #   export PLYNF_VERSION="v1.7"               # or any released tag
 #   docker compose -f deploy/compose.prod.yml pull
 #   docker compose -f deploy/compose.prod.yml up -d --wait
@@ -43,7 +43,7 @@ services:
 
   workspace:
     <<: *defaults
-    image: ghcr.io/${PLYNF_ORG:-nico-schindlbeck-jpg}/plynf-workspace:${PLYNF_VERSION:-latest}
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-workspace:${PLYNF_VERSION:-latest}
     container_name: plynf-workspace
     ports:
       - "${PLINTH_WORKSPACE_PORT:-7421}:7421"
@@ -59,7 +59,7 @@ services:
 
   gateway:
     <<: *defaults
-    image: ghcr.io/${PLYNF_ORG:-nico-schindlbeck-jpg}/plynf-gateway:${PLYNF_VERSION:-latest}
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-gateway:${PLYNF_VERSION:-latest}
     container_name: plynf-gateway
     ports:
       - "${PLINTH_GATEWAY_PORT:-7422}:7422"
@@ -82,7 +82,7 @@ services:
 
   identity:
     <<: *defaults
-    image: ghcr.io/${PLYNF_ORG:-nico-schindlbeck-jpg}/plynf-identity:${PLYNF_VERSION:-latest}
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-identity:${PLYNF_VERSION:-latest}
     container_name: plynf-identity
     ports:
       - "${PLINTH_IDENTITY_PORT:-7425}:7425"
@@ -98,7 +98,7 @@ services:
 
   dashboard:
     <<: *defaults
-    image: ghcr.io/${PLYNF_ORG:-nico-schindlbeck-jpg}/plynf-dashboard:${PLYNF_VERSION:-latest}
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-dashboard:${PLYNF_VERSION:-latest}
     container_name: plynf-dashboard
     ports:
       - "${PLINTH_DASHBOARD_PORT:-7424}:7424"
@@ -121,7 +121,7 @@ services:
 
   mock-mcp:
     <<: *defaults
-    image: ghcr.io/${PLYNF_ORG:-nico-schindlbeck-jpg}/plynf-mock-mcp:${PLYNF_VERSION:-latest}
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-mock-mcp:${PLYNF_VERSION:-latest}
     container_name: plynf-mock-mcp
     ports:
       - "${PLINTH_MOCK_MCP_PORT:-7423}:7423"
@@ -138,7 +138,7 @@ services:
 
   github-mcp:
     <<: *defaults
-    image: ghcr.io/${PLYNF_ORG:-nico-schindlbeck-jpg}/plynf-github-mcp:${PLYNF_VERSION:-latest}
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-github-mcp:${PLYNF_VERSION:-latest}
     container_name: plynf-github-mcp
     ports:
       - "${PLINTH_GITHUB_MCP_PORT:-7426}:7426"
@@ -155,7 +155,7 @@ services:
 
   slack-mcp:
     <<: *defaults
-    image: ghcr.io/${PLYNF_ORG:-nico-schindlbeck-jpg}/plynf-slack-mcp:${PLYNF_VERSION:-latest}
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-slack-mcp:${PLYNF_VERSION:-latest}
     container_name: plynf-slack-mcp
     ports:
       - "${PLINTH_SLACK_MCP_PORT:-7427}:7427"
@@ -172,7 +172,7 @@ services:
 
   linear-mcp:
     <<: *defaults
-    image: ghcr.io/${PLYNF_ORG:-nico-schindlbeck-jpg}/plynf-linear-mcp:${PLYNF_VERSION:-latest}
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-linear-mcp:${PLYNF_VERSION:-latest}
     container_name: plynf-linear-mcp
     ports:
       - "${PLINTH_LINEAR_MCP_PORT:-7428}:7428"
@@ -189,7 +189,7 @@ services:
 
   notion-mcp:
     <<: *defaults
-    image: ghcr.io/${PLYNF_ORG:-nico-schindlbeck-jpg}/plynf-notion-mcp:${PLYNF_VERSION:-latest}
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-notion-mcp:${PLYNF_VERSION:-latest}
     container_name: plynf-notion-mcp
     ports:
       - "${PLINTH_NOTION_MCP_PORT:-7429}:7429"
@@ -206,7 +206,7 @@ services:
 
   google-mcp:
     <<: *defaults
-    image: ghcr.io/${PLYNF_ORG:-nico-schindlbeck-jpg}/plynf-google-mcp:${PLYNF_VERSION:-latest}
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-google-mcp:${PLYNF_VERSION:-latest}
     container_name: plynf-google-mcp
     ports:
       - "${PLINTH_GOOGLE_MCP_PORT:-7430}:7430"
@@ -223,7 +223,7 @@ services:
 
   atlassian-mcp:
     <<: *defaults
-    image: ghcr.io/${PLYNF_ORG:-nico-schindlbeck-jpg}/plynf-atlassian-mcp:${PLYNF_VERSION:-latest}
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-atlassian-mcp:${PLYNF_VERSION:-latest}
     container_name: plynf-atlassian-mcp
     ports:
       - "${PLINTH_ATLASSIAN_MCP_PORT:-7431}:7431"
@@ -240,7 +240,7 @@ services:
 
   salesforce-mcp:
     <<: *defaults
-    image: ghcr.io/${PLYNF_ORG:-nico-schindlbeck-jpg}/plynf-salesforce-mcp:${PLYNF_VERSION:-latest}
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-salesforce-mcp:${PLYNF_VERSION:-latest}
     container_name: plynf-salesforce-mcp
     ports:
       - "${PLINTH_SALESFORCE_MCP_PORT:-7432}:7432"
@@ -257,7 +257,7 @@ services:
 
   asana-mcp:
     <<: *defaults
-    image: ghcr.io/${PLYNF_ORG:-nico-schindlbeck-jpg}/plynf-asana-mcp:${PLYNF_VERSION:-latest}
+    image: ghcr.io/${PLYNF_ORG:-plynf}/plynf-asana-mcp:${PLYNF_VERSION:-latest}
     container_name: plynf-asana-mcp
     ports:
       - "${PLINTH_ASANA_MCP_PORT:-7433}:7433"
