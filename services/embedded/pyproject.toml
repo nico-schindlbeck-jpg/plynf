@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plynf-embedded"
+version = "0.1.0"
+description = "Embedded Plynf runtime — all five core services in one Python process"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "The Plynf Authors" }]
+
+dependencies = [
+    "fastapi>=0.110,<1.0",
+    "uvicorn[standard]>=0.27,<1.0",
+    "httpx>=0.27,<1.0",
+    # Local-path deps to sibling services. Resolved as editable installs
+    # during development. PyInstaller bundles the resolved modules at
+    # build time so the final binary is self-contained.
+    "plinth-workspace",
+    "plinth-gateway",
+    "plinth-identity",
+    "plinth-dashboard",
+    "mock-mcp-server",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "asgi-lifespan>=2.1",
+    "pyinstaller>=6.5",
+]
+
+[project.scripts]
+# When installed via pip, this runs the embedded composer.
+# After PyInstaller packaging, the same entry-point is the binary's main.
+plynf-embedded = "plynf_embedded.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
