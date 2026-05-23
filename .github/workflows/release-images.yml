@@ -159,20 +159,20 @@ jobs:
           COSIGN_EXPERIMENTAL: "true"
         run: |
           image="${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}:${{ needs.build.outputs.version }}"
-          # Resolve to digest first so signatures pin to bytes not tag
-          digest=$(docker buildx imagetools inspect "${image}" --format '{{json .Manifest}}' | jq -r '.digest')
-          cosign sign --yes "${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}@${digest}"
-          echo "Signed ${image}@${digest}"
+          # cosign resolves the tag → digest internally and signs the digest.
+          # Avoids needing docker buildx on this runner.
+          cosign sign --yes --recursive "${image}"
+          echo "Signed ${image}"
 
       - name: cosign attest (attach SBOM as in-toto attestation)
         env:
           COSIGN_EXPERIMENTAL: "true"
         run: |
           image="${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}:${{ needs.build.outputs.version }}"
-          digest=$(docker buildx imagetools inspect "${image}" --format '{{json .Manifest}}' | jq -r '.digest')
-          cosign attest --yes --type spdxjson \
-            --predicate "$(ls plynf-${{ matrix.service }}.spdx.json)" \
-            "${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}@${digest}"
+          # --recursive attests each per-arch manifest in a multi-arch index.
+          cosign attest --yes --recursive --type spdxjson \
+            --predicate "plynf-${{ matrix.service }}.spdx.json" \
+            "${image}"
 
   smoke-test:
     name: Smoke-test pulled images
