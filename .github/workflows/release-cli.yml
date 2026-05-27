@@ -71,6 +71,10 @@ jobs:
           # Token with write access to plynf/homebrew-tap repo for the Brew PR
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           COSIGN_EXPERIMENTAL: "true"
+          # Explicitly pin goreleaser to the triggering tag so that when
+          # multiple tags (e.g. v1.7.6 and v1.7.6-rc14) point to the same
+          # commit, git-describe doesn't accidentally pick the rc tag.
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
 
       - name: Upload install scripts as release assets
         run: |
