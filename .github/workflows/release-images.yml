@@ -302,7 +302,11 @@ jobs:
           PLYNF_VERSION: ${{ needs.build.outputs.version }}
         run: |
           docker compose -f deploy/compose.prod.yml pull
-          docker compose -f deploy/compose.prod.yml up -d --wait --wait-timeout 180
+          docker compose -f deploy/compose.prod.yml up -d --wait --wait-timeout 180 || {
+            echo "--- compose logs (last 80 lines) ---"
+            docker compose -f deploy/compose.prod.yml logs --tail 80
+            exit 1
+          }
 
       - name: Verify core services healthy (ports 7421-7425)
         # Only check core platform services — MCP servers (7426-7433) require

@@ -52,7 +52,7 @@ services:
       PLINTH_DATA_DIR: /data
       PLINTH_WORKSPACE_PORT: "7421"
     volumes:
-      - plynf_data:/data
+      - workspace_data:/data
     healthcheck:
       <<: *healthcheck-defaults
       test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7421/healthz\").read()'"]
@@ -70,7 +70,7 @@ services:
       PLINTH_WORKSPACE_URL: "http://workspace:7421"
       PLINTH_IDENTITY_URL: "http://identity:7425"
     volumes:
-      - plynf_data:/data
+      - gateway_data:/data
     depends_on:
       workspace:
         condition: service_healthy
@@ -91,7 +91,7 @@ services:
       PLINTH_IDENTITY_DATA_DIR: /data
       PLINTH_IDENTITY_PORT: "7425"
     volumes:
-      - plynf_data:/data
+      - identity_data:/data
     healthcheck:
       <<: *healthcheck-defaults
       test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7425/healthz\").read()'"]
@@ -273,5 +273,9 @@ services:
       test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7433/healthz\").read()'"]
 
 volumes:
-  plynf_data:
-    name: plynf_data
+  workspace_data:
+    name: plynf_workspace_data
+  gateway_data:
+    name: plynf_gateway_data
+  identity_data:
+    name: plynf_identity_data
