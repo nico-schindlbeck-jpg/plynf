@@ -246,6 +246,7 @@ jobs:
       - uses: sigstore/cosign-installer@v3
 
       - uses: anchore/sbom-action@v0
+        id: sbom
         with:
           image: ${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}:${{ needs.build.outputs.version }}
           format: spdx-json
@@ -275,8 +276,10 @@ jobs:
           image="${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}:${{ needs.build.outputs.version }}"
           # --recursive is not a valid flag for cosign attest (only for sign).
           # Attesting the manifest index digest covers all platforms.
+          # Use steps.sbom.outputs.sbom-path: the SBOM file lives in a temp dir,
+          # not in $GITHUB_WORKSPACE, so a relative filename would not be found.
           cosign attest --yes --type spdxjson \
-            --predicate "plynf-${{ matrix.service }}.spdx.json" \
+            --predicate "${{ steps.sbom.outputs.sbom-path }}" \
             "${image}"
 
   # ─────────────────────────────────────────────────────────────────────
