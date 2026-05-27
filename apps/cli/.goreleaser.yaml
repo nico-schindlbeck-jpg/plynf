@@ -18,6 +18,9 @@ before:
   hooks:
     - go mod tidy
     - go test ./...
+    # goreleaser restricts archive file paths to CWD — copy root LICENSE here.
+    # The file is .gitignored via apps/cli/.gitignore (not a repo file).
+    - sh -c "cp ../../LICENSE ./LICENSE"
 
 builds:
   - id: plynf-cli
@@ -51,8 +54,8 @@ archives:
         formats: [zip]
     name_template: "plynf_{{.Version}}_{{.Os}}_{{.Arch}}"
     files:
-      # goreleaser runs from apps/cli/ — reference root-level files via ../../
-      - ../../LICENSE
+      # LICENSE is copied from repo root by the before hook above.
+      - LICENSE
       - README.md
 
 checksum:

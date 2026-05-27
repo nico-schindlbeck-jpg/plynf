@@ -1,0 +1,6 @@
+# Copied by goreleaser before hook from repo root — not a real source file.
+LICENSE
+# Go build artifacts
+dist/
+plynf
+plynf.exe
