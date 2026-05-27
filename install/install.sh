@@ -28,7 +28,7 @@ set -eu
 # ───────── Defaults ─────────
 PLINTH_HOME="${PLINTH_HOME:-$HOME/.plinth}"
 PLINTH_BIN_DIR="${PLINTH_BIN_DIR:-$HOME/.local/bin}"
-PLINTH_REPO_URL="${PLINTH_REPO_URL:-https://github.com/nico-schindlbeck-jpg/plinth}"
+PLINTH_REPO_URL="${PLINTH_REPO_URL:-https://github.com/nico-schindlbeck-jpg/plynf}"
 PLINTH_REF="${PLINTH_REF:-main}"
 PLINTH_PYTHON="${PLINTH_PYTHON:-python3}"
 
@@ -141,7 +141,7 @@ Flags:
 Environment overrides:
   PLINTH_HOME        Install root          (default: $HOME/.plinth)
   PLINTH_BIN_DIR     CLI install dir       (default: $HOME/.local/bin)
-  PLINTH_REPO_URL    Git remote            (default: https://github.com/nico-schindlbeck-jpg/plinth)
+  PLINTH_REPO_URL    Git remote            (default: https://github.com/nico-schindlbeck-jpg/plynf)
   PLINTH_REF         Branch/tag/sha        (default: main)
   PLINTH_PYTHON      Python interpreter    (default: python3)
 
@@ -156,7 +156,7 @@ ${C_BOLD}Plynf installer${C_RESET}
 ${C_DIM}─────────────────${C_RESET}
   Install dir : $PLINTH_HOME
   CLI dir     : $PLINTH_BIN_DIR
-  Git remote  : $PLINTH_REPO_URL
+  Repo        : $PLINTH_REPO_URL
   Ref         : $PLINTH_REF
 EOF
     if [ "$DRY_RUN" -eq 1 ]; then
