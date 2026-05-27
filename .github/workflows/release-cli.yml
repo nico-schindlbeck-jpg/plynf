@@ -74,9 +74,12 @@ jobs:
 
       - name: Upload install scripts as release assets
         run: |
-          gh release upload "${GITHUB_REF##*/}" \
-            install/install.sh \
-            install/install.ps1 \
-            --clobber
+          assets=()
+          for f in install/install.sh install/install.ps1; do
+            [ -f "$f" ] && assets+=("$f")
+          done
+          if [ ${#assets[@]} -gt 0 ]; then
+            gh release upload "${GITHUB_REF##*/}" "${assets[@]}" --clobber
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
