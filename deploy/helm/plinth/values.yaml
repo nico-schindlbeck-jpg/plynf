@@ -15,7 +15,7 @@ createNamespace: false
 nameOverride: ""
 
 global:
-  imageRegistry: ghcr.io/nico-schindlbeck-jpg/plinth
+  imageRegistry: ghcr.io/nico-schindlbeck-jpg
   imageTag: "1.0.0"
   pullPolicy: IfNotPresent
   imagePullSecrets: []
@@ -46,7 +46,7 @@ workspace:
   enabled: true
   replicas: 1
   image:
-    repository: workspace
+    repository: plynf-workspace
     tag: ""                      # "" => global.imageTag
   service:
     port: 7421
@@ -80,7 +80,7 @@ gateway:
   enabled: true
   replicas: 1
   image:
-    repository: gateway
+    repository: plynf-gateway
     tag: ""
   service:
     port: 7422
@@ -134,7 +134,7 @@ identity:
   enabled: true
   replicas: 1
   image:
-    repository: identity
+    repository: plynf-identity
     tag: ""
   service:
     port: 7425
@@ -168,7 +168,7 @@ dashboard:
   enabled: true
   replicas: 1
   image:
-    repository: dashboard
+    repository: plynf-dashboard
     tag: ""
   service:
     port: 7424
@@ -202,7 +202,7 @@ mockMcp:
   enabled: true
   replicas: 1
   image:
-    repository: mock-mcp
+    repository: plynf-mock-mcp
     tag: ""
   service:
     port: 7423
@@ -218,7 +218,7 @@ githubMcp:
   enabled: false
   replicas: 1
   image:
-    repository: github-mcp
+    repository: plynf-github-mcp
     tag: ""
   service:
     port: 7426
@@ -234,7 +234,7 @@ slackMcp:
   enabled: false
   replicas: 1
   image:
-    repository: slack-mcp
+    repository: plynf-slack-mcp
     tag: ""
   service:
     port: 7427
@@ -250,7 +250,7 @@ linearMcp:
   enabled: false
   replicas: 1
   image:
-    repository: linear-mcp
+    repository: plynf-linear-mcp
     tag: ""
   service:
     port: 7428
