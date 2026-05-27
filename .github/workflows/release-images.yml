@@ -3,14 +3,18 @@ name: release-images
 # Builds, signs, and publishes Docker images for all 13 Plynf services
 # to GitHub Container Registry. Triggered on tag push or manual dispatch.
 #
-# Outputs per service: linux/amd64 + linux/arm64 images, signed with
-# cosign (keyless OIDC), SBOM attached via syft.
+# Outputs per service: linux/amd64 + linux/arm64 multi-arch manifest,
+# cosign-signed (keyless OIDC), SBOM attached via syft.
+#
+# Pipeline stages:
+#   build  → push each platform by digest (no tag yet)
+#   merge  → imagetools create: combine digests into a tagged multi-arch index
+#   sign   → cosign sign + syft SBOM attached as in-toto attestation
+#   smoke  → pull stack, healthz, cosign verify
 #
 # Pre-flight (one-time):
 #   - GHCR is enabled by default for any GitHub org/user namespace.
-#   - The org publishing to (variable `PLYNF_ORG` below) must allow
-#     this workflow to publish packages. Settings → Actions →
-#     "Workflow permissions" → "Read and write permissions".
+#   - Settings → Actions → "Workflow permissions" → "Read and write permissions".
 
 on:
   push:
@@ -35,13 +39,18 @@ permissions:
 env:
   REGISTRY: ghcr.io
   # Resolves to "ghcr.io/<repo-owner>" — e.g. ghcr.io/<org>.
-  # If/when the dedicated 'plynf' GitHub org exists, set this via
-  # workflow_dispatch input OR a repository variable PLYNF_ORG.
+  # Set PLYNF_ORG as a repo variable once the dedicated org is ready.
   PLYNF_ORG: ${{ vars.PLYNF_ORG || github.repository_owner }}
 
 jobs:
+  # ─────────────────────────────────────────────────────────────────────
+  # Stage 1: build each platform and push by content-addressed digest.
+  # No tag is applied here — tags are applied in the merge stage after
+  # both archs are available, preventing a race that would leave the tag
+  # pointing at only one platform.
+  # ─────────────────────────────────────────────────────────────────────
   build:
-    name: ${{ matrix.service }} (${{ matrix.platform }})
+    name: ${{ matrix.service.name }} (${{ matrix.platform }})
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -77,8 +86,12 @@ jobs:
             version="${GITHUB_REF#refs/tags/v}"
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "tag_full=${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service.name }}:${version}" >> "$GITHUB_OUTPUT"
-          echo "tag_latest=${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service.name }}:latest" >> "$GITHUB_OUTPUT"
+
+      # Used as artifact name suffix so each platform's digest is stored
+      # separately and can be addressed in the merge stage.
+      - name: Platform slug
+        id: plat
+        run: echo "slug=$(echo '${{ matrix.platform }}' | tr '/' '-')" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU (for cross-build)
         uses: docker/setup-qemu-action@v3
@@ -87,23 +100,23 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
-        if: ${{ github.event_name == 'push' || inputs.push }}
+        if: ${{ github.event_name == 'push' || inputs.push == true }}
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and (optionally) push
+      - name: Build and push by digest
         id: build
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.service.context }}
           platforms: ${{ matrix.platform }}
-          push: ${{ github.event_name == 'push' || inputs.push == true }}
-          tags: |
-            ${{ steps.meta.outputs.tag_full }}
-            ${{ steps.meta.outputs.tag_latest }}
+          # Never push via the action's own push flag — we control that
+          # through outputs so we can use push-by-digest.
+          push: false
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service.name }},push-by-digest=true,name-canonical=true,push=${{ github.event_name == 'push' || inputs.push == true }}
           cache-from: type=gha,scope=${{ matrix.service.name }}-${{ matrix.platform }}
           cache-to: type=gha,scope=${{ matrix.service.name }}-${{ matrix.platform }},mode=max
           labels: |
@@ -113,11 +126,96 @@ jobs:
             org.opencontainers.image.title=plynf-${{ matrix.service.name }}
             org.opencontainers.image.licenses=Apache-2.0
 
+      # Create a zero-byte file whose name is the digest (sans sha256: prefix).
+      # The merge stage reads filenames from /tmp/digests/ to build the
+      # imagetools create arguments.
+      - name: Export digest
+        if: ${{ github.event_name == 'push' || inputs.push == true }}
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest artifact
+        if: ${{ github.event_name == 'push' || inputs.push == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.service.name }}-${{ steps.plat.outputs.slug }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Stage 2: merge per-platform digests into a single tagged multi-arch
+  # OCI image index. One job per service.
+  # ─────────────────────────────────────────────────────────────────────
+  merge:
+    name: Merge ${{ matrix.service }}
+    runs-on: ubuntu-22.04
+    needs: build
+    if: ${{ github.event_name == 'push' || inputs.push == true }}
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - workspace
+          - gateway
+          - identity
+          - dashboard
+          - mock-mcp
+          - github-mcp
+          - slack-mcp
+          - linear-mcp
+          - notion-mcp
+          - google-mcp
+          - atlassian-mcp
+          - salesforce-mcp
+          - asana-mcp
+    steps:
+      # Download both linux-amd64 and linux-arm64 digest files for this
+      # service into a flat directory.
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-${{ matrix.service }}-*
+          merge-multiple: true
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Globs the digest files, builds a list of image@sha256:<digest>
+      # references, and creates a multi-arch manifest list with the
+      # versioned + latest tags.
+      - name: Create and push multi-arch manifest
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            -t "${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}:${{ needs.build.outputs.version }}" \
+            -t "${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}:latest" \
+            $(printf '${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}@sha256:%s ' *)
+
+      - name: Inspect manifest (sanity check)
+        run: |
+          docker buildx imagetools inspect \
+            "${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}:${{ needs.build.outputs.version }}"
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Stage 3: sign the merged multi-arch manifest and attach SBOM.
+  # Runs after merge so the image at the tag is a complete manifest index.
+  # ─────────────────────────────────────────────────────────────────────
   sign-and-sbom:
     name: Sign + SBOM ${{ matrix.service }}
-    needs: build
+    needs: [build, merge]
     runs-on: ubuntu-22.04
-    if: github.event_name == 'push' || inputs.push == true
+    if: ${{ github.event_name == 'push' || inputs.push == true }}
     strategy:
       fail-fast: false
       matrix:
@@ -159,8 +257,7 @@ jobs:
           COSIGN_EXPERIMENTAL: "true"
         run: |
           image="${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}:${{ needs.build.outputs.version }}"
-          # cosign resolves the tag → digest internally and signs the digest.
-          # Avoids needing docker buildx on this runner.
+          # --recursive signs every per-arch digest inside the manifest index.
           cosign sign --yes --recursive "${image}"
           echo "Signed ${image}"
 
@@ -169,16 +266,19 @@ jobs:
           COSIGN_EXPERIMENTAL: "true"
         run: |
           image="${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}:${{ needs.build.outputs.version }}"
-          # --recursive attests each per-arch manifest in a multi-arch index.
           cosign attest --yes --recursive --type spdxjson \
             --predicate "plynf-${{ matrix.service }}.spdx.json" \
             "${image}"
 
+  # ─────────────────────────────────────────────────────────────────────
+  # Stage 4: pull the full stack, verify healthz endpoints, verify
+  # cosign signatures end-to-end.
+  # ─────────────────────────────────────────────────────────────────────
   smoke-test:
     name: Smoke-test pulled images
     needs: [build, sign-and-sbom]
     runs-on: ubuntu-22.04
-    if: github.event_name == 'push' || inputs.push == true
+    if: ${{ github.event_name == 'push' || inputs.push == true }}
     steps:
       - uses: actions/checkout@v4
 
@@ -210,7 +310,7 @@ jobs:
             cosign verify \
               "${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${svc}:${{ needs.build.outputs.version }}" \
               --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-              --certificate-identity-regexp "^https://github.com/${{ env.PLYNF_ORG }}/.+" \
+              --certificate-identity-regexp "^https://github.com/${{ github.repository_owner }}/.+" \
               >/dev/null || { echo "✘ ${svc} signature invalid"; exit 1; }
           done
           echo "✔ All signatures verified"
