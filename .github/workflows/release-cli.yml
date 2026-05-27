@@ -45,12 +45,26 @@ jobs:
       - uses: anchore/sbom-action/download-syft@v0
       - uses: sigstore/cosign-installer@v3
 
+      # Skip the Homebrew tap publish if no token is configured.
+      # The plynf/homebrew-tap repo + HOMEBREW_TAP_GITHUB_TOKEN secret are
+      # needed before this step can succeed.
+      - name: Determine goreleaser args
+        id: gr_args
+        run: |
+          args="release --clean"
+          if [ -z "${HOMEBREW_TAP_GITHUB_TOKEN}" ]; then
+            args="${args} --skip=homebrew"
+          fi
+          echo "args=${args}" >> "$GITHUB_OUTPUT"
+        env:
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
       - name: goreleaser release
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean
+          args: ${{ steps.gr_args.outputs.args }}
           workdir: apps/cli
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

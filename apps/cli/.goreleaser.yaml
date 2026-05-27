@@ -45,20 +45,23 @@ builds:
 
 archives:
   - id: plynf-cli
+    # goreleaser v2: use `formats` instead of deprecated `format`
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     name_template: "plynf_{{.Version}}_{{.Os}}_{{.Arch}}"
     files:
-      - LICENSE
+      # goreleaser runs from apps/cli/ — reference root-level files via ../../
+      - ../../LICENSE
       - README.md
 
 checksum:
   name_template: "checksums.txt"
   algorithm: sha256
 
+# goreleaser v2: use `version_template` (singular, no name_ prefix)
 snapshot:
-  name_template: "{{ .Version }}-dev+{{ .ShortCommit }}"
+  version_template: "{{ incpatch .Version }}-dev+{{ .ShortCommit }}"
 
 changelog:
   sort: asc
@@ -88,8 +91,8 @@ signs:
     artifacts: all
     output: true
 
-# Homebrew tap: pushes a PR to plynf/homebrew-tap with the new formula
-brews:
+# goreleaser v2: `homebrew` replaces deprecated `brews`
+homebrew:
   - name: plynf
     homepage: "https://plynf.com"
     description: "The runtime where production AI agents actually work"
@@ -98,6 +101,9 @@ brews:
       owner: plynf
       name: homebrew-tap
       branch: main
+      # HOMEBREW_TAP_GITHUB_TOKEN must be set for this to work.
+      # Until the plynf org has the homebrew-tap repo, this is skipped.
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
       pull_request:
         enabled: true
     install: |
@@ -107,7 +113,10 @@ brews:
 
 release:
   github:
-    owner: plynf
+    # Release is published to the same repo the workflow runs in.
+    # Goreleaser reads GITHUB_REPOSITORY automatically; explicit owner/name
+    # is only needed when releasing to a *different* repo.
+    owner: nico-schindlbeck-jpg
     name: plynf
   draft: false
   prerelease: auto
