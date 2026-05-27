@@ -59,6 +59,29 @@ jobs:
         env:
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
 
+      - name: Resolve release tag
+        id: tag
+        run: |
+          # Priority 1: explicit workflow_dispatch input (lets us run from
+          # main with `-F version=v1.7.6` when the v1.7.6 tag was created
+          # before this workflow change landed).
+          # Priority 2: a non-pre-release tag pointing at HEAD (picks v1.7.6
+          # over v1.7.6-rc14 when both share a commit).
+          # Priority 3: github.ref_name (the tag the workflow was triggered on).
+          INPUT_VERSION='${{ github.event.inputs.version }}'
+          if [ -n "${INPUT_VERSION}" ]; then
+            TAG="${INPUT_VERSION}"
+          else
+            STABLE=$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+            if [ -n "${STABLE}" ]; then
+              TAG="${STABLE}"
+            else
+              TAG="${GITHUB_REF_NAME}"
+            fi
+          fi
+          echo "Resolved release tag: ${TAG}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
       - name: goreleaser release
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -71,10 +94,9 @@ jobs:
           # Token with write access to plynf/homebrew-tap repo for the Brew PR
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           COSIGN_EXPERIMENTAL: "true"
-          # Explicitly pin goreleaser to the triggering tag so that when
-          # multiple tags (e.g. v1.7.6 and v1.7.6-rc14) point to the same
-          # commit, git-describe doesn't accidentally pick the rc tag.
-          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
+          # Force goreleaser to use the resolved tag, so multi-tag commits
+          # (v1.7.6 + v1.7.6-rc14 on the same SHA) don't get mis-detected.
+          GORELEASER_CURRENT_TAG: ${{ steps.tag.outputs.tag }}
 
       - name: Upload install scripts as release assets
         run: |
@@ -83,7 +105,8 @@ jobs:
             [ -f "$f" ] && assets+=("$f")
           done
           if [ ${#assets[@]} -gt 0 ]; then
-            gh release upload "${GITHUB_REF##*/}" "${assets[@]}" --clobber
+            gh release upload "${TAG}" "${assets[@]}" --clobber
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
