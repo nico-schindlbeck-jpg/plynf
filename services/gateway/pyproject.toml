@@ -60,7 +60,7 @@ plinth-gateway = "plinth_gateway.__main__:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-plinth_gateway = ["py.typed"]
+plinth_gateway = ["py.typed", "migrations/*.sql", "migrations/*_rollback.sql"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

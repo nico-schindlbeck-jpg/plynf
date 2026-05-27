@@ -1138,15 +1138,22 @@ def _parse_ts(value: object) -> datetime:
 
 
 def default_migrations_dir(package_init_file: str) -> Path:
-    """Resolve the ``migrations/`` directory next to a service package.
+    """Resolve the ``migrations/`` directory for a service package.
 
-    ``package_init_file`` is typically the ``__file__`` of the service's
-    ``__init__.py`` or ``__main__.py``. The migrations directory sits two
-    levels up from ``src/<package>/``: ``services/<name>/migrations/``.
+    Supports two layouts:
+
+    * Installed wheel (``pip install .``): migrations are bundled inside the
+      Python package directory as package data.
+      ``<site-packages>/<package>/migrations/`` — tried first.
+    * Development tree or editable install:
+      ``services/<name>/src/<package>/`` → ``services/<name>/migrations/``.
     """
-
     pkg_path = Path(package_init_file).resolve()
-    # services/<name>/src/<package>/<file> → services/<name>
+    # Installed: migrations bundled inside the package directory.
+    installed = pkg_path.parent / "migrations"
+    if installed.is_dir():
+        return installed
+    # Dev / editable install: walk up to the service root.
     service_dir = pkg_path.parent.parent.parent
     return service_dir / "migrations"
 
