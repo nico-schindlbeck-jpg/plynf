@@ -55,9 +55,18 @@ jobs:
           if [ -z "${HOMEBREW_TAP_GITHUB_TOKEN}" ]; then
             args="${args} --skip=homebrew"
           fi
+          # When the workflow is dispatched with an explicit version input,
+          # the resolved tag may not point at the workflow_dispatch commit
+          # (e.g. v1.7.6 tag was cut before this very fix landed). Skip
+          # goreleaser's tag-HEAD validation in that case — signing, SBOM,
+          # and publishing still run normally.
+          if [ -n "${INPUT_VERSION}" ]; then
+            args="${args} --skip=validate"
+          fi
           echo "args=${args}" >> "$GITHUB_OUTPUT"
         env:
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
 
       - name: Resolve release tag
         id: tag
