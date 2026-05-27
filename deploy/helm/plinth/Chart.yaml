@@ -14,13 +14,13 @@ version: 1.0.0
 # Application version — pinned to a Plynf release.
 appVersion: "1.0.0"
 
-home: https://github.com/nico-schindlbeck-jpg/plinth
+home: https://github.com/nico-schindlbeck-jpg/plynf
 sources:
-  - https://github.com/nico-schindlbeck-jpg/plinth
+  - https://github.com/nico-schindlbeck-jpg/plynf
 icon: https://raw.githubusercontent.com/nico-schindlbeck-jpg/plinth/main/docs/assets/logo.svg
 
 keywords:
-  - plinth
+  - plynf
   - agents
   - mcp
   - llm
@@ -30,7 +30,7 @@ keywords:
 
 maintainers:
   - name: The Plynf Authors
-    url: https://github.com/nico-schindlbeck-jpg/plinth
+    url: https://github.com/nico-schindlbeck-jpg/plynf
 
 # Kubernetes version constraint — tested on 1.27+.
 kubeVersion: ">=1.27.0-0"
