@@ -91,25 +91,27 @@ signs:
     artifacts: all
     output: true
 
-# goreleaser v2: `homebrew` replaces deprecated `brews`
-homebrew:
-  - name: plynf
-    homepage: "https://plynf.com"
-    description: "The runtime where production AI agents actually work"
-    license: "Apache-2.0"
-    repository:
-      owner: plynf
-      name: homebrew-tap
-      branch: main
-      # HOMEBREW_TAP_GITHUB_TOKEN must be set for this to work.
-      # Until the plynf org has the homebrew-tap repo, this is skipped.
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-      pull_request:
-        enabled: true
-    install: |
-      bin.install "plynf"
-    test: |
-      system "#{bin}/plynf --version"
+# Homebrew tap: add back once plynf/homebrew-tap repo exists and
+# HOMEBREW_TAP_GITHUB_TOKEN is set in Actions secrets.
+# Use goreleaser v2 key `homebrew_taps` (not the deprecated `brews`).
+# Verified syntax example:
+#
+# homebrew_taps:
+#   - name: plynf
+#     homepage: "https://plynf.com"
+#     description: "The runtime where production AI agents actually work"
+#     license: "Apache-2.0"
+#     repository:
+#       owner: plynf
+#       name: homebrew-tap
+#       branch: main
+#       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+#       pull_request:
+#         enabled: true
+#     install: |
+#       bin.install "plynf"
+#     test: |
+#       system "#{bin}/plynf --version"
 
 release:
   github:
