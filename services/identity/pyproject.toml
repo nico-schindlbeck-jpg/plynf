@@ -24,6 +24,8 @@ dependencies = [
     # v1.1 — pluggable coordination backend. The MemoryBackend is the
     # default; ``redis`` is opt-in via ``PLINTH_COORDINATION_BACKEND=redis``.
     "redis>=5.0",
+    # Used in regions.py for async HTTP peer probing (inter-region health).
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
