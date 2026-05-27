@@ -273,7 +273,9 @@ jobs:
           COSIGN_EXPERIMENTAL: "true"
         run: |
           image="${{ env.REGISTRY }}/${{ env.PLYNF_ORG }}/plynf-${{ matrix.service }}:${{ needs.build.outputs.version }}"
-          cosign attest --yes --recursive --type spdxjson \
+          # --recursive is not a valid flag for cosign attest (only for sign).
+          # Attesting the manifest index digest covers all platforms.
+          cosign attest --yes --type spdxjson \
             --predicate "plynf-${{ matrix.service }}.spdx.json" \
             "${image}"
 
