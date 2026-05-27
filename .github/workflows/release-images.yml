@@ -216,6 +216,13 @@ jobs:
     needs: [build, merge]
     runs-on: ubuntu-22.04
     if: ${{ github.event_name == 'push' || inputs.push == true }}
+    # sbom-action uploads the SBOM as a release asset — needs contents:write.
+    # Scoped to this job only; build and merge keep contents:read.
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
