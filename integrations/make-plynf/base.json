@@ -1,0 +1,16 @@
+{
+  "baseUrl": "{{parameters.plynfUrl}}",
+  "headers": {
+    "Authorization": "Bearer {{parameters.apiKey}}",
+    "Content-Type": "application/json"
+  },
+  "response": {
+    "valid": {
+      "condition": "{{statusCode >= 200 && statusCode < 300}}"
+    },
+    "error": {
+      "message": "[{{statusCode}}] {{body.detail || body.error || 'Plynf request failed'}}",
+      "type": "{{if(statusCode === 402, 'TierLimit', 'API')}}"
+    }
+  }
+}

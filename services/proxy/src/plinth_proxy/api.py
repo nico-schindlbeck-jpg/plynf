@@ -45,6 +45,7 @@ from .connectors import (
 )
 from .context_budget import enforce_budget
 from .gateway_client import GatewayClient, make_gateway_registry
+from .gemini_adapter import gemini_request_to_openai, openai_response_to_gemini
 from .identity_client import IdentityClient, IdentityError
 from .mock_llm import mock_completion
 from .policy_engine import ConnectorPolicy, PolicyError, ToolPolicy, apply, load_all_policies
@@ -460,6 +461,36 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
                 ) if raw_tokens else 0.0,
             }
         )
+
+    @app.post("/v1beta/models/{model}:generateContent")
+    async def gemini_generate_content(model: str, request: Request) -> JSONResponse:
+        """Google Gemini ``generateContent`` endpoint.
+
+        Translates the Gemini request to OpenAI, runs the same Plynf pipeline
+        (auth → tier-gate → tool-call interception → shaping → savings),
+        then translates back to a Gemini ``candidates`` envelope. Works for
+        both public Gemini API and Vertex AI (they share the body shape).
+
+        Streaming (``streamGenerateContent``) is not supported in MVP —
+        Gemini uses JSON-Lines with a different framing than OpenAI SSE.
+        """
+        st: AppState = app.state.plinth
+        gem_body = await request.json()
+        tenant_id, tier = await _authenticate(request, st)
+        _enforce_tier(st, tenant_id, tier)
+
+        openai_body = gemini_request_to_openai(gem_body, model=model)
+        openai_body["stream"] = False
+
+        before = len(st.events)
+        openai_final = await _handle_chat(st, openai_body, tenant_id)
+        new_shaped = sum(
+            ev.shaped_response_tokens for ev in st.events[before:]
+        )
+        if new_shaped:
+            st.gate.record_tokens(tenant_id, new_shaped)
+
+        return JSONResponse(openai_response_to_gemini(openai_final))
 
     @app.post("/v1/messages")
     async def anthropic_messages(request: Request) -> JSONResponse:

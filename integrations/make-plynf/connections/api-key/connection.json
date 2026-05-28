@@ -1,0 +1,42 @@
+{
+  "label": "Plynf API Key",
+  "type": "basic",
+  "scopes": [],
+  "scopeSeparator": " ",
+  "scopeAggregate": "implicit",
+  "fields": [
+    {
+      "name": "plynfUrl",
+      "label": "Plynf URL",
+      "type": "url",
+      "required": true,
+      "default": "https://app.plynf.com",
+      "help": "Base URL of your Plynf proxy. Use http://localhost:7430 for local testing or your self-hosted URL."
+    },
+    {
+      "name": "apiKey",
+      "label": "API Key",
+      "type": "password",
+      "required": true,
+      "help": "Get your key at https://app.plynf.com — free tier includes 100,000 shaped tokens / month and 3 connectors."
+    }
+  ],
+  "communication": {
+    "url": "{{parameters.plynfUrl}}/v1/tier",
+    "method": "GET",
+    "headers": {
+      "Authorization": "Bearer {{parameters.apiKey}}"
+    },
+    "response": {
+      "valid": {
+        "condition": "{{statusCode === 200}}"
+      },
+      "error": {
+        "message": "Authentication failed: [{{statusCode}}] {{body.detail || body.error || 'invalid key'}}"
+      },
+      "metadata": {
+        "value": "{{body.tier}}"
+      }
+    }
+  }
+}

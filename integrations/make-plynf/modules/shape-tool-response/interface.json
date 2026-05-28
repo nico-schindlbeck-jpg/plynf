@@ -1,0 +1,10 @@
+[
+  { "name": "tool", "type": "text", "label": "Tool" },
+  { "name": "connector", "type": "text", "label": "Connector" },
+  { "name": "result", "type": "any", "label": "Shaped Result (JSON)" },
+  { "name": "cache_hit", "type": "boolean", "label": "Served From Cache" },
+  { "name": "raw_response_tokens", "type": "number", "label": "Raw Response Tokens" },
+  { "name": "shaped_response_tokens", "type": "number", "label": "Shaped Response Tokens" },
+  { "name": "saved_tokens", "type": "number", "label": "Saved Tokens" },
+  { "name": "savings_pct", "type": "number", "label": "Savings %" }
+]

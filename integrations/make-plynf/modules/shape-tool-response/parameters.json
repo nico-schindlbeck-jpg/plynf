@@ -1,0 +1,41 @@
+[
+  {
+    "name": "tool",
+    "label": "Tool",
+    "type": "select",
+    "required": true,
+    "options": [
+      { "label": "Salesforce · Get Lead", "value": "get_lead" },
+      { "label": "Salesforce · List Leads", "value": "list_leads" },
+      { "label": "Salesforce · Get Account", "value": "get_account" },
+      { "label": "Salesforce · Get Opportunity", "value": "get_opportunity" },
+      { "label": "Salesforce · Get Contact", "value": "get_contact" },
+      { "label": "Order DB · Get Order", "value": "get_order" },
+      { "label": "Order DB · List Orders By Customer", "value": "list_orders_by_customer" },
+      { "label": "Order DB · Get Customer", "value": "get_customer" },
+      { "label": "Order DB · Search Orders", "value": "search_orders" },
+      { "label": "Slack · Get Channel Messages", "value": "get_channel_messages" },
+      { "label": "Slack · Search Messages", "value": "search_messages" },
+      { "label": "Slack · Get User Info", "value": "get_user_info" }
+    ],
+    "help": "Which Plynf-managed tool to invoke."
+  },
+  {
+    "name": "arguments",
+    "label": "Arguments",
+    "type": "collection",
+    "required": false,
+    "spec": [
+      { "name": "key", "label": "Key", "type": "text" },
+      { "name": "value", "label": "Value", "type": "text" }
+    ],
+    "help": "Arguments for the tool. Example for get_order: order_id = 12345."
+  },
+  {
+    "name": "agentId",
+    "label": "Agent ID (optional)",
+    "type": "text",
+    "required": false,
+    "help": "Shown in your Plynf savings dashboard, useful for grouping savings per agent."
+  }
+]

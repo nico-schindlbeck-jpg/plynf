@@ -1,0 +1,14 @@
+{
+  "name": "plynf",
+  "label": "Plynf",
+  "description": "Agent Context Optimization Layer — fetch Salesforce / Slack / Order DB tool responses, shape them to the fields your LLM actually needs, save 40–80% of tokens per call.",
+  "language": "en",
+  "version": 1,
+  "private": false,
+  "countries": [],
+  "categories": ["ai", "productivity"],
+  "audience": "all",
+  "website": "https://plynf.com",
+  "theme": "#d946ef",
+  "icon": "plynf-icon.svg"
+}

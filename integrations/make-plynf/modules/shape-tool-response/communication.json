@@ -1,0 +1,21 @@
+{
+  "url": "{{connection.plynfUrl}}/v1/tools/{{parameters.tool}}/invoke",
+  "method": "POST",
+  "body": {
+    "arguments": "{{parameters.arguments}}",
+    "agent_id": "{{parameters.agentId}}",
+    "workflow_id": "make-{{scenarioId}}"
+  },
+  "response": {
+    "output": {
+      "tool": "{{body.tool}}",
+      "connector": "{{body.connector}}",
+      "result": "{{body.result}}",
+      "cache_hit": "{{body.cache_hit}}",
+      "raw_response_tokens": "{{body.savings.raw_response_tokens}}",
+      "shaped_response_tokens": "{{body.savings.shaped_response_tokens}}",
+      "saved_tokens": "{{body.savings.saved_tokens}}",
+      "savings_pct": "{{body.savings.savings_pct}}"
+    }
+  }
+}

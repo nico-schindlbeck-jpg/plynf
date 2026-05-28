@@ -1,0 +1,7 @@
+{
+  "label": "Fetch & Shape a Tool Response",
+  "description": "Calls a Plynf-managed tool (Salesforce, Slack, Order DB, …) and returns the shaped JSON — typically 40–80% smaller than the raw response.",
+  "type_id": 4,
+  "crud": "create",
+  "connection": "api-key"
+}

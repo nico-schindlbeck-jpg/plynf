@@ -1,0 +1,129 @@
+swagger: "2.0"
+info:
+  title: Plynf
+  description: |
+    Plynf is the Agent Context Optimization Layer between AI agents and
+    business tools. This Power Platform / Copilot Studio custom connector
+    exposes one action — "Fetch & Shape Tool Response" — that calls
+    Plynf's webhook endpoint and returns the shaped result, typically
+    40–80% smaller than the raw response your CRM/ERP would have given.
+  version: "0.1.0"
+  contact:
+    name: Plynf
+    url: https://plynf.com
+    email: hi@plynf.com
+host: app.plynf.com
+basePath: /v1
+schemes:
+  - https
+consumes:
+  - application/json
+produces:
+  - application/json
+
+securityDefinitions:
+  PlynfApiKey:
+    type: apiKey
+    in: header
+    name: Authorization
+    description: >
+      Plynf bearer token. Format: ``Bearer pl-...``. Issue keys at
+      https://app.plynf.com — free tier covers 100,000 shaped tokens per
+      month and 3 connectors.
+
+security:
+  - PlynfApiKey: []
+
+paths:
+  /tools/{tool}/invoke:
+    post:
+      summary: Fetch & Shape Tool Response
+      description: >
+        Run a Plynf-managed tool (Salesforce, Slack, Order DB, …) and
+        return the shaped JSON. The shaping policy is configured
+        per-tenant — defaults trim a typical CRM response from ~4,000
+        tokens down to ~150 by removing audit metadata and keeping only
+        the fields your Copilot Studio agent declared interesting.
+      operationId: ShapeToolResponse
+      x-ms-visibility: important
+      parameters:
+        - name: tool
+          in: path
+          required: true
+          type: string
+          description: Which Plynf-managed tool to invoke.
+          x-ms-summary: Tool
+          enum:
+            - get_lead
+            - list_leads
+            - get_account
+            - get_opportunity
+            - get_contact
+            - get_order
+            - list_orders_by_customer
+            - get_customer
+            - search_orders
+            - get_channel_messages
+            - search_messages
+            - get_user_info
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            properties:
+              arguments:
+                type: object
+                description: Arguments passed to the tool. Free-form JSON object.
+                x-ms-summary: Arguments
+                additionalProperties: true
+              agent_id:
+                type: string
+                description: Optional. Shown in your Plynf savings dashboard.
+                x-ms-summary: Agent ID
+              workflow_id:
+                type: string
+                description: Optional. Groups savings per Copilot Studio flow.
+                x-ms-summary: Workflow ID
+            required:
+              - arguments
+      responses:
+        "200":
+          description: Shaped tool response.
+          schema:
+            type: object
+            properties:
+              tool: { type: string }
+              connector: { type: string }
+              result:
+                type: object
+                additionalProperties: true
+                description: The shaped JSON your agent should consume.
+              cache_hit: { type: boolean }
+              savings:
+                type: object
+                properties:
+                  raw_response_tokens: { type: integer }
+                  shaped_response_tokens: { type: integer }
+                  saved_tokens: { type: integer }
+                  savings_pct: { type: number }
+        "402":
+          description: Tier limit exceeded. Body carries an upgrade_hint.
+        "404":
+          description: Unknown tool.
+
+  /tier:
+    get:
+      summary: Get current tier + month-to-date usage
+      description: Returns the resolved tenant id, tier, and tokens used this month.
+      operationId: GetTier
+      x-ms-visibility: advanced
+      responses:
+        "200":
+          description: Tier info.
+          schema:
+            type: object
+            properties:
+              tenant_id: { type: string }
+              tier: { type: string, enum: [free, pro, enterprise] }
+              tokens_used_this_month: { type: integer }

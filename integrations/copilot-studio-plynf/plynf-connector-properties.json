@@ -1,0 +1,35 @@
+{
+  "properties": {
+    "connectionParameters": {
+      "api_key": {
+        "type": "securestring",
+        "uiDefinition": {
+          "displayName": "Plynf API Key",
+          "description": "Get your key at https://app.plynf.com. Free tier includes 100,000 shaped tokens per month and 3 connectors.",
+          "tooltip": "Bearer token issued by Plynf.",
+          "constraints": {
+            "tabIndex": 2,
+            "clearText": false,
+            "required": "true"
+          }
+        }
+      }
+    },
+    "policyTemplateInstances": [
+      {
+        "templateId": "setheader",
+        "title": "Set Authorization header",
+        "parameters": {
+          "x-ms-apimTemplateParameter.name": "Authorization",
+          "x-ms-apimTemplateParameter.value": "Bearer @connectionParameters('api_key')",
+          "x-ms-apimTemplateParameter.existsAction": "override",
+          "x-ms-apimTemplate-policySection": "Request"
+        }
+      }
+    ],
+    "iconBrandColor": "#d946ef",
+    "capabilities": [],
+    "publisher": "Plynf",
+    "stackOwner": "Plynf"
+  }
+}
