@@ -1,0 +1,63 @@
+[project]
+name = "plinth-proxy"
+version = "0.1.0"
+description = "Plynf LLM-Proxy — OpenAI-compatible API that shapes tool responses before they hit the model"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.9"
+authors = [
+    {name = "The Plynf Authors"},
+]
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "pydantic>=2.5",
+    "pydantic-settings>=2.1",
+    "httpx>=0.27",
+    "structlog>=24.1",
+    "pyyaml>=6.0",
+    # Tiktoken is the official OpenAI tokenizer. We use it for token counting
+    # so savings numbers match what OpenAI actually bills.
+    "tiktoken>=0.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+    "ruff>=0.3",
+    "black>=24.1",
+]
+
+[project.scripts]
+plinth-proxy = "plinth_proxy.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+plinth_proxy = ["policies/*.yaml"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-q --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RET"]
+# UP017 wants `datetime.UTC` (3.11+) but we still target 3.9 for the
+# editable demo install on dev machines without a newer interpreter.
+ignore = ["UP017"]

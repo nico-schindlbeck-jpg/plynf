@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: Apache-2.0
+# Plynf — default Salesforce connector policy.
+#
+# Field allow-lists are intentionally conservative. A typical Salesforce
+# Lead object has 50–200 fields; the agent only needs 7–10 for most
+# customer-support / sales-research workloads.
+
+connector: salesforce
+version: 1
+
+defaults:
+  strip_metadata: true
+  block_write_actions: false   # set true on read-only pilots
+  cache_ttl: 30
+
+tools:
+  get_lead:
+    allow_fields:
+      - Id
+      - FirstName
+      - LastName
+      - Email
+      - Phone
+      - Company
+      - Title
+      - Status
+      - LeadSource
+      - OwnerId
+      - Rating
+    redact_pii:
+      fields: [Email, Phone]
+      mode: hash
+    cache_ttl: 60
+
+  list_leads:
+    allow_fields:
+      - Id
+      - Name
+      - Company
+      - Status
+      - LeadSource
+    max_response_tokens: 2000
+    cache_ttl: 15
+
+  get_opportunity:
+    allow_fields:
+      - Id
+      - Name
+      - Amount
+      - StageName
+      - CloseDate
+      - AccountId
+      - OwnerId
+      - Probability
+      - NextStep
+    cache_ttl: 120
+
+  get_account:
+    allow_fields:
+      - Id
+      - Name
+      - Industry
+      - NumberOfEmployees
+      - AnnualRevenue
+      - BillingCountry
+      - BillingCity
+      - Website
+      - Phone
+    cache_ttl: 600
+
+  get_contact:
+    allow_fields:
+      - Id
+      - FirstName
+      - LastName
+      - Email
+      - Phone
+      - Title
+      - AccountId
+      - Department
+    redact_pii:
+      fields: [Email, Phone]
+      mode: hash
+    cache_ttl: 300

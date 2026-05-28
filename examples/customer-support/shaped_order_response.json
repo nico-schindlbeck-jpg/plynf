@@ -1,0 +1,11 @@
+{
+  "order_id": "12345",
+  "customer_name": "Jane Doe",
+  "status": "in_transit",
+  "carrier": "DHL",
+  "tracking_number": "DHL-99887766554433",
+  "estimated_delivery": "2026-05-28",
+  "last_status_update": "2026-05-27T14:32:00Z",
+  "items_summary": "3 items, $284.00 total",
+  "total_amount": 333.95
+}

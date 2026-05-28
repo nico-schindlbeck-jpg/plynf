@@ -1,0 +1,40 @@
+{
+  "model": "gpt-4o",
+  "price_per_1m_input_tokens_usd": 5.0,
+  "tokenizer": "tiktoken (o200k_base)",
+  "raw_response_tokens": 2161,
+  "shaped_response_tokens": 83,
+  "saved_tokens": 2078,
+  "savings_percentage": 96.16,
+  "cost_before_usd": 0.010805,
+  "cost_after_usd": 0.000415,
+  "cost_saved_usd": 0.01039,
+  "removed_fields_count": 122,
+  "kept_fields": [
+    "carrier",
+    "customer_name",
+    "estimated_delivery",
+    "items_summary",
+    "last_status_update",
+    "order_id",
+    "status",
+    "total_amount",
+    "tracking_number"
+  ],
+  "savings_event": {
+    "ts": 1779958721.670382,
+    "tenant_id": "demo",
+    "agent_id": "customer-support",
+    "connector": "orders",
+    "tool": "get_order",
+    "model": "gpt-4o",
+    "raw_response_tokens": 2161,
+    "shaped_response_tokens": 83,
+    "cache_hit": false,
+    "request_hash": "sha256:8db8dbfe93d44234",
+    "workflow_id": null,
+    "saved_tokens": 2078,
+    "savings_pct": 0.9616,
+    "cost_saved_usd": 0.01039
+  }
+}

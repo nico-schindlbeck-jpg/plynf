@@ -1,0 +1,29 @@
+{
+  "model": "gpt-4o",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a customer-support agent. When a customer asks about an order, call the get_order tool with the relevant order_id, then answer briefly using only the fields returned."
+    },
+    {
+      "role": "user",
+      "content": "What's the status of order #12345? Customer says it hasn't arrived."
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_order",
+        "description": "Fetch order details by order id.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "order_id": {"type": "string"}
+          },
+          "required": ["order_id"]
+        }
+      }
+    }
+  ]
+}

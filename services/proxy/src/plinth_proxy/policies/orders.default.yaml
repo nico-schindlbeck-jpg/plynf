@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+# Plynf — default Order-DB connector policy.
+#
+# Order objects in typical ERPs/e-commerce backends carry payment metadata,
+# audit trails, internal logistics flags, and full line-item breakdowns.
+# An agent answering "where's my order?" needs less than 10 fields.
+
+connector: orders
+version: 1
+
+defaults:
+  strip_metadata: true
+  block_write_actions: true   # demo defaults to read-only
+  cache_ttl: 30
+
+tools:
+  get_order:
+    allow_fields:
+      - order_id
+      - customer_name
+      - status
+      - tracking_number
+      - estimated_delivery
+      - carrier
+      - items_summary
+      - last_status_update
+      - total_amount
+    cache_ttl: 30
+
+  list_orders_by_customer:
+    allow_fields:
+      - order_id
+      - status
+      - total_amount
+      - created_date
+    max_response_tokens: 1500
+    cache_ttl: 60
+
+  get_customer:
+    allow_fields:
+      - customer_id
+      - name
+      - tier
+      - account_status
+    redact_pii:
+      fields: [email, phone]
+      mode: mask
+    cache_ttl: 300
+
+  search_orders:
+    allow_fields:
+      - order_id
+      - customer_name
+      - status
+    max_response_tokens: 1000

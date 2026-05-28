@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+# Plynf — default Slack connector policy.
+
+connector: slack
+version: 1
+
+defaults:
+  strip_metadata: true
+  cache_ttl: 30
+
+tools:
+  get_channel_messages:
+    allow_fields:
+      - user
+      - text
+      - ts
+    max_response_tokens: 1500
+    cache_ttl: 10
+
+  search_messages:
+    allow_fields:
+      - user
+      - text
+      - ts
+      - channel
+    max_response_tokens: 1000
+    cache_ttl: 30
+
+  get_user_info:
+    allow_fields:
+      - id
+      - name
+      - real_name
+      - team_id
+    redact_pii:
+      fields: [email, phone]
+      mode: hash
+    cache_ttl: 3600
