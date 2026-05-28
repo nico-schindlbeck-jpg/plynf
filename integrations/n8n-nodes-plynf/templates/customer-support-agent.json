@@ -1,0 +1,104 @@
+{
+  "name": "Customer Support Agent · Slack → Plynf → OpenAI",
+  "nodes": [
+    {
+      "parameters": {
+        "channel": "support",
+        "options": {}
+      },
+      "id": "trigger-slack",
+      "name": "When a Slack message mentions an order",
+      "type": "n8n-nodes-base.slackTrigger",
+      "typeVersion": 1,
+      "position": [200, 320]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pull the first order id matching /#?\\d{4,}/ from the Slack message.\nconst text = $json.event?.text ?? $json.text ?? '';\nconst m = text.match(/#?(\\d{4,})/);\nreturn [{ json: { order_id: m ? m[1] : null, raw_text: text, slack_channel: $json.channel ?? 'support' } }];"
+      },
+      "id": "extract-order-id",
+      "name": "Extract order id",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 320]
+    },
+    {
+      "parameters": {
+        "tool": "get_order",
+        "argumentsJson": "={{ JSON.stringify({ order_id: $json.order_id }) }}",
+        "agentId": "support-agent",
+        "workflowId": "={{ $workflow.id }}"
+      },
+      "id": "plynf-shape",
+      "name": "Plynf · shape get_order response",
+      "type": "n8n-nodes-plynf.plynf",
+      "typeVersion": 1,
+      "position": [720, 320],
+      "credentials": {
+        "plynfApi": {
+          "id": "REPLACE_WITH_YOUR_PLYNF_CREDENTIAL_ID",
+          "name": "Plynf account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a friendly support agent. Reply in one sentence per fact, using only the shaped JSON the user pasted."
+            },
+            {
+              "role": "user",
+              "content": "=Customer wrote: {{ $('Extract order id').item.json.raw_text }}\n\nShaped tool response:\n{{ JSON.stringify($('Plynf · shape get_order response').item.json.result, null, 2) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "openai-reply",
+      "name": "Compose reply with OpenAI",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.5,
+      "position": [980, 320]
+    },
+    {
+      "parameters": {
+        "channel": "={{ $('Extract order id').item.json.slack_channel }}",
+        "text": "={{ $json.message?.content ?? $json.content }}"
+      },
+      "id": "slack-post",
+      "name": "Post reply in Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [1240, 320]
+    }
+  ],
+  "connections": {
+    "When a Slack message mentions an order": {
+      "main": [[{ "node": "Extract order id", "type": "main", "index": 0 }]]
+    },
+    "Extract order id": {
+      "main": [[{ "node": "Plynf · shape get_order response", "type": "main", "index": 0 }]]
+    },
+    "Plynf · shape get_order response": {
+      "main": [[{ "node": "Compose reply with OpenAI", "type": "main", "index": 0 }]]
+    },
+    "Compose reply with OpenAI": {
+      "main": [[{ "node": "Post reply in Slack", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0.1.0",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Listens for Slack messages that mention an order id, fetches the order via Plynf (which strips 95%+ of the ERP's irrelevant fields), asks gpt-4o to draft a one-paragraph reply, and posts it back to the channel. Same workflow as direct-Salesforce/ERP wiring but with a 80–96% smaller LLM input on every step."
+  },
+  "tags": ["plynf", "customer-support", "ai-agent"]
+}

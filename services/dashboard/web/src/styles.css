@@ -552,3 +552,92 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
   color: var(--ink-muted, #888);
   font-size: 0.75rem;
 }
+
+/* ─── Savings dashboard ────────────────────────────────────────────── */
+.savings__header { margin: 1.5rem 0 1rem; }
+.savings__header h1 { margin: 0; }
+.savings__header .muted {
+  color: var(--ink-muted, #888);
+  font-size: 0.8125rem;
+  margin: 0.25rem 0 0;
+}
+.savings__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+.savings-card {
+  background: var(--bg-2, #15151a);
+  border: 1px solid var(--border, #26262d);
+  border-radius: 0.625rem;
+  padding: 1rem;
+}
+.savings-card__label {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted, #888);
+  margin-bottom: 0.5rem;
+}
+.savings-card__value {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+.savings-card--ok .savings-card__value { color: #43c674; }
+.savings__section { margin-bottom: 2rem; }
+.savings__section h2 {
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted, #888);
+  margin-bottom: 0.5rem;
+}
+.savings__chart {
+  background: var(--bg-2, #15151a);
+  border: 1px solid var(--border, #26262d);
+  border-radius: 0.625rem;
+  padding: 1rem;
+}
+.savings__chart svg { width: 100%; height: auto; display: block; }
+.savings__chart-meta {
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+  color: var(--ink-muted, #888);
+}
+.savings-bars {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.savings-bars li {
+  display: grid;
+  grid-template-columns: 160px 1fr 120px;
+  gap: 0.75rem;
+  align-items: center;
+}
+.savings-bars__label {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.8125rem;
+}
+.savings-bars__track {
+  height: 8px;
+  background: var(--bg-3, #1d1d24);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.savings-bars__fill {
+  height: 100%;
+  background: linear-gradient(90deg, #43c674, #6366f1);
+  border-radius: 4px;
+}
+.savings-bars__value {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.8125rem;
+  text-align: right;
+  color: var(--ink-muted, #aaa);
+}

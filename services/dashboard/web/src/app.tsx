@@ -3,6 +3,7 @@ import Router, { Route } from "preact-router";
 import { Welcome } from "@/routes/welcome";
 import { Overview } from "@/routes/overview";
 import { PoliciesEditor } from "@/routes/policies";
+import { SavingsDashboard } from "@/routes/savings";
 import { api } from "@/lib/api";
 
 // Top-level router. Decides whether to redirect to /welcome
@@ -34,6 +35,7 @@ export function App() {
       <Route path="/welcome" component={Welcome} />
       <Route path="/welcome/:step" component={Welcome} />
       <Route path="/policies" component={PoliciesEditor} />
+      <Route path="/savings" component={SavingsDashboard} />
       <Route path="/" component={route === "welcome" ? Welcome : Overview} />
       <Route default component={NotFound} />
     </Router>

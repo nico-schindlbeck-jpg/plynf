@@ -42,6 +42,38 @@ npm install
 npm run build
 ```
 
+## Publish
+
+```bash
+# One-time
+npm login
+
+# Publish to npm (already-reserved name n8n-nodes-plynf)
+npm publish --access public
+```
+
+Once published, anyone can install it via the n8n UI:
+*Settings → Community Nodes → Install → `n8n-nodes-plynf`*. No n8n team
+approval is needed for npm-installable community nodes. For the
+verified-list halo, PR your repo at
+[n8n-io/n8n-nodes-community](https://github.com/n8n-io/n8n-nodes-community).
+
+## Workflow templates
+
+`templates/customer-support-agent.json` — Slack-mention → Plynf-shape →
+gpt-4o reply → post back. Import via n8n's
+*Workflows → Import from File*. Replace
+`REPLACE_WITH_YOUR_PLYNF_CREDENTIAL_ID` with the credential id you create
+in the n8n credential manager.
+
+## Tier behaviour (what happens when you hit Free-tier limits)
+
+The proxy enforces tier gating; the node passes through whatever it gets
+back. Free tier caps at 100 000 shaped tokens / month + 3 connectors;
+when exceeded the proxy returns HTTP 402 and the n8n step fails with the
+proxy's `upgrade_hint` text. Toggle *Continue On Fail* on the Plynf node
+if you want the workflow to keep going (e.g. fall back to raw data).
+
 ## License
 
 Apache-2.0

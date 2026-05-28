@@ -188,6 +188,55 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         st: AppState = app.state.plinth
         return aggregate(st.events)
 
+    @app.get("/v1/savings/timeseries")
+    async def savings_timeseries(bucket_s: int = 3600, limit: int = 168) -> dict[str, Any]:
+        """Bucketed savings totals for the dashboard's line chart.
+
+        ``bucket_s`` is the bucket width in seconds (default 1h). ``limit``
+        caps how many trailing buckets to return (default 168 → 7 days of
+        hourly buckets). The data comes from the in-memory event log; once
+        the Postgres sink is the production source of truth this query
+        moves into the DB layer.
+        """
+        st: AppState = app.state.plinth
+        if bucket_s <= 0:
+            raise HTTPException(status_code=400, detail="bucket_s must be > 0")
+
+        buckets: dict[int, dict[str, float]] = {}
+        for ev in st.events:
+            key = int(ev.ts // bucket_s) * bucket_s
+            b = buckets.setdefault(
+                key,
+                {
+                    "saved_tokens": 0,
+                    "shaped_tokens": 0,
+                    "raw_tokens": 0,
+                    "cost_saved_usd": 0.0,
+                    "calls": 0,
+                },
+            )
+            b["saved_tokens"] += ev.saved_tokens
+            b["shaped_tokens"] += ev.shaped_response_tokens
+            b["raw_tokens"] += ev.raw_response_tokens
+            b["cost_saved_usd"] += ev.cost_saved_usd()
+            b["calls"] += 1
+
+        sorted_keys = sorted(buckets.keys())[-limit:]
+        return {
+            "bucket_s": bucket_s,
+            "points": [
+                {
+                    "ts": k,
+                    "saved_tokens": int(buckets[k]["saved_tokens"]),
+                    "shaped_tokens": int(buckets[k]["shaped_tokens"]),
+                    "raw_tokens": int(buckets[k]["raw_tokens"]),
+                    "cost_saved_usd": round(buckets[k]["cost_saved_usd"], 6),
+                    "calls": int(buckets[k]["calls"]),
+                }
+                for k in sorted_keys
+            ],
+        }
+
     @app.get("/v1/policies/effective")
     async def effective_policies(request: Request) -> dict[str, Any]:
         """Per-tenant effective policies (system default + override) for the editor."""
