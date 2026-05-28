@@ -37,7 +37,7 @@
     "openai": { "optional": true }
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
+    "typescript": "^6.0.3",
     "vitest": "^1.6.0",
     "@types/node": "^20.0.0"
   },
