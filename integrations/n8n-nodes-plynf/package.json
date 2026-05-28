@@ -1,0 +1,44 @@
+{
+  "name": "n8n-nodes-plynf",
+  "version": "0.1.0",
+  "description": "Plynf — agent context optimization layer. Shape large CRM/ERP/Slack tool responses before they hit your LLM.",
+  "keywords": [
+    "n8n-community-node-package",
+    "plynf",
+    "ai",
+    "agents",
+    "llm",
+    "openai",
+    "token-optimization",
+    "salesforce",
+    "slack"
+  ],
+  "license": "Apache-2.0",
+  "homepage": "https://plynf.com",
+  "author": {
+    "name": "The Plynf Authors",
+    "email": "hi@plynf.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nico-schindlbeck-jpg/plinth.git",
+    "directory": "integrations/n8n-nodes-plynf"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint nodes credentials"
+  },
+  "files": ["dist"],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": ["dist/credentials/PlynfApi.credentials.js"],
+    "nodes": ["dist/nodes/Plynf/Plynf.node.js"]
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "n8n-workflow": "^1.0.0",
+    "typescript": "^5.0.0"
+  }
+}
