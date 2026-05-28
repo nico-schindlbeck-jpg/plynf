@@ -104,7 +104,7 @@ def wrap_langchain_tools(
         wrapped = _make_wrapper(original_run, name)
         try:
             tool._run = wrapped  # type: ignore[attr-defined]
-            setattr(tool, "__plynf_wrapped__", True)
+            tool.__plynf_wrapped__ = True
             out.append(tool)
         except Exception:  # noqa: BLE001 — pydantic immutability etc.
             out.append(make_plynf_tool(
