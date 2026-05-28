@@ -239,16 +239,56 @@ def test_v1_messages_endpoint_returns_anthropic_shape(client):
     assert "12345" in text
 
 
-def test_v1_messages_endpoint_rejects_streaming_in_mvp(client):
+def test_v1_messages_endpoint_streams_in_anthropic_sse_format(client):
     r = client.post(
         "/v1/messages",
         json={
             "model": "claude-3-5-sonnet",
-            "messages": [{"role": "user", "content": "hi"}],
+            "max_tokens": 256,
+            "messages": [{"role": "user", "content": "what is order 12345"}],
+            "tools": [
+                {
+                    "name": "get_order",
+                    "description": "x",
+                    "input_schema": {"type": "object"},
+                }
+            ],
             "stream": True,
         },
     )
-    assert r.status_code == 501
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/event-stream")
+
+    # Anthropic SSE: each event has an `event: <type>` and `data: <json>` line.
+    lines = r.text.splitlines()
+    event_types = [
+        line.removeprefix("event: ").strip()
+        for line in lines
+        if line.startswith("event:")
+    ]
+    # Must include the standard Anthropic ordering: message_start, then at
+    # least one content_block_*, then message_delta and message_stop.
+    assert "message_start" in event_types
+    assert "content_block_start" in event_types
+    assert "content_block_delta" in event_types
+    assert "content_block_stop" in event_types
+    assert event_types[-2:] == ["message_delta", "message_stop"]
+    # The deltas should reconstruct an answer containing the order id.
+    import json as _json
+
+    text = ""
+    for line in lines:
+        if not line.startswith("data:"):
+            continue
+        try:
+            payload = _json.loads(line.removeprefix("data:").strip())
+        except _json.JSONDecodeError:
+            continue
+        if payload.get("type") == "content_block_delta":
+            delta = payload.get("delta") or {}
+            if delta.get("type") == "text_delta":
+                text += delta.get("text", "")
+    assert "12345" in text
 
 
 def test_v1_messages_endpoint_emits_savings(client):

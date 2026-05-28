@@ -43,6 +43,7 @@ from .connectors import (
     ConnectorRegistry,
     make_mock_registry,
 )
+from .context_budget import enforce_budget
 from .gateway_client import GatewayClient, make_gateway_registry
 from .identity_client import IdentityClient, IdentityError
 from .mock_llm import mock_completion
@@ -375,13 +376,13 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         tenant_id, tier = await _authenticate(request, st)
         _enforce_tier(st, tenant_id, tier)
 
-        if anth_body.get("stream"):
-            raise HTTPException(
-                status_code=501,
-                detail="streaming not yet supported on /v1/messages",
-            )
-
+        wants_stream = bool(anth_body.get("stream"))
         openai_body = anthropic_request_to_openai(anth_body)
+        # The OpenAI pipeline does NOT need to stream — tool-call interception
+        # always runs synchronously and we re-emit Anthropic SSE events from
+        # the final shape.
+        openai_body["stream"] = False
+
         before_count = len(st.events)
         openai_final = await _handle_chat(st, openai_body, tenant_id)
         new_shaped = sum(
@@ -390,7 +391,14 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         if new_shaped:
             st.gate.record_tokens(tenant_id, new_shaped)
 
-        return JSONResponse(openai_response_to_anthropic(openai_final))
+        anth_final = openai_response_to_anthropic(openai_final)
+        if not wants_stream:
+            return JSONResponse(anth_final)
+        return StreamingResponse(
+            _synthesize_anthropic_sse(anth_final),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     @app.post("/v1/chat/completions")
     async def chat_completions(request: Request):
@@ -502,6 +510,20 @@ async def _handle_chat(st: AppState, body: dict[str, Any], tenant_id: str) -> di
     model: str = body.get("model") or st.settings.default_model
 
     for _round in range(MAX_TOOL_ROUNDS):
+        # Context-budget rotation runs before every LLM call, not just at the
+        # end — keeps the input shape stable across rounds.
+        if st.settings.context_budget_input_tokens > 0:
+            messages, dropped = enforce_budget(
+                messages,
+                max_input_tokens=st.settings.context_budget_input_tokens,
+                keep_recent_tool_messages=st.settings.context_budget_keep_recent_tool_messages,
+            )
+            if dropped:
+                log.info(
+                    "context-budget rotated tool messages: %d tokens dropped",
+                    dropped,
+                )
+
         response = await _call_upstream(st, messages, tools, body, model)
 
         choice = (response.get("choices") or [{}])[0]
@@ -515,11 +537,33 @@ async def _handle_chat(st: AppState, body: dict[str, Any], tenant_id: str) -> di
         # Append the assistant message so the next round has full history.
         messages.append(message)
 
-        # Execute each tool call we recognise. Unknown tools get a "tool"
-        # message saying we couldn't handle it — the LLM may retry or give up.
+        # Cross-call merging: when the LLM emits multiple identical
+        # tool_calls in one round (same name + same arguments), execute the
+        # tool ONCE and share the shaped result across every tool_call_id.
+        # The first occurrence emits a normal savings event; duplicates emit
+        # a "merged" savings event (cache_hit=True) so the dashboard counts
+        # the dedup benefit.
+        in_round_cache: dict[str, dict[str, Any]] = {}
         for tc in tool_calls:
-            handled = await _handle_tool_call(st, tc, model, tenant_id)
-            messages.append(handled)
+            fn = tc.get("function") or {}
+            tool_name = fn.get("name", "")
+            args_str = fn.get("arguments") or "{}"
+            try:
+                norm_args = json.dumps(json.loads(args_str), sort_keys=True)
+            except json.JSONDecodeError:
+                norm_args = args_str
+            key = f"{tool_name}::{norm_args}"
+
+            if key in in_round_cache:
+                # Duplicate within the same LLM round → reuse the shape.
+                merged = _replay_tool_message(
+                    st, tc, in_round_cache[key], tenant_id, model
+                )
+                messages.append(merged)
+            else:
+                handled = await _handle_tool_call(st, tc, model, tenant_id)
+                in_round_cache[key] = handled
+                messages.append(handled)
 
     # Hit the loop guard — return whatever we have plus a warning.
     log.warning("exceeded MAX_TOOL_ROUNDS=%d for tenant=%s", MAX_TOOL_ROUNDS, tenant_id)
@@ -652,6 +696,67 @@ def _tool_message(tool_call_id: str, tool_name: str, content: Any) -> dict[str, 
     }
 
 
+def _replay_tool_message(
+    st: AppState,
+    tc: dict[str, Any],
+    original_message: dict[str, Any],
+    tenant_id: str,
+    model: str,
+) -> dict[str, Any]:
+    """Reuse a previously-shaped tool result for a duplicate tool_call.
+
+    Emits a savings event marked ``cache_hit=True`` so the dashboard
+    correctly attributes the in-round dedup to cross-call merging. The
+    tool_call_id is replaced with the duplicate's id so OpenAI's schema
+    invariant (each tool_call gets exactly one tool message) is preserved.
+    """
+    fn = tc.get("function") or {}
+    tool_name = fn.get("name", "")
+    args_str = fn.get("arguments") or "{}"
+    try:
+        args = json.loads(args_str)
+    except json.JSONDecodeError:
+        args = {}
+
+    connector_name = TOOL_TO_CONNECTOR.get(tool_name, "unknown")
+    # The original message stores the shaped JSON as a string. Recover it
+    # for token counting; we don't re-shape (the policy was already applied).
+    shaped_text = original_message.get("content", "{}")
+    try:
+        shaped_value = json.loads(shaped_text) if isinstance(shaped_text, str) else shaped_text
+    except json.JSONDecodeError:
+        shaped_value = shaped_text
+    shaped_tokens = count_json_tokens(shaped_value)
+
+    # On a merge, the alternative cost would have been another full raw
+    # fetch + shape, so the "saved" tokens are the shaped tokens themselves
+    # (they're a cache hit on the in-round shared result).
+    event = make_event(
+        tenant_id=tenant_id,
+        agent_id=None,
+        connector=connector_name,
+        tool=tool_name,
+        model=model,
+        raw_response_tokens=shaped_tokens,
+        shaped_response_tokens=shaped_tokens,
+        cache_hit=True,  # treated as a cache hit for accounting
+        request_args=args,
+    )
+    st.events.append(event)
+    if st.sink is not None:
+        try:
+            st.sink.emit(event)
+        except Exception:  # noqa: BLE001 — sink never crashes the request
+            log.warning("savings sink failed on merged event", exc_info=True)
+
+    return {
+        "role": "tool",
+        "tool_call_id": tc.get("id", ""),
+        "name": tool_name,
+        "content": shaped_text,
+    }
+
+
 async def _has_body(request: Request) -> bool:
     """Return True if the request has a non-empty body."""
     cl = request.headers.get("content-length")
@@ -662,6 +767,109 @@ async def _has_body(request: Request) -> bool:
             pass
     body = await request.body()
     return bool(body)
+
+
+async def _synthesize_anthropic_sse(final: dict[str, Any]):
+    """Yield Anthropic-shaped SSE events for a completed Anthropic message.
+
+    Anthropic's stream taxonomy:
+
+      message_start          → message metadata (no content)
+      content_block_start    → opening a text or tool_use block
+      content_block_delta    → incremental text_delta / input_json_delta
+      content_block_stop     → closing the block
+      message_delta          → final stop_reason + usage
+      message_stop           → sentinel
+
+    Each event has an ``event: <type>`` header line and a ``data: <json>``
+    payload line, per the SSE protocol.
+    """
+    def _ev(event_type: str, payload: dict[str, Any]) -> str:
+        return (
+            f"event: {event_type}\n"
+            f"data: {json.dumps(payload, separators=(',', ':'))}\n\n"
+        )
+
+    msg_id = final.get("id", "msg_unknown")
+    model = final.get("model", "")
+    usage_in = (final.get("usage") or {}).get("input_tokens", 0)
+    usage_out = (final.get("usage") or {}).get("output_tokens", 0)
+
+    # 1. message_start (with empty content; content_block events follow)
+    yield _ev("message_start", {
+        "type": "message_start",
+        "message": {
+            "id": msg_id,
+            "type": "message",
+            "role": "assistant",
+            "content": [],
+            "model": model,
+            "stop_reason": None,
+            "stop_sequence": None,
+            "usage": {"input_tokens": usage_in, "output_tokens": 0},
+        },
+    })
+
+    # 2. per-content-block events
+    blocks = final.get("content") or []
+    for idx, block in enumerate(blocks):
+        if block.get("type") == "text":
+            text = block.get("text", "")
+            yield _ev("content_block_start", {
+                "type": "content_block_start",
+                "index": idx,
+                "content_block": {"type": "text", "text": ""},
+            })
+            # Word-by-word delta keeps the streaming UX believable.
+            parts = text.split(" ")
+            for j, part in enumerate(parts):
+                piece = part if j == 0 else " " + part
+                if not piece:
+                    continue
+                yield _ev("content_block_delta", {
+                    "type": "content_block_delta",
+                    "index": idx,
+                    "delta": {"type": "text_delta", "text": piece},
+                })
+            yield _ev("content_block_stop", {
+                "type": "content_block_stop",
+                "index": idx,
+            })
+        elif block.get("type") == "tool_use":
+            yield _ev("content_block_start", {
+                "type": "content_block_start",
+                "index": idx,
+                "content_block": {
+                    "type": "tool_use",
+                    "id": block.get("id"),
+                    "name": block.get("name"),
+                    "input": {},
+                },
+            })
+            yield _ev("content_block_delta", {
+                "type": "content_block_delta",
+                "index": idx,
+                "delta": {
+                    "type": "input_json_delta",
+                    "partial_json": json.dumps(block.get("input") or {}),
+                },
+            })
+            yield _ev("content_block_stop", {
+                "type": "content_block_stop",
+                "index": idx,
+            })
+
+    # 3. message_delta — final stop_reason + output usage
+    yield _ev("message_delta", {
+        "type": "message_delta",
+        "delta": {
+            "stop_reason": final.get("stop_reason"),
+            "stop_sequence": final.get("stop_sequence"),
+        },
+        "usage": {"output_tokens": usage_out},
+    })
+    # 4. message_stop sentinel
+    yield _ev("message_stop", {"type": "message_stop"})
 
 
 async def _synthesize_sse(final: dict[str, Any]):

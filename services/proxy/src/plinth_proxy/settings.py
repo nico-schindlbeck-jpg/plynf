@@ -58,6 +58,15 @@ class ProxySettings(BaseSettings):
     # the JSONL sink (or no persistence at all in demo mode).
     postgres_url: str = ""
 
+    # Hard token budget for the input messages array, applied between tool-
+    # call rounds. Set to 0 to disable. When exceeded, the oldest tool
+    # responses are replaced with short summary placeholders so the LLM's
+    # tool_call_id references still resolve.
+    context_budget_input_tokens: int = 0
+
+    # How many most-recent tool messages are protected from rotation.
+    context_budget_keep_recent_tool_messages: int = 3
+
     # Where the policy YAMLs live. Defaults to the packaged set.
     policies_dir: str = ""
 
