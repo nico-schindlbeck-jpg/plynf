@@ -1,0 +1,97 @@
+name: release-n8n-node
+
+# Publishes the n8n-nodes-plynf community node to npm when a tag matching
+# n8n-v*.*.* is pushed. Example:
+#
+#   git tag n8n-v0.2.0
+#   git push origin n8n-v0.2.0
+#
+# The workflow rebuilds the TypeScript, plants the dist/package.json
+# CommonJS shim, runs `npm publish --access public`, and verifies the
+# published version matches the tag.
+#
+# Required GitHub secret: NPM_TOKEN — a granular access token with
+# read+write on `n8n-nodes-plynf` and the "Bypass 2FA" option enabled.
+
+on:
+  push:
+    tags:
+      - "n8n-v*.*.*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "If true, run npm pack but skip publish."
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: publish
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: integrations/n8n-nodes-plynf
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Derive npm version from tag
+        id: version
+        run: |
+          # Strip the n8n-v prefix from the git tag for the inputs:
+          # n8n-v0.2.0  →  0.2.0
+          # On manual dispatch, fall back to the version already in package.json.
+          if [[ "${GITHUB_REF}" == refs/tags/n8n-v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/n8n-v}"
+          else
+            VERSION="$(node -p "require('./package.json').version")"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Publishing version: ${VERSION}"
+
+      - name: Pin package.json version to the tag
+        run: |
+          npm version "${{ steps.version.outputs.version }}" \
+            --no-git-tag-version --allow-same-version
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify build artefacts
+        run: |
+          test -f dist/package.json
+          test -f dist/credentials/PlynfApi.credentials.js
+          test -f dist/nodes/Plynf/Plynf.node.js
+          echo "dist/package.json content:"
+          cat dist/package.json
+
+      - name: Pack (dry run preview)
+        run: npm pack --dry-run
+
+      - name: Publish to npm
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
+
+      - name: Verify publish
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          # Give the registry a few seconds to propagate.
+          sleep 15
+          PUBLISHED=$(npm view n8n-nodes-plynf@${{ steps.version.outputs.version }} version)
+          if [[ "${PUBLISHED}" != "${{ steps.version.outputs.version }}" ]]; then
+            echo "Version mismatch: registry has '${PUBLISHED}', tag wanted '${{ steps.version.outputs.version }}'"
+            exit 1
+          fi
+          echo "Published version verified: ${PUBLISHED}"
