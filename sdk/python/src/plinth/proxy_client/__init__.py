@@ -25,4 +25,21 @@ shaped before it re-enters the LLM context, and a savings event is logged.
 from .openai_drop_in import OpenAI
 from .tools_wrap import wrap_tool, wrap_tools
 
-__all__ = ["OpenAI", "wrap_tool", "wrap_tools"]
+# LangChain-native helpers are loaded lazily — they import langchain_core
+# only when the user calls into the helper, so the rest of the SDK stays
+# small for non-LangChain users.
+def __getattr__(name: str):  # noqa: D401 — module-level dunder
+    if name in {"make_plynf_tool", "wrap_langchain_tools"}:
+        from . import langchain as _lc
+
+        return getattr(_lc, name)
+    raise AttributeError(name)
+
+
+__all__ = [
+    "OpenAI",
+    "wrap_tool",
+    "wrap_tools",
+    "make_plynf_tool",
+    "wrap_langchain_tools",
+]

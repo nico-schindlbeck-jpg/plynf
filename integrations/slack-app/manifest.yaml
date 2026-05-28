@@ -1,0 +1,61 @@
+# Slack App Manifest — Plynf AI Assistant
+#
+# Drop into https://api.slack.com/apps → Create New App → From a manifest.
+# Slack treats this as the source-of-truth for scopes, event subscriptions,
+# and bot identity. Update one place, redeploy via "Refresh manifest".
+
+display_information:
+  name: Plynf
+  description: |
+    Shape your Slack assistant's tool responses before they hit the LLM.
+    Save 40–80% of tokens per CRM / ERP / Drive lookup that your AI
+    workflow performs.
+  background_color: "#1a1a22"
+  long_description: |
+    Plynf is the Agent Context Optimization Layer between AI assistants
+    and your business data. This Slack app exposes Plynf to any
+    Slack-AI-Agent / Slack Workflow Builder step that needs to fetch a
+    Salesforce record, Order DB row, or Slack channel context — the
+    response is policy-filtered to just the fields your agent declared
+    interesting, before it ever crosses into the LLM call.
+
+features:
+  bot_user:
+    display_name: Plynf
+    always_online: false
+  # Slash command — most direct path to test Plynf inside Slack.
+  slash_commands:
+    - command: /plynf-fetch
+      description: "Fetch & shape a tool response (Salesforce, Order DB, Slack…)"
+      usage_hint: "<tool_name> {json arguments}"
+      url: https://app.plynf.com/integrations/slack/slash
+      should_escape: false
+
+oauth_config:
+  scopes:
+    bot:
+      - app_mentions:read
+      - chat:write
+      - commands
+      - im:history
+      - im:write
+      # Required for Slack AI Agents to read message context the user shared.
+      - assistant:write
+
+settings:
+  event_subscriptions:
+    # When the user @mentions @Plynf or DMs the bot, we POST the event to
+    # /integrations/slack/events on the proxy. The proxy verifies Slack's
+    # signing secret, runs the configured tool, posts the shaped reply.
+    request_url: https://app.plynf.com/integrations/slack/events
+    bot_events:
+      - app_mention
+      - message.im
+      - assistant_thread_started
+      - assistant_thread_context_changed
+  interactivity:
+    is_enabled: true
+    request_url: https://app.plynf.com/integrations/slack/interactivity
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
