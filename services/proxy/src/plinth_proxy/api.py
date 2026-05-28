@@ -48,6 +48,12 @@ from .gateway_client import GatewayClient, make_gateway_registry
 from .identity_client import IdentityClient, IdentityError
 from .mock_llm import mock_completion
 from .policy_engine import ConnectorPolicy, PolicyError, ToolPolicy, apply, load_all_policies
+from .policy_overrides import (
+    PolicyOverrideStore,
+    effective_policies_for_tenant,
+    merge_override,
+    policy_to_dict,
+)
 from .postgres_sink import PostgresSavingsSink
 from .savings import SavingsEvent, SavingsSink, aggregate, make_event
 from .settings import ProxySettings
@@ -71,6 +77,7 @@ class AppState:
     api_key_tiers: dict[str, str]  # key -> tier (free/pro/enterprise)
     gate: TierGate
     identity: IdentityClient | None
+    overrides: PolicyOverrideStore
 
 
 def _build_state(settings: ProxySettings, fixtures_dir: str | None = None) -> AppState:
@@ -127,6 +134,9 @@ def _build_state(settings: ProxySettings, fixtures_dir: str | None = None) -> Ap
         if settings.identity_url
         else None
     )
+    state.overrides = PolicyOverrideStore(
+        Path(settings.policy_overrides_path) if settings.policy_overrides_path else None
+    )
     return state
 
 
@@ -178,6 +188,51 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         st: AppState = app.state.plinth
         return aggregate(st.events)
 
+    @app.get("/v1/policies/effective")
+    async def effective_policies(request: Request) -> dict[str, Any]:
+        """Per-tenant effective policies (system default + override) for the editor."""
+        st: AppState = app.state.plinth
+        tenant_id, _tier = await _authenticate(request, st)
+        return {
+            "tenant_id": tenant_id,
+            "tools": effective_policies_for_tenant(
+                st.policies, st.overrides, tenant_id
+            ),
+        }
+
+    @app.put("/v1/policies/{connector}/{tool}/override")
+    async def set_override(connector: str, tool: str, request: Request) -> dict[str, Any]:
+        """Replace this tenant's override for one tool. Body is a partial policy."""
+        st: AppState = app.state.plinth
+        tenant_id, tier = await _authenticate(request, st)
+        body = await request.json()
+        if "redact_pii" in body and tier == "free":
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "tier_limit_exceeded",
+                    "reason": "feature_requires_pro",
+                    "tier": tier,
+                    "upgrade_hint": upgrade_hint("free"),
+                },
+            )
+        cp = st.policies.get(connector)
+        if cp is None or tool not in cp.tools:
+            raise HTTPException(
+                status_code=404, detail=f"unknown tool: {connector}/{tool}"
+            )
+        st.overrides.set(tenant_id, connector, tool, body)
+        effective = _policy_for(st, connector, tool, tenant_id)
+        return {"ok": True, "policy": policy_to_dict(connector, effective)}
+
+    @app.delete("/v1/policies/{connector}/{tool}/override")
+    async def clear_override(connector: str, tool: str, request: Request) -> dict[str, Any]:
+        """Drop this tenant's override; revert to the shipped default."""
+        st: AppState = app.state.plinth
+        tenant_id, _tier = await _authenticate(request, st)
+        st.overrides.clear(tenant_id, connector, tool)
+        return {"ok": True}
+
     @app.post("/v1/tools/{tool_name}/invoke")
     async def webhook_invoke(tool_name: str, request: Request) -> JSONResponse:
         """Generic tool-invocation webhook.
@@ -208,7 +263,7 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         workflow_id = body.get("workflow_id")
 
         connector_name = TOOL_TO_CONNECTOR[tool_name]
-        policy = _policy_for(st, connector_name, tool_name)
+        policy = _policy_for(st, connector_name, tool_name, tenant_id)
 
         # Cache lookup, same as the chat-completions path.
         cache_key = (
@@ -312,7 +367,7 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
             return JSONResponse({"shaped": raw, "shaped_by_plynf": False})
 
         connector_name = TOOL_TO_CONNECTOR[tool_name]
-        policy = _policy_for(st, connector_name, tool_name)
+        policy = _policy_for(st, connector_name, tool_name, tenant_id)
 
         try:
             from .policy_engine import apply
@@ -629,7 +684,7 @@ async def _handle_tool_call(
         )
 
     connector_name = TOOL_TO_CONNECTOR[tool_name]
-    policy = _policy_for(st, connector_name, tool_name)
+    policy = _policy_for(st, connector_name, tool_name, tenant_id)
 
     # Cache lookup.
     cache_key = f"{tenant_id}:{connector_name}:{tool_name}:{json.dumps(args, sort_keys=True)}"
@@ -680,11 +735,18 @@ async def _handle_tool_call(
     return _tool_message(tool_call.get("id", ""), tool_name, shaped)
 
 
-def _policy_for(st: AppState, connector: str, tool: str) -> ToolPolicy:
+def _policy_for(
+    st: AppState,
+    connector: str,
+    tool: str,
+    tenant_id: str | None = None,
+) -> ToolPolicy:
     cp = st.policies.get(connector)
-    if cp is None:
-        return ToolPolicy(tool=tool)
-    return cp.policy_for(tool)
+    base = cp.policy_for(tool) if cp is not None else ToolPolicy(tool=tool)
+    if tenant_id is None:
+        return base
+    override = st.overrides.get(tenant_id, connector, tool)
+    return merge_override(base, override) if override else base
 
 
 def _tool_message(tool_call_id: str, tool_name: str, content: Any) -> dict[str, Any]:

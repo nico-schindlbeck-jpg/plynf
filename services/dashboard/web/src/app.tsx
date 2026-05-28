@@ -2,6 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import Router, { Route } from "preact-router";
 import { Welcome } from "@/routes/welcome";
 import { Overview } from "@/routes/overview";
+import { PoliciesEditor } from "@/routes/policies";
 import { api } from "@/lib/api";
 
 // Top-level router. Decides whether to redirect to /welcome
@@ -32,6 +33,7 @@ export function App() {
     <Router>
       <Route path="/welcome" component={Welcome} />
       <Route path="/welcome/:step" component={Welcome} />
+      <Route path="/policies" component={PoliciesEditor} />
       <Route path="/" component={route === "welcome" ? Welcome : Overview} />
       <Route default component={NotFound} />
     </Router>

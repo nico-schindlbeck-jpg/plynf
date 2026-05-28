@@ -67,6 +67,10 @@ class ProxySettings(BaseSettings):
     # How many most-recent tool messages are protected from rotation.
     context_budget_keep_recent_tool_messages: int = 3
 
+    # Path for the JSON file backing per-tenant policy overrides. Empty
+    # disables persistence (overrides live in memory only).
+    policy_overrides_path: str = ""
+
     # Where the policy YAMLs live. Defaults to the packaged set.
     policies_dir: str = ""
 

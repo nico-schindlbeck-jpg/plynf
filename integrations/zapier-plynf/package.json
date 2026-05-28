@@ -1,0 +1,28 @@
+{
+  "name": "zapier-plynf",
+  "version": "0.1.0",
+  "description": "Plynf — Agent Context Optimization Layer for Zapier. Trim large CRM/ERP/Slack/Drive tool responses before they hit your AI step.",
+  "license": "Apache-2.0",
+  "homepage": "https://plynf.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nico-schindlbeck-jpg/plinth.git",
+    "directory": "integrations/zapier-plynf"
+  },
+  "main": "index.js",
+  "scripts": {
+    "test": "zapier test",
+    "validate": "zapier validate",
+    "push": "zapier push"
+  },
+  "dependencies": {
+    "zapier-platform-core": "16.0.0"
+  },
+  "devDependencies": {
+    "zapier-platform-cli": "16.0.0"
+  },
+  "engines": {
+    "node": ">=18",
+    "npm": ">=8"
+  }
+}

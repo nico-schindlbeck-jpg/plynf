@@ -1,0 +1,129 @@
+openapi: 3.0.0
+info:
+  title: Plynf Bedrock Action Group
+  version: "0.1.0"
+  description: |
+    OpenAPI schema for the Bedrock action group that calls the Plynf bridge
+    Lambda. Each path corresponds to one Plynf-managed tool; the bridge
+    Lambda forwards to ``POST /v1/tools/{tool}/invoke`` on the Plynf proxy.
+
+    Keep this in sync with TOOL_TO_CONNECTOR in
+    ``services/proxy/src/plinth_proxy/connectors.py``.
+
+paths:
+  /get_lead:
+    post:
+      summary: Fetch a Salesforce Lead by id (response shaped by Plynf policy)
+      operationId: getLead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: Salesforce Lead id (00Q…)
+              required: [id]
+      responses:
+        "200": { description: Shaped lead JSON }
+
+  /get_account:
+    post:
+      summary: Fetch a Salesforce Account by id
+      operationId: getAccount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: { type: string }
+              required: [id]
+      responses:
+        "200": { description: Shaped account JSON }
+
+  /get_opportunity:
+    post:
+      summary: Fetch a Salesforce Opportunity by id
+      operationId: getOpportunity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: { type: string }
+              required: [id]
+      responses:
+        "200": { description: Shaped opportunity JSON }
+
+  /get_order:
+    post:
+      summary: Fetch an order by id (Order DB / ERP)
+      operationId: getOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                order_id: { type: string }
+              required: [order_id]
+      responses:
+        "200": { description: Shaped order JSON }
+
+  /list_orders_by_customer:
+    post:
+      summary: List recent orders for a customer
+      operationId: listOrdersByCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customer_id: { type: string }
+                limit: { type: integer, default: 10 }
+              required: [customer_id]
+      responses:
+        "200": { description: Shaped list of orders }
+
+  /get_channel_messages:
+    post:
+      summary: Slack channel messages (Plynf-shaped)
+      operationId: getChannelMessages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                channel: { type: string }
+                limit: { type: integer, default: 20 }
+              required: [channel]
+      responses:
+        "200": { description: Shaped message list }
+
+  /search_messages:
+    post:
+      summary: Slack message search
+      operationId: searchMessages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query: { type: string }
+                limit: { type: integer, default: 20 }
+              required: [query]
+      responses:
+        "200": { description: Shaped result list }
