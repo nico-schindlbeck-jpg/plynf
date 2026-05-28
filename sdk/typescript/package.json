@@ -10,6 +10,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./proxy-client": {
+      "import": "./dist/proxy-client/index.js",
+      "types": "./dist/proxy-client/index.d.ts"
     }
   },
   "files": ["dist", "src", "README.md", "LICENSE"],
