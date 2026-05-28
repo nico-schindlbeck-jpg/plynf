@@ -1,0 +1,75 @@
+---
+const capabilities = [
+  {
+    title: "Field-level allow-lists",
+    body:
+      "Whitelist what's relevant. The rest never leaves your tool's boundary.",
+  },
+  {
+    title: "PII masking and redaction",
+    body:
+      "Sensitive fields can be hashed, masked, or removed before reaching the model.",
+  },
+  {
+    title: "Metadata stripping",
+    body:
+      "Audit columns, internal IDs, and timestamps are dropped by default.",
+  },
+  {
+    title: "Read-only mode per connector",
+    body:
+      "Block write actions entirely. Useful for pilots and compliance reviews.",
+  },
+  {
+    title: "Tenant-isolated cache with TTL",
+    body:
+      "Redis-backed, namespaced per tenant, never persisted to disk. TTLs bounded by policy.",
+  },
+  {
+    title: "Self-hosted or EU-hosted",
+    body:
+      "Helm chart for your own infra; Plynf Cloud runs in Germany. You decide where your data is.",
+  },
+];
+---
+
+<section class="section" id="security">
+  <div class="container-page" data-reveal>
+    <div class="max-w-3xl">
+      <p class="section-eyebrow">Data minimization, not promises</p>
+      <h2 class="section-title text-balance">
+        The agent never sees the data it doesn't need.
+      </h2>
+      <p class="mt-6 text-ink-secondary text-lg leading-relaxed">
+        That's not just a cost thing. It's a data-exposure thing. When you
+        ship 200 Salesforce fields into an LLM call, you've effectively
+        shared those fields with the model provider. Plynf lets you draw
+        the line technically — which fields cross, which don't, which get
+        masked, which get logged.
+      </p>
+    </div>
+
+    <div class="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+      {capabilities.map((c) => (
+        <div class="card p-6 h-full">
+          <div class="flex items-start gap-3">
+            <svg class="mt-0.5 h-4 w-4 flex-none text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 12l2 2 4-4"></path>
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+            <div>
+              <p class="font-medium text-ink-primary">{c.title}</p>
+              <p class="mt-1.5 text-sm leading-relaxed text-ink-secondary">{c.body}</p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <p class="mt-10 max-w-3xl text-2xs font-mono text-ink-muted leading-relaxed">
+      Plynf is a technical layer. It helps you implement data minimization,
+      field-level access control, and audit logging — it does not replace a
+      GDPR assessment, a DPIA, or your own legal review. DPA available on request.
+    </p>
+  </div>
+</section>

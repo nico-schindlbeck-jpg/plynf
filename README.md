@@ -2,9 +2,12 @@
 
 # 🪨 Plynf
 
-**The substrate where production agents actually work.**
+**The optimization layer between your AI agents and your business data.**
 
-*A versioned workspace + tool gateway + observability plane — designed for AI agents, not retrofitted from human UIs.*
+*Your AI agent reads 200 fields. It only needs 8. Plynf sits between your agents and Salesforce / Slack / Jira / Drive / internal DBs, and cuts every tool response down to what the agent actually needs.*
+
+**40–80 % fewer tokens. Lower bills. Less data exposure.**
+*Works with OpenAI · Anthropic · LangChain · n8n · Zapier · custom REST.*
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
@@ -15,6 +18,81 @@
 [![Coordination](https://img.shields.io/badge/coordination-Redis%20opt--in-orange.svg)](#status)
 
 </div>
+
+---
+
+## ⚡ 60-second quickstart — the LLM-Proxy MVP
+
+The new `services/proxy/` is Plynf's drop-in OpenAI-compatible proxy. It
+intercepts `tool_calls` between your agent and the LLM, runs them through a
+declarative YAML policy, and returns a shaped response that's 80–95 %
+smaller than the raw tool output.
+
+```bash
+# 1. Install
+cd services/proxy
+pip install -e ".[dev]"
+
+# 2. Start
+plinth-proxy            # listens on http://127.0.0.1:7430
+
+# 3. Point any OpenAI client at it
+curl -s http://127.0.0.1:7430/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d @examples/customer-support/demo_request.json | jq
+
+# 4. See the savings
+curl -s http://127.0.0.1:7430/v1/savings/summary | jq
+```
+
+Or run the offline demo (no proxy needed, real tiktoken numbers):
+
+```bash
+python examples/customer-support/run_demo.py
+```
+
+Real benchmark output on the bundled 150-field order response:
+
+```
+ Raw response tokens:             2,161
+ Shaped response tokens:             83
+ Savings:                         96.16%
+ Cost saved (per call):       $ 0.010390   (gpt-4o input)
+ Projection at 1,000 calls/day:   $311.70 / month
+```
+
+### Sample policy (`services/proxy/src/plinth_proxy/policies/orders.default.yaml`)
+
+```yaml
+connector: orders
+defaults:
+  strip_metadata: true
+  block_write_actions: true
+  cache_ttl: 30
+tools:
+  get_order:
+    allow_fields:
+      - order_id
+      - customer_name
+      - status
+      - tracking_number
+      - estimated_delivery
+      - carrier
+      - items_summary
+      - last_status_update
+```
+
+### What the proxy can and can't do — be honest
+
+- ✅ **Full token reduction** when tools are registered Plynf connectors
+  (proxy fetches the tool, shapes the response, re-calls the LLM).
+- ⚠️ **Partial wins** when the client executes tools locally (LangChain
+  default behaviour). The proxy still trims inbound payloads, but you
+  need the Python SDK (`plynf.langchain.wrap_tools`) for the full effect.
+- ❌ **No effect** for tools that run server-side inside the LLM provider
+  (OpenAI Assistants `code_interpreter`, `file_search`).
+
+When the proxy isn't enough, the SDK is — and that ships next.
 
 ---
 
