@@ -26,9 +26,10 @@
   },
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"require('fs').writeFileSync('dist/package.json','{\\\"type\\\":\\\"commonjs\\\"}\\n')\"",
     "dev": "tsc --watch",
-    "lint": "eslint nodes credentials"
+    "lint": "eslint nodes credentials",
+    "prepublishOnly": "npm run build"
   },
   "files": ["dist"],
   "n8n": {
