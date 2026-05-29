@@ -126,7 +126,12 @@ async def test_verify_tampered_token_returns_401(client: httpx.AsyncClient):
     )
     token = issue.json()["token"]
     parts = token.split(".")
-    tampered = ".".join([*parts[:2], parts[2][:-1] + ("A" if parts[2][-1] != "A" else "B")])
+    # Flip the FIRST signature char, not the last: the last base64url char of a
+    # 32-byte HMAC encodes only 2 used bits, so flipping it can decode to the
+    # same bytes and leave the signature valid (flaky, time-dependent). The
+    # first char always changes signature byte 0, so verification reliably fails.
+    sig = parts[2]
+    tampered = ".".join([*parts[:2], ("A" if sig[0] != "A" else "B") + sig[1:]])
     r = await client.post("/v1/tokens/verify", json={"token": tampered})
     assert r.status_code == 401
     assert r.json()["error"]["code"] == "INVALID_TOKEN"

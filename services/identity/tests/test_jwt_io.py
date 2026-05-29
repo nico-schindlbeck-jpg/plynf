@@ -89,9 +89,13 @@ def test_decode_tampered_signature_raises(token_manager: TokenManager):
         tenant_id="t",
         scopes=[],
     )
-    # Mutate the last char of the signature.
     parts = issued.token.split(".")
-    tampered = ".".join([*parts[:2], parts[2][:-1] + ("A" if parts[2][-1] != "A" else "B")])
+    # Flip the FIRST signature char, not the last: the last base64url char of a
+    # 32-byte HMAC encodes only 2 used bits, so flipping it can decode to the
+    # same bytes and leave the signature valid (flaky, time-dependent). The
+    # first char always changes signature byte 0, so verification reliably fails.
+    sig = parts[2]
+    tampered = ".".join([*parts[:2], ("A" if sig[0] != "A" else "B") + sig[1:]])
     with pytest.raises(InvalidToken):
         token_manager.decode(tampered)
 
