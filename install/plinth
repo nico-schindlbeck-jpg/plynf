@@ -17,13 +17,11 @@ OS="$(uname -s)"
 if [ -t 1 ]; then
     C_GREEN="$(printf '\033[32m')"
     C_RED="$(printf '\033[31m')"
-    C_YELLOW="$(printf '\033[33m')"
     C_DIM="$(printf '\033[2m')"
     C_RESET="$(printf '\033[0m')"
 else
     C_GREEN=""
     C_RED=""
-    C_YELLOW=""
     C_DIM=""
     C_RESET=""
 fi
@@ -107,7 +105,10 @@ plinth_logs() {
     if [ ! -f "$log" ]; then
         printf 'No log at %s\n' "$log" >&2
         printf 'Available logs:\n' >&2
-        ls -1 "$LOGS"/*.log 2>/dev/null | xargs -n1 basename | sed 's/^/  /' >&2 || true
+        for _log in "$LOGS"/*.log; do
+            [ -e "$_log" ] || continue
+            printf '  %s\n' "$(basename "$_log")" >&2
+        done
         exit 1
     fi
     exec tail -f "$log"
@@ -149,7 +150,7 @@ plinth_update() {
     do
         if [ -d "$REPO/$pkg" ]; then
             "$VENV/bin/pip" install --quiet --disable-pip-version-check \
-                -e "$REPO/$pkg[dev]" 2>/dev/null \
+                -e "$REPO/${pkg}[dev]" 2>/dev/null \
                 || "$VENV/bin/pip" install --quiet --disable-pip-version-check \
                     -e "$REPO/$pkg"
         fi

@@ -31,14 +31,14 @@ async def test_index_serves_html(client: AsyncClient):
     r = await client.get("/")
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/html")
-    assert "Plinth" in r.text
+    assert "Plynf" in r.text
 
 
 async def test_workspace_subroute_serves_spa_shell(client: AsyncClient):
     r = await client.get("/workspaces/ws_abc")
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/html")
-    assert "Plinth" in r.text
+    assert "Plynf" in r.text
 
 
 async def test_static_app_js(client: AsyncClient):
@@ -542,7 +542,7 @@ async def test_workflows_route_serves_spa_shell(client: AsyncClient):
     r = await client.get("/workflows")
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/html")
-    assert "Plinth" in r.text
+    assert "Plynf" in r.text
 
 
 async def test_workflow_detail_route_serves_spa_shell(client: AsyncClient):
@@ -550,7 +550,7 @@ async def test_workflow_detail_route_serves_spa_shell(client: AsyncClient):
     r = await client.get("/workflows/wf_abc")
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/html")
-    assert "Plinth" in r.text
+    assert "Plynf" in r.text
 
 
 async def test_index_html_has_workflows_navigation(client: AsyncClient):

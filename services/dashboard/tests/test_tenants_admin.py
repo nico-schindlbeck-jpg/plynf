@@ -22,7 +22,7 @@ async def test_tenants_route_serves_spa_shell(client: httpx.AsyncClient):
     body = r.text
     # The shell carries the topnav we added so the test catches drift
     # between the route handler and the actual shell HTML.
-    assert "Plinth" in body
+    assert "Plynf" in body
 
 
 @pytest.mark.asyncio

@@ -12,7 +12,6 @@ set -eu
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_DIR="$(cd "$HERE/.." && pwd)"
-REPO_ROOT="$(cd "$INSTALL_DIR/.." && pwd)"
 
 INSTALL_SH="$INSTALL_DIR/install.sh"
 UNINSTALL_SH="$INSTALL_DIR/uninstall.sh"
