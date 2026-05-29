@@ -1,0 +1,15 @@
+# Local-dev compose. Brings up the Slack bot and a stub proxy on localhost.
+version: "3.9"
+services:
+  slack-bot:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    env_file: ../.env
+    environment:
+      PORT: "3000"
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    # In Socket Mode the bot doesn't need an inbound port; in HTTP Mode
+    # you would expose 3000 via your reverse-proxy / ngrok / tunnel.

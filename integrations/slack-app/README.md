@@ -1,52 +1,100 @@
-# Plynf · Slack app
+# Plynf Slack Bot
 
-Bring Plynf to Slack AI assistants and to interactive Slack workflows.
+A deployable Slack bot that exposes Plynf-managed tools to your Slack
+workspace as both `@plynf` mentions and the `/plynf-fetch` slash command.
 
-The Slack manifest in `manifest.yaml` registers:
+## What you get
 
-- A bot user `@Plynf` users can DM or mention.
-- A slash command `/plynf-fetch get_order {"order_id":"12345"}`.
-- An event subscription pointed at `app.plynf.com/integrations/slack/*`
-  so the proxy receives `app_mention`, `message.im`, and the new
-  `assistant_thread_*` events that Slack AI Agents emit.
+- **Mention support** — Users write `@plynf what is the status of order #12345?`
+  in any channel. The bot extracts the order id, calls Plynf, posts a
+  shaped answer in the thread. Optional: pipe the shaped JSON through an
+  LLM (Plynf-proxy speaks OpenAI) for a friendly natural-language reply.
+- **Slash command** — `/plynf-fetch get_order {"order_id":"12345"}` for
+  power users. Reply is ephemeral, includes the savings block so the
+  caller sees the token reduction inline.
+- **App home tab** — onboarding card the first time a user opens the bot's
+  profile.
 
-## Install the app
+## Deploy
 
-1. Create at https://api.slack.com/apps → *Create New App* → *From a manifest*.
-2. Paste `manifest.yaml` and pick the workspace.
-3. After install, copy the Bot User OAuth Token + Signing Secret into
-   your Plynf proxy configuration (env vars
-   `PLINTH_PROXY_SLACK_BOT_TOKEN` and `PLINTH_PROXY_SLACK_SIGNING_SECRET`
-   — server-side handler comes in the next sprint).
+### Step 1 — Create the Slack app
 
-## Three usage modes
+1. https://api.slack.com/apps → **Create New App** → **From a manifest**
+2. Paste the contents of `manifest.yaml` (sibling file in this directory)
+3. Pick the workspace, hit **Create**
+4. **Install to Workspace**
+5. From **OAuth & Permissions**: copy the **Bot User OAuth Token** (`xoxb-…`)
+6. From **Basic Information**: copy the **Signing Secret**
+7. (Dev only) From **Socket Mode**: generate an **App-Level Token** with
+   `connections:write` scope (`xapp-…`). Production deploys leave this
+   blank and run in HTTP mode.
 
-1. **Slash command in any channel** — `/plynf-fetch get_lead {"id":"00Q..."}`
-   returns the shaped Lead in an ephemeral message.
-2. **DM the bot** — sending the bot `get_order #12345` triggers the same
-   shaping flow. Useful for an AI-assistant demo without changing the
-   workflow.
-3. **Slack AI Agents** — the `assistant_thread_*` events let Plynf
-   participate in Slack AI's official thread context, so Plynf-shaped
-   data is one of the sources the in-Slack AI can reference.
+### Step 2 — Configure the worker
 
-## Server-side handler
+```sh
+cd integrations/slack-app
+cp .env.example .env
+# Edit .env: paste the three Slack tokens, point PLYNF_URL at your proxy
+```
 
-This skeleton ships only the manifest. The proxy-side handler endpoints
-(`/integrations/slack/events`, `/integrations/slack/slash`,
-`/integrations/slack/interactivity`) live with the other webhook routes
-under `services/proxy/src/plinth_proxy/api.py` and verify Slack's
-signing secret before invoking the tool pipeline.
+### Step 3 — Run it
 
-The matching backend lands in a follow-up commit once we have a Slack
-sandbox to validate against — Slack's signing-secret verification is
-tedious to mock and isn't worth doing without a real workspace to
-round-trip against.
+```sh
+npm install
+npm start
+```
 
-## Tier behaviour
+You should see:
 
-Same as every other integration: the proxy enforces the tier gate.
-Free-tier teams that exceed 100k tokens/month get an HTTP 402 from the
-proxy; the Slack handler will surface this as an ephemeral message
-"You've hit your Plynf free tier — upgrade at app.plynf.com to keep
-this assistant running" rather than a generic error.
+```
+⚡ Plynf Slack bot up (Socket Mode) · proxy=http://localhost:7430
+```
+
+Now in Slack:
+
+- `@plynf hello` — shows the help text
+- `@plynf what is the status of order #12345?` — fetches a shaped order
+  via the Plynf proxy and replies in-thread
+- `/plynf-fetch get_order {"order_id":"12345"}` — slash-command variant
+
+### Step 4 — Production (HTTP mode)
+
+Drop the `SLACK_APP_TOKEN` env var and deploy behind a public URL. The
+bot listens on `$PORT` (default 3000). Update the Slack app's
+**Event Subscriptions** URL to `https://your-domain/slack/events`.
+
+Container is provided:
+
+```sh
+docker build -t plynf-slack-bot .
+docker run --env-file .env -p 3000:3000 plynf-slack-bot
+```
+
+## Tier gating
+
+Same as every Plynf surface: the proxy enforces tier limits, the bot
+forwards the 402 + `upgrade_hint` body verbatim. Free-tier users hitting
+the monthly cap see a clear in-thread "Plynf tier limit reached: upgrade
+to Pro for 5M tokens" message — no special handling needed in the bot.
+
+## Layout
+
+```
+slack-app/
+├── manifest.yaml          # Slack app configuration (paste into Slack UI)
+├── package.json           # @slack/bolt + dotenv
+├── Dockerfile             # production container
+├── docker/
+│   └── docker-compose.yml # local-dev compose
+├── src/
+│   ├── app.js             # entry point — wires bolt + handlers
+│   ├── plynf-client.js    # /v1/tools/{tool}/invoke + /v1/chat/completions
+│   └── handlers/
+│       ├── mention.js     # @plynf event handler
+│       └── slash.js       # /plynf-fetch command handler
+└── .env.example
+```
+
+## License
+
+Apache-2.0

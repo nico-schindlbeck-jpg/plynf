@@ -1,0 +1,20 @@
+{
+  "name": "plynf-slack-bot",
+  "version": "0.1.0",
+  "description": "Plynf Slack bot — mentions and slash commands that fetch & shape tool responses before they hit your LLM.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js",
+    "test": "node --test test/"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@slack/bolt": "^3.21.0",
+    "dotenv": "^16.4.0"
+  }
+}

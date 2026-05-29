@@ -1,0 +1,20 @@
+{
+  "name": "plynf-teams-bot",
+  "version": "0.1.0",
+  "description": "Plynf Microsoft Teams bot — fetch & shape business-system data inside Teams channels and chats.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "botbuilder": "^4.22.0",
+    "dotenv": "^16.4.0",
+    "restify": "^11.1.0"
+  }
+}
