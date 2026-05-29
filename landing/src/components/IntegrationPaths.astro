@@ -1,9 +1,9 @@
 ---
 const paths = [
   {
-    name: "OpenAI-compatible Proxy",
-    target: "OpenAI · Azure OpenAI · Ollama · vLLM",
-    setup: "Change `base_url`. Keep your client code.",
+    name: "Drop-in LLM Proxy",
+    target: "OpenAI · Anthropic · Gemini · Azure · Ollama · vLLM",
+    setup: "Change `base_url`. Keep your client code. One front-door speaks all three API dialects.",
     snippet: `client = OpenAI(\n  api_key="sk-…",\n  base_url="https://app.plynf.com/v1"\n)`,
     time: "1 min",
   },
@@ -15,24 +15,31 @@ const paths = [
     time: "2 min",
   },
   {
-    name: "Python / TypeScript SDK",
-    target: "LangChain · LlamaIndex · CrewAI · AutoGen",
-    setup: "pip install plynf, wrap your tools.",
+    name: "Native SDK · 5 languages",
+    target: "Python · TypeScript · Go · Swift · Kotlin",
+    setup: "Wrap your existing tools — LangChain, LlamaIndex, CrewAI, AutoGen.",
     snippet: `from plynf.langchain import wrap_tools\ntools = wrap_tools([sf_tool, slack_tool])`,
     time: "5 min",
   },
   {
     name: "No-Code Node",
-    target: "n8n · Zapier · Make.com",
+    target: "n8n · Zapier · Make.com · Copilot Studio",
     setup: "Install the Plynf node from the marketplace. Drag-and-drop.",
     snippet: "// n8n workflow → Plynf · Salesforce → LLM",
+    time: "3 min",
+  },
+  {
+    name: "Chat & Helpdesk Bots",
+    target: "Slack · Teams · Discord · Salesforce Agentforce",
+    setup: "Deploy a ready-made bot. One-click deploy buttons or “Add to Slack” OAuth.",
+    snippet: "@Plynf what's the status of order #12345?",
     time: "3 min",
   },
   {
     name: "REST / Webhook",
     target: "Custom Python / Node agents · Bedrock Lambda",
     setup: "POST tool calls. Get shaped responses back.",
-    snippet: `curl -X POST plynf.io/api/v1/tool/get_order \\\n  -d '{"order_id":"12345"}'`,
+    snippet: `curl -X POST app.plynf.com/v1/tools/get_order/invoke \\\n  -d '{"order_id":"12345"}'`,
     time: "10 min",
   },
 ];
@@ -41,16 +48,23 @@ const paths = [
 <section class="section" id="integrations">
   <div class="container-page" data-reveal>
     <div class="max-w-3xl">
-      <p class="section-eyebrow">Five ways in. One engine.</p>
+      <p class="section-eyebrow">Six ways in. One engine.</p>
       <h2 class="section-title text-balance">
         Plynf is not bound to one agent framework.
         <span class="text-ink-muted">Pick the integration that fits your stack.</span>
       </h2>
       <p class="mt-6 text-ink-secondary text-lg leading-relaxed">
         The optimization layer underneath is identical — same policies,
-        same caching, same audit log — whether you wire Plynf in as an
-        OpenAI proxy, an MCP server, a Python SDK, a no-code node, or
-        a webhook endpoint.
+        same caching, same audit log — whether you wire Plynf in as a
+        drop-in LLM proxy (OpenAI, Anthropic and Gemini dialects), an MCP
+        server, a native SDK in five languages, a no-code node, a chat bot,
+        or a webhook endpoint.
+      </p>
+      <p class="mt-4">
+        <a href="/install" class="inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline underline-offset-4">
+          Browse every install path, ranked by effort
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
       </p>
     </div>
 

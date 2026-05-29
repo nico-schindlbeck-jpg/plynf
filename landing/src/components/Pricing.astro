@@ -14,14 +14,14 @@ const tiers = [
     cta: { label: "Get started", href: "#install" },
     accent: false,
     rows: [
-      ["Workspaces", "5"],
-      ["Cost cap", "$10/mo"],
-      ["Tenants", "1"],
-      ["OAuth providers", "All 8"],
+      ["Shaped tokens / mo", "100k"],
+      ["Connectors", "3"],
+      ["Integration types", "All (proxy · MCP · SDK · node · webhook)"],
+      ["PII redaction", "—"],
+      ["Audit log", "—"],
+      ["Savings dashboard", "Yes"],
       ["Support", "Community"],
       ["SLA", "None"],
-      ["Compliance", "n/a"],
-      ["Multi-region", "n/a"],
     ],
   },
   {
@@ -32,14 +32,14 @@ const tiers = [
     cta: { label: "Start trial", href: "mailto:hello@plynf.com?subject=Plynf%20Pro%20trial" },
     accent: true,
     rows: [
-      ["Workspaces", "Unlimited"],
-      ["Cost cap", "$1k/mo"],
-      ["Tenants", "10"],
-      ["OAuth providers", "All 8"],
+      ["Shaped tokens / mo", "5M"],
+      ["Connectors", "All 8 + custom REST"],
+      ["Integration types", "All"],
+      ["PII redaction", "Yes"],
+      ["Audit log", "90-day retention"],
+      ["Savings dashboard", "Yes + Postgres sink"],
       ["Support", "Email (24h)"],
       ["SLA", "99.5%"],
-      ["Compliance", "SOC 2 (in progress)"],
-      ["Multi-region", "n/a"],
     ],
   },
   {
@@ -50,14 +50,14 @@ const tiers = [
     cta: { label: "Contact sales", href: "mailto:sales@plynf.com?subject=Plynf%20Enterprise" },
     accent: false,
     rows: [
-      ["Workspaces", "Unlimited"],
-      ["Cost cap", "Custom"],
-      ["Tenants", "Unlimited"],
-      ["OAuth providers", "All 8 + custom"],
+      ["Shaped tokens / mo", "Unlimited"],
+      ["Connectors", "All 8 + custom REST"],
+      ["Integration types", "All + self-hosted Helm"],
+      ["PII redaction", "Yes"],
+      ["Audit log", "Custom retention"],
+      ["SSO (SAML / OIDC)", "Yes"],
       ["Support", "Dedicated Slack"],
       ["SLA", "99.95%"],
-      ["Compliance", "SOC 2 + DPA"],
-      ["Multi-region", "Yes"],
     ],
   },
 ];
@@ -72,8 +72,10 @@ const tiers = [
         <span class="text-ink-muted">Real numbers for enterprise.</span>
       </h2>
       <p class="section-subtitle">
-        Apache 2.0 forever. Self-hosted is and will always be free. Cloud and
-        enterprise tiers exist for teams that want us to run it.
+        Apache 2.0 forever. Self-hosted is and will always be free. We gate on
+        <span class="text-ink-primary">volume and features</span> — never on how
+        you connect. Every integration type (proxy, MCP, SDK, no-code node,
+        webhook) works on every tier, including Free.
       </p>
       <p class="mt-3 inline-flex items-center gap-2 text-2xs font-mono uppercase tracking-widest" style="color: var(--grad-magenta);">
         <span class="inline-block h-1.5 w-1.5 rounded-full" style="background: var(--grad-magenta);"></span>
