@@ -28,14 +28,14 @@ async def test_studio_route_serves_spa_shell(client: AsyncClient):
     r = await client.get("/studio")
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/html")
-    assert "Plinth" in r.text
+    assert "Plynf" in r.text
 
 
 async def test_workflow_replay_route_serves_spa_shell(client: AsyncClient):
     r = await client.get("/workflows/wf_abc/replay")
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/html")
-    assert "Plinth" in r.text
+    assert "Plynf" in r.text
 
 
 # ---------------------------------------------------------------------------

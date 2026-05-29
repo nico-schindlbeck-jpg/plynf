@@ -44,9 +44,11 @@ def _isolated_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[N
 
 @pytest.fixture
 def runner() -> CliRunner:
-    """A Click CLI runner with mix_stderr=False so we can inspect both streams."""
+    """A Click CLI runner. Click >= 8.2 captures stdout/stderr separately by
+    default (the ``mix_stderr`` parameter was removed), so ``result.stderr`` is
+    always available for inspecting both streams."""
 
-    return CliRunner(mix_stderr=False)
+    return CliRunner()
 
 
 @pytest.fixture

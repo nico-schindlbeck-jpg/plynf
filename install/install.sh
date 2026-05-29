@@ -347,6 +347,8 @@ ensure_path_includes() {
         printf '# This block was added by the Plynf installer. To remove it, run\n'
         printf '#   plinth uninstall\n'
         printf '# (or delete the block manually).\n'
+        # shellcheck disable=SC2016  # $PATH must stay literal here — this line is
+        # written verbatim into the rc file and expanded later by the user's shell.
         printf 'export PATH="%s:$PATH"\n' "$PLINTH_BIN_DIR"
         printf '%s\n' "$RC_MARKER_END"
     } >> "$rc"
