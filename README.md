@@ -21,6 +21,19 @@
 
 ---
 
+## ⚡ Install Plynf in one command
+
+```sh
+curl -fsSL https://plynf.com/install.sh | sh
+```
+
+This brings up the proxy + dashboard via Docker Compose in ~60 seconds.
+Want a managed deploy or a Slack/Teams/Discord bot instead? Visit the
+**[install hub](https://plynf.com/install)** — every path is one click
+or one curl, ranked by friction.
+
+---
+
 ## ⚡ 60-second quickstart — the LLM-Proxy MVP
 
 The new `services/proxy/` is Plynf's drop-in OpenAI-compatible proxy. It

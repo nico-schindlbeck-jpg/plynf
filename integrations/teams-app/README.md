@@ -4,6 +4,17 @@ Deployable Teams bot built on the Microsoft Bot Framework SDK.
 Users can `@Plynf` in a channel or chat with the bot directly; the bot
 fetches Plynf-managed business data and shapes it before replying.
 
+## ⚡ Fastest path to a running bot
+
+| Method | Time | Command / Link |
+|---|---|---|
+| **Render** | 3 min | [Deploy to Render](https://render.com/deploy?repo=https://github.com/nico-schindlbeck-jpg/plynf) — fills env vars during onboarding |
+| **Fly.io** | 4 min | `cd integrations/teams-app && flyctl launch --copy-config` |
+| **Docker** | 5 min | `docker run --env-file .env -p 3978:3978 ghcr.io/nico-schindlbeck-jpg/plynf-teams-bot:latest` |
+| **From source** | 15 min | Scroll to *"Manual install"* below |
+
+After the worker runs, register the bot in [Azure Bot Framework](https://dev.botframework.com) and upload `manifest/manifest.json` to Teams.
+
 ## What you get
 
 - **`@Plynf what is the status of order #12345?`** — natural-language
@@ -14,7 +25,7 @@ fetches Plynf-managed business data and shapes it before replying.
 - Optional LLM-drafted reply when `PLYNF_MODEL` is set, otherwise a
   compact Markdown summary of the shaped JSON.
 
-## Deploy
+## Manual install
 
 ### Step 1 — Register the bot in Azure / Bot Framework
 

@@ -1,5 +1,22 @@
 # Plynf · Salesforce Agentforce / Flow / Apex
 
+## ⚡ Fastest path
+
+```sh
+# Install the Salesforce CLI once
+brew install salesforcedx  # or download from https://developer.salesforce.com/tools/sfdxcli
+
+# Authenticate + deploy in one go
+sf org login web -a my-org
+git clone https://github.com/nico-schindlbeck-jpg/plynf.git
+cd plynf/integrations/salesforce-agentforce
+sf project deploy start --target-org my-org
+```
+
+Set your API key in Setup → **Custom Metadata Types** → **Plynf Config** → **Manage Records** → edit *Default*. The `Plynf — Shape Tool Response` action is now available in Flow Builder and Agentforce. Time-to-running: **~5 minutes**.
+
+---
+
 SFDX package that exposes Plynf to Salesforce. After deploy you get:
 
 - An **Invocable Action** `Plynf — Shape Tool Response` that's selectable

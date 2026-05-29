@@ -6,6 +6,16 @@
   NODE_VERSION = "20"
   NPM_VERSION = "10"
 
+# ─── /install.sh shortcut ─────────────────────────────────────────────
+# Lets users do `curl -fsSL https://plynf.com/install.sh | sh` instead of
+# pasting the raw-GitHub URL. The 302 means we can rotate the source
+# without breaking the cached one-liner.
+[[redirects]]
+  from = "/install.sh"
+  to = "https://raw.githubusercontent.com/nico-schindlbeck-jpg/plynf/main/scripts/install-plynf.sh"
+  status = 302
+  force = true
+
 # ─── Preview-site password gate ───────────────────────────────────────
 # Edge function below requires HTTP Basic Auth on every request except
 # /.well-known/* (kept open so ACME cert challenges and security.txt

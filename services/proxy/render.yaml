@@ -1,0 +1,23 @@
+# Render Blueprint for the Plynf proxy.
+# Triggered by https://render.com/deploy?repo=https://github.com/nico-schindlbeck-jpg/plynf
+# Render reads this file, asks the user for required env vars, then
+# builds + deploys.
+services:
+  - type: web
+    name: plynf-proxy
+    runtime: docker
+    repo: https://github.com/nico-schindlbeck-jpg/plynf.git
+    rootDir: services/proxy
+    dockerfilePath: services/proxy/Dockerfile
+    plan: starter
+    region: frankfurt
+    healthCheckPath: /healthz
+    envVars:
+      - key: PLINTH_PROXY_DEMO_MODE
+        value: "true"
+      - key: PLINTH_PROXY_API_KEYS
+        sync: false  # prompt user during create — leave empty for open mode
+      - key: PLINTH_PROXY_SAVINGS_LOG
+        value: /tmp/savings.jsonl
+      - key: PORT
+        value: "7430"

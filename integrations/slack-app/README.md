@@ -3,6 +3,17 @@
 A deployable Slack bot that exposes Plynf-managed tools to your Slack
 workspace as both `@plynf` mentions and the `/plynf-fetch` slash command.
 
+## ⚡ Fastest path to a running bot
+
+| Method | Time | Command / Link |
+|---|---|---|
+| **OAuth ("Add to Slack")** | 30 s | Visit `https://app.plynf.com/slack/install`, click Allow, done |
+| **Render** | 2 min | [Deploy to Render](https://render.com/deploy?repo=https://github.com/nico-schindlbeck-jpg/plynf) — fills env vars during onboarding |
+| **Fly.io** | 3 min | `cd integrations/slack-app && flyctl launch --copy-config` |
+| **Railway** | 2 min | [Deploy on Railway](https://railway.app/new/template?template=https://github.com/nico-schindlbeck-jpg/plynf) |
+| **Docker** | 5 min | `docker run --env-file .env -p 3000:3000 ghcr.io/nico-schindlbeck-jpg/plynf-slack-bot:latest` |
+| **From source** | 10 min | Scroll to *"Manual install"* below |
+
 ## What you get
 
 - **Mention support** — Users write `@plynf what is the status of order #12345?`
@@ -15,7 +26,7 @@ workspace as both `@plynf` mentions and the `/plynf-fetch` slash command.
 - **App home tab** — onboarding card the first time a user opens the bot's
   profile.
 
-## Deploy
+## Manual install
 
 ### Step 1 — Create the Slack app
 

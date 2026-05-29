@@ -1,0 +1,232 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+
+// Each card represents one "I want X" entry point. Click leads to the
+// shortest possible install path — usually a one-liner or a single
+// "Deploy with X" button. The hierarchy is deliberate: free local on
+// top (one curl), then the fully-managed deploy buttons, then OAuth
+// install flows, then the integrations that require external dev
+// portals (Slack/Teams/SF).
+const sections = [
+  {
+    eyebrow: "Run Plynf locally",
+    body:
+      "Single command. Spins up the proxy + dashboard on your laptop in ~60 seconds. " +
+      "Best for evaluation, agent demos, and offline development.",
+    primary: {
+      type: "curl",
+      command: "curl -fsSL https://plynf.com/install.sh | sh",
+    },
+    notes: [
+      "Requires Docker Desktop (or any Docker engine).",
+      "Stop it again: `cd ~/.plynf && docker compose down`.",
+      "Customise port: `… | sh -s -- --port 7431`.",
+    ],
+  },
+  {
+    eyebrow: "Deploy Plynf to a managed host",
+    body:
+      "One click in your cloud provider of choice. We've shipped the right config files so you don't fiddle with Dockerfiles.",
+    buttons: [
+      {
+        label: "Render",
+        href:
+          "https://render.com/deploy?repo=https://github.com/nico-schindlbeck-jpg/plynf",
+        sub: "EU region, free tier, autoscale.",
+      },
+      {
+        label: "Fly.io",
+        href:
+          "https://fly.io/dashboard/personal/launch?from=https://github.com/nico-schindlbeck-jpg/plynf",
+        sub: "Closest-to-user edge, $5/mo for always-on.",
+      },
+      {
+        label: "Railway",
+        href:
+          "https://railway.app/new/template?template=https://github.com/nico-schindlbeck-jpg/plynf",
+        sub: "Smooth CI integration, generous free trial.",
+      },
+    ],
+    notes: [
+      "Each button reads a config file in the repo and asks you only for required env vars (mostly empty for demo mode).",
+      "Once deployed, point your bots/SDKs at the returned URL.",
+    ],
+  },
+  {
+    eyebrow: "Connect a no-code platform",
+    body:
+      "Install Plynf inside platforms your team already uses. Each path takes ≤ 3 minutes.",
+    grid: [
+      {
+        name: "n8n",
+        action: "Install community node",
+        path: "Settings → Community Nodes → Install → `n8n-nodes-plynf`",
+        href: "https://www.npmjs.com/package/n8n-nodes-plynf",
+        installed: true,
+      },
+      {
+        name: "Zapier",
+        action: "Install Zapier app",
+        path: "App directory → Plynf (link goes live after approval)",
+        href: "https://github.com/nico-schindlbeck-jpg/plynf/tree/main/integrations/zapier-plynf",
+        installed: false,
+      },
+      {
+        name: "Make.com",
+        action: "Install custom app",
+        path: "Make developer hub → Import → upload JSON files",
+        href:
+          "https://github.com/nico-schindlbeck-jpg/plynf/tree/main/integrations/make-plynf",
+        installed: false,
+      },
+      {
+        name: "Microsoft Copilot Studio",
+        action: "Import as custom connector",
+        path: "Power Platform Maker → Import OpenAPI",
+        href:
+          "https://github.com/nico-schindlbeck-jpg/plynf/tree/main/integrations/copilot-studio-plynf",
+        installed: false,
+      },
+    ],
+  },
+  {
+    eyebrow: "Add a Plynf bot to your team chat",
+    body:
+      "Each bot is one-click deployable to Render, Fly or Railway. Bots talk to the proxy via the URL you set up above.",
+    grid: [
+      {
+        name: "Slack",
+        action: "Add to Slack via OAuth",
+        path: "Run the OAuth handler then visit /slack/install",
+        href:
+          "https://github.com/nico-schindlbeck-jpg/plynf/tree/main/integrations/slack-app",
+        installed: false,
+      },
+      {
+        name: "Microsoft Teams",
+        action: "Bot Framework deploy",
+        path: "Register at dev.botframework.com → upload manifest in Teams",
+        href:
+          "https://github.com/nico-schindlbeck-jpg/plynf/tree/main/integrations/teams-app",
+        installed: false,
+      },
+      {
+        name: "Discord",
+        action: "Slash command bot",
+        path: "Create app → register commands → npm start",
+        href:
+          "https://github.com/nico-schindlbeck-jpg/plynf/tree/main/integrations/discord-bot",
+        installed: false,
+      },
+      {
+        name: "Salesforce Agentforce",
+        action: "SFDX deploy",
+        path: "`sf project deploy start`",
+        href:
+          "https://github.com/nico-schindlbeck-jpg/plynf/tree/main/integrations/salesforce-agentforce",
+        installed: false,
+      },
+    ],
+  },
+  {
+    eyebrow: "Use the SDK from your own agent code",
+    body:
+      "Drop-in clients for the two languages people ship production agents in.",
+    grid: [
+      {
+        name: "Python",
+        action: "pip install plynf",
+        path:
+          "`from plinth.proxy_client import OpenAI` — drop-in for the openai SDK. LangChain helpers included.",
+        href: "https://pypi.org/project/plinth/",
+        installed: false,
+      },
+      {
+        name: "TypeScript",
+        action: "npm install @plinth/sdk",
+        path:
+          "`import { PlynfOpenAI } from \"@plinth/sdk/proxy-client\"` — works in Node, Vercel, Cloudflare Workers.",
+        href: "https://www.npmjs.com/package/@plinth/sdk",
+        installed: false,
+      },
+    ],
+  },
+];
+---
+
+<BaseLayout
+  title="Install Plynf — every path, ranked by friction"
+  description="Run Plynf locally in 60 seconds, deploy it to Render/Fly/Railway in one click, or plug it into n8n, Zapier, Slack, Teams, Salesforce."
+>
+  <Nav />
+  <main id="main">
+    <section class="container-page" style="padding-top: 4rem; padding-bottom: 2rem;">
+      <p class="section-eyebrow">Install</p>
+      <h1 class="hero-headline" style="font-size: clamp(2rem, 4vw, 3rem); margin-top: .5rem;">
+        Pick how you want Plynf. Ranked by friction.
+      </h1>
+      <p class="mt-6 max-w-2xl text-ink-secondary text-lg leading-relaxed">
+        Every path here gets you to a running Plynf with shaped tool responses. The top is fastest;
+        the bottom takes a developer portal but unlocks integrations your AI team will love.
+      </p>
+    </section>
+
+    {sections.map((s, i) => (
+      <section class="container-page" style={`padding-top: 1.25rem; padding-bottom: 1.25rem;`}>
+        <div class="card" style="padding: 2rem;">
+          <p class="section-eyebrow">{`${i + 1} · ${s.eyebrow}`}</p>
+          <p class="mt-4 text-ink-secondary leading-relaxed" style="max-width: 56ch;">{s.body}</p>
+
+          {s.primary?.type === "curl" && (
+            <div class="mt-6" style="background:#15151a;border:1px solid #26262d;border-radius:.5rem;padding:1rem;font-family:ui-monospace,SFMono-Regular,monospace;font-size:.875rem;color:#e4e4e7;overflow-x:auto;">
+              <span style="color:#ff8551;">$</span> {s.primary.command}
+            </div>
+          )}
+
+          {s.buttons && (
+            <div class="mt-6" style="display:grid;gap:.75rem;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
+              {s.buttons.map((b) => (
+                <a href={b.href} class="btn btn-primary" style="display:flex;flex-direction:column;align-items:flex-start;gap:.25rem;padding:1rem;text-align:left;" rel="noopener">
+                  <span style="font-weight:600;">{b.label}</span>
+                  <span style="font-size:.75rem;color:rgba(255,255,255,.7);font-weight:400;">{b.sub}</span>
+                </a>
+              ))}
+            </div>
+          )}
+
+          {s.grid && (
+            <div class="mt-6" style="display:grid;gap:.75rem;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));">
+              {s.grid.map((g) => (
+                <a href={g.href} rel="noopener" style="display:block;border:1px solid #26262d;border-radius:.625rem;padding:1rem;color:inherit;text-decoration:none;background:#15151a;transition:border-color .15s ease;">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:.5rem;">
+                    <div style="font-weight:600;">{g.name}</div>
+                    {g.installed && (
+                      <span style="font-size:.6875rem;font-family:ui-monospace,SFMono-Regular,monospace;text-transform:uppercase;letter-spacing:.05em;padding:.125rem .375rem;border-radius:.25rem;border:1px solid #43c674;color:#43c674;">live</span>
+                    )}
+                  </div>
+                  <p style="margin:.5rem 0 .25rem;font-size:.875rem;color:#a1a1aa;">{g.action}</p>
+                  <p style="margin:0;font-size:.75rem;color:#7c7c85;font-family:ui-monospace,SFMono-Regular,monospace;line-height:1.4;">{g.path}</p>
+                </a>
+              ))}
+            </div>
+          )}
+
+          {s.notes && (
+            <ul class="mt-6" style="font-size:.875rem;color:#a1a1aa;line-height:1.55;padding-left:1.25rem;">
+              {s.notes.map((n) => (<li>{n}</li>))}
+            </ul>
+          )}
+        </div>
+      </section>
+    ))}
+
+    <section class="container-page" style="padding-top: 1rem; padding-bottom: 6rem;">
+      <p class="text-2xs font-mono text-ink-muted" style="text-align:center;">
+        Stuck? Open an issue at <a href="https://github.com/nico-schindlbeck-jpg/plynf/issues" style="color:inherit;text-decoration:underline;">github.com/nico-schindlbeck-jpg/plynf</a> — we'll get you running in under 24 hours.
+      </p>
+    </section>
+  </main>
+  <Footer />
+</BaseLayout>

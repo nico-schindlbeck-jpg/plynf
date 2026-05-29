@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: plynf-slack-bot
+    runtime: docker
+    repo: https://github.com/nico-schindlbeck-jpg/plynf.git
+    rootDir: integrations/slack-app
+    dockerfilePath: integrations/slack-app/Dockerfile
+    plan: starter
+    region: frankfurt
+    envVars:
+      - key: SLACK_BOT_TOKEN
+        sync: false
+      - key: SLACK_SIGNING_SECRET
+        sync: false
+      - key: PLYNF_URL
+        sync: false
+      - key: PLYNF_API_KEY
+        sync: false
+      - key: PLYNF_MODEL
+        value: gpt-4o
+      - key: PORT
+        value: "3000"

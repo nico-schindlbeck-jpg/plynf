@@ -1,0 +1,25 @@
+# Discord bot uses the Gateway (outbound WebSocket) — no public HTTP port.
+# Render still wants 'type: web' for free-tier; we expose a stub health
+# endpoint via discord.js if needed. Easiest: deploy as a worker.
+services:
+  - type: worker
+    name: plynf-discord-bot
+    runtime: docker
+    repo: https://github.com/nico-schindlbeck-jpg/plynf.git
+    rootDir: integrations/discord-bot
+    dockerfilePath: integrations/discord-bot/Dockerfile
+    plan: starter
+    region: frankfurt
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_GUILD_ID
+        sync: false
+      - key: PLYNF_URL
+        sync: false
+      - key: PLYNF_API_KEY
+        sync: false
+      - key: PLYNF_MODEL
+        value: gpt-4o

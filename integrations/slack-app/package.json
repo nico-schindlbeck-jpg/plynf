@@ -7,6 +7,7 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
+    "oauth": "node src/oauth.js",
     "dev": "node --watch src/app.js",
     "test": "node --test test/"
   },

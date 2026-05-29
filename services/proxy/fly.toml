@@ -1,0 +1,35 @@
+# Fly.io launch config for the Plynf proxy.
+# After `flyctl launch --copy-config --name <yourname>-plynf-proxy`,
+# the user only needs `flyctl deploy`.
+app = "plynf-proxy"
+primary_region = "fra"
+kill_signal = "SIGINT"
+kill_timeout = "10s"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PLINTH_PROXY_DEMO_MODE = "true"
+  PORT = "7430"
+  # Set your API key via: flyctl secrets set PLINTH_PROXY_API_KEYS="tenant:key:tier"
+  # Leave empty for open demo mode.
+
+[http_service]
+  internal_port = 7430
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[http_service.checks]]
+  interval = "15s"
+  timeout = "3s"
+  grace_period = "10s"
+  method = "GET"
+  path = "/healthz"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

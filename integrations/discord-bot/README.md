@@ -5,7 +5,18 @@ A small Discord bot exposing Plynf-managed tools via a single
 Discord servers where you want to demo Plynf without standing up a
 whole agent.
 
-## Deploy
+## ⚡ Fastest path to a running bot
+
+| Method | Time | Command / Link |
+|---|---|---|
+| **Render (worker)** | 3 min | [Deploy to Render](https://render.com/deploy?repo=https://github.com/nico-schindlbeck-jpg/plynf) |
+| **Fly.io** | 3 min | `cd integrations/discord-bot && flyctl launch --copy-config` |
+| **Docker** | 4 min | `docker run --env-file .env ghcr.io/nico-schindlbeck-jpg/plynf-discord-bot:latest` |
+| **From source** | 8 min | Scroll to *"Manual install"* below |
+
+Before deploy: create a Discord app at [discord.com/developers/applications](https://discord.com/developers/applications) → grab the bot token + client id → invite the bot to your server with `bot` and `applications.commands` scopes.
+
+## Manual install
 
 ### Step 1 — Create the Discord application
 

@@ -1,0 +1,23 @@
+app = "plynf-slack-bot"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "3000"
+  # Set secrets with:
+  #   flyctl secrets set SLACK_BOT_TOKEN=xoxb-… SLACK_SIGNING_SECRET=… \
+  #     PLYNF_URL=https://your-proxy PLYNF_API_KEY=…
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256
