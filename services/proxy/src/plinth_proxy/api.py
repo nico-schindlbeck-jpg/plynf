@@ -82,6 +82,12 @@ from .savings import SavingsEvent, SavingsSink, aggregate, make_event
 from .settings import ProxySettings
 from .tier_gate import TIERS, TierGate, upgrade_hint
 from .tokens import count_json_tokens, count_messages_tokens
+from .upstream_router import (
+    HEADER_API_KEY,
+    HEADER_BASE_URL,
+    UpstreamRouter,
+    parse_providers,
+)
 
 log = logging.getLogger("plinth.proxy")
 
@@ -101,6 +107,7 @@ class AppState:
     gate: TierGate
     identity: IdentityClient | None
     overrides: PolicyOverrideStore
+    upstream_router: UpstreamRouter
 
 
 def _instance_allows_custom_rest(settings: ProxySettings) -> bool:
@@ -211,6 +218,26 @@ def _build_state(settings: ProxySettings, fixtures_dir: str | None = None) -> Ap
     state.overrides = PolicyOverrideStore(
         Path(settings.policy_overrides_path) if settings.policy_overrides_path else None
     )
+    # Multi-provider upstream routing. A bad PLINTH_PROXY_PROVIDERS blob must not
+    # crash startup (mirrors custom REST connectors): log and degrade to
+    # single-provider mode.
+    try:
+        providers = parse_providers((settings.providers or "").strip())
+    except ValueError as e:
+        log.error(
+            "failed to parse PLINTH_PROXY_PROVIDERS: %s — using single-provider mode", e
+        )
+        providers = []
+    state.upstream_router = UpstreamRouter(
+        providers,
+        default_base_url=settings.upstream_base_url,
+        default_api_key=settings.upstream_api_key,
+    )
+    if providers:
+        log.info(
+            "multi-provider upstream routing enabled: %s",
+            ", ".join(p.name for p in providers),
+        )
     return state
 
 
@@ -1175,11 +1202,21 @@ async def _run_openai_chat(st: AppState, request: Request, body: dict[str, Any])
     tenant_id, tier = await _authenticate(request, st)
     _enforce_tier(st, tenant_id, tier)
     wants_stream = bool(body.get("stream"))
+    # Per-request upstream override (escape hatch for ad-hoc base URLs); the
+    # provider/model prefix is handled inside the router from the model string.
+    header_base_url = request.headers.get(HEADER_BASE_URL)
+    header_api_key = request.headers.get(HEADER_API_KEY)
     # Tool-call interception requires holding the response until we've shaped
     # and re-called, so we always run the full flow first, then synthesize SSE
     # chunks for streaming clients — same OpenAI contract, same content.
     before_count = len(st.events)
-    final = await _handle_chat(st, body, tenant_id)
+    final = await _handle_chat(
+        st,
+        body,
+        tenant_id,
+        header_base_url=header_base_url,
+        header_api_key=header_api_key,
+    )
     new_shaped_tokens = sum(ev.shaped_response_tokens for ev in st.events[before_count:])
     if new_shaped_tokens:
         st.gate.record_tokens(tenant_id, new_shaped_tokens)
@@ -1317,7 +1354,14 @@ async def _run_bedrock_converse(
 # ---------------------------------------------------------------------------
 
 
-async def _handle_chat(st: AppState, body: dict[str, Any], tenant_id: str) -> dict[str, Any]:
+async def _handle_chat(
+    st: AppState,
+    body: dict[str, Any],
+    tenant_id: str,
+    *,
+    header_base_url: str | None = None,
+    header_api_key: str | None = None,
+) -> dict[str, Any]:
     messages: list[dict[str, Any]] = list(body.get("messages") or [])
     tools: list[dict[str, Any]] | None = body.get("tools")
     model: str = body.get("model") or st.settings.default_model
@@ -1337,7 +1381,15 @@ async def _handle_chat(st: AppState, body: dict[str, Any], tenant_id: str) -> di
                     dropped,
                 )
 
-        response = await _call_upstream(st, messages, tools, body, model)
+        response = await _call_upstream(
+            st,
+            messages,
+            tools,
+            body,
+            model,
+            header_base_url=header_base_url,
+            header_api_key=header_api_key,
+        )
 
         choice = (response.get("choices") or [{}])[0]
         message = choice.get("message") or {}
@@ -1389,24 +1441,45 @@ async def _call_upstream(
     tools: list[dict[str, Any]] | None,
     original_body: dict[str, Any],
     model: str,
+    *,
+    header_base_url: str | None = None,
+    header_api_key: str | None = None,
 ) -> dict[str, Any]:
-    """Call the real OpenAI upstream OR the mock LLM."""
-    if not st.settings.upstream_base_url or st.settings.demo_mode:
+    """Call the real OpenAI-compatible upstream OR the mock LLM.
+
+    The destination is resolved per request by :class:`UpstreamRouter`: an
+    explicit ``X-Plynf-Upstream`` header wins, else a ``provider/model`` prefix
+    routes to a configured provider (with the prefix stripped from the model the
+    upstream sees), else the default ``upstream_base_url``. When nothing routes
+    (demo mode, or no upstream configured at all) we return the deterministic
+    mock so an offline / keyless proxy still works.
+    """
+    if st.settings.demo_mode:
+        return mock_completion(messages, model=model, tools=tools)
+
+    target = st.upstream_router.resolve(
+        model, header_base_url=header_base_url, header_api_key=header_api_key
+    )
+    if not target.is_real:
         return mock_completion(messages, model=model, tools=tools)
 
     payload = dict(original_body)
     payload["messages"] = messages
     if tools is not None:
         payload["tools"] = tools
+    # Show the upstream its native model id (provider prefix stripped). Only
+    # rewrite when the caller actually sent a model, so we never inject one that
+    # wasn't in the original request.
+    if "model" in payload:
+        payload["model"] = target.model
 
-    upstream_key = st.settings.upstream_api_key
     headers = {
-        "Authorization": f"Bearer {upstream_key}" if upstream_key else "",
+        "Authorization": f"Bearer {target.api_key}" if target.api_key else "",
         "Content-Type": "application/json",
     }
     headers = {k: v for k, v in headers.items() if v}
 
-    url = st.settings.upstream_base_url.rstrip("/") + "/v1/chat/completions"
+    url = target.chat_completions_url()
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(url, json=payload, headers=headers)
     if resp.status_code >= 400:

@@ -35,6 +35,18 @@ class ProxySettings(BaseSettings):
     # their own key via Authorization header — that header takes precedence.
     upstream_api_key: str = ""
 
+    # Multi-provider upstream routing. A JSON array of OpenAI-compatible
+    # providers addressable by a ``provider/model`` prefix (LiteLLM/OpenRouter
+    # convention), e.g.
+    #   [{"name":"groq","base_url":"https://api.groq.com/openai","api_key":"${GROQ_API_KEY}"}]
+    # A request for model ``groq/llama-3.3-70b`` is forwarded to that base URL
+    # with the prefix stripped. ``${VAR}`` in base_url/api_key is expanded from
+    # the environment. Callers may also override per request via the
+    # ``X-Plynf-Upstream`` header. Routing is NOT tier-gated (Plynf never gates
+    # on integration type); unknown prefixes fall through to upstream_base_url.
+    # Empty = single-provider mode (upstream_base_url only). See upstream_router.
+    providers: str = ""
+
     # API keys accepted on the proxy itself. Comma-separated list of
     # ``tenant_id:key`` pairs (no spaces). Empty list = open (demo mode).
     # Optional third field selects the tier: ``tenant_id:key:tier``
