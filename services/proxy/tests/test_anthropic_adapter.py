@@ -310,3 +310,110 @@ def test_v1_messages_endpoint_emits_savings(client):
     summary = client.get("/v1/savings/summary").json()
     assert summary["total_calls"] >= 1
     assert summary["total_saved_tokens"] > 0
+
+
+# ---------------------------------------------------------------------------
+# Anthropic Claude on Vertex AI (:rawPredict) — reuses the same translators
+# ---------------------------------------------------------------------------
+
+
+_VERTEX_ANTHROPIC_PATH = (
+    "/v1/projects/my-proj/locations/us-central1"
+    "/publishers/anthropic/models/claude-3-5-sonnet-v2:rawPredict"
+)
+
+
+def test_vertex_anthropic_endpoint_reuses_translation(client):
+    # Vertex carries the model in the URL and uses `anthropic_version` in the
+    # body (no `model` field), so the path model must fill it in.
+    r = client.post(
+        _VERTEX_ANTHROPIC_PATH,
+        json={
+            "anthropic_version": "vertex-2023-10-16",
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": "what is order 12345"}],
+            "tools": [
+                {"name": "get_order", "description": "x", "input_schema": {"type": "object"}}
+            ],
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["type"] == "message"
+    assert body["role"] == "assistant"
+    # The path model was injected when the body omitted it.
+    assert body["model"] == "claude-3-5-sonnet-v2"
+    text = "".join(
+        b.get("text", "") for b in body["content"] if b.get("type") == "text"
+    )
+    assert "12345" in text
+
+
+def test_vertex_anthropic_endpoint_emits_savings(client):
+    client.post(
+        _VERTEX_ANTHROPIC_PATH,
+        json={
+            "anthropic_version": "vertex-2023-10-16",
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": "order 12345"}],
+            "tools": [
+                {"name": "get_order", "description": "x", "input_schema": {"type": "object"}}
+            ],
+        },
+    )
+    summary = client.get("/v1/savings/summary").json()
+    assert summary["total_calls"] >= 1
+
+
+_VERTEX_ANTHROPIC_STREAM_PATH = (
+    "/v1/projects/my-proj/locations/us-central1"
+    "/publishers/anthropic/models/claude-3-5-sonnet-v2:streamRawPredict"
+)
+
+
+def test_vertex_anthropic_stream_raw_predict_emits_anthropic_sse(client):
+    # ":streamRawPredict" is the streaming sibling of ":rawPredict" — the
+    # method suffix is the streaming contract, so no `stream` body flag is
+    # needed. "Raw" means Vertex passes the native Anthropic SSE through, so
+    # the framing is identical to POST /v1/messages streaming.
+    r = client.post(
+        _VERTEX_ANTHROPIC_STREAM_PATH,
+        json={
+            "anthropic_version": "vertex-2023-10-16",
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": "what is order 12345"}],
+            "tools": [
+                {"name": "get_order", "description": "x", "input_schema": {"type": "object"}}
+            ],
+        },
+    )
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/event-stream")
+    assert r.headers["cache-control"] == "no-cache"
+    # The interception savings ride along on the stream headers.
+    assert int(r.headers["x-plynf-tool-calls"]) >= 1
+    assert r.headers["x-request-id"].startswith("req_")
+
+    import json as _json
+
+    lines = r.text.splitlines()
+    event_types = [
+        line.removeprefix("event: ").strip() for line in lines if line.startswith("event:")
+    ]
+    assert event_types[0] == "message_start"
+    assert "content_block_delta" in event_types
+    assert event_types[-2:] == ["message_delta", "message_stop"]
+
+    text = ""
+    for line in lines:
+        if not line.startswith("data:"):
+            continue
+        try:
+            payload = _json.loads(line.removeprefix("data:").strip())
+        except _json.JSONDecodeError:
+            continue
+        if payload.get("type") == "content_block_delta":
+            delta = payload.get("delta") or {}
+            if delta.get("type") == "text_delta":
+                text += delta.get("text", "")
+    assert "12345" in text

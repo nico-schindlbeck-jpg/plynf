@@ -16,10 +16,11 @@ OpenAI in three meaningful ways:
 * Tool *definitions* are ``tools: [{functionDeclarations: [...]}]`` —
   note the nesting under ``functionDeclarations``.
 
-Streaming uses ``streamGenerateContent`` and JSON-lines, not SSE; we
-expose only the non-stream variant in MVP. Vertex AI's API surface is a
-superset of public Gemini — same body shape, different base URL — so the
-adapter works for both.
+Streaming uses ``streamGenerateContent``: with ``?alt=sse`` Gemini frames it
+as SSE (``data: {GenerateContentResponse}``), and as a JSON array of responses
+otherwise. The proxy serves both, synthesized from the unary result. Vertex
+AI's API surface is a superset of public Gemini — same body shape, different
+base URL — so the adapter works for both.
 """
 
 from __future__ import annotations

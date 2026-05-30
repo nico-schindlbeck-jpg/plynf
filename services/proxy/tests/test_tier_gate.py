@@ -102,10 +102,16 @@ def test_chat_endpoint_returns_402_when_free_budget_exceeded(app_with_free_keyed
         json=body,
     )
     assert r.status_code == 402
-    detail = r.json()["detail"]
-    assert detail["reason"] == "monthly_token_budget_exceeded"
-    assert detail["tier"] == "free"
-    assert "Upgrade to Pro" in detail["upgrade_hint"]
+    # The /v1/chat/completions front door speaks OpenAI, so the error is shaped
+    # into OpenAI's {"error": {...}} envelope — but the structured tier-limit
+    # fields (reason/tier/upgrade_hint) are preserved so the client keeps the
+    # upgrade hint. 402 maps to OpenAI's "insufficient_quota" type.
+    err = r.json()["error"]
+    assert err["type"] == "insufficient_quota"
+    assert err["code"] == "tier_limit_exceeded"
+    assert err["reason"] == "monthly_token_budget_exceeded"
+    assert err["tier"] == "free"
+    assert "Upgrade to Pro" in err["upgrade_hint"]
 
 
 def test_pro_tier_passes_when_free_would_block(app_with_free_keyed):

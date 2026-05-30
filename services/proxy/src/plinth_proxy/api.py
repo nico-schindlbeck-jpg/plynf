@@ -18,36 +18,56 @@ Endpoints:
 
   POST /v1/chat/completions   OpenAI-compatible
   GET  /healthz               liveness probe
+  GET  /readyz                readiness probe (gates traffic during startup)
+  GET  /metrics               Prometheus scrape (savings + per-tenant usage)
   GET  /v1/savings/summary    aggregate dashboard view
   GET  /v1/policies           list loaded connector policies
 """
 
 from __future__ import annotations
 
+import binascii
 import json
 import logging
 import os
+import struct
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
+from starlette.datastructures import Headers
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__
 from .anthropic_adapter import anthropic_request_to_openai, openai_response_to_anthropic
+from .bedrock_adapter import (
+    bedrock_converse_request_to_openai,
+    openai_response_to_bedrock_converse,
+)
 from .cache import TTLCache
+from .cohere_adapter import cohere_chat_request_to_openai, openai_response_to_cohere_chat
 from .connectors import (
-    TOOL_TO_CONNECTOR,
     ConnectorRegistry,
     make_mock_registry,
 )
 from .context_budget import enforce_budget
+from .error_envelopes import error_body
 from .gateway_client import GatewayClient, make_gateway_registry
 from .gemini_adapter import gemini_request_to_openai, openai_response_to_gemini
 from .identity_client import IdentityClient, IdentityError
-from .mock_llm import mock_completion
+from .metrics import CONTENT_TYPE as METRICS_CONTENT_TYPE
+from .metrics import render_metrics
+from .mock_llm import (
+    mock_completion,
+    mock_embeddings,
+    mock_model,
+    mock_models,
+    mock_text_completion,
+)
 from .policy_engine import ConnectorPolicy, PolicyError, ToolPolicy, apply, load_all_policies
 from .policy_overrides import (
     PolicyOverrideStore,
@@ -56,9 +76,11 @@ from .policy_overrides import (
     policy_to_dict,
 )
 from .postgres_sink import PostgresSavingsSink
+from .responses_adapter import openai_response_to_responses, responses_request_to_openai
+from .rest_connector import build_rest_connector, specs_from_json
 from .savings import SavingsEvent, SavingsSink, aggregate, make_event
 from .settings import ProxySettings
-from .tier_gate import TierGate, upgrade_hint
+from .tier_gate import TIERS, TierGate, upgrade_hint
 from .tokens import count_json_tokens, count_messages_tokens
 
 log = logging.getLogger("plinth.proxy")
@@ -79,6 +101,56 @@ class AppState:
     gate: TierGate
     identity: IdentityClient | None
     overrides: PolicyOverrideStore
+
+
+def _instance_allows_custom_rest(settings: ProxySettings) -> bool:
+    """True if any configured tier on this instance permits custom REST imports.
+
+    Custom REST connectors are registered at the *instance* level (the
+    self-hosted operator's own APIs), so the gate is the highest tier the
+    instance is configured for: its ``demo_tier`` plus any per-key tiers.
+    """
+    tiers = {settings.demo_tier, *settings.parsed_api_key_tiers().values()}
+    return any(
+        (limits := TIERS.get(t)) is not None and limits.allow_custom_rest_connectors
+        for t in tiers
+    )
+
+
+def _register_custom_rest_connectors(state: AppState, settings: ProxySettings) -> None:
+    """Parse ``PLINTH_PROXY_REST_CONNECTORS`` and register each spec.
+
+    Tier-gated: skipped (with a warning) when no configured tier permits custom
+    REST connectors. Parse/registration errors are logged and skipped rather
+    than crashing startup — a bad connector spec must not take the proxy down.
+    """
+    raw = (settings.rest_connectors or "").strip()
+    if not raw:
+        return
+    if not _instance_allows_custom_rest(settings):
+        log.warning(
+            "PLINTH_PROXY_REST_CONNECTORS is set but no configured tier permits "
+            "custom REST connectors (Pro+ only) — skipping."
+        )
+        return
+    try:
+        specs = specs_from_json(raw)
+    except Exception as e:  # noqa: BLE001 - never let bad config crash startup
+        log.error("failed to parse PLINTH_PROXY_REST_CONNECTORS: %s", e)
+        return
+    for spec in specs:
+        try:
+            tool_to_connector, handler = build_rest_connector(spec)
+            state.registry.register(
+                spec.name, handler, tools=list(tool_to_connector.keys())
+            )
+            log.info(
+                "registered custom REST connector %r (%d tool(s))",
+                spec.name,
+                len(tool_to_connector),
+            )
+        except Exception as e:  # noqa: BLE001
+            log.error("failed to register REST connector %r: %s", spec.name, e)
 
 
 def _build_state(settings: ProxySettings, fixtures_dir: str | None = None) -> AppState:
@@ -115,6 +187,7 @@ def _build_state(settings: ProxySettings, fixtures_dir: str | None = None) -> Ap
                     policies_dir = policies_dir.parent
                 fixtures = str(policies_dir / "examples" / "customer-support")
         state.registry = make_mock_registry(fixtures)
+    _register_custom_rest_connectors(state, settings)
     state.cache = TTLCache()
     # Sink resolution: Postgres > JSONL > none.
     if settings.postgres_url:
@@ -154,11 +227,76 @@ async def _lifespan(app: FastAPI):
     yield
 
 
+class _RequestIDMiddleware:
+    """Echo or mint an ``x-request-id`` header on every response.
+
+    Vendor SDKs surface this header for support correlation — the OpenAI SDK
+    exposes it as ``response.request_id`` and attaches it to raised errors, and
+    the Anthropic SDK reads ``request-id`` — so a client that fronts Plynf would
+    otherwise lose the request-id it had with the vendor. We honour an inbound
+    id when present (length-capped to bound abuse) and mint a ``req_<hex>`` one
+    otherwise, then set it on *every* response: success bodies, the dialect
+    error envelopes, and SSE streams alike.
+
+    Implemented as pure ASGI rather than ``BaseHTTPMiddleware`` so it stamps the
+    header on the ``http.response.start`` message without buffering streaming
+    bodies (``BaseHTTPMiddleware`` is the one that interferes with SSE).
+    """
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        incoming = (Headers(scope=scope).get("x-request-id") or "").strip()
+        request_id = incoming[:200] if incoming else f"req_{uuid.uuid4().hex}"
+        rid_bytes = request_id.encode("latin-1", "replace")
+
+        async def send_wrapper(message: dict[str, Any]) -> None:
+            if message["type"] == "http.response.start":
+                headers = [
+                    (k, v)
+                    for k, v in message.get("headers", [])
+                    if k.lower() != b"x-request-id"
+                ]
+                headers.append((b"x-request-id", rid_bytes))
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
+
 def create_app(settings: ProxySettings | None = None) -> FastAPI:
     """Application factory. Allows tests to inject custom settings."""
     app = FastAPI(title="Plynf LLM-Proxy", version=__version__, lifespan=_lifespan)
+    app.add_middleware(_RequestIDMiddleware)
     if settings is not None:
         app.state.plinth = _build_state(settings)
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _dialect_error_handler(
+        request: Request, exc: StarletteHTTPException
+    ) -> JSONResponse:
+        """Reshape every HTTP error into the envelope its front door expects.
+
+        FastAPI's default error body is ``{"detail": ...}``, which matches no
+        vendor SDK — so a client that points its base URL at Plynf would see a
+        foreign error shape on a 401/402/404 and its own error handling would
+        break, defeating the "no code change" promise the success path keeps.
+        :func:`error_body` keys off ``request.url.path`` to emit the OpenAI /
+        Anthropic / Gemini / Cohere / Bedrock error shape instead. Registered on
+        the Starlette base class so it also covers framework-raised errors (e.g.
+        a 404 for an unmatched route), not just our own ``raise HTTPException``.
+        Any ``exc.headers`` (e.g. a ``Retry-After`` on a 429) are preserved.
+        """
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=error_body(request.url.path, exc.status_code, exc.detail),
+            headers=getattr(exc, "headers", None),
+        )
 
     @app.get("/healthz")
     async def healthz() -> dict[str, Any]:
@@ -169,6 +307,67 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
             "policies_loaded": len(st.policies),
             "demo_mode": st.settings.demo_mode,
         }
+
+    @app.get("/readyz")
+    async def readyz() -> JSONResponse:
+        """Readiness probe — distinct from ``/healthz`` liveness.
+
+        ``/healthz`` answers "is the process alive?"; ``/readyz`` answers "has
+        the app finished initializing and is it wired to serve traffic?".
+        Kubernetes (and the Render/Fly/Railway deploy configs) gate traffic on
+        this so requests aren't routed during the startup window. Returns 200
+        once the app state is built, 503 before initialization completes, with
+        a ``checks`` map describing each subsystem's wiring for observability.
+
+        Subsystems are reported as *configured*, not live-pinged: a readiness
+        probe must be cheap and flake-free, and Plynf uses identity/gateway
+        lazily per request (a per-probe network round-trip would add latency
+        and spurious flapping).
+        """
+        st: AppState | None = getattr(app.state, "plinth", None)
+        if st is None:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "initializing", "ready": False},
+            )
+
+        checks = {
+            "policies_loaded": len(st.policies),
+            "connectors": "ok" if st.registry is not None else "missing",
+            "identity": "configured" if st.identity is not None else "open-mode",
+            "savings_sink": type(st.sink).__name__ if st.sink is not None else "none",
+            "gateway": "configured"
+            if (st.settings.gateway_url and not st.settings.demo_mode)
+            else "mock",
+        }
+        ready = st.registry is not None
+        return JSONResponse(
+            status_code=200 if ready else 503,
+            content={
+                "status": "ready" if ready else "not_ready",
+                "ready": ready,
+                "version": __version__,
+                "checks": checks,
+            },
+        )
+
+    @app.get("/metrics")
+    async def metrics() -> Response:
+        """Prometheus scrape endpoint (text exposition format).
+
+        Unauthenticated by convention — protect it at the network layer
+        (Kubernetes ServiceMonitor / firewall / sidecar), the same way the
+        kube-prometheus stack expects ``/metrics`` to be reachable. Exposes
+        Plynf's core value metric (tokens saved) plus per-connector and
+        per-tenant breakdowns for Grafana dashboards and alerting rules.
+        """
+        st: AppState = app.state.plinth
+        body = render_metrics(
+            st.events,
+            version=__version__,
+            tenant_usage=st.gate.all_usage(),
+        )
+        return Response(content=body, media_type=METRICS_CONTENT_TYPE)
 
     @app.get("/v1/policies")
     async def list_policies() -> dict[str, Any]:
@@ -181,6 +380,23 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
                     "tools": list(p.tools.keys()),
                 }
                 for p in st.policies.values()
+            ]
+        }
+
+    @app.get("/v1/connectors")
+    async def list_connectors() -> dict[str, Any]:
+        """List connectors this proxy can dispatch, with their tool names.
+
+        Includes built-in connectors (mock fixtures or MCP-gateway-backed) and
+        any custom REST connectors loaded from ``PLINTH_PROXY_REST_CONNECTORS``,
+        so operators can confirm a custom import registered correctly.
+        """
+        st: AppState = app.state.plinth
+        tools_by_connector = st.registry.list_tools()
+        return {
+            "connectors": [
+                {"connector": name, "tools": tools, "tool_count": len(tools)}
+                for name, tools in sorted(tools_by_connector.items())
             ]
         }
 
@@ -304,7 +520,7 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         tenant_id, tier = await _authenticate(request, st)
         _enforce_tier(st, tenant_id, tier)
 
-        if tool_name not in TOOL_TO_CONNECTOR:
+        if st.registry.resolve(tool_name) is None:
             raise HTTPException(status_code=404, detail=f"unknown tool: {tool_name}")
 
         body = await request.json() if await _has_body(request) else {}
@@ -312,7 +528,7 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         agent_id = body.get("agent_id")
         workflow_id = body.get("workflow_id")
 
-        connector_name = TOOL_TO_CONNECTOR[tool_name]
+        connector_name = st.registry.resolve(tool_name) or "unknown"
         policy = _policy_for(st, connector_name, tool_name, tenant_id)
 
         # Cache lookup, same as the chat-completions path.
@@ -411,12 +627,12 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         if not tool_name:
             raise HTTPException(status_code=400, detail="'tool' is required")
 
-        if tool_name not in TOOL_TO_CONNECTOR:
+        if st.registry.resolve(tool_name) is None:
             # Unknown tool → pass through. Caller can still use Plynf for
             # the tools that do have policies.
             return JSONResponse({"shaped": raw, "shaped_by_plynf": False})
 
-        connector_name = TOOL_TO_CONNECTOR[tool_name]
+        connector_name = st.registry.resolve(tool_name) or "unknown"
         policy = _policy_for(st, connector_name, tool_name, tenant_id)
 
         try:
@@ -464,22 +680,142 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
 
     @app.post("/v1beta/models/{model}:generateContent")
     async def gemini_generate_content(model: str, request: Request) -> JSONResponse:
-        """Google Gemini ``generateContent`` endpoint.
+        """Google Gemini (public API) ``generateContent`` endpoint.
 
         Translates the Gemini request to OpenAI, runs the same Plynf pipeline
         (auth → tier-gate → tool-call interception → shaping → savings),
-        then translates back to a Gemini ``candidates`` envelope. Works for
-        both public Gemini API and Vertex AI (they share the body shape).
+        then translates back to a Gemini ``candidates`` envelope.
 
-        Streaming (``streamGenerateContent``) is not supported in MVP —
-        Gemini uses JSON-Lines with a different framing than OpenAI SSE.
+        Streaming is served by the sibling ``:streamGenerateContent`` route
+        (``?alt=sse`` for SSE framing, else a JSON array of responses).
         """
         st: AppState = app.state.plinth
-        gem_body = await request.json()
+        body, headers = await _run_gemini_dialect(st, request, model)
+        return JSONResponse(body, headers=headers)
+
+    @app.post("/v1beta/models/{model}:streamGenerateContent")
+    async def gemini_stream_generate_content(model: str, request: Request) -> Response:
+        """Google Gemini (public API) ``streamGenerateContent`` — streaming.
+
+        Runs the identical pipeline as ``:generateContent`` (tool-call
+        interception always completes synchronously), then re-emits the final
+        candidate as a stream: ``?alt=sse`` yields ``data:``-framed SSE chunks
+        (what the google-genai SDK requests), otherwise a JSON array of
+        responses. A Gemini client streaming through Plynf needs no code change.
+        """
+        st: AppState = app.state.plinth
+        body, headers = await _run_gemini_dialect(st, request, model)
+        return _gemini_stream_or_array(request, body, headers)
+
+    @app.post(
+        "/v1/projects/{project}/locations/{location}"
+        "/publishers/google/models/{model}:generateContent"
+    )
+    async def vertex_generate_content(
+        project: str, location: str, model: str, request: Request
+    ) -> JSONResponse:
+        """Google Vertex AI ``generateContent`` endpoint.
+
+        Vertex serves the *same* request/response body as the public Gemini
+        API but at a project/location-scoped path, so this reuses the Gemini
+        translators verbatim — a Vertex client only needs its base URL
+        pointed at Plynf. ``project`` / ``location`` are captured for routing
+        fidelity (a Vertex SDK builds this exact path) but the MVP does not
+        per-project-route upstreams.
+        """
+        st: AppState = app.state.plinth
+        body, headers = await _run_gemini_dialect(st, request, model)
+        return JSONResponse(body, headers=headers)
+
+    @app.post(
+        "/v1/projects/{project}/locations/{location}"
+        "/publishers/google/models/{model}:streamGenerateContent"
+    )
+    async def vertex_stream_generate_content(
+        project: str, location: str, model: str, request: Request
+    ) -> Response:
+        """Vertex AI ``streamGenerateContent`` — the streaming variant.
+
+        Same native-path reuse as the unary Vertex route: it shares the Gemini
+        translators and the streaming synthesis, differing only in the
+        project/location-scoped URL. ``?alt=sse`` selects SSE framing, otherwise
+        a JSON array of responses is returned.
+        """
+        st: AppState = app.state.plinth
+        body, headers = await _run_gemini_dialect(st, request, model)
+        return _gemini_stream_or_array(request, body, headers)
+
+    @app.post("/model/{model_id:path}/converse")
+    async def bedrock_converse(model_id: str, request: Request) -> JSONResponse:
+        """AWS Bedrock runtime ``Converse`` endpoint.
+
+        Translates the Bedrock Converse request to OpenAI, runs the same
+        Plynf pipeline (auth → tier-gate → tool-call interception →
+        shaping → savings), then translates back to a Converse
+        ``{output, stopReason, usage}`` envelope. One adapter covers every
+        Bedrock-hosted model (Claude, Llama, Titan, Mistral, Command …)
+        because they all share the Converse message shape.
+
+        ``{model_id:path}`` so provider-qualified ARNs / IDs that contain
+        slashes (e.g. ``anthropic.claude-3-5-sonnet-20241022-v2:0``) match.
+
+        The streaming sibling is ``ConverseStream`` (``/converse-stream``)
+        below.
+        """
+        st: AppState = app.state.plinth
+        bedrock_body = await request.json()
+        bedrock_final, headers = await _run_bedrock_converse(st, request, bedrock_body, model_id)
+        return JSONResponse(bedrock_final, headers=headers)
+
+    @app.post("/model/{model_id:path}/converse-stream")
+    async def bedrock_converse_stream(model_id: str, request: Request) -> Response:
+        """AWS Bedrock runtime ``ConverseStream`` endpoint.
+
+        The streaming sibling of ``Converse``. Bedrock does not stream SSE — it
+        frames the response as the AWS *event stream* binary protocol
+        (``vnd.amazon.eventstream``): each event is a length-prefixed message
+        with a CRC32-checksummed prelude, typed headers (``:event-type`` ∈
+        ``messageStart`` / ``contentBlockDelta`` / ``contentBlockStop`` /
+        ``messageStop`` / ``metadata`` …), a JSON payload, and a trailing
+        message CRC32. boto3 / the AWS SDKs decode exactly this. Plynf runs the
+        request unary (tool-call interception must finish first) and replays the
+        shaped final body as that binary event sequence, so a Bedrock client
+        streaming through Plynf needs no code change and the per-call savings
+        headers ride along.
+        """
+        st: AppState = app.state.plinth
+        bedrock_body = await request.json()
+        bedrock_final, headers = await _run_bedrock_converse(st, request, bedrock_body, model_id)
+        return StreamingResponse(
+            _synthesize_bedrock_converse_stream(bedrock_final),
+            media_type="application/vnd.amazon.eventstream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", **headers},
+        )
+
+    @app.post("/v2/chat")
+    async def cohere_chat(request: Request) -> Response:
+        """Cohere v2 ``/v2/chat`` endpoint.
+
+        Translates the Cohere v2 chat request to OpenAI, runs the same Plynf
+        pipeline (auth → tier-gate → tool-call interception → shaping →
+        savings), then translates back to a Cohere ``{message, finish_reason,
+        usage}`` envelope. A Cohere SDK client only needs its base URL pointed
+        at Plynf — no code change — to get response-shaping savings.
+
+        Streaming (``stream: true``) is served as Cohere v2's typed-event SSE
+        (``message-start`` → ``content-delta``\\* → ``message-end``). Plynf
+        computes the result unary (tool-call interception must finish first)
+        and replays the shaped final message as that event sequence, so a
+        Cohere client streaming through Plynf needs no code change and the
+        per-call savings headers ride along.
+        """
+        st: AppState = app.state.plinth
+        cohere_body = await request.json()
+        wants_stream = bool(cohere_body.get("stream"))
         tenant_id, tier = await _authenticate(request, st)
         _enforce_tier(st, tenant_id, tier)
 
-        openai_body = gemini_request_to_openai(gem_body, model=model)
+        openai_body = cohere_chat_request_to_openai(cohere_body)
         openai_body["stream"] = False
 
         before = len(st.events)
@@ -490,7 +826,15 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         if new_shaped:
             st.gate.record_tokens(tenant_id, new_shaped)
 
-        return JSONResponse(openai_response_to_gemini(openai_final))
+        cohere_final = openai_response_to_cohere_chat(openai_final)
+        headers = _savings_headers(st, before)
+        if not wants_stream:
+            return JSONResponse(cohere_final, headers=headers)
+        return StreamingResponse(
+            _synthesize_cohere_sse(cohere_final),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", **headers},
+        )
 
     @app.post("/v1/messages")
     async def anthropic_messages(request: Request) -> JSONResponse:
@@ -508,60 +852,199 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         """
         st: AppState = app.state.plinth
         anth_body = await request.json()
-        tenant_id, tier = await _authenticate(request, st)
-        _enforce_tier(st, tenant_id, tier)
-
         wants_stream = bool(anth_body.get("stream"))
-        openai_body = anthropic_request_to_openai(anth_body)
-        # The OpenAI pipeline does NOT need to stream — tool-call interception
-        # always runs synchronously and we re-emit Anthropic SSE events from
-        # the final shape.
-        openai_body["stream"] = False
-
-        before_count = len(st.events)
-        openai_final = await _handle_chat(st, openai_body, tenant_id)
-        new_shaped = sum(
-            ev.shaped_response_tokens for ev in st.events[before_count:]
-        )
-        if new_shaped:
-            st.gate.record_tokens(tenant_id, new_shaped)
-
-        anth_final = openai_response_to_anthropic(openai_final)
+        anth_final, headers = await _run_anthropic_dialect(st, request, anth_body)
         if not wants_stream:
-            return JSONResponse(anth_final)
+            return JSONResponse(anth_final, headers=headers)
         return StreamingResponse(
             _synthesize_anthropic_sse(anth_final),
             media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", **headers},
+        )
+
+    @app.post(
+        "/v1/projects/{project}/locations/{location}"
+        "/publishers/anthropic/models/{model}:rawPredict"
+    )
+    async def vertex_anthropic_raw_predict(
+        project: str, location: str, model: str, request: Request
+    ) -> JSONResponse:
+        """Anthropic Claude on Vertex AI (``:rawPredict``) endpoint.
+
+        Vertex serves Claude through the *native Anthropic Messages* body at a
+        project/location-scoped ``publishers/anthropic`` path, carrying the
+        model in the URL and an ``anthropic_version`` field in the body instead
+        of a ``model`` field. So this reuses the Anthropic translators verbatim
+        — the same native-path-reuse trick as the Gemini → Vertex routes — and
+        only injects the path model when the body omits it. A Vertex-Claude
+        client fronts Plynf by pointing its base URL here, no code change.
+
+        ``project`` / ``location`` are captured for routing fidelity (a Vertex
+        SDK builds this exact path) but the MVP does not per-project-route
+        upstreams. The streaming sibling is ``:streamRawPredict`` below.
+        """
+        st: AppState = app.state.plinth
+        anth_body = await request.json()
+        anth_body.setdefault("model", model)
+        body, headers = await _run_anthropic_dialect(st, request, anth_body)
+        return JSONResponse(body, headers=headers)
+
+    @app.post(
+        "/v1/projects/{project}/locations/{location}"
+        "/publishers/anthropic/models/{model}:streamRawPredict"
+    )
+    async def vertex_anthropic_stream_raw_predict(
+        project: str, location: str, model: str, request: Request
+    ) -> Response:
+        """Anthropic Claude on Vertex AI (``:streamRawPredict``) endpoint.
+
+        The streaming sibling of ``:rawPredict``. "Raw" is load-bearing: Vertex
+        passes the *native Anthropic SSE* stream through verbatim (``event:
+        message_start`` → ``content_block_delta`` → ``message_stop``), the same
+        taxonomy ``POST /v1/messages`` streams — not an OpenAI chunk stream. So
+        this reuses the Anthropic translators and ``_synthesize_anthropic_sse``
+        exactly like the unary route reuses ``:rawPredict``. The method suffix
+        is the streaming contract (a ``stream`` body flag is not required), so
+        this route always streams. Plynf runs the request unary (tool-call
+        interception must finish first) and replays the shaped final body as
+        that event sequence, carrying the per-call savings headers.
+        """
+        st: AppState = app.state.plinth
+        anth_body = await request.json()
+        anth_body.setdefault("model", model)
+        body, headers = await _run_anthropic_dialect(st, request, anth_body)
+        return StreamingResponse(
+            _synthesize_anthropic_sse(body),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", **headers},
         )
 
     @app.post("/v1/chat/completions")
     async def chat_completions(request: Request):
         st: AppState = app.state.plinth
         body = await request.json()
+        return await _run_openai_chat(st, request, body)
+
+    @app.post("/openai/deployments/{deployment}/chat/completions")
+    async def azure_chat_completions(deployment: str, request: Request):
+        """Azure OpenAI-compatible chat-completions endpoint.
+
+        The Azure OpenAI SDK posts to ``/openai/deployments/{deployment}/
+        chat/completions?api-version=...`` with an ``api-key`` header and
+        carries the model as the *deployment* path segment rather than a
+        ``model`` body field. The request/response bodies are otherwise
+        identical to OpenAI, so we only fill in ``model`` from the deployment
+        name (when the body omits it) and run the standard pipeline — an Azure
+        shop fronts Plynf by changing only its base URL.
+        """
+        st: AppState = app.state.plinth
+        body = await request.json()
+        body.setdefault("model", deployment)
+        return await _run_openai_chat(st, request, body)
+
+    @app.post("/v1/responses")
+    async def responses(request: Request) -> Response:
+        """OpenAI *Responses* API endpoint (the successor to chat-completions).
+
+        Translates the Responses request (``input`` items + ``instructions`` +
+        flat function ``tools``) to OpenAI chat shape, runs the same Plynf
+        pipeline (auth → tier-gate → tool-call interception → shaping →
+        savings), then translates back to a Responses ``{output, output_text,
+        status, usage}`` envelope. A client that posts to ``/v1/responses``
+        only needs its base URL pointed at Plynf — no code change.
+
+        When the body sets ``stream: true`` the result is re-emitted as the
+        Responses typed-event SSE taxonomy (``response.created`` → per-item
+        ``output_text.delta`` / ``function_call_arguments.delta`` →
+        ``response.completed``); interception still runs unary first, so the
+        stream replays the already-shaped final body.
+        """
+        st: AppState = app.state.plinth
+        resp_body = await request.json()
+        wants_stream = bool(resp_body.get("stream"))
         tenant_id, tier = await _authenticate(request, st)
         _enforce_tier(st, tenant_id, tier)
-        wants_stream = bool(body.get("stream"))
-        # Tool-call interception requires holding the response until we've
-        # shaped and re-called, so we always run the full flow first, then
-        # synthesize SSE chunks for streaming clients. Same OpenAI contract,
-        # same content — trades first-token-latency for tool-call correctness.
-        before_count = len(st.events)
-        final = await _handle_chat(st, body, tenant_id)
-        # Charge the tenant for the shaped tokens that just flowed through.
-        new_shaped_tokens = sum(
-            ev.shaped_response_tokens for ev in st.events[before_count:]
-        )
-        if new_shaped_tokens:
-            st.gate.record_tokens(tenant_id, new_shaped_tokens)
 
+        openai_body = responses_request_to_openai(resp_body)
+        openai_body["stream"] = False
+
+        before = len(st.events)
+        openai_final = await _handle_chat(st, openai_body, tenant_id)
+        new_shaped = sum(ev.shaped_response_tokens for ev in st.events[before:])
+        if new_shaped:
+            st.gate.record_tokens(tenant_id, new_shaped)
+
+        final_resp = openai_response_to_responses(openai_final)
+        headers = _savings_headers(st, before)
         if not wants_stream:
-            return JSONResponse(final)
+            return JSONResponse(final_resp, headers=headers)
         return StreamingResponse(
-            _synthesize_sse(final),
+            _synthesize_responses_sse(final_resp),
             media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", **headers},
         )
+
+    # -- OpenAI drop-in completeness -------------------------------------
+    # Clients that set OPENAI_BASE_URL=<plynf> probe these on startup and use
+    # them for non-chat work. Plynf doesn't shape either (no tool response to
+    # trim), so they forward verbatim to the configured upstream and fall back
+    # to deterministic mocks in demo / offline mode — keeping Plynf a true
+    # drop-in rather than a chat-only proxy.
+
+    @app.get("/v1/models")
+    async def list_models(request: Request) -> JSONResponse:
+        st: AppState = app.state.plinth
+        # Listing is metadata: authenticate to resolve the tenant, but it is
+        # neither tier-gated nor charged.
+        await _authenticate(request, st)
+        if st.settings.upstream_base_url and not st.settings.demo_mode:
+            return JSONResponse(await _forward_upstream(st, "GET", "/v1/models"))
+        return JSONResponse(mock_models())
+
+    @app.get("/v1/models/{model}")
+    async def retrieve_model(model: str, request: Request) -> JSONResponse:
+        st: AppState = app.state.plinth
+        await _authenticate(request, st)
+        if st.settings.upstream_base_url and not st.settings.demo_mode:
+            return JSONResponse(await _forward_upstream(st, "GET", f"/v1/models/{model}"))
+        return JSONResponse(mock_model(model))
+
+    @app.post("/v1/embeddings")
+    async def embeddings(request: Request) -> JSONResponse:
+        st: AppState = app.state.plinth
+        body = await request.json()
+        tenant_id, tier = await _authenticate(request, st)
+        # Enforce the gate (an over-budget tenant is blocked) but don't record
+        # tokens — embeddings aren't shaped, so they don't count as savings.
+        _enforce_tier(st, tenant_id, tier)
+        if st.settings.upstream_base_url and not st.settings.demo_mode:
+            return JSONResponse(
+                await _forward_upstream(st, "POST", "/v1/embeddings", json_body=body)
+            )
+        return JSONResponse(mock_embeddings(body))
+
+    @app.post("/v1/completions")
+    async def completions(request: Request) -> JSONResponse:
+        """OpenAI legacy *text* completions (the pre-chat ``/v1/completions``).
+
+        Some clients still target the legacy completions endpoint — LangChain's
+        ``OpenAI`` LLM class, llama-index's ``OpenAI`` completion mode, and
+        older scripts. It predates tool-calling, so Plynf shapes nothing here;
+        like ``/v1/embeddings`` it gates the tenant (an over-budget caller is
+        blocked) but doesn't charge (no tool response → no savings), forwarding
+        verbatim to the configured upstream and falling back to a deterministic
+        mock in demo / offline mode so a client pointed entirely at Plynf keeps
+        working rather than getting a 404.
+        """
+        st: AppState = app.state.plinth
+        body = await request.json()
+        tenant_id, tier = await _authenticate(request, st)
+        _enforce_tier(st, tenant_id, tier)
+        if st.settings.upstream_base_url and not st.settings.demo_mode:
+            return JSONResponse(
+                await _forward_upstream(st, "POST", "/v1/completions", json_body=body)
+            )
+        return JSONResponse(mock_text_completion(body))
 
     return app
 
@@ -571,10 +1054,25 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
 # ---------------------------------------------------------------------------
 
 
-async def _authenticate(request: Request, st: AppState) -> tuple[str, str]:
-    """Resolve ``Authorization: Bearer <token>`` → ``(tenant_id, tier)``.
+def _extract_token(request: Request) -> str | None:
+    """Pull the caller's token from the Authorization or ``api-key`` header.
 
-    Resolution order:
+    Accepts ``Authorization: Bearer <token>`` (OpenAI / Anthropic / Cohere /
+    most SDKs) and the ``api-key: <token>`` header the Azure OpenAI SDK sends.
+    Returns ``None`` when neither is present.
+    """
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        return auth.split(" ", 1)[1].strip()
+    api_key = request.headers.get("api-key")
+    return api_key.strip() if api_key else None
+
+
+async def _authenticate(request: Request, st: AppState) -> tuple[str, str]:
+    """Resolve the caller's token → ``(tenant_id, tier)``.
+
+    The token is read from ``Authorization: Bearer <token>`` or the Azure-style
+    ``api-key`` header (see :func:`_extract_token`). Resolution order:
 
       1. **Static api_keys map** — fast path for self-hosted / demo setups.
          Configured via ``PLINTH_PROXY_API_KEYS``.
@@ -586,16 +1084,15 @@ async def _authenticate(request: Request, st: AppState) -> tuple[str, str]:
 
     Returns ``(tenant_id, tier)`` or raises ``401``.
     """
-    auth = request.headers.get("authorization", "")
+    token = _extract_token(request)
 
     # 1. Static map fast-path.
     if st.api_keys:
-        if not auth.lower().startswith("bearer "):
-            raise HTTPException(status_code=401, detail="missing bearer token")
-        key = auth.split(" ", 1)[1].strip()
-        tenant = st.api_keys.get(key)
+        if token is None:
+            raise HTTPException(status_code=401, detail="missing api key")
+        tenant = st.api_keys.get(token)
         if tenant is not None:
-            return tenant, st.api_key_tiers.get(key, "free")
+            return tenant, st.api_key_tiers.get(token, "free")
         # Static map present but key didn't match — fall through to identity
         # if configured, otherwise 401.
         if st.identity is None:
@@ -603,9 +1100,8 @@ async def _authenticate(request: Request, st: AppState) -> tuple[str, str]:
 
     # 2. Identity-service verify.
     if st.identity is not None:
-        if not auth.lower().startswith("bearer "):
+        if token is None:
             raise HTTPException(status_code=401, detail="missing bearer token")
-        token = auth.split(" ", 1)[1].strip()
         try:
             claims = await st.identity.verify(token)
         except IdentityError as ie:
@@ -632,6 +1128,188 @@ def _enforce_tier(st: AppState, tenant_id: str, tier: str) -> None:
                 "upgrade_hint": upgrade_hint(tier),  # type: ignore[arg-type]
             },
         )
+
+
+# ---------------------------------------------------------------------------
+# Per-call savings headers (attached by every chat / native-dialect front door)
+# ---------------------------------------------------------------------------
+
+
+def _savings_headers(st: AppState, before: int) -> dict[str, str]:
+    """Summarize the savings events emitted *during this request* as headers.
+
+    Plynf's value is token reduction, so every chat response advertises it
+    inline — no need to poll ``/v1/savings/summary``. ``before`` is
+    ``len(st.events)`` captured before the request ran; the slice
+    ``st.events[before:]`` is exactly the interceptions this call produced
+    (zero for a plain completion with no tool calls). Header values are plain
+    ASCII integers / a 4-dp ratio so any HTTP client can read them.
+    """
+    window = st.events[before:]
+    raw = sum(ev.raw_response_tokens for ev in window)
+    shaped = sum(ev.shaped_response_tokens for ev in window)
+    saved = sum(ev.saved_tokens for ev in window)
+    pct = (saved / raw) if raw else 0.0
+    return {
+        "X-Plynf-Tool-Calls": str(len(window)),
+        "X-Plynf-Raw-Tokens": str(raw),
+        "X-Plynf-Shaped-Tokens": str(shaped),
+        "X-Plynf-Saved-Tokens": str(saved),
+        "X-Plynf-Savings-Pct": f"{pct:.4f}",
+    }
+
+
+# ---------------------------------------------------------------------------
+# OpenAI chat dialect (shared by native /v1 and Azure deployment paths)
+# ---------------------------------------------------------------------------
+
+
+async def _run_openai_chat(st: AppState, request: Request, body: dict[str, Any]):
+    """Authenticate, gate, shape, charge, and return an OpenAI chat response.
+
+    Shared by the native OpenAI ``/v1/chat/completions`` route and the
+    Azure-style ``/openai/deployments/{deployment}/chat/completions`` route —
+    both speak the identical OpenAI body, differing only in URL and auth
+    header. Streaming clients get synthesized SSE; others get JSON.
+    """
+    tenant_id, tier = await _authenticate(request, st)
+    _enforce_tier(st, tenant_id, tier)
+    wants_stream = bool(body.get("stream"))
+    # Tool-call interception requires holding the response until we've shaped
+    # and re-called, so we always run the full flow first, then synthesize SSE
+    # chunks for streaming clients — same OpenAI contract, same content.
+    before_count = len(st.events)
+    final = await _handle_chat(st, body, tenant_id)
+    new_shaped_tokens = sum(ev.shaped_response_tokens for ev in st.events[before_count:])
+    if new_shaped_tokens:
+        st.gate.record_tokens(tenant_id, new_shaped_tokens)
+
+    headers = _savings_headers(st, before_count)
+    if not wants_stream:
+        return JSONResponse(final, headers=headers)
+    return StreamingResponse(
+        _synthesize_sse(final),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", **headers},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gemini dialect (shared by the public Gemini API and Vertex AI paths)
+# ---------------------------------------------------------------------------
+
+
+async def _run_gemini_dialect(
+    st: AppState, request: Request, model: str
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Run a Gemini-shaped request through the pipeline; return (body, headers).
+
+    Shared by ``/v1beta/models/{model}:generateContent`` (public Gemini) and
+    the Vertex AI project-scoped path — both speak the identical body shape,
+    so only the URL differs. Mirrors the auth → tier-gate → shape → charge
+    flow used by every other native-dialect front door. The second tuple
+    element is the per-call ``X-Plynf-*`` savings headers for the route to
+    attach to its response.
+    """
+    gem_body = await request.json()
+    tenant_id, tier = await _authenticate(request, st)
+    _enforce_tier(st, tenant_id, tier)
+
+    openai_body = gemini_request_to_openai(gem_body, model=model)
+    openai_body["stream"] = False
+
+    before = len(st.events)
+    openai_final = await _handle_chat(st, openai_body, tenant_id)
+    new_shaped = sum(ev.shaped_response_tokens for ev in st.events[before:])
+    if new_shaped:
+        st.gate.record_tokens(tenant_id, new_shaped)
+
+    return openai_response_to_gemini(openai_final), _savings_headers(st, before)
+
+
+def _gemini_stream_or_array(
+    request: Request, body: dict[str, Any], headers: dict[str, str]
+) -> Response:
+    """Frame a completed Gemini candidate for the ``:streamGenerateContent`` route.
+
+    Gemini's streaming method emits SSE (``data: {GenerateContentResponse}``)
+    when the client passes ``?alt=sse`` — the framing the google-genai SDK uses
+    — and a JSON array of responses otherwise. Plynf always computes the result
+    unary (tool-call interception must complete first), so both forms are
+    synthesized from the same final ``body``, and the per-call ``X-Plynf-*``
+    savings headers ride along on either.
+    """
+    if request.query_params.get("alt") == "sse":
+        return StreamingResponse(
+            _synthesize_gemini_sse(body),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", **headers},
+        )
+    return JSONResponse([body], headers=headers)
+
+
+# ---------------------------------------------------------------------------
+# Anthropic dialect (shared by the public /v1/messages and Vertex-Claude paths)
+# ---------------------------------------------------------------------------
+
+
+async def _run_anthropic_dialect(
+    st: AppState, request: Request, anth_body: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Run an Anthropic-shaped request through the pipeline; return (body, headers).
+
+    Shared by ``POST /v1/messages`` (public Anthropic) and the Vertex AI
+    ``publishers/anthropic/...:rawPredict`` path — both speak the identical
+    Messages body, so only the URL (and where the model comes from) differs.
+    Returns the translated Anthropic response dict plus the per-call
+    ``X-Plynf-*`` savings headers; the caller decides whether to wrap the body
+    in synthesized SSE (``/v1/messages`` streaming) or return it unary
+    (Vertex). Mirrors the auth → tier-gate → shape → charge flow every other
+    native-dialect front door uses.
+    """
+    tenant_id, tier = await _authenticate(request, st)
+    _enforce_tier(st, tenant_id, tier)
+
+    openai_body = anthropic_request_to_openai(anth_body)
+    # The OpenAI pipeline never needs to stream — tool-call interception always
+    # runs synchronously and SSE (when wanted) is re-emitted from the final shape.
+    openai_body["stream"] = False
+
+    before = len(st.events)
+    openai_final = await _handle_chat(st, openai_body, tenant_id)
+    new_shaped = sum(ev.shaped_response_tokens for ev in st.events[before:])
+    if new_shaped:
+        st.gate.record_tokens(tenant_id, new_shaped)
+
+    return openai_response_to_anthropic(openai_final), _savings_headers(st, before)
+
+
+async def _run_bedrock_converse(
+    st: AppState, request: Request, bedrock_body: dict[str, Any], model_id: str
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Run a Bedrock Converse request through the pipeline; return (body, headers).
+
+    Shared by ``POST /model/{id}/converse`` (unary) and ``/converse-stream``
+    (AWS event-stream) — both speak the identical Converse body, so only the
+    response framing differs. Returns the translated Converse response dict
+    plus the per-call ``X-Plynf-*`` savings headers; the caller decides whether
+    to return it as JSON or wrap it in the synthesized binary event stream.
+    Mirrors the auth → tier-gate → shape → charge flow every other native
+    front door uses.
+    """
+    tenant_id, tier = await _authenticate(request, st)
+    _enforce_tier(st, tenant_id, tier)
+
+    openai_body = bedrock_converse_request_to_openai(bedrock_body, model=model_id)
+    openai_body["stream"] = False
+
+    before = len(st.events)
+    openai_final = await _handle_chat(st, openai_body, tenant_id)
+    new_shaped = sum(ev.shaped_response_tokens for ev in st.events[before:])
+    if new_shaped:
+        st.gate.record_tokens(tenant_id, new_shaped)
+
+    return openai_response_to_bedrock_converse(openai_final), _savings_headers(st, before)
 
 
 # ---------------------------------------------------------------------------
@@ -739,6 +1417,36 @@ async def _call_upstream(
     return resp.json()
 
 
+async def _forward_upstream(
+    st: AppState,
+    method: str,
+    path: str,
+    *,
+    json_body: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Proxy an un-shaped request verbatim to the configured OpenAI upstream.
+
+    Backs the drop-in-completeness endpoints (``/v1/models``,
+    ``/v1/embeddings``) — Plynf adds no value to these payloads but must expose
+    them so a client pointed entirely at Plynf keeps working. Uses Plynf's own
+    upstream key, mirroring :func:`_call_upstream`.
+    """
+    url = st.settings.upstream_base_url.rstrip("/") + path
+    key = st.settings.upstream_api_key
+    headers = {"Authorization": f"Bearer {key}"} if key else {}
+    async with httpx.AsyncClient(timeout=60) as client:
+        if method.upper() == "GET":
+            resp = await client.get(url, headers=headers)
+        else:
+            resp = await client.request(method.upper(), url, json=json_body, headers=headers)
+    if resp.status_code >= 400:
+        raise HTTPException(
+            status_code=resp.status_code,
+            detail=f"upstream error: {resp.text[:500]}",
+        )
+    return resp.json()
+
+
 async def _handle_tool_call(
     st: AppState,
     tool_call: dict[str, Any],
@@ -763,7 +1471,7 @@ async def _handle_tool_call(
             {"error": f"tool '{tool_name}' is not registered with Plynf"},
         )
 
-    connector_name = TOOL_TO_CONNECTOR[tool_name]
+    connector_name = st.registry.resolve(tool_name) or "unknown"
     policy = _policy_for(st, connector_name, tool_name, tenant_id)
 
     # Cache lookup.
@@ -860,7 +1568,7 @@ def _replay_tool_message(
     except json.JSONDecodeError:
         args = {}
 
-    connector_name = TOOL_TO_CONNECTOR.get(tool_name, "unknown")
+    connector_name = st.registry.resolve(tool_name) or "unknown"
     # The original message stores the shaped JSON as a string. Recover it
     # for token counting; we don't re-shape (the policy was already applied).
     shaped_text = original_message.get("content", "{}")
@@ -1012,6 +1720,351 @@ async def _synthesize_anthropic_sse(final: dict[str, Any]):
     })
     # 4. message_stop sentinel
     yield _ev("message_stop", {"type": "message_stop"})
+
+
+async def _synthesize_responses_sse(final: dict[str, Any]):
+    """Yield OpenAI *Responses* typed SSE events for a completed response.
+
+    The Responses stream is a typed-event taxonomy, not chat ``chunk`` deltas:
+    a ``response.created`` envelope (status ``in_progress``, empty output), then
+    per-output-item lifecycle events — ``output_item.added`` →
+    (``content_part.added`` → ``output_text.delta``\\* → ``output_text.done`` →
+    ``content_part.done``) for a message, or ``function_call_arguments.delta`` /
+    ``.done`` for a tool call — each closed by ``output_item.done``, and finally
+    ``response.completed`` carrying the full body. Plynf computed the result
+    unary (tool-call interception must finish first), so we replay the final
+    ``output`` array as that sequence: text split word-by-word, tool-call
+    arguments streamed whole. Every event carries a monotonic
+    ``sequence_number`` as the real API does.
+    """
+    seq = 0
+
+    def _ev(event_type: str, payload: dict[str, Any]) -> str:
+        nonlocal seq
+        data = {"type": event_type, "sequence_number": seq, **payload}
+        seq += 1
+        return f"event: {event_type}\ndata: {json.dumps(data, separators=(',', ':'))}\n\n"
+
+    # Skeleton: the response object before any output is produced.
+    skeleton = {**final, "status": "in_progress", "output": [], "output_text": ""}
+    yield _ev("response.created", {"response": skeleton})
+    yield _ev("response.in_progress", {"response": skeleton})
+
+    for output_index, item in enumerate(final.get("output") or []):
+        itype = item.get("type")
+        item_id = item.get("id", "")
+
+        if itype == "message":
+            shell = {**item, "status": "in_progress", "content": []}
+            yield _ev(
+                "response.output_item.added",
+                {"output_index": output_index, "item": shell},
+            )
+            for content_index, part in enumerate(item.get("content") or []):
+                if part.get("type") != "output_text":
+                    continue
+                text = part.get("text") or ""
+                loc = {
+                    "item_id": item_id,
+                    "output_index": output_index,
+                    "content_index": content_index,
+                }
+                yield _ev(
+                    "response.content_part.added",
+                    {**loc, "part": {"type": "output_text", "text": "", "annotations": []}},
+                )
+                for i, piece in enumerate(text.split(" ")):
+                    frag = piece if i == 0 else " " + piece
+                    if frag:
+                        yield _ev("response.output_text.delta", {**loc, "delta": frag})
+                yield _ev("response.output_text.done", {**loc, "text": text})
+                yield _ev(
+                    "response.content_part.done",
+                    {**loc, "part": {"type": "output_text", "text": text, "annotations": []}},
+                )
+            yield _ev(
+                "response.output_item.done",
+                {"output_index": output_index, "item": item},
+            )
+
+        elif itype == "function_call":
+            shell = {**item, "status": "in_progress", "arguments": ""}
+            yield _ev(
+                "response.output_item.added",
+                {"output_index": output_index, "item": shell},
+            )
+            args = item.get("arguments") or ""
+            if args:
+                yield _ev(
+                    "response.function_call_arguments.delta",
+                    {"item_id": item_id, "output_index": output_index, "delta": args},
+                )
+            yield _ev(
+                "response.function_call_arguments.done",
+                {"item_id": item_id, "output_index": output_index, "arguments": args},
+            )
+            yield _ev(
+                "response.output_item.done",
+                {"output_index": output_index, "item": item},
+            )
+
+    yield _ev("response.completed", {"response": final})
+
+
+async def _synthesize_cohere_sse(final: dict[str, Any]):
+    """Yield Cohere v2-shaped SSE events for a completed chat response.
+
+    Cohere v2 streaming is a typed-event taxonomy carried as ``data: {json}``
+    SSE, with the event kind in each payload's ``type`` field: ``message-start``
+    → (``content-start`` → ``content-delta``\\* → ``content-end``) for assistant
+    text and (``tool-call-start`` → ``tool-call-delta`` → ``tool-call-end``) for
+    each tool call, closed by ``message-end`` carrying ``finish_reason`` +
+    ``usage``. Plynf computed the result unary (tool-call interception must
+    finish first), so we replay the shaped final ``message`` as that sequence —
+    text split word-by-word, tool-call arguments streamed whole.
+    """
+
+    def _data(payload: dict[str, Any]) -> str:
+        return "data: " + json.dumps(payload, separators=(",", ":")) + "\n\n"
+
+    message = final.get("message") or {}
+
+    # message-start: an empty assistant message shell.
+    yield _data(
+        {
+            "id": final.get("id", ""),
+            "type": "message-start",
+            "delta": {
+                "message": {
+                    "role": "assistant",
+                    "content": [],
+                    "tool_plan": "",
+                    "tool_calls": [],
+                }
+            },
+        }
+    )
+
+    # Text content blocks stream first (Cohere emits assistant text before
+    # tool calls, mirroring OpenAI's generation order).
+    index = 0
+    for block in message.get("content") or []:
+        if block.get("type") != "text":
+            continue
+        text = block.get("text") or ""
+        yield _data(
+            {
+                "type": "content-start",
+                "index": index,
+                "delta": {"message": {"content": {"type": "text", "text": ""}}},
+            }
+        )
+        for i, piece in enumerate(text.split(" ")):
+            frag = piece if i == 0 else " " + piece
+            if frag:
+                yield _data(
+                    {
+                        "type": "content-delta",
+                        "index": index,
+                        "delta": {"message": {"content": {"text": frag}}},
+                    }
+                )
+        yield _data({"type": "content-end", "index": index})
+        index += 1
+
+    # Tool calls: a start/delta/end triple each, arguments streamed whole.
+    for tc in message.get("tool_calls") or []:
+        fn = tc.get("function") or {}
+        yield _data(
+            {
+                "type": "tool-call-start",
+                "index": index,
+                "delta": {
+                    "message": {
+                        "tool_calls": {
+                            "id": tc.get("id", ""),
+                            "type": "function",
+                            "function": {"name": fn.get("name", ""), "arguments": ""},
+                        }
+                    }
+                },
+            }
+        )
+        args = fn.get("arguments") or ""
+        if args:
+            yield _data(
+                {
+                    "type": "tool-call-delta",
+                    "index": index,
+                    "delta": {"message": {"tool_calls": {"function": {"arguments": args}}}},
+                }
+            )
+        yield _data({"type": "tool-call-end", "index": index})
+        index += 1
+
+    # message-end: finish_reason + usage on the closing event.
+    yield _data(
+        {
+            "type": "message-end",
+            "delta": {
+                "finish_reason": final.get("finish_reason", "COMPLETE"),
+                "usage": final.get("usage") or {},
+            },
+        }
+    )
+
+
+def _aws_eventstream_frame(event_type: str, payload: dict[str, Any]) -> bytes:
+    """Encode one AWS ``vnd.amazon.eventstream`` binary message.
+
+    Wire layout (all integers big-endian) — what boto3 / the AWS SDKs decode::
+
+        prelude  : total_len(u32) headers_len(u32) prelude_crc(u32 = CRC32 of
+                   the 8 prelude bytes)
+        headers  : repeated [name_len(u8) name :type(u8) ...]; here every
+                   header is a string (type 7): val_len(u16) val
+        payload  : the JSON bytes
+        crc      : u32 = CRC32 of the whole message *excluding* these 4 bytes
+
+    The three standard event headers are ``:event-type`` (the discriminator),
+    ``:content-type`` (``application/json``) and ``:message-type`` (``event``).
+    """
+    body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+
+    headers = bytearray()
+    for name, value in (
+        (":event-type", event_type),
+        (":content-type", "application/json"),
+        (":message-type", "event"),
+    ):
+        name_bytes = name.encode("utf-8")
+        value_bytes = value.encode("utf-8")
+        headers.append(len(name_bytes))
+        headers.extend(name_bytes)
+        headers.append(7)  # value type 7 == UTF-8 string
+        headers.extend(struct.pack(">H", len(value_bytes)))
+        headers.extend(value_bytes)
+
+    total_len = 4 + 4 + 4 + len(headers) + len(body) + 4
+    prelude = struct.pack(">II", total_len, len(headers))
+    prelude += struct.pack(">I", binascii.crc32(prelude) & 0xFFFFFFFF)
+    message = prelude + bytes(headers) + body
+    return message + struct.pack(">I", binascii.crc32(message) & 0xFFFFFFFF)
+
+
+async def _synthesize_bedrock_converse_stream(final: dict[str, Any]):
+    """Yield Bedrock ``ConverseStream`` binary event-stream frames.
+
+    Bedrock streaming is not SSE — it is the AWS event-stream binary protocol
+    (see :func:`_aws_eventstream_frame`). The event sequence: ``messageStart``
+    (role), then per content block — text blocks emit ``contentBlockDelta``
+    (``delta.text``, word-by-word) then ``contentBlockStop``; ``toolUse`` blocks
+    emit ``contentBlockStart`` (``start.toolUse`` id + name), a single
+    ``contentBlockDelta`` whose ``delta.toolUse.input`` is the arguments
+    serialized as a JSON *string* (how Bedrock streams tool input), then
+    ``contentBlockStop`` — and finally ``messageStop`` (``stopReason``) and a
+    ``metadata`` event (``usage`` + ``metrics``). Plynf computed the result
+    unary, so this just reframes the shaped final body.
+    """
+    message = (final.get("output") or {}).get("message") or {}
+
+    yield _aws_eventstream_frame("messageStart", {"role": message.get("role", "assistant")})
+
+    for index, block in enumerate(message.get("content") or []):
+        if "text" in block:
+            text = block.get("text") or ""
+            for i, piece in enumerate(text.split(" ")):
+                frag = piece if i == 0 else " " + piece
+                if frag:
+                    yield _aws_eventstream_frame(
+                        "contentBlockDelta",
+                        {"contentBlockIndex": index, "delta": {"text": frag}},
+                    )
+            yield _aws_eventstream_frame("contentBlockStop", {"contentBlockIndex": index})
+        elif "toolUse" in block:
+            tool_use = block["toolUse"]
+            yield _aws_eventstream_frame(
+                "contentBlockStart",
+                {
+                    "contentBlockIndex": index,
+                    "start": {
+                        "toolUse": {
+                            "toolUseId": tool_use.get("toolUseId", ""),
+                            "name": tool_use.get("name", ""),
+                        }
+                    },
+                },
+            )
+            input_json = json.dumps(tool_use.get("input") or {}, separators=(",", ":"))
+            yield _aws_eventstream_frame(
+                "contentBlockDelta",
+                {"contentBlockIndex": index, "delta": {"toolUse": {"input": input_json}}},
+            )
+            yield _aws_eventstream_frame("contentBlockStop", {"contentBlockIndex": index})
+
+    yield _aws_eventstream_frame(
+        "messageStop", {"stopReason": final.get("stopReason", "end_turn")}
+    )
+    yield _aws_eventstream_frame(
+        "metadata",
+        {"usage": final.get("usage") or {}, "metrics": final.get("metrics") or {}},
+    )
+
+
+async def _synthesize_gemini_sse(final: dict[str, Any]):
+    """Yield Gemini-shaped SSE chunks for a completed ``candidates`` response.
+
+    Mirrors the OpenAI/Anthropic synthesizers: the request ran unary (tool-call
+    interception always completes synchronously), then the final candidate is
+    re-emitted as ``data: {GenerateContentResponse}`` chunks — text split
+    word-by-word for a realistic stream, any ``functionCall`` part emitted
+    whole, and a terminal chunk carrying ``finishReason`` + ``usageMetadata``,
+    matching how Gemini frames ``streamGenerateContent?alt=sse``.
+    """
+
+    def _data(payload: dict[str, Any]) -> str:
+        return "data: " + json.dumps(payload, separators=(",", ":")) + "\n\n"
+
+    candidate = (final.get("candidates") or [{}])[0]
+    parts = (candidate.get("content") or {}).get("parts") or []
+    model_version = final.get("modelVersion", "")
+
+    def _chunk(
+        chunk_parts: list[dict[str, Any]],
+        *,
+        finish: str | None = None,
+        usage: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        cand: dict[str, Any] = {
+            "content": {"role": "model", "parts": chunk_parts},
+            "index": 0,
+        }
+        if finish is not None:
+            cand["finishReason"] = finish
+        payload: dict[str, Any] = {"candidates": [cand], "modelVersion": model_version}
+        if usage is not None:
+            payload["usageMetadata"] = usage
+        return payload
+
+    for part in parts:
+        if "text" in part:
+            pieces = (part.get("text") or "").split(" ")
+            for i, piece in enumerate(pieces):
+                frag = piece if i == 0 else " " + piece
+                if frag:
+                    yield _data(_chunk([{"text": frag}]))
+        else:
+            # functionCall (or any non-text part) streams as one whole chunk.
+            yield _data(_chunk([part]))
+
+    # Terminal chunk: finishReason + usageMetadata on an empty-parts candidate.
+    yield _data(
+        _chunk(
+            [],
+            finish=candidate.get("finishReason", "STOP"),
+            usage=final.get("usageMetadata") or {},
+        )
+    )
 
 
 async def _synthesize_sse(final: dict[str, Any]):

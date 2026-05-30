@@ -11,7 +11,7 @@ services:
     dockerfilePath: services/proxy/Dockerfile
     plan: starter
     region: frankfurt
-    healthCheckPath: /healthz
+    healthCheckPath: /readyz
     envVars:
       - key: PLINTH_PROXY_DEMO_MODE
         value: "true"

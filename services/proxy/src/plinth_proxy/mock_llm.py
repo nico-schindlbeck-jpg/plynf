@@ -20,10 +20,24 @@ proxy will then forward verbatim and ignore this module.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 import uuid
 from typing import Any
+
+# Models the mock catalog advertises via GET /v1/models. These are the shapes
+# clients probe on startup; the list is intentionally OpenAI-flavoured since
+# /v1/models is the OpenAI surface (other dialects have their own listings).
+_MOCK_MODEL_IDS = [
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-4-turbo",
+    "o1",
+    "o1-mini",
+    "text-embedding-3-small",
+    "text-embedding-3-large",
+]
 
 # Heuristics: pick a tool based on keywords in the user message. This is the
 # minimum amount of intelligence we need to make the demo show interesting
@@ -174,4 +188,149 @@ def _summarise(tool_response_json: str, user_text: str) -> str:
     return f"(mock) Tool returned: {json.dumps(data)[:200]}"
 
 
-__all__ = ["mock_completion"]
+# ---------------------------------------------------------------------------
+# Legacy text completions (POST /v1/completions)
+# ---------------------------------------------------------------------------
+
+
+def _completion_id() -> str:
+    return f"cmpl-mock-{uuid.uuid4().hex[:12]}"
+
+
+def _mock_completion_text(prompt: str) -> str:
+    """A short, deterministic continuation for the legacy completions mock."""
+    stripped = prompt.strip()
+    if not stripped:
+        return " (mock) This is a Plynf offline completion."
+    last_line = stripped.splitlines()[-1][:80]
+    return f" (mock) Continuing from: {last_line}"
+
+
+def mock_text_completion(body: dict[str, Any]) -> dict[str, Any]:
+    """OpenAI legacy ``/v1/completions`` response for demo / offline mode.
+
+    The legacy completions endpoint predates tool-calling, so Plynf shapes
+    nothing here (there is no tool response to trim) — even against a real
+    upstream this forwards verbatim. The mock exists only so an offline demo
+    and the tests don't 404. ``prompt`` may be a string or a list; each prompt
+    yields one ``text_completion`` choice with a deterministic reply so the
+    response is coherent without a model or network call.
+    """
+    raw_prompt = body.get("prompt", "")
+    prompts = (
+        [raw_prompt]
+        if isinstance(raw_prompt, str)
+        else [str(p) for p in raw_prompt] or [""]
+    )
+    model = body.get("model") or "gpt-3.5-turbo-instruct"
+
+    choices: list[dict[str, Any]] = []
+    prompt_tokens = 0
+    completion_tokens = 0
+    for i, prompt in enumerate(prompts):
+        text = _mock_completion_text(prompt)
+        prompt_tokens += max(1, len(prompt) // 4)
+        completion_tokens += max(1, len(text) // 4)
+        choices.append(
+            {"text": text, "index": i, "logprobs": None, "finish_reason": "stop"}
+        )
+    return {
+        "id": _completion_id(),
+        "object": "text_completion",
+        "created": _now(),
+        "model": model,
+        "choices": choices,
+        "usage": {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Models listing (GET /v1/models, GET /v1/models/{model})
+# ---------------------------------------------------------------------------
+
+
+def mock_model(model_id: str) -> dict[str, Any]:
+    """A single OpenAI-shaped model object."""
+    return {
+        "id": model_id,
+        "object": "model",
+        "created": _now(),
+        "owned_by": "plynf-proxy",
+    }
+
+
+def mock_models() -> dict[str, Any]:
+    """OpenAI ``ListModels`` envelope for demo / offline mode."""
+    return {
+        "object": "list",
+        "data": [mock_model(mid) for mid in _MOCK_MODEL_IDS],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Embeddings (POST /v1/embeddings)
+# ---------------------------------------------------------------------------
+
+
+def _deterministic_vector(text: str, dim: int) -> list[float]:
+    """A stable unit-ish vector derived from ``text`` (no model, no network).
+
+    Hashes the text and expands the digest into ``dim`` floats in roughly
+    [-1, 1], then L2-normalises so the mock behaves like a real embedding
+    (cosine similarity is meaningful and identical inputs match exactly).
+    """
+    out: list[float] = []
+    counter = 0
+    while len(out) < dim:
+        digest = hashlib.sha256(f"{text}:{counter}".encode()).digest()
+        for b in digest:
+            out.append((b / 127.5) - 1.0)  # byte 0..255 → -1.0..1.0
+            if len(out) >= dim:
+                break
+        counter += 1
+    norm = sum(v * v for v in out) ** 0.5 or 1.0
+    return [v / norm for v in out]
+
+
+def mock_embeddings(body: dict[str, Any]) -> dict[str, Any]:
+    """OpenAI-shaped embeddings response for demo / offline mode.
+
+    Plynf does not *shape* embeddings (there is no tool response to trim), so
+    even against a real upstream this is a transparent pass-through; the mock
+    exists only so the offline demo and tests don't 404. Honours the OpenAI
+    ``dimensions`` knob, defaulting to a compact 16 dims for readable payloads.
+    """
+    raw_input = body.get("input", "")
+    inputs = [raw_input] if isinstance(raw_input, str) else list(raw_input)
+    model = body.get("model") or "text-embedding-3-small"
+    dim = int(body.get("dimensions") or 16)
+
+    data = [
+        {
+            "object": "embedding",
+            "index": i,
+            "embedding": _deterministic_vector(str(text), dim),
+        }
+        for i, text in enumerate(inputs)
+    ]
+    # Rough token estimate (~4 chars/token) — a mock, not a billing source.
+    prompt_tokens = sum(max(1, len(str(t)) // 4) for t in inputs)
+    return {
+        "object": "list",
+        "data": data,
+        "model": model,
+        "usage": {"prompt_tokens": prompt_tokens, "total_tokens": prompt_tokens},
+    }
+
+
+__all__ = [
+    "mock_completion",
+    "mock_embeddings",
+    "mock_model",
+    "mock_models",
+    "mock_text_completion",
+]

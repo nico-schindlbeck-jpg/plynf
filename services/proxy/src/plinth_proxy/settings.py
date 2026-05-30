@@ -93,6 +93,13 @@ class ProxySettings(BaseSettings):
     # gateway. Per-request caller tokens override this when present.
     gateway_service_token: str = ""
 
+    # Custom REST connectors (Pro+ feature). A JSON array of connector specs
+    # that map arbitrary HTTP endpoints to Plynf tools — see
+    # ``rest_connector.py`` for the shape. ``${VAR}`` in header values is
+    # expanded from the environment. Ignored unless a configured tier permits
+    # custom REST connectors. Empty = none.
+    rest_connectors: str = ""
+
     @property
     def policies_path(self) -> Path:
         if self.policies_dir:

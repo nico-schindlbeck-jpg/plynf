@@ -62,12 +62,52 @@ class ConnectorRegistry:
 
     def __init__(self) -> None:
         self._handlers: dict[str, Callable[[ConnectorCall], Any]] = {}
+        # Per-instance tool→connector map that augments the static
+        # TOOL_TO_CONNECTOR. Dynamically-registered connectors (e.g. custom
+        # REST imports) add their tool names here so resolution doesn't depend
+        # on editing the global map.
+        self._tool_to_connector: dict[str, str] = {}
 
-    def register(self, connector: str, handler: Callable[[ConnectorCall], Any]) -> None:
+    def register(
+        self,
+        connector: str,
+        handler: Callable[[ConnectorCall], Any],
+        tools: list[str] | None = None,
+    ) -> None:
+        """Register a handler for ``connector``.
+
+        ``tools`` optionally declares the tool names this connector serves;
+        they are added to the instance tool→connector map so dynamically-added
+        connectors resolve without touching the static :data:`TOOL_TO_CONNECTOR`.
+        """
         self._handlers[connector] = handler
+        for tool in tools or []:
+            self._tool_to_connector[tool] = connector
+
+    def resolve(self, tool_name: str) -> str | None:
+        """Return the connector serving ``tool_name`` (instance map first)."""
+        return self._tool_to_connector.get(tool_name) or TOOL_TO_CONNECTOR.get(tool_name)
+
+    def list_tools(self) -> dict[str, list[str]]:
+        """Return ``{connector: [tool, ...]}`` for connectors with a handler.
+
+        Merges the static :data:`TOOL_TO_CONNECTOR` with this instance's
+        dynamic registrations (e.g. custom REST imports), then keeps only
+        connectors that actually have a registered handler — i.e. what this
+        proxy can really dispatch. Used by the ``/v1/connectors`` endpoint so
+        operators can confirm their connectors loaded.
+        """
+        merged: dict[str, set[str]] = {}
+        for tool, connector in {**TOOL_TO_CONNECTOR, **self._tool_to_connector}.items():
+            merged.setdefault(connector, set()).add(tool)
+        return {
+            connector: sorted(tools)
+            for connector, tools in merged.items()
+            if connector in self._handlers
+        }
 
     def has(self, tool_name: str) -> bool:
-        connector = TOOL_TO_CONNECTOR.get(tool_name)
+        connector = self.resolve(tool_name)
         return connector is not None and connector in self._handlers
 
     async def execute(self, tool_name: str, args: dict[str, Any]) -> tuple[str, Any]:
@@ -77,7 +117,7 @@ class ConnectorRegistry:
         coroutine). Both forms are awaited transparently so callers in async
         contexts don't need to special-case.
         """
-        connector = TOOL_TO_CONNECTOR.get(tool_name)
+        connector = self.resolve(tool_name)
         if connector is None:
             raise KeyError(f"unknown tool: {tool_name}")
         handler = self._handlers.get(connector)

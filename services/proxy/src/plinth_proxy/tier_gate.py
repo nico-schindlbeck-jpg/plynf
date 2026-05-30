@@ -135,6 +135,21 @@ class TierGate:
                 return 0
             return usage.tokens_this_month
 
+    def all_usage(self) -> dict[str, int]:
+        """Current month's used tokens for every known tenant.
+
+        Tenants whose last recorded usage fell in a previous month are omitted
+        (their counter has effectively reset to 0). Powers the ``/metrics``
+        exporter's per-tenant gauges without reaching into private state.
+        """
+        key = self._month_key()
+        with self._lock:
+            return {
+                tid: u.tokens_this_month
+                for tid, u in self._usage.items()
+                if u.month_key == key
+            }
+
     def check(
         self,
         tenant_id: str,
