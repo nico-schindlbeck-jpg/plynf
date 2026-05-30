@@ -40,6 +40,11 @@ Provider config (``PLINTH_PROXY_PROVIDERS``) is a JSON array of objects, each
 ``${VAR}`` references in ``base_url`` and ``api_key`` are expanded from the
 environment at construction time (unset → empty string), so secrets stay out of
 the config blob.
+
+Optionally, ``PLINTH_PROXY_MODEL_ALIASES`` maps friendly names to concrete model
+strings (``{"fast": "groq/llama-3.1-8b-instant"}``). An alias is expanded once,
+before routing, so a team can name models in one place and swap the provider
+behind them without touching application code.
 """
 
 from __future__ import annotations
@@ -54,6 +59,7 @@ __all__ = [
     "UpstreamTarget",
     "UpstreamRouter",
     "parse_providers",
+    "parse_aliases",
 ]
 
 # Header names callers use to override the upstream per request.
@@ -141,6 +147,32 @@ def parse_providers(raw: str) -> list[ProviderRoute]:
     return out
 
 
+def parse_aliases(raw: str) -> dict[str, str]:
+    """Parse ``PLINTH_PROXY_MODEL_ALIASES`` JSON into an ``{alias: target}`` map.
+
+    Empty / whitespace input yields an empty dict. Malformed JSON or a non-object
+    payload raises ``ValueError``. Aliases let a team name models once
+    (``"fast"`` → ``"groq/llama-3.1-8b-instant"``) and switch the provider behind
+    them via config, with no application code change. Targets may themselves
+    carry a ``provider/model`` prefix; resolution is single-level (an alias whose
+    target is another alias is not expanded recursively).
+    """
+    if not raw or not raw.strip():
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"PLINTH_PROXY_MODEL_ALIASES is not valid JSON: {e}") from e
+    if not isinstance(data, dict):
+        raise ValueError("PLINTH_PROXY_MODEL_ALIASES must be a JSON object")
+    out: dict[str, str] = {}
+    for k, v in data.items():
+        alias, target = str(k).strip(), str(v).strip()
+        if alias and target:
+            out[alias] = target
+    return out
+
+
 class UpstreamRouter:
     """Resolves each request to a concrete :class:`UpstreamTarget`."""
 
@@ -150,10 +182,12 @@ class UpstreamRouter:
         *,
         default_base_url: str = "",
         default_api_key: str = "",
+        aliases: dict[str, str] | None = None,
     ) -> None:
         self._providers: dict[str, ProviderRoute] = {p.name: p for p in (providers or [])}
         self._default_base = default_base_url.rstrip("/") if default_base_url else ""
         self._default_key = default_api_key
+        self._aliases: dict[str, str] = dict(aliases or {})
 
     @classmethod
     def from_settings(cls, settings: object) -> UpstreamRouter:
@@ -164,21 +198,30 @@ class UpstreamRouter:
         The caller is expected to log; we stay silent here to keep this module
         free of logging policy.
         """
-        raw = getattr(settings, "providers", "") or ""
         try:
-            providers = parse_providers(raw)
+            providers = parse_providers(getattr(settings, "providers", "") or "")
         except ValueError:
             providers = []
+        try:
+            aliases = parse_aliases(getattr(settings, "model_aliases", "") or "")
+        except ValueError:
+            aliases = {}
         return cls(
             providers,
             default_base_url=getattr(settings, "upstream_base_url", "") or "",
             default_api_key=getattr(settings, "upstream_api_key", "") or "",
+            aliases=aliases,
         )
 
     @property
     def provider_names(self) -> list[str]:
         """Sorted names of the configured providers (for ``/v1/connectors`` etc.)."""
         return sorted(self._providers)
+
+    @property
+    def alias_names(self) -> list[str]:
+        """Sorted alias names (for discoverability; never exposes targets)."""
+        return sorted(self._aliases)
 
     @property
     def has_default(self) -> bool:
@@ -197,8 +240,13 @@ class UpstreamRouter:
         with the provider prefix stripped only when that prefix matched a
         configured provider; otherwise it is passed through verbatim so unrelated
         slashes (``meta-llama/Llama-3``) are never mangled.
+
+        A configured alias is expanded first (single level), so the rest of the
+        resolution — header / prefix / default — sees the alias target.
         """
         model = model or ""
+        # 0. Alias expansion (single level): "fast" -> "groq/llama-3.1-8b".
+        model = self._aliases.get(model, model)
 
         # 1. Explicit header override.
         if header_base_url and header_base_url.strip():

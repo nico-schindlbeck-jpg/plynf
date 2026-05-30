@@ -47,6 +47,14 @@ class ProxySettings(BaseSettings):
     # Empty = single-provider mode (upstream_base_url only). See upstream_router.
     providers: str = ""
 
+    # Model aliases. A JSON object mapping a friendly name to a concrete model
+    # string (which may carry a provider prefix), e.g.
+    #   {"fast": "groq/llama-3.1-8b-instant", "smart": "openai/gpt-4o"}
+    # A request for model ``fast`` is rewritten to the target before routing, so
+    # a team can name models once and swap the provider behind them via config
+    # with no application code change. Resolution is single-level. Empty = none.
+    model_aliases: str = ""
+
     # API keys accepted on the proxy itself. Comma-separated list of
     # ``tenant_id:key`` pairs (no spaces). Empty list = open (demo mode).
     # Optional third field selects the tier: ``tenant_id:key:tier``

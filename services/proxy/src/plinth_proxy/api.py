@@ -86,6 +86,7 @@ from .upstream_router import (
     HEADER_API_KEY,
     HEADER_BASE_URL,
     UpstreamRouter,
+    parse_aliases,
     parse_providers,
 )
 
@@ -228,10 +229,16 @@ def _build_state(settings: ProxySettings, fixtures_dir: str | None = None) -> Ap
             "failed to parse PLINTH_PROXY_PROVIDERS: %s — using single-provider mode", e
         )
         providers = []
+    try:
+        aliases = parse_aliases((settings.model_aliases or "").strip())
+    except ValueError as e:
+        log.error("failed to parse PLINTH_PROXY_MODEL_ALIASES: %s — ignoring aliases", e)
+        aliases = {}
     state.upstream_router = UpstreamRouter(
         providers,
         default_base_url=settings.upstream_base_url,
         default_api_key=settings.upstream_api_key,
+        aliases=aliases,
     )
     if providers:
         log.info(
@@ -440,6 +447,7 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         names = st.upstream_router.provider_names
         return {
             "providers": names,
+            "aliases": st.upstream_router.alias_names,
             "default": st.upstream_router.has_default,
             "prefix_routing": bool(names),
         }

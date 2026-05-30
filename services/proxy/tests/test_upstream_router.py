@@ -21,6 +21,7 @@ from plinth_proxy.upstream_router import (
     ProviderRoute,
     UpstreamRouter,
     UpstreamTarget,
+    parse_aliases,
     parse_providers,
 )
 
@@ -543,5 +544,112 @@ def test_providers_endpoint_empty_when_none_configured():
     assert r.status_code == 200
     body = r.json()
     assert body["providers"] == []
+    assert body["aliases"] == []
     assert body["default"] is False
     assert body["prefix_routing"] is False
+
+
+# ---------------------------------------------------------------------------
+# Model aliases
+# ---------------------------------------------------------------------------
+
+
+def test_parse_aliases_empty():
+    assert parse_aliases("") == {}
+    assert parse_aliases("   ") == {}
+
+
+def test_parse_aliases_basic_and_skips_blanks():
+    raw = json.dumps({"fast": "groq/llama-3.1-8b", "blank": "", "": "x", "smart": "gpt-4o"})
+    assert parse_aliases(raw) == {"fast": "groq/llama-3.1-8b", "smart": "gpt-4o"}
+
+
+def test_parse_aliases_malformed_raises():
+    with pytest.raises(ValueError, match="not valid JSON"):
+        parse_aliases("{nope")
+
+
+def test_parse_aliases_non_object_raises():
+    with pytest.raises(ValueError, match="must be a JSON object"):
+        parse_aliases(json.dumps(["fast", "smart"]))
+
+
+def test_resolve_alias_to_provider_strips():
+    r = UpstreamRouter(
+        [ProviderRoute(name="groq", base_url="https://groq.test", api_key="gk-1")],
+        aliases={"fast": "groq/llama-3.1-8b"},
+    )
+    t = r.resolve("fast")
+    assert t.provider == "groq"
+    assert t.model == "llama-3.1-8b"
+    assert t.base_url == "https://groq.test"
+
+
+def test_resolve_alias_to_plain_model_uses_default():
+    r = UpstreamRouter(default_base_url="https://up.test", aliases={"smart": "gpt-4o"})
+    t = r.resolve("smart")
+    assert t.provider == "default"
+    assert t.model == "gpt-4o"
+
+
+def test_resolve_alias_is_single_level():
+    # An alias whose target is itself an alias is NOT expanded recursively.
+    r = UpstreamRouter(default_base_url="https://up.test", aliases={"a": "b", "b": "gpt-4o"})
+    t = r.resolve("a")
+    assert t.model == "b"
+
+
+def test_resolve_non_alias_passes_through():
+    r = UpstreamRouter(default_base_url="https://up.test", aliases={"fast": "gpt-4o"})
+    assert r.resolve("gpt-3.5-turbo").model == "gpt-3.5-turbo"
+
+
+def test_alias_names_sorted():
+    r = UpstreamRouter(aliases={"zed": "x", "abe": "y"})
+    assert r.alias_names == ["abe", "zed"]
+
+
+def test_from_settings_parses_aliases():
+    s = ProxySettings(
+        upstream_base_url="https://up.test",
+        model_aliases=json.dumps({"fast": "groq/llama"}),
+    )
+    r = UpstreamRouter.from_settings(s)
+    assert r.alias_names == ["fast"]
+
+
+def test_from_settings_degrades_on_bad_aliases():
+    s = ProxySettings(upstream_base_url="https://up.test", model_aliases="{bad")
+    r = UpstreamRouter.from_settings(s)  # must not raise
+    assert r.alias_names == []
+
+
+def test_chat_alias_routes_to_provider(monkeypatch):
+    captured: dict = {}
+    client = _client(
+        monkeypatch,
+        captured,
+        upstream_base_url="https://up.test",
+        upstream_api_key="sk-up",
+        providers=json.dumps(
+            [{"name": "groq", "base_url": "https://groq.test", "api_key": "gk-1"}]
+        ),
+        model_aliases=json.dumps({"fast": "groq/llama-3.3-70b"}),
+    )
+    r = _chat(client, "fast")
+    assert r.status_code == 200
+    assert captured["url"] == "https://groq.test/v1/chat/completions"
+    assert captured["json"]["model"] == "llama-3.3-70b"
+    assert captured["headers"]["Authorization"] == "Bearer gk-1"
+
+
+def test_providers_endpoint_lists_alias_names_not_targets():
+    settings = ProxySettings(
+        demo_mode=True,
+        model_aliases=json.dumps({"fast": "groq/llama-secret-model"}),
+    )
+    client = TestClient(create_app(settings))
+    r = client.get("/v1/providers")
+    assert r.status_code == 200
+    assert r.json()["aliases"] == ["fast"]
+    assert "llama-secret-model" not in r.text  # only names exposed
