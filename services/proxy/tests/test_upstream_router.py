@@ -383,3 +383,165 @@ def test_chat_demo_mode_never_calls_upstream(monkeypatch):
     r = _chat(client, "groq/llama-3.3-70b")
     assert r.status_code == 200
     assert captured == {}  # upstream not called — served by the mock
+
+
+# ---------------------------------------------------------------------------
+# Drop-in surface: /v1/embeddings + /v1/completions honor routing too
+# ---------------------------------------------------------------------------
+
+
+class _FakeForwardClient:
+    """Captures the GET/request forward used by the drop-in endpoints."""
+
+    def __init__(self, captured: dict, payload):
+        self._captured = captured
+        self._payload = payload
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def get(self, url, headers=None):
+        self._captured.update(method="GET", url=url, headers=headers, json=None)
+        return _FakeResp(self._payload)
+
+    async def request(self, method, url, json=None, headers=None):
+        self._captured.update(method=method, url=url, headers=headers, json=json)
+        return _FakeResp(self._payload)
+
+
+def _forward_client(monkeypatch, captured, payload, **settings_kwargs):
+    monkeypatch.setattr(
+        api.httpx, "AsyncClient", lambda *a, **k: _FakeForwardClient(captured, payload)
+    )
+    settings = ProxySettings(demo_mode=False, **settings_kwargs)
+    return TestClient(create_app(settings))
+
+
+def test_embeddings_default_upstream_unchanged(monkeypatch):
+    captured: dict = {}
+    client = _forward_client(
+        monkeypatch,
+        captured,
+        {"object": "list", "data": []},
+        upstream_base_url="https://up.test",
+        upstream_api_key="sk-up",
+    )
+    r = client.post("/v1/embeddings", json={"input": "hi", "model": "text-embedding-3-small"})
+    assert r.status_code == 200
+    assert captured["url"] == "https://up.test/v1/embeddings"
+    assert captured["json"]["model"] == "text-embedding-3-small"
+    assert captured["headers"]["Authorization"] == "Bearer sk-up"
+
+
+def test_embeddings_provider_prefix_routes_and_strips(monkeypatch):
+    captured: dict = {}
+    client = _forward_client(
+        monkeypatch,
+        captured,
+        {"object": "list", "data": []},
+        upstream_base_url="https://up.test",
+        upstream_api_key="sk-up",
+        providers=json.dumps(
+            [{"name": "mistral", "base_url": "https://mistral.test", "api_key": "mk-1"}]
+        ),
+    )
+    r = client.post("/v1/embeddings", json={"input": "hi", "model": "mistral/mistral-embed"})
+    assert r.status_code == 200
+    assert captured["url"] == "https://mistral.test/v1/embeddings"
+    assert captured["json"]["model"] == "mistral-embed"  # prefix stripped
+    assert captured["headers"]["Authorization"] == "Bearer mk-1"
+
+
+def test_embeddings_header_override(monkeypatch):
+    captured: dict = {}
+    client = _forward_client(
+        monkeypatch,
+        captured,
+        {"object": "list", "data": []},
+        upstream_base_url="https://up.test",
+        upstream_api_key="sk-up",
+    )
+    r = client.post(
+        "/v1/embeddings",
+        json={"input": "hi", "model": "text-embedding-3-small"},
+        headers={"X-Plynf-Upstream": "https://hdr.test", "X-Plynf-Upstream-Key": "hk-2"},
+    )
+    assert r.status_code == 200
+    assert captured["url"] == "https://hdr.test/v1/embeddings"
+    assert captured["headers"]["Authorization"] == "Bearer hk-2"
+
+
+def test_completions_provider_prefix_routes_and_strips(monkeypatch):
+    captured: dict = {}
+    client = _forward_client(
+        monkeypatch,
+        captured,
+        {"object": "text_completion", "choices": []},
+        upstream_base_url="https://up.test",
+        upstream_api_key="sk-up",
+        providers=json.dumps(
+            [{"name": "together", "base_url": "https://together.test", "api_key": "tk-1"}]
+        ),
+    )
+    r = client.post("/v1/completions", json={"prompt": "hi", "model": "together/mixtral"})
+    assert r.status_code == 200
+    assert captured["url"] == "https://together.test/v1/completions"
+    assert captured["json"]["model"] == "mixtral"
+    assert captured["headers"]["Authorization"] == "Bearer tk-1"
+
+
+def test_models_listing_still_uses_default_upstream(monkeypatch):
+    # GET /v1/models has no model to route on → always the default upstream.
+    captured: dict = {}
+    client = _forward_client(
+        monkeypatch,
+        captured,
+        {"object": "list", "data": []},
+        upstream_base_url="https://up.test",
+        upstream_api_key="sk-up",
+        providers=json.dumps([{"name": "groq", "base_url": "https://groq.test"}]),
+    )
+    r = client.get("/v1/models")
+    assert r.status_code == 200
+    assert captured["url"] == "https://up.test/v1/models"
+
+
+# ---------------------------------------------------------------------------
+# /v1/providers discoverability
+# ---------------------------------------------------------------------------
+
+
+def test_providers_endpoint_lists_configured_names():
+    settings = ProxySettings(
+        demo_mode=True,
+        upstream_base_url="https://up.test",
+        providers=json.dumps(
+            [
+                {"name": "groq", "base_url": "https://groq.test", "api_key": "secret"},
+                {"name": "mistral", "base_url": "https://mistral.test"},
+            ]
+        ),
+    )
+    client = TestClient(create_app(settings))
+    r = client.get("/v1/providers")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["providers"] == ["groq", "mistral"]  # sorted
+    assert body["default"] is True
+    assert body["prefix_routing"] is True
+    # Never leak base URLs or keys.
+    assert "secret" not in r.text
+    assert "groq.test" not in r.text
+
+
+def test_providers_endpoint_empty_when_none_configured():
+    client = TestClient(create_app(ProxySettings(demo_mode=True)))
+    r = client.get("/v1/providers")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["providers"] == []
+    assert body["default"] is False
+    assert body["prefix_routing"] is False

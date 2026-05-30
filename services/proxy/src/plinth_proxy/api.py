@@ -427,6 +427,23 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
             ]
         }
 
+    @app.get("/v1/providers")
+    async def list_providers() -> dict[str, Any]:
+        """List upstream providers routable by a ``provider/model`` prefix.
+
+        Lets operators confirm ``PLINTH_PROXY_PROVIDERS`` parsed and loaded.
+        Returns only provider *names* — never base URLs or keys. ``default``
+        reports whether a fallback ``upstream_base_url`` is configured for models
+        with no (or an unknown) provider prefix.
+        """
+        st: AppState = app.state.plinth
+        names = st.upstream_router.provider_names
+        return {
+            "providers": names,
+            "default": st.upstream_router.has_default,
+            "prefix_routing": bool(names),
+        }
+
     @app.get("/v1/savings/summary")
     async def savings_summary() -> dict[str, Any]:
         st: AppState = app.state.plinth
@@ -1046,7 +1063,15 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         _enforce_tier(st, tenant_id, tier)
         if st.settings.upstream_base_url and not st.settings.demo_mode:
             return JSONResponse(
-                await _forward_upstream(st, "POST", "/v1/embeddings", json_body=body)
+                await _forward_upstream(
+                    st,
+                    "POST",
+                    "/v1/embeddings",
+                    json_body=body,
+                    model=body.get("model"),
+                    header_base_url=request.headers.get(HEADER_BASE_URL),
+                    header_api_key=request.headers.get(HEADER_API_KEY),
+                )
             )
         return JSONResponse(mock_embeddings(body))
 
@@ -1069,7 +1094,15 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         _enforce_tier(st, tenant_id, tier)
         if st.settings.upstream_base_url and not st.settings.demo_mode:
             return JSONResponse(
-                await _forward_upstream(st, "POST", "/v1/completions", json_body=body)
+                await _forward_upstream(
+                    st,
+                    "POST",
+                    "/v1/completions",
+                    json_body=body,
+                    model=body.get("model"),
+                    header_base_url=request.headers.get(HEADER_BASE_URL),
+                    header_api_key=request.headers.get(HEADER_API_KEY),
+                )
             )
         return JSONResponse(mock_text_completion(body))
 
@@ -1496,22 +1529,35 @@ async def _forward_upstream(
     path: str,
     *,
     json_body: dict[str, Any] | None = None,
+    model: str | None = None,
+    header_base_url: str | None = None,
+    header_api_key: str | None = None,
 ) -> dict[str, Any]:
-    """Proxy an un-shaped request verbatim to the configured OpenAI upstream.
+    """Proxy an un-shaped request verbatim to the resolved OpenAI upstream.
 
-    Backs the drop-in-completeness endpoints (``/v1/models``,
-    ``/v1/embeddings``) — Plynf adds no value to these payloads but must expose
-    them so a client pointed entirely at Plynf keeps working. Uses Plynf's own
-    upstream key, mirroring :func:`_call_upstream`.
+    Backs the drop-in-completeness endpoints (``/v1/models``, ``/v1/embeddings``,
+    ``/v1/completions``) — Plynf adds no value to these payloads but must expose
+    them so a client pointed entirely at Plynf keeps working. Routes per request
+    exactly like :func:`_call_upstream`: a ``provider/model`` prefix or an
+    ``X-Plynf-Upstream`` header redirects the forward (and the body's model has
+    the prefix stripped); otherwise the configured default upstream is used
+    unchanged. ``model=None`` (e.g. ``GET /v1/models``) always resolves to the
+    default upstream.
     """
-    url = st.settings.upstream_base_url.rstrip("/") + path
-    key = st.settings.upstream_api_key
-    headers = {"Authorization": f"Bearer {key}"} if key else {}
+    target = st.upstream_router.resolve(
+        model or "", header_base_url=header_base_url, header_api_key=header_api_key
+    )
+    url = target.url(path)
+    headers = {"Authorization": f"Bearer {target.api_key}"} if target.api_key else {}
+    body = json_body
+    if json_body is not None and model is not None and "model" in json_body:
+        body = dict(json_body)
+        body["model"] = target.model  # show the upstream its native model id
     async with httpx.AsyncClient(timeout=60) as client:
         if method.upper() == "GET":
             resp = await client.get(url, headers=headers)
         else:
-            resp = await client.request(method.upper(), url, json=json_body, headers=headers)
+            resp = await client.request(method.upper(), url, json=body, headers=headers)
     if resp.status_code >= 400:
         raise HTTPException(
             status_code=resp.status_code,
