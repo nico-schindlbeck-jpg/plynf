@@ -1089,7 +1089,8 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
                     model=body.get("model"),
                     header_base_url=header_base_url,
                     header_api_key=header_api_key,
-                )
+                ),
+                headers={HEADER_UPSTREAM_PROVIDER: target.provider},
             )
         return JSONResponse(mock_embeddings(body))
 
@@ -1127,7 +1128,8 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
                     model=body.get("model"),
                     header_base_url=header_base_url,
                     header_api_key=header_api_key,
-                )
+                ),
+                headers={HEADER_UPSTREAM_PROVIDER: target.provider},
             )
         return JSONResponse(mock_text_completion(body))
 
@@ -1244,6 +1246,35 @@ def _savings_headers(st: AppState, before: int) -> dict[str, str]:
     }
 
 
+HEADER_UPSTREAM_PROVIDER = "X-Plynf-Upstream-Provider"
+
+
+def _provider_header(
+    st: AppState,
+    model: str,
+    *,
+    header_base_url: str | None = None,
+    header_api_key: str | None = None,
+) -> dict[str, str]:
+    """Observability: name the upstream that served this request.
+
+    Returns ``{"X-Plynf-Upstream-Provider": <name>}`` — ``"default"``,
+    ``"header"``, or a configured provider name — when the request actually
+    forwarded to a real upstream, so an operator running multi-provider can
+    confirm *where* a call went. Empty in demo / mock mode (nothing was
+    contacted) so the header never claims a provider that wasn't used. Exposes
+    only the name (already public via ``/v1/providers``), never URLs or keys.
+    """
+    if st.settings.demo_mode:
+        return {}
+    target = st.upstream_router.resolve(
+        model or "", header_base_url=header_base_url, header_api_key=header_api_key
+    )
+    if not target.is_real:
+        return {}
+    return {HEADER_UPSTREAM_PROVIDER: target.provider}
+
+
 # ---------------------------------------------------------------------------
 # OpenAI chat dialect (shared by native /v1 and Azure deployment paths)
 # ---------------------------------------------------------------------------
@@ -1280,6 +1311,14 @@ async def _run_openai_chat(st: AppState, request: Request, body: dict[str, Any])
         st.gate.record_tokens(tenant_id, new_shaped_tokens)
 
     headers = _savings_headers(st, before_count)
+    headers.update(
+        _provider_header(
+            st,
+            body.get("model") or "",
+            header_base_url=header_base_url,
+            header_api_key=header_api_key,
+        )
+    )
     if not wants_stream:
         return JSONResponse(final, headers=headers)
     return StreamingResponse(

@@ -861,3 +861,87 @@ def test_embeddings_header_override_without_default_forwards(monkeypatch):
     assert r.status_code == 200
     assert captured["url"] == "https://hdr.test/v1/embeddings"
     assert captured["headers"]["Authorization"] == "Bearer hk-9"
+
+
+# ---------------------------------------------------------------------------
+# Routing observability — X-Plynf-Upstream-Provider response header
+# ---------------------------------------------------------------------------
+
+
+def test_chat_response_advertises_provider_prefix(monkeypatch):
+    captured: dict = {}
+    client = _client(
+        monkeypatch,
+        captured,
+        providers=json.dumps(
+            [{"name": "groq", "base_url": "https://groq.test", "api_key": "gk-1"}]
+        ),
+    )
+    r = _chat(client, "groq/llama-3.3-70b")
+    assert r.status_code == 200
+    assert r.headers["x-plynf-upstream-provider"] == "groq"
+
+
+def test_chat_response_advertises_default_provider(monkeypatch):
+    captured: dict = {}
+    client = _client(
+        monkeypatch, captured, upstream_base_url="https://up.test", upstream_api_key="sk-up"
+    )
+    r = _chat(client, "gpt-4o")
+    assert r.headers["x-plynf-upstream-provider"] == "default"
+
+
+def test_chat_response_advertises_header_override(monkeypatch):
+    captured: dict = {}
+    client = _client(
+        monkeypatch, captured, upstream_base_url="https://up.test", upstream_api_key="sk-up"
+    )
+    r = _chat(client, "gpt-4o", headers={"X-Plynf-Upstream": "https://hdr.test"})
+    assert r.headers["x-plynf-upstream-provider"] == "header"
+
+
+def test_chat_demo_mode_omits_provider_header():
+    # Mock mode contacts no upstream → it must not claim a provider.
+    client = TestClient(create_app(ProxySettings(demo_mode=True)))
+    r = client.post(
+        "/v1/chat/completions",
+        json={"model": "gpt-4o", "messages": [{"role": "user", "content": "hi"}]},
+    )
+    assert r.status_code == 200
+    assert "x-plynf-upstream-provider" not in r.headers
+
+
+def test_chat_streaming_advertises_provider_header(monkeypatch):
+    captured: dict = {}
+    client = _client(
+        monkeypatch,
+        captured,
+        providers=json.dumps(
+            [{"name": "groq", "base_url": "https://groq.test", "api_key": "gk-1"}]
+        ),
+    )
+    r = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "groq/llama-3.3-70b",
+            "messages": [{"role": "user", "content": "hi"}],
+            "stream": True,
+        },
+    )
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/event-stream")
+    assert r.headers["x-plynf-upstream-provider"] == "groq"
+
+
+def test_embeddings_response_advertises_provider_header(monkeypatch):
+    captured: dict = {}
+    client = _forward_client(
+        monkeypatch,
+        captured,
+        {"object": "list", "data": []},
+        providers=json.dumps(
+            [{"name": "mistral", "base_url": "https://mistral.test", "api_key": "mk-1"}]
+        ),
+    )
+    r = client.post("/v1/embeddings", json={"input": "hi", "model": "mistral/mistral-embed"})
+    assert r.headers["x-plynf-upstream-provider"] == "mistral"
