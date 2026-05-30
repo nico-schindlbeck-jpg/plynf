@@ -870,8 +870,16 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         openai_body = cohere_chat_request_to_openai(cohere_body)
         openai_body["stream"] = False
 
+        header_base_url = request.headers.get(HEADER_BASE_URL)
+        header_api_key = request.headers.get(HEADER_API_KEY)
         before = len(st.events)
-        openai_final = await _handle_chat(st, openai_body, tenant_id)
+        openai_final = await _handle_chat(
+            st,
+            openai_body,
+            tenant_id,
+            header_base_url=header_base_url,
+            header_api_key=header_api_key,
+        )
         new_shaped = sum(
             ev.shaped_response_tokens for ev in st.events[before:]
         )
@@ -880,6 +888,14 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
 
         cohere_final = openai_response_to_cohere_chat(openai_final)
         headers = _savings_headers(st, before)
+        headers.update(
+            _provider_header(
+                st,
+                openai_body.get("model") or "",
+                header_base_url=header_base_url,
+                header_api_key=header_api_key,
+            )
+        )
         if not wants_stream:
             return JSONResponse(cohere_final, headers=headers)
         return StreamingResponse(
@@ -1020,14 +1036,30 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         openai_body = responses_request_to_openai(resp_body)
         openai_body["stream"] = False
 
+        header_base_url = request.headers.get(HEADER_BASE_URL)
+        header_api_key = request.headers.get(HEADER_API_KEY)
         before = len(st.events)
-        openai_final = await _handle_chat(st, openai_body, tenant_id)
+        openai_final = await _handle_chat(
+            st,
+            openai_body,
+            tenant_id,
+            header_base_url=header_base_url,
+            header_api_key=header_api_key,
+        )
         new_shaped = sum(ev.shaped_response_tokens for ev in st.events[before:])
         if new_shaped:
             st.gate.record_tokens(tenant_id, new_shaped)
 
         final_resp = openai_response_to_responses(openai_final)
         headers = _savings_headers(st, before)
+        headers.update(
+            _provider_header(
+                st,
+                openai_body.get("model") or "",
+                header_base_url=header_base_url,
+                header_api_key=header_api_key,
+            )
+        )
         if not wants_stream:
             return JSONResponse(final_resp, headers=headers)
         return StreamingResponse(
@@ -1352,13 +1384,30 @@ async def _run_gemini_dialect(
     openai_body = gemini_request_to_openai(gem_body, model=model)
     openai_body["stream"] = False
 
+    header_base_url = request.headers.get(HEADER_BASE_URL)
+    header_api_key = request.headers.get(HEADER_API_KEY)
     before = len(st.events)
-    openai_final = await _handle_chat(st, openai_body, tenant_id)
+    openai_final = await _handle_chat(
+        st,
+        openai_body,
+        tenant_id,
+        header_base_url=header_base_url,
+        header_api_key=header_api_key,
+    )
     new_shaped = sum(ev.shaped_response_tokens for ev in st.events[before:])
     if new_shaped:
         st.gate.record_tokens(tenant_id, new_shaped)
 
-    return openai_response_to_gemini(openai_final), _savings_headers(st, before)
+    headers = _savings_headers(st, before)
+    headers.update(
+        _provider_header(
+            st,
+            openai_body.get("model") or "",
+            header_base_url=header_base_url,
+            header_api_key=header_api_key,
+        )
+    )
+    return openai_response_to_gemini(openai_final), headers
 
 
 def _gemini_stream_or_array(
@@ -1409,13 +1458,30 @@ async def _run_anthropic_dialect(
     # runs synchronously and SSE (when wanted) is re-emitted from the final shape.
     openai_body["stream"] = False
 
+    header_base_url = request.headers.get(HEADER_BASE_URL)
+    header_api_key = request.headers.get(HEADER_API_KEY)
     before = len(st.events)
-    openai_final = await _handle_chat(st, openai_body, tenant_id)
+    openai_final = await _handle_chat(
+        st,
+        openai_body,
+        tenant_id,
+        header_base_url=header_base_url,
+        header_api_key=header_api_key,
+    )
     new_shaped = sum(ev.shaped_response_tokens for ev in st.events[before:])
     if new_shaped:
         st.gate.record_tokens(tenant_id, new_shaped)
 
-    return openai_response_to_anthropic(openai_final), _savings_headers(st, before)
+    headers = _savings_headers(st, before)
+    headers.update(
+        _provider_header(
+            st,
+            openai_body.get("model") or "",
+            header_base_url=header_base_url,
+            header_api_key=header_api_key,
+        )
+    )
+    return openai_response_to_anthropic(openai_final), headers
 
 
 async def _run_bedrock_converse(

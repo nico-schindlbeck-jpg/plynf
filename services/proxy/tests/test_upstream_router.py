@@ -945,3 +945,87 @@ def test_embeddings_response_advertises_provider_header(monkeypatch):
     )
     r = client.post("/v1/embeddings", json={"input": "hi", "model": "mistral/mistral-embed"})
     assert r.headers["x-plynf-upstream-provider"] == "mistral"
+
+
+# ---------------------------------------------------------------------------
+# Uniform per-request routing across the native-dialect front doors
+# (X-Plynf-Upstream override + provider/model prefix + provider header).
+# ---------------------------------------------------------------------------
+
+_GROQ_PROVIDERS = json.dumps(
+    [{"name": "groq", "base_url": "https://groq.test", "api_key": "gk-1"}]
+)
+_OVERRIDE = {"X-Plynf-Upstream": "https://hdr.test", "X-Plynf-Upstream-Key": "hk-9"}
+
+
+def test_anthropic_messages_honors_upstream_override(monkeypatch):
+    captured: dict = {}
+    client = _client(monkeypatch, captured, upstream_base_url="https://up.test")
+    r = client.post(
+        "/v1/messages",
+        json={
+            "model": "claude-3-5-sonnet",
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": "Hello"}],
+        },
+        headers=_OVERRIDE,
+    )
+    assert r.status_code == 200
+    assert captured["url"] == "https://hdr.test/v1/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer hk-9"
+    assert r.headers["x-plynf-upstream-provider"] == "header"
+
+
+def test_anthropic_messages_honors_provider_prefix(monkeypatch):
+    captured: dict = {}
+    client = _client(monkeypatch, captured, providers=_GROQ_PROVIDERS)
+    r = client.post(
+        "/v1/messages",
+        json={
+            "model": "groq/claude-x",
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": "Hello"}],
+        },
+    )
+    assert r.status_code == 200
+    assert captured["url"] == "https://groq.test/v1/chat/completions"
+    assert captured["json"]["model"] == "claude-x"  # prefix stripped
+    assert r.headers["x-plynf-upstream-provider"] == "groq"
+
+
+def test_cohere_chat_honors_upstream_override(monkeypatch):
+    captured: dict = {}
+    client = _client(monkeypatch, captured, upstream_base_url="https://up.test")
+    r = client.post(
+        "/v2/chat",
+        json={"model": "command-r-plus", "messages": [{"role": "user", "content": "hi"}]},
+        headers=_OVERRIDE,
+    )
+    assert r.status_code == 200
+    assert captured["url"] == "https://hdr.test/v1/chat/completions"
+    assert r.headers["x-plynf-upstream-provider"] == "header"
+
+
+def test_responses_honors_provider_prefix(monkeypatch):
+    captured: dict = {}
+    client = _client(monkeypatch, captured, providers=_GROQ_PROVIDERS)
+    r = client.post("/v1/responses", json={"model": "groq/gpt-x", "input": "hello"})
+    assert r.status_code == 200
+    assert captured["url"] == "https://groq.test/v1/chat/completions"
+    assert captured["json"]["model"] == "gpt-x"
+    assert r.headers["x-plynf-upstream-provider"] == "groq"
+
+
+def test_gemini_generate_content_honors_upstream_override(monkeypatch):
+    # Gemini carries the model in the URL (no slashes), so the header override
+    # is the per-request routing mechanism here — assert it now threads through.
+    captured: dict = {}
+    client = _client(monkeypatch, captured, upstream_base_url="https://up.test")
+    r = client.post(
+        "/v1beta/models/gemini-1.5-pro:generateContent",
+        json={"contents": [{"role": "user", "parts": [{"text": "hi"}]}]},
+        headers=_OVERRIDE,
+    )
+    assert r.status_code == 200
+    assert captured["url"] == "https://hdr.test/v1/chat/completions"
+    assert r.headers["x-plynf-upstream-provider"] == "header"
