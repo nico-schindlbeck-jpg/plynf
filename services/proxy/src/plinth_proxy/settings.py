@@ -40,8 +40,10 @@ class ProxySettings(BaseSettings):
     # convention), e.g.
     #   [{"name":"groq","base_url":"https://api.groq.com/openai","api_key":"${GROQ_API_KEY}"}]
     # A request for model ``groq/llama-3.3-70b`` is forwarded to that base URL
-    # with the prefix stripped. ``${VAR}`` in base_url/api_key is expanded from
-    # the environment. Callers may also override per request via the
+    # with the prefix stripped. Each provider may add an optional ``"headers"``
+    # object of extra request headers (e.g. OpenRouter attribution). ``${VAR}``
+    # in base_url/api_key/headers is expanded from the environment. Callers may
+    # also override per request via the
     # ``X-Plynf-Upstream`` header. Routing is NOT tier-gated (Plynf never gates
     # on integration type); unknown prefixes fall through to upstream_base_url.
     # Empty = single-provider mode (upstream_base_url only). See upstream_router.

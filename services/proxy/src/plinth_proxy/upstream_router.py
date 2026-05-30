@@ -37,9 +37,14 @@ Provider config (``PLINTH_PROXY_PROVIDERS``) is a JSON array of objects, each
       {"name": "mistral", "base_url": "https://api.mistral.ai", "api_key": "${MISTRAL_API_KEY}"}
     ]
 
-``${VAR}`` references in ``base_url`` and ``api_key`` are expanded from the
-environment at construction time (unset → empty string), so secrets stay out of
-the config blob.
+Each provider may also carry an optional ``"headers"`` object of extra request
+headers merged into every forward to it (e.g. OpenRouter attribution headers, or
+a gateway's ``X-Org-Id``); these win over the proxy's own
+``Authorization``/``Content-Type`` on a key collision.
+
+``${VAR}`` references in ``base_url``, ``api_key`` and ``headers`` values are
+expanded from the environment at construction time (unset → empty string), so
+secrets stay out of the config blob.
 
 Optionally, ``PLINTH_PROXY_MODEL_ALIASES`` maps friendly names to concrete model
 strings (``{"fast": "groq/llama-3.1-8b-instant"}``). An alias is expanded once,
@@ -52,7 +57,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 __all__ = [
     "ProviderRoute",
@@ -76,11 +81,19 @@ def _expand_env(value: str) -> str:
 
 @dataclass(frozen=True)
 class ProviderRoute:
-    """A configured OpenAI-compatible upstream addressable by name prefix."""
+    """A configured OpenAI-compatible upstream addressable by name prefix.
+
+    ``headers`` are extra request headers merged into every forward to this
+    provider (e.g. OpenRouter's ``HTTP-Referer`` / ``X-Title`` attribution, or a
+    gateway's ``X-Org-Id``). They win over the proxy's own ``Authorization`` /
+    ``Content-Type`` on a key collision, so a provider that authenticates with a
+    custom header (Azure-style ``api-key``) can override it.
+    """
 
     name: str
     base_url: str
     api_key: str = ""
+    headers: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -91,12 +104,15 @@ class UpstreamTarget:
     ``"header"`` for a per-request header override, or the configured provider
     name when a ``provider/model`` prefix matched. ``model`` is the id the
     upstream should see — i.e. with any matched provider prefix stripped.
+    ``extra_headers`` carries the matched provider's configured headers (empty
+    for the default and header-override routes).
     """
 
     base_url: str
     api_key: str
     model: str
     provider: str
+    extra_headers: dict[str, str] = field(default_factory=dict)
 
     @property
     def is_real(self) -> bool:
@@ -143,7 +159,21 @@ def parse_providers(raw: str) -> list[ProviderRoute]:
             continue  # first definition wins; ignore later duplicates
         seen.add(name)
         api_key = _expand_env(str(item.get("api_key", "")))
-        out.append(ProviderRoute(name=name, base_url=base_url.rstrip("/"), api_key=api_key))
+        headers: dict[str, str] = {}
+        raw_headers = item.get("headers")
+        if isinstance(raw_headers, dict):
+            for hk, hv in raw_headers.items():
+                hkey = str(hk).strip()
+                if hkey:
+                    headers[hkey] = _expand_env(str(hv))
+        out.append(
+            ProviderRoute(
+                name=name,
+                base_url=base_url.rstrip("/"),
+                api_key=api_key,
+                headers=headers,
+            )
+        )
     return out
 
 
@@ -268,6 +298,7 @@ class UpstreamRouter:
                     api_key=route.api_key,
                     model=rest,
                     provider=route.name,
+                    extra_headers=route.headers,
                 )
 
         # 3. Default upstream (unchanged).

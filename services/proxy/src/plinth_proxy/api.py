@@ -1069,7 +1069,17 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         # Enforce the gate (an over-budget tenant is blocked) but don't record
         # tokens — embeddings aren't shaped, so they don't count as savings.
         _enforce_tier(st, tenant_id, tier)
-        if st.settings.upstream_base_url and not st.settings.demo_mode:
+        # Forward when the request resolves to a real upstream — via the default
+        # OR a provider/model prefix OR an X-Plynf-Upstream header — mirroring the
+        # chat path, so a providers-only deployment (no default) still works here.
+        header_base_url = request.headers.get(HEADER_BASE_URL)
+        header_api_key = request.headers.get(HEADER_API_KEY)
+        target = st.upstream_router.resolve(
+            body.get("model") or "",
+            header_base_url=header_base_url,
+            header_api_key=header_api_key,
+        )
+        if target.is_real and not st.settings.demo_mode:
             return JSONResponse(
                 await _forward_upstream(
                     st,
@@ -1077,8 +1087,8 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
                     "/v1/embeddings",
                     json_body=body,
                     model=body.get("model"),
-                    header_base_url=request.headers.get(HEADER_BASE_URL),
-                    header_api_key=request.headers.get(HEADER_API_KEY),
+                    header_base_url=header_base_url,
+                    header_api_key=header_api_key,
                 )
             )
         return JSONResponse(mock_embeddings(body))
@@ -1100,7 +1110,14 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         body = await request.json()
         tenant_id, tier = await _authenticate(request, st)
         _enforce_tier(st, tenant_id, tier)
-        if st.settings.upstream_base_url and not st.settings.demo_mode:
+        header_base_url = request.headers.get(HEADER_BASE_URL)
+        header_api_key = request.headers.get(HEADER_API_KEY)
+        target = st.upstream_router.resolve(
+            body.get("model") or "",
+            header_base_url=header_base_url,
+            header_api_key=header_api_key,
+        )
+        if target.is_real and not st.settings.demo_mode:
             return JSONResponse(
                 await _forward_upstream(
                     st,
@@ -1108,8 +1125,8 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
                     "/v1/completions",
                     json_body=body,
                     model=body.get("model"),
-                    header_base_url=request.headers.get(HEADER_BASE_URL),
-                    header_api_key=request.headers.get(HEADER_API_KEY),
+                    header_base_url=header_base_url,
+                    header_api_key=header_api_key,
                 )
             )
         return JSONResponse(mock_text_completion(body))
@@ -1518,6 +1535,9 @@ async def _call_upstream(
         "Authorization": f"Bearer {target.api_key}" if target.api_key else "",
         "Content-Type": "application/json",
     }
+    # Per-provider extra headers win over our defaults (so e.g. a provider that
+    # authenticates with a custom header can override Authorization); blanks drop.
+    headers.update(target.extra_headers)
     headers = {k: v for k, v in headers.items() if v}
 
     url = target.chat_completions_url()
@@ -1557,6 +1577,8 @@ async def _forward_upstream(
     )
     url = target.url(path)
     headers = {"Authorization": f"Bearer {target.api_key}"} if target.api_key else {}
+    headers.update(target.extra_headers)  # per-provider extra headers (win on collision)
+    headers = {k: v for k, v in headers.items() if v}
     body = json_body
     if json_body is not None and model is not None and "model" in json_body:
         body = dict(json_body)

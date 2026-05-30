@@ -653,3 +653,211 @@ def test_providers_endpoint_lists_alias_names_not_targets():
     assert r.status_code == 200
     assert r.json()["aliases"] == ["fast"]
     assert "llama-secret-model" not in r.text  # only names exposed
+
+
+# ---------------------------------------------------------------------------
+# Per-provider extra headers
+# ---------------------------------------------------------------------------
+
+
+def test_parse_providers_parses_headers():
+    raw = json.dumps(
+        [
+            {
+                "name": "or",
+                "base_url": "https://or.test",
+                "headers": {"HTTP-Referer": "https://app.test", "X-Title": "App"},
+            }
+        ]
+    )
+    (route,) = parse_providers(raw)
+    assert route.headers == {"HTTP-Referer": "https://app.test", "X-Title": "App"}
+
+
+def test_parse_providers_expands_env_in_headers(monkeypatch):
+    monkeypatch.setenv("ORG", "org-42")
+    raw = json.dumps(
+        [{"name": "g", "base_url": "https://g.test", "headers": {"X-Org-Id": "${ORG}"}}]
+    )
+    (route,) = parse_providers(raw)
+    assert route.headers == {"X-Org-Id": "org-42"}
+
+
+def test_parse_providers_ignores_non_dict_headers():
+    raw = json.dumps([{"name": "g", "base_url": "https://g.test", "headers": "nope"}])
+    (route,) = parse_providers(raw)
+    assert route.headers == {}
+
+
+def test_parse_providers_skips_blank_header_keys():
+    raw = json.dumps(
+        [{"name": "g", "base_url": "https://g.test", "headers": {"  ": "v", "X-Ok": "1"}}]
+    )
+    (route,) = parse_providers(raw)
+    assert route.headers == {"X-Ok": "1"}
+
+
+def test_parse_providers_no_headers_defaults_empty():
+    raw = json.dumps([{"name": "g", "base_url": "https://g.test"}])
+    (route,) = parse_providers(raw)
+    assert route.headers == {}
+
+
+def test_resolve_prefix_carries_extra_headers():
+    r = UpstreamRouter(
+        [ProviderRoute(name="or", base_url="https://or.test", headers={"X-Title": "A"})]
+    )
+    t = r.resolve("or/some-model")
+    assert t.extra_headers == {"X-Title": "A"}
+
+
+def test_resolve_default_has_no_extra_headers():
+    r = UpstreamRouter(default_base_url="https://up.test")
+    assert r.resolve("gpt-4o").extra_headers == {}
+
+
+def test_resolve_header_override_has_no_extra_headers():
+    r = UpstreamRouter(
+        [ProviderRoute(name="or", base_url="https://or.test", headers={"X-Title": "A"})]
+    )
+    t = r.resolve("or/m", header_base_url="https://hdr.test")
+    assert t.extra_headers == {}
+
+
+def test_chat_provider_extra_headers_forwarded(monkeypatch):
+    captured: dict = {}
+    client = _client(
+        monkeypatch,
+        captured,
+        providers=json.dumps(
+            [
+                {
+                    "name": "or",
+                    "base_url": "https://or.test",
+                    "api_key": "or-1",
+                    "headers": {"HTTP-Referer": "https://app.test", "X-Title": "App"},
+                }
+            ]
+        ),
+    )
+    r = _chat(client, "or/anthropic/claude-3.5")
+    assert r.status_code == 200
+    assert captured["url"] == "https://or.test/v1/chat/completions"
+    assert captured["json"]["model"] == "anthropic/claude-3.5"  # only first segment stripped
+    assert captured["headers"]["Authorization"] == "Bearer or-1"
+    assert captured["headers"]["HTTP-Referer"] == "https://app.test"
+    assert captured["headers"]["X-Title"] == "App"
+
+
+def test_chat_provider_header_overrides_authorization(monkeypatch):
+    # A provider that authenticates with a custom header wins over our Bearer.
+    captured: dict = {}
+    client = _client(
+        monkeypatch,
+        captured,
+        providers=json.dumps(
+            [
+                {
+                    "name": "az",
+                    "base_url": "https://az.test",
+                    "api_key": "ignored",
+                    "headers": {"Authorization": "Custom abc", "api-key": "az-key"},
+                }
+            ]
+        ),
+    )
+    r = _chat(client, "az/gpt-4o")
+    assert r.status_code == 200
+    assert captured["headers"]["Authorization"] == "Custom abc"
+    assert captured["headers"]["api-key"] == "az-key"
+
+
+def test_embeddings_provider_extra_headers_forwarded(monkeypatch):
+    captured: dict = {}
+    client = _forward_client(
+        monkeypatch,
+        captured,
+        {"object": "list", "data": []},
+        providers=json.dumps(
+            [
+                {
+                    "name": "mistral",
+                    "base_url": "https://mistral.test",
+                    "api_key": "mk-1",
+                    "headers": {"X-Org-Id": "org-7"},
+                }
+            ]
+        ),
+    )
+    r = client.post("/v1/embeddings", json={"input": "hi", "model": "mistral/mistral-embed"})
+    assert r.status_code == 200
+    assert captured["headers"]["Authorization"] == "Bearer mk-1"
+    assert captured["headers"]["X-Org-Id"] == "org-7"
+
+
+def test_chat_default_route_sends_no_extra_headers(monkeypatch):
+    # Regression: default upstream still sees exactly Authorization + Content-Type.
+    captured: dict = {}
+    client = _client(
+        monkeypatch, captured, upstream_base_url="https://up.test", upstream_api_key="sk-up"
+    )
+    r = _chat(client, "gpt-4o")
+    assert r.status_code == 200
+    assert set(captured["headers"]) == {"Authorization", "Content-Type"}
+
+
+def test_embeddings_provider_only_no_default_forwards(monkeypatch):
+    # Regression: providers-only deployment (no upstream_base_url) must still
+    # forward a prefixed model — previously the drop-in guard fell back to mock.
+    captured: dict = {}
+    client = _forward_client(
+        monkeypatch,
+        captured,
+        {"object": "list", "data": []},
+        providers=json.dumps(
+            [{"name": "mistral", "base_url": "https://mistral.test", "api_key": "mk-1"}]
+        ),
+    )
+    r = client.post("/v1/embeddings", json={"input": "hi", "model": "mistral/mistral-embed"})
+    assert r.status_code == 200
+    assert captured["url"] == "https://mistral.test/v1/embeddings"
+    assert captured["json"]["model"] == "mistral-embed"
+
+
+def test_completions_provider_only_no_default_forwards(monkeypatch):
+    captured: dict = {}
+    client = _forward_client(
+        monkeypatch,
+        captured,
+        {"object": "text_completion", "choices": []},
+        providers=json.dumps(
+            [{"name": "together", "base_url": "https://together.test", "api_key": "tk-1"}]
+        ),
+    )
+    r = client.post("/v1/completions", json={"prompt": "hi", "model": "together/mixtral"})
+    assert r.status_code == 200
+    assert captured["url"] == "https://together.test/v1/completions"
+    assert captured["json"]["model"] == "mixtral"
+
+
+def test_embeddings_no_upstream_at_all_mocks(monkeypatch):
+    # No default, no provider match → deterministic mock, upstream untouched.
+    captured: dict = {}
+    client = _forward_client(monkeypatch, captured, {"object": "list", "data": []})
+    r = client.post("/v1/embeddings", json={"input": "hi", "model": "gpt-4o"})
+    assert r.status_code == 200
+    assert captured == {}  # upstream not called — served by the mock
+
+
+def test_embeddings_header_override_without_default_forwards(monkeypatch):
+    # X-Plynf-Upstream alone (no default, no providers) routes the drop-in path.
+    captured: dict = {}
+    client = _forward_client(monkeypatch, captured, {"object": "list", "data": []})
+    r = client.post(
+        "/v1/embeddings",
+        json={"input": "hi", "model": "text-embedding-3-small"},
+        headers={"X-Plynf-Upstream": "https://hdr.test", "X-Plynf-Upstream-Key": "hk-9"},
+    )
+    assert r.status_code == 200
+    assert captured["url"] == "https://hdr.test/v1/embeddings"
+    assert captured["headers"]["Authorization"] == "Bearer hk-9"
