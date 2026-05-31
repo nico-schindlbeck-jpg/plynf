@@ -494,8 +494,11 @@ def test_completions_provider_prefix_routes_and_strips(monkeypatch):
     assert captured["headers"]["Authorization"] == "Bearer tk-1"
 
 
-def test_models_listing_still_uses_default_upstream(monkeypatch):
-    # GET /v1/models has no model to route on → always the default upstream.
+def test_models_listing_uses_default_upstream_without_providers(monkeypatch):
+    # No providers / aliases configured → the listing forwards to the default
+    # upstream unchanged (the multi-provider aggregator never engages). When
+    # providers ARE configured the catalog is aggregated instead — see the
+    # "/v1/models catalog aggregation" section below.
     captured: dict = {}
     client = _forward_client(
         monkeypatch,
@@ -503,11 +506,11 @@ def test_models_listing_still_uses_default_upstream(monkeypatch):
         {"object": "list", "data": []},
         upstream_base_url="https://up.test",
         upstream_api_key="sk-up",
-        providers=json.dumps([{"name": "groq", "base_url": "https://groq.test"}]),
     )
     r = client.get("/v1/models")
     assert r.status_code == 200
     assert captured["url"] == "https://up.test/v1/models"
+    assert captured["headers"]["Authorization"] == "Bearer sk-up"
 
 
 # ---------------------------------------------------------------------------
@@ -1057,3 +1060,154 @@ def test_bedrock_converse_honors_provider_prefix(monkeypatch):
     assert captured["url"] == "https://groq.test/v1/chat/completions"
     assert captured["json"]["model"] == "llama-3.3-70b"
     assert r.headers["x-plynf-upstream-provider"] == "groq"
+
+
+# ---------------------------------------------------------------------------
+# GET /v1/models — multi-provider catalog aggregation
+# ---------------------------------------------------------------------------
+
+
+class _FakeModelsClient:
+    """Per-source fake for the ``/v1/models`` fan-out: maps GET URL → ListModels.
+
+    ``state`` is shared across the (one-per-source) instances the aggregation
+    constructs, so ``state["calls"]`` accumulates every URL hit. A URL listed in
+    ``state["fail"]`` raises, simulating an unreachable provider.
+    """
+
+    def __init__(self, state: dict):
+        self._state = state
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def get(self, url, headers=None):
+        self._state.setdefault("calls", []).append(url)
+        if url in self._state.get("fail", set()):
+            raise RuntimeError("provider unreachable")
+        payload = self._state.get("by_url", {}).get(url, {"object": "list", "data": []})
+        return _FakeResp(payload)
+
+
+def _models_client(monkeypatch, state, **settings_kwargs):
+    monkeypatch.setattr(
+        api.httpx, "AsyncClient", lambda *a, **k: _FakeModelsClient(state)
+    )
+    settings = ProxySettings(demo_mode=False, **settings_kwargs)
+    return TestClient(create_app(settings))
+
+
+def _models_payload(*ids):
+    return {"object": "list", "data": [{"id": i, "object": "model"} for i in ids]}
+
+
+def _ids(resp):
+    return [m["id"] for m in resp.json()["data"]]
+
+
+def test_models_aggregates_default_and_providers(monkeypatch):
+    state = {
+        "by_url": {
+            "https://up.test/v1/models": _models_payload("gpt-4o", "gpt-4o-mini"),
+            "https://groq.test/v1/models": _models_payload("llama-3.3-70b"),
+        }
+    }
+    client = _models_client(
+        monkeypatch,
+        state,
+        upstream_base_url="https://up.test",
+        upstream_api_key="sk-up",
+        providers=_GROQ_PROVIDERS,
+    )
+    r = client.get("/v1/models")
+    assert r.status_code == 200
+    ids = _ids(r)
+    assert "gpt-4o" in ids  # default upstream — unprefixed
+    assert "gpt-4o-mini" in ids
+    assert "groq/llama-3.3-70b" in ids  # provider — prefixed, directly routable
+    assert set(state["calls"]) == {
+        "https://up.test/v1/models",
+        "https://groq.test/v1/models",
+    }
+
+
+def test_models_providers_only_no_default(monkeypatch):
+    state = {"by_url": {"https://groq.test/v1/models": _models_payload("llama-3.3-70b")}}
+    client = _models_client(monkeypatch, state, providers=_GROQ_PROVIDERS)
+    r = client.get("/v1/models")
+    assert r.status_code == 200
+    assert _ids(r) == ["groq/llama-3.3-70b"]
+    assert state["calls"] == ["https://groq.test/v1/models"]
+
+
+def test_models_includes_aliases_as_synthetic(monkeypatch):
+    state = {"by_url": {"https://groq.test/v1/models": _models_payload("llama-3.3-70b")}}
+    client = _models_client(
+        monkeypatch,
+        state,
+        providers=_GROQ_PROVIDERS,
+        model_aliases=json.dumps({"fast": "groq/llama-3.3-70b"}),
+    )
+    r = client.get("/v1/models")
+    data = {m["id"]: m for m in r.json()["data"]}
+    assert "groq/llama-3.3-70b" in data
+    assert data["fast"]["owned_by"] == "plynf-alias"  # alias is itself routable
+
+
+def test_models_skips_unreachable_provider(monkeypatch):
+    # groq is reachable; "down" raises — the catalog still returns groq's models
+    # rather than 500-ing the whole listing.
+    providers = json.dumps(
+        [
+            {"name": "groq", "base_url": "https://groq.test", "api_key": "gk-1"},
+            {"name": "down", "base_url": "https://down.test", "api_key": "dk"},
+        ]
+    )
+    state = {
+        "by_url": {"https://groq.test/v1/models": _models_payload("llama-3.3-70b")},
+        "fail": {"https://down.test/v1/models"},
+    }
+    client = _models_client(monkeypatch, state, providers=providers)
+    r = client.get("/v1/models")
+    assert r.status_code == 200
+    assert _ids(r) == ["groq/llama-3.3-70b"]
+
+
+def test_models_alias_does_not_duplicate_existing_id(monkeypatch):
+    state = {"by_url": {"https://up.test/v1/models": _models_payload("gpt-4o")}}
+    client = _models_client(
+        monkeypatch,
+        state,
+        upstream_base_url="https://up.test",
+        model_aliases=json.dumps({"gpt-4o": "openai/gpt-4o"}),
+    )
+    r = client.get("/v1/models")
+    assert _ids(r).count("gpt-4o") == 1  # alias didn't duplicate the upstream id
+
+
+def test_models_demo_mode_serves_mock_without_fanout(monkeypatch):
+    state: dict = {"by_url": {}}
+    monkeypatch.setattr(
+        api.httpx, "AsyncClient", lambda *a, **k: _FakeModelsClient(state)
+    )
+    settings = ProxySettings(demo_mode=True, providers=_GROQ_PROVIDERS)
+    client = TestClient(create_app(settings))
+    r = client.get("/v1/models")
+    assert r.status_code == 200
+    assert state.get("calls", []) == []  # demo mode never fans out to upstreams
+    assert r.json()["object"] == "list"
+
+
+def test_models_single_provider_path_unchanged(monkeypatch):
+    # No providers, no aliases: the legacy direct-forward path runs (NOT the
+    # aggregator), so the upstream payload is returned verbatim — an extra
+    # top-level field survives instead of being rebuilt into a clean envelope.
+    raw = {"object": "list", "data": [{"id": "gpt-4o", "object": "model"}], "x_extra": 1}
+    state = {"by_url": {"https://up.test/v1/models": raw}}
+    client = _models_client(monkeypatch, state, upstream_base_url="https://up.test")
+    r = client.get("/v1/models")
+    assert r.status_code == 200
+    assert r.json() == raw  # verbatim forward — extra field preserved

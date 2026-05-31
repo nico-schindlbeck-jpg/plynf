@@ -26,6 +26,7 @@ Endpoints:
 
 from __future__ import annotations
 
+import asyncio
 import binascii
 import json
 import logging
@@ -1081,6 +1082,12 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         # Listing is metadata: authenticate to resolve the tenant, but it is
         # neither tier-gated nor charged.
         await _authenticate(request, st)
+        router = st.upstream_router
+        # Multi-provider / aliased deployments get a self-describing catalog
+        # whose ids are directly routable (provider/model + alias names). The
+        # single-provider and demo paths below are byte-for-byte unchanged.
+        if not st.settings.demo_mode and (router.providers or router.alias_names):
+            return JSONResponse(await _aggregated_models(st))
         if st.settings.upstream_base_url and not st.settings.demo_mode:
             return JSONResponse(await _forward_upstream(st, "GET", "/v1/models"))
         return JSONResponse(mock_models())
@@ -1671,6 +1678,92 @@ async def _call_upstream(
             detail=f"upstream error: {resp.text[:500]}",
         )
     return resp.json()
+
+
+async def _fetch_models_for(
+    base_url: str,
+    api_key: str,
+    extra_headers: dict[str, str],
+    prefix: str,
+) -> list[dict[str, Any]]:
+    """GET ``<base_url>/v1/models`` and return its model objects, ids prefixed.
+
+    Backs the multi-provider ``/v1/models`` aggregation. Never raises: a single
+    upstream's network / HTTP / parse failure yields ``[]`` so one unreachable
+    provider can't blank the whole catalog. ``prefix`` (e.g. ``"groq/"``) is
+    prepended to each returned id so the catalog advertises directly-routable
+    ``provider/model`` strings; pass ``""`` for the default upstream.
+    """
+    if not base_url:
+        return []
+    url = base_url.rstrip("/") + "/v1/models"
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    headers.update(extra_headers)  # per-provider headers win (e.g. Azure api-key)
+    headers = {k: v for k, v in headers.items() if v}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers=headers)
+        if resp.status_code >= 400:
+            return []
+        payload = resp.json()
+    except Exception as e:  # noqa: BLE001 — one bad provider must not blank the catalog
+        log.debug("model-catalog fetch failed for %s: %s", url, e)
+        return []
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        mid = item.get("id")
+        if not isinstance(mid, str) or not mid:
+            continue
+        entry = dict(item)
+        entry["id"] = f"{prefix}{mid}" if prefix else mid
+        out.append(entry)
+    return out
+
+
+async def _aggregated_models(st: AppState) -> dict[str, Any]:
+    """Aggregate an OpenAI ``ListModels`` catalog across every routable upstream.
+
+    Fans out concurrently to the default upstream (ids unprefixed) and each
+    configured provider (ids prefixed ``provider/`` so they are directly usable
+    as a later request's ``model``), then appends configured aliases as synthetic
+    entries (an alias is itself a routable model string). De-duplicates on id;
+    resilient per source via :func:`_fetch_models_for`.
+    """
+    router = st.upstream_router
+    # (base_url, api_key, extra_headers, prefix)
+    sources: list[tuple[str, str, dict[str, str], str]] = []
+    if router.has_default:
+        dt = router.resolve("")  # the default target (no provider/header involved)
+        sources.append((dt.base_url, dt.api_key, {}, ""))
+    for route in router.providers:
+        sources.append((route.base_url, route.api_key, route.headers, f"{route.name}/"))
+
+    chunks = await asyncio.gather(
+        *(_fetch_models_for(b, k, h, p) for (b, k, h, p) in sources)
+    )
+
+    data: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for chunk in chunks:
+        for entry in chunk:
+            mid = entry.get("id")
+            if not isinstance(mid, str) or mid in seen:
+                continue
+            seen.add(mid)
+            data.append(entry)
+    for alias in router.alias_names:
+        if alias in seen:
+            continue
+        seen.add(alias)
+        entry = mock_model(alias)
+        entry["owned_by"] = "plynf-alias"
+        data.append(entry)
+    return {"object": "list", "data": data}
 
 
 async def _forward_upstream(

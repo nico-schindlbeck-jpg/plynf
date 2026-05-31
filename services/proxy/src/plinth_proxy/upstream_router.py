@@ -249,6 +249,17 @@ class UpstreamRouter:
         return sorted(self._providers)
 
     @property
+    def providers(self) -> list[ProviderRoute]:
+        """The configured provider routes, in config order.
+
+        Unlike :attr:`provider_names` (sorted, for display), this preserves the
+        configured order and carries each route's ``base_url`` / ``api_key`` /
+        ``headers`` — needed to fan out a model-catalog aggregation across every
+        provider (see the proxy's ``/v1/models`` aggregation).
+        """
+        return list(self._providers.values())
+
+    @property
     def alias_names(self) -> list[str]:
         """Sorted alias names (for discoverability; never exposes targets)."""
         return sorted(self._aliases)
