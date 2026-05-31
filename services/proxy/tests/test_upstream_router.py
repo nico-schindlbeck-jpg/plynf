@@ -1211,3 +1211,73 @@ def test_models_single_provider_path_unchanged(monkeypatch):
     r = client.get("/v1/models")
     assert r.status_code == 200
     assert r.json() == raw  # verbatim forward — extra field preserved
+
+
+# ---------------------------------------------------------------------------
+# GET /v1/models/{model} — retrieve honors prefixes + aliases (matches listing)
+# ---------------------------------------------------------------------------
+
+
+def test_retrieve_model_provider_prefix_forwards_native_id(monkeypatch):
+    # {model:path} captures the slash; the upstream sees its native id and the
+    # response echoes the prefixed id the caller used (matches the catalog).
+    captured: dict = {}
+    client = _forward_client(
+        monkeypatch,
+        captured,
+        {"id": "llama-3.3-70b", "object": "model", "owned_by": "groq"},
+        providers=_GROQ_PROVIDERS,
+    )
+    r = client.get("/v1/models/groq/llama-3.3-70b")
+    assert r.status_code == 200
+    assert captured["url"] == "https://groq.test/v1/models/llama-3.3-70b"
+    assert captured["headers"]["Authorization"] == "Bearer gk-1"
+    assert r.json()["id"] == "groq/llama-3.3-70b"  # re-prefixed for consistency
+
+
+def test_retrieve_model_alias_is_synthetic_no_upstream(monkeypatch):
+    captured: dict = {}
+    client = _forward_client(
+        monkeypatch,
+        captured,
+        {"id": "should-not-be-used", "object": "model"},
+        providers=_GROQ_PROVIDERS,
+        model_aliases=json.dumps({"fast": "groq/llama-3.3-70b"}),
+    )
+    r = client.get("/v1/models/fast")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["id"] == "fast"
+    assert body["owned_by"] == "plynf-alias"
+    assert captured == {}  # alias resolved synthetically — no upstream call
+
+
+def test_retrieve_model_default_unchanged(monkeypatch):
+    captured: dict = {}
+    payload = {"id": "gpt-4o", "object": "model", "owned_by": "openai"}
+    client = _forward_client(
+        monkeypatch,
+        captured,
+        payload,
+        upstream_base_url="https://up.test",
+        upstream_api_key="sk-up",
+    )
+    r = client.get("/v1/models/gpt-4o")
+    assert r.status_code == 200
+    assert captured["url"] == "https://up.test/v1/models/gpt-4o"
+    assert r.json() == payload  # default route returns the upstream object verbatim
+
+
+def test_retrieve_model_header_override(monkeypatch):
+    captured: dict = {}
+    client = _forward_client(
+        monkeypatch,
+        captured,
+        {"id": "gpt-4o", "object": "model"},
+        upstream_base_url="https://up.test",
+        upstream_api_key="sk-up",
+    )
+    r = client.get("/v1/models/gpt-4o", headers=_OVERRIDE)
+    assert r.status_code == 200
+    assert captured["url"] == "https://hdr.test/v1/models/gpt-4o"
+    assert captured["headers"]["Authorization"] == "Bearer hk-9"

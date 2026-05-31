@@ -1092,12 +1092,38 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
             return JSONResponse(await _forward_upstream(st, "GET", "/v1/models"))
         return JSONResponse(mock_models())
 
-    @app.get("/v1/models/{model}")
+    @app.get("/v1/models/{model:path}")
     async def retrieve_model(model: str, request: Request) -> JSONResponse:
         st: AppState = app.state.plinth
         await _authenticate(request, st)
-        if st.settings.upstream_base_url and not st.settings.demo_mode:
-            return JSONResponse(await _forward_upstream(st, "GET", f"/v1/models/{model}"))
+        # ``{model:path}`` captures slashes so a provider-prefixed id advertised
+        # by the aggregated listing (``groq/llama-3.3-70b``) can be retrieved too,
+        # not just default-upstream ids.
+        router = st.upstream_router
+        header_base_url = request.headers.get(HEADER_BASE_URL)
+        header_api_key = request.headers.get(HEADER_API_KEY)
+        # An alias is routable but isn't itself an upstream model id → synthetic.
+        if not st.settings.demo_mode and model in router.alias_names:
+            entry = mock_model(model)
+            entry["owned_by"] = "plynf-alias"
+            return JSONResponse(entry)
+        target = router.resolve(
+            model, header_base_url=header_base_url, header_api_key=header_api_key
+        )
+        if target.is_real and not st.settings.demo_mode:
+            payload = await _forward_upstream(
+                st,
+                "GET",
+                f"/v1/models/{target.model}",  # native id (prefix stripped)
+                model=model,
+                header_base_url=header_base_url,
+                header_api_key=header_api_key,
+            )
+            # Echo the prefixed id the caller used so it matches the catalog
+            # listing (only when a configured provider actually matched).
+            if isinstance(payload, dict) and target.provider not in ("default", "header"):
+                payload["id"] = model
+            return JSONResponse(payload)
         return JSONResponse(mock_model(model))
 
     @app.post("/v1/embeddings")
