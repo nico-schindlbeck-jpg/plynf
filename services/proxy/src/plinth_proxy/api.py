@@ -1503,13 +1503,30 @@ async def _run_bedrock_converse(
     openai_body = bedrock_converse_request_to_openai(bedrock_body, model=model_id)
     openai_body["stream"] = False
 
+    header_base_url = request.headers.get(HEADER_BASE_URL)
+    header_api_key = request.headers.get(HEADER_API_KEY)
     before = len(st.events)
-    openai_final = await _handle_chat(st, openai_body, tenant_id)
+    openai_final = await _handle_chat(
+        st,
+        openai_body,
+        tenant_id,
+        header_base_url=header_base_url,
+        header_api_key=header_api_key,
+    )
     new_shaped = sum(ev.shaped_response_tokens for ev in st.events[before:])
     if new_shaped:
         st.gate.record_tokens(tenant_id, new_shaped)
 
-    return openai_response_to_bedrock_converse(openai_final), _savings_headers(st, before)
+    headers = _savings_headers(st, before)
+    headers.update(
+        _provider_header(
+            st,
+            openai_body.get("model") or "",
+            header_base_url=header_base_url,
+            header_api_key=header_api_key,
+        )
+    )
+    return openai_response_to_bedrock_converse(openai_final), headers
 
 
 # ---------------------------------------------------------------------------

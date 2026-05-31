@@ -1029,3 +1029,31 @@ def test_gemini_generate_content_honors_upstream_override(monkeypatch):
     assert r.status_code == 200
     assert captured["url"] == "https://hdr.test/v1/chat/completions"
     assert r.headers["x-plynf-upstream-provider"] == "header"
+
+
+def test_bedrock_converse_honors_upstream_override(monkeypatch):
+    captured: dict = {}
+    client = _client(monkeypatch, captured, upstream_base_url="https://up.test")
+    r = client.post(
+        "/model/anthropic.claude-3-5-sonnet/converse",
+        json={"messages": [{"role": "user", "content": [{"text": "Hello"}]}]},
+        headers=_OVERRIDE,
+    )
+    assert r.status_code == 200
+    assert captured["url"] == "https://hdr.test/v1/chat/completions"
+    assert r.headers["x-plynf-upstream-provider"] == "header"
+
+
+def test_bedrock_converse_honors_provider_prefix(monkeypatch):
+    # The {model_id:path} route captures slashes, so a provider prefix in the
+    # Bedrock model path routes too (groq/llama-3.3-70b → groq + llama-3.3-70b).
+    captured: dict = {}
+    client = _client(monkeypatch, captured, providers=_GROQ_PROVIDERS)
+    r = client.post(
+        "/model/groq/llama-3.3-70b/converse",
+        json={"messages": [{"role": "user", "content": [{"text": "Hello"}]}]},
+    )
+    assert r.status_code == 200
+    assert captured["url"] == "https://groq.test/v1/chat/completions"
+    assert captured["json"]["model"] == "llama-3.3-70b"
+    assert r.headers["x-plynf-upstream-provider"] == "groq"
