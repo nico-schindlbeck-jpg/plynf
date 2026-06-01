@@ -65,35 +65,35 @@
 # ─── GitHub aliases ───────────────────────────────────────────────────
 [[redirects]]
   from = "/github"
-  to = "https://github.com/nico-schindlbeck-jpg/plinth"
+  to = "https://github.com/nico-schindlbeck-jpg/plynf"
   status = 302
 
 [[redirects]]
   from = "/repo"
-  to = "https://github.com/nico-schindlbeck-jpg/plinth"
+  to = "https://github.com/nico-schindlbeck-jpg/plynf"
   status = 302
 
 [[redirects]]
   from = "/releases"
-  to = "https://github.com/nico-schindlbeck-jpg/plinth/releases"
+  to = "https://github.com/nico-schindlbeck-jpg/plynf/releases"
   status = 302
 
 [[redirects]]
   from = "/issues"
-  to = "https://github.com/nico-schindlbeck-jpg/plinth/issues"
+  to = "https://github.com/nico-schindlbeck-jpg/plynf/issues"
   status = 302
 
 # ─── Subdomain placeholders (point at GitHub until real surfaces exist) ─
 [[redirects]]
   from = "/docs"
-  to = "https://github.com/nico-schindlbeck-jpg/plinth/tree/main/docs"
+  to = "https://github.com/nico-schindlbeck-jpg/plynf/tree/main/docs"
   status = 302
 
 # Discord doesn't exist yet — funnel users to GitHub Discussions
 # until a real invite is created.
 [[redirects]]
   from = "/discord"
-  to = "https://github.com/nico-schindlbeck-jpg/plinth/discussions"
+  to = "https://github.com/nico-schindlbeck-jpg/plynf/discussions"
   status = 302
 
 # ─── Misc ─────────────────────────────────────────────────────────────
