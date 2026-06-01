@@ -13,8 +13,11 @@ from fastapi.testclient import TestClient
 from plinth_proxy.api import create_app
 from plinth_proxy.ollama_adapter import (
     ollama_chat_request_to_openai,
+    ollama_embeddings_request_to_openai,
     ollama_generate_request_to_openai,
     ollama_tags_from_models,
+    openai_embeddings_to_ollama_embed,
+    openai_embeddings_to_ollama_legacy,
     openai_response_to_ollama_chat,
     openai_response_to_ollama_generate,
 )
@@ -185,6 +188,41 @@ def test_generate_response_is_flat_response_string():
 
 
 # ---------------------------------------------------------------------------
+# Embeddings translation
+# ---------------------------------------------------------------------------
+
+
+def test_embeddings_request_prefers_input_else_prompt():
+    # /api/embed sends `input`; legacy /api/embeddings sends `prompt`.
+    assert ollama_embeddings_request_to_openai(
+        {"model": "m", "input": ["a", "b"]}
+    ) == {"model": "m", "input": ["a", "b"]}
+    assert ollama_embeddings_request_to_openai(
+        {"model": "m", "prompt": "hello"}
+    ) == {"model": "m", "input": "hello"}
+
+
+def test_embeddings_response_legacy_single_vector():
+    resp = {"object": "list", "data": [{"index": 0, "embedding": [0.1, 0.2]}]}
+    assert openai_embeddings_to_ollama_legacy(resp) == {"embedding": [0.1, 0.2]}
+
+
+def test_embeddings_response_embed_list_of_vectors():
+    resp = {
+        "object": "list",
+        "data": [
+            {"index": 0, "embedding": [0.1]},
+            {"index": 1, "embedding": [0.2]},
+        ],
+        "usage": {"prompt_tokens": 5},
+    }
+    out = openai_embeddings_to_ollama_embed(resp, model="m")
+    assert out["model"] == "m"
+    assert out["embeddings"] == [[0.1], [0.2]]
+    assert out["prompt_eval_count"] == 5
+
+
+# ---------------------------------------------------------------------------
 # Model listing: OpenAI ListModels → Ollama /api/tags
 # ---------------------------------------------------------------------------
 
@@ -280,3 +318,24 @@ def test_api_generate_non_stream_returns_flat_response(demo_client):
     assert isinstance(body["response"], str) and body["response"]
     assert "message" not in body  # /api/generate is flat
     assert body["done"] is True
+
+
+def test_api_embeddings_legacy_returns_single_vector(demo_client):
+    r = demo_client.post(
+        "/api/embeddings", json={"model": "nomic-embed-text", "prompt": "embed me"}
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert "embedding" in body
+    assert isinstance(body["embedding"], list) and len(body["embedding"]) == 16  # mock dim
+
+
+def test_api_embed_returns_list_of_vectors(demo_client):
+    r = demo_client.post(
+        "/api/embed", json={"model": "nomic-embed-text", "input": ["a", "b", "c"]}
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["model"] == "nomic-embed-text"
+    assert len(body["embeddings"]) == 3  # one vector per input
+    assert all(len(v) == 16 for v in body["embeddings"])

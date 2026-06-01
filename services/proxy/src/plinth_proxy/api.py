@@ -71,8 +71,11 @@ from .mock_llm import (
 )
 from .ollama_adapter import (
     ollama_chat_request_to_openai,
+    ollama_embeddings_request_to_openai,
     ollama_generate_request_to_openai,
     ollama_tags_from_models,
+    openai_embeddings_to_ollama_embed,
+    openai_embeddings_to_ollama_legacy,
     openai_response_to_ollama_chat,
     openai_response_to_ollama_generate,
 )
@@ -1048,6 +1051,30 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         API. Unauthenticated (a capability probe that leaks nothing)."""
         return JSONResponse({"version": f"0.0.0-plynf-{__version__}"})
 
+    @app.post("/api/embeddings")
+    async def ollama_embeddings(request: Request) -> JSONResponse:
+        """Ollama legacy ``POST /api/embeddings`` — single ``prompt`` → one
+        vector ``{embedding: [...]}``. Like ``/v1/embeddings`` Plynf shapes
+        nothing here (no tool calls → no savings); it gates the tenant and
+        forwards (or mocks offline), honoring provider/prefix/header routing."""
+        body = await request.json()
+        openai_body = ollama_embeddings_request_to_openai(body)
+        resp, headers = await _run_ollama_embeddings(app.state.plinth, request, openai_body)
+        return JSONResponse(openai_embeddings_to_ollama_legacy(resp), headers=headers)
+
+    @app.post("/api/embed")
+    async def ollama_embed(request: Request) -> JSONResponse:
+        """Ollama new ``POST /api/embed`` — ``input`` (string or list) → a list
+        of vectors ``{model, embeddings: [[...]]}``. Same pipeline as
+        ``/api/embeddings``."""
+        body = await request.json()
+        openai_body = ollama_embeddings_request_to_openai(body)
+        resp, headers = await _run_ollama_embeddings(app.state.plinth, request, openai_body)
+        return JSONResponse(
+            openai_embeddings_to_ollama_embed(resp, model=body.get("model")),
+            headers=headers,
+        )
+
     @app.post("/v1/messages")
     async def anthropic_messages(request: Request) -> JSONResponse:
         """Anthropic-compatible /v1/messages endpoint.
@@ -1941,6 +1968,40 @@ async def _models_catalog(st: AppState) -> dict[str, Any]:
     if st.settings.upstream_base_url and not st.settings.demo_mode:
         return await _forward_upstream(st, "GET", "/v1/models")
     return mock_models()
+
+
+async def _run_ollama_embeddings(
+    st: AppState, request: Request, openai_body: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Shared backend for the Ollama embeddings front doors.
+
+    Mirrors ``/v1/embeddings``: authenticate + tier-gate (an over-budget tenant
+    is blocked) but charge nothing — embeddings aren't shaped — then forward to
+    the resolved upstream (provider/prefix/header routing applies) or serve the
+    mock offline. Returns the OpenAI-shaped embeddings dict plus the response
+    headers; the calling endpoint reshapes to the Ollama variant it serves.
+    """
+    tenant_id, tier = await _authenticate(request, st)
+    _enforce_tier(st, tenant_id, tier)
+    header_base_url = request.headers.get(HEADER_BASE_URL)
+    header_api_key = request.headers.get(HEADER_API_KEY)
+    target = st.upstream_router.resolve(
+        openai_body.get("model") or "",
+        header_base_url=header_base_url,
+        header_api_key=header_api_key,
+    )
+    if target.is_real and not st.settings.demo_mode:
+        resp = await _forward_upstream(
+            st,
+            "POST",
+            "/v1/embeddings",
+            json_body=openai_body,
+            model=openai_body.get("model"),
+            header_base_url=header_base_url,
+            header_api_key=header_api_key,
+        )
+        return resp, {HEADER_UPSTREAM_PROVIDER: target.provider}
+    return mock_embeddings(openai_body), {}
 
 
 async def _forward_upstream(

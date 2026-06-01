@@ -316,10 +316,56 @@ def ollama_tags_from_models(models: dict[str, Any]) -> dict[str, Any]:
     return {"models": out}
 
 
+# ---------------------------------------------------------------------------
+# Embeddings: Ollama /api/embeddings (legacy) + /api/embed (new) ⇄ OpenAI
+# ---------------------------------------------------------------------------
+
+
+def ollama_embeddings_request_to_openai(
+    body: dict[str, Any], model: str | None = None
+) -> dict[str, Any]:
+    """Translate an Ollama embeddings request into an OpenAI ``/v1/embeddings``
+    body. The legacy ``/api/embeddings`` carries a single ``prompt`` string; the
+    newer ``/api/embed`` carries ``input`` (a string or list). Either maps to
+    OpenAI's ``input``."""
+    text: Any = body.get("input")
+    if text is None:
+        text = body.get("prompt")
+    if text is None:
+        text = ""
+    return {"model": model or body.get("model") or "", "input": text}
+
+
+def openai_embeddings_to_ollama_legacy(resp: dict[str, Any]) -> dict[str, Any]:
+    """OpenAI embeddings → legacy Ollama ``/api/embeddings`` ``{embedding: [...]}``
+    (a single vector)."""
+    data = (resp or {}).get("data") or []
+    first = data[0] if data and isinstance(data[0], dict) else {}
+    return {"embedding": first.get("embedding") or []}
+
+
+def openai_embeddings_to_ollama_embed(
+    resp: dict[str, Any], model: str | None = None
+) -> dict[str, Any]:
+    """OpenAI embeddings → new Ollama ``/api/embed`` ``{model, embeddings: [[...]]}``
+    (a list of vectors, one per input)."""
+    data = (resp or {}).get("data") or []
+    embeddings = [d.get("embedding") or [] for d in data if isinstance(d, dict)]
+    usage = (resp or {}).get("usage") or {}
+    return {
+        "model": model or (resp or {}).get("model") or "",
+        "embeddings": embeddings,
+        "prompt_eval_count": usage.get("prompt_tokens", 0) or 0,
+    }
+
+
 __all__ = [
     "ollama_chat_request_to_openai",
     "ollama_generate_request_to_openai",
+    "ollama_embeddings_request_to_openai",
     "openai_response_to_ollama_chat",
     "openai_response_to_ollama_generate",
+    "openai_embeddings_to_ollama_legacy",
+    "openai_embeddings_to_ollama_embed",
     "ollama_tags_from_models",
 ]
