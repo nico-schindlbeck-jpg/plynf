@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-label="Plynf — cut agent token cost ~70%">
+  <defs>
+    <linearGradient id="plynf-banner-g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ff8551"/>
+      <stop offset="50%" stop-color="#d946ef"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <radialGradient id="plynf-banner-glow" cx="22%" cy="35%" r="60%">
+      <stop offset="0%" stop-color="#ff8551" stop-opacity="0.18"/>
+      <stop offset="60%" stop-color="#d946ef" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#08070d" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="640" fill="#08070d"/>
+  <rect width="1280" height="640" fill="url(#plynf-banner-glow)"/>
+  <g transform="translate(96 250) scale(6)">
+    <path d="M5 17 L8 9 L12 6 L17 6 L20 11 L20 17 Z" fill="url(#plynf-banner-g)" stroke="#1d1f29" stroke-width="0.5" stroke-linejoin="round"/>
+  </g>
+  <text x="240" y="296" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="92" font-weight="800" letter-spacing="-3" fill="#f8f7ff">Plynf</text>
+  <text x="246" y="356" font-family="Inter, system-ui, sans-serif" font-size="34" font-weight="600" fill="#b9b5d4">Cut agent token cost ~70% — and see the savings.</text>
+  <text x="246" y="404" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="20" fill="#6e6a8a">Agent context optimization layer · shape · route · audit</text>
+</svg>
