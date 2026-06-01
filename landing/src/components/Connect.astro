@@ -1,0 +1,216 @@
+---
+/**
+ * Click-to-install "Connect your stack" surface. Self-contained (its own
+ * inline JS for platform-select + copy), so it works on both the marketing
+ * site (BaseLayout) and the dashboard (DashboardLayout).
+ *
+ * - Cloud vs self-host choice (Cloud is the zero-install default).
+ * - Platform picker: pick what you already use → one step (copy / install).
+ * - One-click tool connectors (OAuth).
+ */
+import "../styles/dashboard.css"; // .segmented/.dbadge/.dot — needed on the marketing site too
+import Icon from "./dashboard/Icon.astro";
+import {
+  platforms,
+  platformTags,
+  connectors,
+  PLYNF_ENDPOINT,
+  PLYNF_KEY_PLACEHOLDER,
+} from "../data/platforms";
+
+interface Props {
+  endpoint?: string;
+  keyValue?: string; // real key on the dashboard; placeholder on marketing
+  cloudHref?: string; // where "Start on Plynf Cloud" goes
+  connectorHref?: string; // where a connector "Connect" goes
+  showCloud?: boolean;
+}
+const {
+  endpoint = PLYNF_ENDPOINT,
+  keyValue = PLYNF_KEY_PLACEHOLDER,
+  cloudHref = "/login?next=%2Fapp",
+  connectorHref = "/login?next=%2Fapp%2Fgateway",
+  showCloud = true,
+} = Astro.props;
+
+const sub = (code: string) =>
+  code.replaceAll("__ENDPOINT__", endpoint).replaceAll("__KEY__", keyValue);
+const tintHex: Record<string, string> = {
+  orange: "#ff8551",
+  magenta: "#d946ef",
+  indigo: "#6366f1",
+};
+---
+<div class="connect" data-connect>
+  {showCloud && (
+    <div class="grid sm:grid-cols-2 gap-4 mb-6">
+      <div class="card glow-card card-tint-orange p-5 relative overflow-hidden">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="dbadge dbadge-accent">Recommended</span>
+          <span class="text-2xs mono text-ink-muted uppercase tracking-wider">Zero install</span>
+        </div>
+        <h3 class="text-lg font-semibold text-ink-primary">Plynf Cloud</h3>
+        <p class="text-sm text-ink-secondary mt-1.5">
+          No Docker, no servers. Get a hosted endpoint and an API key in one click —
+          then connect your stack below. Free to start.
+        </p>
+        <a href={cloudHref} class="btn btn-primary mt-4">Start on Plynf Cloud</a>
+      </div>
+      <div class="card p-5">
+        <div class="text-2xs mono text-ink-muted uppercase tracking-wider mb-1">Prefer your own infra</div>
+        <h3 class="text-lg font-semibold text-ink-primary">Self-host</h3>
+        <p class="text-sm text-ink-secondary mt-1.5">One command spins up the full stack locally in ~60s.</p>
+        <div class="code-block mt-4 !py-2.5 flex items-center justify-between gap-3">
+          <code class="text-2xs sm:text-xs whitespace-nowrap overflow-x-auto">curl -fsSL https://plynf.com/install.sh | sh</code>
+          <button class="btn btn-ghost !p-1.5 flex-none connect-copy" data-copy-text="curl -fsSL https://plynf.com/install.sh | sh" aria-label="Copy install command"><Icon name="copy" size={14} /></button>
+        </div>
+        <a href="/install" class="text-sm text-accent hover:underline mt-3 inline-block">Managed deploy options →</a>
+      </div>
+    </div>
+  )}
+
+  <!-- Platform picker -->
+  <div class="mb-3 flex flex-wrap items-center gap-2">
+    <span class="text-2xs mono text-ink-muted uppercase tracking-wider mr-1">Connect what you use</span>
+    <div class="segmented" role="group" aria-label="Filter platforms" id="connect-tags">
+      <button data-tag="all" aria-pressed="true">All</button>
+      {platformTags.map((t) => <button data-tag={t} aria-pressed="false">{t}</button>)}
+    </div>
+  </div>
+
+  <div class="grid lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] gap-4">
+    <!-- left: platform list -->
+    <div class="card p-2 h-max max-h-[28rem] overflow-y-auto" role="listbox" aria-label="Platforms">
+      {platforms.map((p, i) => (
+        <button
+          class="connect-item w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors"
+          data-platform={p.id}
+          data-tag={p.tag}
+          aria-selected={i === 0 ? "true" : "false"}
+        >
+          <span class="h-8 w-8 rounded-lg grid place-items-center text-[0.8rem] font-bold flex-none" style={`background:${tintHex[p.tint]}1f;color:${tintHex[p.tint]}`}>{p.name[0]}</span>
+          <span class="min-w-0 flex-1">
+            <span class="block text-sm text-ink-primary truncate">{p.name}</span>
+            <span class="block text-2xs text-ink-muted">{p.tag} · {p.steps === 1 ? "1 step" : `${p.steps} steps`}</span>
+          </span>
+          <Icon name="chevronr" size={14} class="text-ink-muted" />
+        </button>
+      ))}
+    </div>
+
+    <!-- right: detail panes -->
+    <div class="card p-5 min-h-[18rem]">
+      {platforms.map((p, i) => (
+        <div class="connect-detail" data-detail={p.id} hidden={i !== 0}>
+          <div class="flex items-start justify-between gap-3 mb-1">
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="text-lg font-semibold text-ink-primary">{p.name}</h3>
+                <span class="dbadge dbadge-info !text-[0.62rem]">{p.tag}</span>
+              </div>
+              <p class="text-sm text-ink-secondary mt-1.5 max-w-prose">{p.blurb}</p>
+            </div>
+            {p.kind === "marketplace" && (
+              <span class="dbadge dbadge-ok flex-none"><Icon name="check" size={12} />One-click</span>
+            )}
+          </div>
+
+          {p.kind === "marketplace" ? (
+            <div class="mt-4">
+              <a href={p.href} target="_blank" rel="noopener" class="btn btn-primary"><Icon name="external" size={15} />{p.action}</a>
+              <p class="text-2xs text-ink-muted mt-3">Authorize once with your Plynf key — then use Plynf in any step. No code.</p>
+            </div>
+          ) : (
+            <div class="mt-3">
+              <div class="code-block !py-3 relative">
+                <pre id={`code-${p.id}`} class="overflow-x-auto text-xs leading-relaxed"><code>{sub(p.code || "")}</code></pre>
+              </div>
+              <div class="flex items-center gap-2 mt-3">
+                <button class="btn btn-primary connect-copy" data-copy-from={`code-${p.id}`}><Icon name="copy" size={15} />{p.action}</button>
+                <span class="text-2xs text-ink-muted">Find your key under <a href="/login?next=%2Fapp%2Fsettings" class="text-accent hover:underline">Settings → API key</a>.</span>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  </div>
+
+  <!-- One-click connectors -->
+  <div class="mt-6">
+    <div class="text-2xs mono text-ink-muted uppercase tracking-wider mb-2">Connect a tool — one click, OAuth</div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+      {connectors.map((c) => (
+        <a href={connectorHref} class="flex items-center gap-3 rounded-xl border border-border bg-bg-1/40 px-3.5 py-3 hover:border-accent/30 transition-colors">
+          <span class="h-8 w-8 rounded-lg grid place-items-center text-[0.8rem] font-bold flex-none" style={`background:${tintHex[c.tint]}1f;color:${tintHex[c.tint]}`}>{c.name[0]}</span>
+          <span class="min-w-0 flex-1">
+            <span class="block text-sm text-ink-primary truncate">{c.name}</span>
+            <span class="block text-2xs text-ink-muted truncate">{c.scopes}</span>
+          </span>
+          <span class="dbadge dbadge-accent !text-[0.62rem]">Connect</span>
+        </a>
+      ))}
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+  (function () {
+    var root = document.querySelector("[data-connect]");
+    if (!root) return;
+
+    // Platform select (left list ↔ right detail)
+    var items = root.querySelectorAll(".connect-item");
+    var details = root.querySelectorAll(".connect-detail");
+    function select(id) {
+      items.forEach(function (b) { b.setAttribute("aria-selected", b.getAttribute("data-platform") === id ? "true" : "false"); });
+      details.forEach(function (d) { d.hidden = d.getAttribute("data-detail") !== id; });
+    }
+    items.forEach(function (b) {
+      b.addEventListener("click", function () { select(b.getAttribute("data-platform")); });
+    });
+
+    // Tag filter
+    var tagBtns = root.querySelectorAll("#connect-tags button");
+    tagBtns.forEach(function (t) {
+      t.addEventListener("click", function () {
+        var tag = t.getAttribute("data-tag");
+        tagBtns.forEach(function (x) { x.setAttribute("aria-pressed", x === t ? "true" : "false"); });
+        var firstVisible = null;
+        items.forEach(function (b) {
+          var show = tag === "all" || b.getAttribute("data-tag") === tag;
+          b.style.display = show ? "" : "none";
+          if (show && !firstVisible) firstVisible = b.getAttribute("data-platform");
+        });
+        if (firstVisible) select(firstVisible);
+      });
+    });
+
+    // Copy (self-contained; uses window.plynfToast when present)
+    function toast(msg) {
+      if (window.plynfToast) { window.plynfToast(msg); return; }
+      var el = root.querySelector("[data-copied-note]") || (function () {
+        var n = document.createElement("div");
+        n.setAttribute("data-copied-note", "1");
+        n.style.cssText = "position:fixed;bottom:1.25rem;left:50%;transform:translateX(-50%);z-index:90;background:var(--bg-2);border:1px solid var(--border-strong);border-radius:999px;padding:.55rem 1.1rem;font-size:.85rem;color:var(--text-primary);box-shadow:0 12px 40px -12px rgba(0,0,0,.6)";
+        document.body.appendChild(n);
+        return n;
+      })();
+      el.textContent = msg;
+      el.style.opacity = "1";
+      clearTimeout(el._t);
+      el._t = setTimeout(function () { el.style.opacity = "0"; }, 1800);
+    }
+    root.querySelectorAll(".connect-copy").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var text = btn.getAttribute("data-copy-text");
+        if (!text) {
+          var src = document.getElementById(btn.getAttribute("data-copy-from") || "");
+          text = src ? src.textContent : "";
+        }
+        if (navigator.clipboard) navigator.clipboard.writeText(text || "");
+        toast("Copied — paste it into your tool");
+      });
+    });
+  })();
+</script>

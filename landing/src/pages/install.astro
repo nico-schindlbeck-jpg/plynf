@@ -2,6 +2,7 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
+import Connect from "../components/Connect.astro";
 
 // Each card represents one "I want X" entry point. Click leads to the
 // shortest possible install path — usually a one-liner or a single
@@ -168,9 +169,19 @@ const sections = [
         Pick how you want Plynf. Ranked by friction.
       </h1>
       <p class="mt-6 max-w-2xl text-ink-secondary text-lg leading-relaxed">
-        Every path here gets you to a running Plynf with shaped tool responses. The top is fastest;
-        the bottom takes a developer portal but unlocks integrations your AI team will love.
+        Most people are one copy or one click away. Pick what you already use below — or scroll for
+        every install path, ranked by friction.
       </p>
+    </section>
+
+    <!-- Click-to-install: the fast path -->
+    <section class="container-page" style="padding-top: 0.5rem; padding-bottom: 2rem;">
+      <Connect />
+    </section>
+
+    <section class="container-page" style="padding-top: 1rem; padding-bottom: 0.5rem;">
+      <p class="section-eyebrow">Every other path</p>
+      <p class="mt-3 text-ink-secondary" style="max-width: 56ch;">Self-host, managed deploys, team-chat bots and SDKs — ranked by friction.</p>
     </section>
 
     {sections.map((s, i) => (
@@ -221,6 +232,41 @@ const sections = [
         </div>
       </section>
     ))}
+
+    <!-- Plynf for Platforms — work with us on native one-click integrations -->
+    <section class="container-page" style="padding-top: 2.5rem; padding-bottom: 1.5rem;">
+      <div class="card glow-card card-tint-indigo" style="padding: 2rem;">
+        <p class="section-eyebrow">Plynf for Platforms</p>
+        <h2 class="mt-3 text-2xl sm:text-3xl font-bold tracking-tight text-ink-primary" style="max-width: 22ch;">
+          Build a platform agents run on? Let's make Plynf one click for your users.
+        </h2>
+        <p class="mt-4 text-ink-secondary leading-relaxed" style="max-width: 62ch;">
+          We work directly with model providers, agent platforms and automation tools to ship
+          <span class="text-ink-primary">native, one-click Plynf</span> — co-built connectors, an
+          "Add to Plynf" button in your product, pre-registered OAuth, and joint cost-savings
+          reporting. Your users cut tokens 70%+ without leaving your surface.
+        </p>
+        <div class="mt-6 grid sm:grid-cols-3 gap-4">
+          {[
+            { t: "Co-built integration", d: "We pair with your team to ship a native Plynf connector your users install in one click." },
+            { t: "Pre-registered OAuth", d: "No dev-portal friction for end users — auth is brokered, scoped and revocable." },
+            { t: "Joint savings reporting", d: "Show your users their token + cost savings in your product, powered by Plynf." },
+          ].map((c) => (
+            <div class="rounded-xl border border-border bg-bg-1/40 p-4">
+              <div class="text-sm font-medium text-ink-primary">{c.t}</div>
+              <p class="text-sm text-ink-secondary mt-1.5 leading-relaxed">{c.d}</p>
+            </div>
+          ))}
+        </div>
+        <div class="mt-6 flex flex-wrap items-center gap-3">
+          <a href="mailto:partners@plynf.com?subject=Plynf%20native%20integration" class="btn btn-primary">Partner with us</a>
+          <a href="mailto:partners@plynf.com?subject=Request%20a%20native%20Plynf%20integration" class="btn btn-secondary">Request a native integration</a>
+        </div>
+        <p class="mt-5 text-2xs font-mono text-ink-muted uppercase tracking-wider">
+          Already works with · OpenAI · Anthropic · Gemini · Cohere · Bedrock · Ollama · n8n · Zapier · Make · Slack · Salesforce
+        </p>
+      </div>
+    </section>
 
     <section class="container-page" style="padding-top: 1rem; padding-bottom: 6rem;">
       <p class="text-2xs font-mono text-ink-muted" style="text-align:center;">
