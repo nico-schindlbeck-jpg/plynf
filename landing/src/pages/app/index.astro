@@ -4,7 +4,7 @@ import PageHeader from "../../components/dashboard/PageHeader.astro";
 import Kpi from "../../components/dashboard/Kpi.astro";
 import StatusBadge from "../../components/dashboard/StatusBadge.astro";
 import Icon from "../../components/dashboard/Icon.astro";
-import { kpis, agents, workflows, eur, pct, compact, num } from "../../data/dashboard";
+import { kpis, agents, workflows, attribution, eur, pct, compact, num } from "../../data/dashboard";
 
 const active = workflows.filter((w) => w.status === "running" || w.status === "recovered" || w.status === "queued");
 const attention = agents.filter((a) => a.status === "down" || a.status === "degraded" || a.dlq > 0);
@@ -89,11 +89,12 @@ const ampel = {
   </section>
 
   <!-- ── KPI row ─────────────────────────────────────────── -->
-  <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+  <section class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
     <Kpi label="Spend today" value={eur(kpis.costTodayEur)} sub={`vs ${eur(kpis.costWithoutTodayEur)} without Plynf`} tint="orange" trend={-28.0} trendGood="down" bind="kpis.costTodayEur" bindFmt="eur" />
     <Kpi label="Tokens saved today" value={compact(kpis.savedTokensToday)} sub={`of ${compact(kpis.rawTokensToday)} raw`} tint="magenta" depth="technical" bind="kpis.savedTokensToday" bindFmt="compact" />
     <Kpi label="Active workflows" value={String(kpis.activeWorkflows)} sub={`${num(kpis.toolCallsToday)} tool calls today`} tint="indigo" bind="kpis.activeWorkflows" bindFmt="num" />
     <Kpi label="Cache hit rate" value={pct(kpis.cacheHitRate)} sub="served without a tool round-trip" tint="cyan" depth="technical" bind="kpis.cacheHitRate" bindFmt="pct" />
+    <Kpi label="Partner signups" value={num(attribution.totalReferred)} sub="via Add-to-Plynf links" tint="pink" bind="attribution.totalReferred" bindFmt="num" />
   </section>
 
   <!-- ── Active workflows + needs-attention ──────────────── -->
