@@ -9,7 +9,9 @@ endpoint must work with the downstreams unreachable.
 
 from __future__ import annotations
 
+import httpx
 import pytest
+import respx
 
 
 @pytest.mark.asyncio
@@ -42,6 +44,71 @@ async def test_state_returns_full_contract(client):
     assert len(state["agents"]) >= 12
     assert len(state["workflows"]) >= 6
     assert state["billing"]["invoices"]
+
+
+@pytest.mark.asyncio
+async def test_state_derives_kpis_from_live_telemetry(client):
+    """When the proxy savings sink + gateway audit are reachable, the Overview
+    KPIs are derived from them — not the seed."""
+    with respx.mock(assert_all_called=False) as router:
+        router.get("http://proxy.test/v1/savings/summary").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "total_calls": 5000,
+                    "total_raw_tokens": 10_000_000,
+                    "total_shaped_tokens": 3_000_000,
+                    "total_saved_tokens": 7_000_000,
+                    "savings_pct": 0.70,
+                    "total_cost_saved_usd": 88.5,
+                    "cache_hit_rate": 0.55,
+                    "top_connectors_by_savings": [],
+                },
+            )
+        )
+        router.get("http://proxy.test/v1/providers").mock(
+            return_value=httpx.Response(
+                200, json={"providers": ["openai", "groq"], "aliases": [], "default": True}
+            )
+        )
+        router.get("http://gateway.test/v1/audit/stats").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "stats": {
+                        "total_invocations": 9000,
+                        "cached_count": 3600,
+                        "error_count": 2,
+                        "total_cost_usd": 41.2,
+                        "by_tool": [],
+                    }
+                },
+            )
+        )
+        r = await client.get("/api/app/state")
+    assert r.status_code == 200
+    state = r.json()
+    k = state["kpis"]
+    # token reduction + savings from the proxy savings sink
+    assert k["reductionPct"] == 70.0
+    assert k["rawTokensToday"] == 10_000_000
+    assert k["savedTokensToday"] == 7_000_000
+    assert k["savedTodayEur"] == 88.5
+    # call volume / cache / spend from the gateway audit
+    assert k["toolCallsToday"] == 9000
+    assert k["cacheHitRate"] == 40.0
+    assert k["costTodayEur"] == 41.2
+    assert k["costWithoutTodayEur"] == 129.7  # spend + savings
+    assert state.get("_telemetry") == "live"
+
+
+@pytest.mark.asyncio
+async def test_state_falls_back_to_seed_when_downstreams_down(client):
+    # No respx → downstreams unreachable → seeded KPIs remain (page never breaks).
+    r = await client.get("/api/app/state")
+    assert r.status_code == 200
+    assert r.json()["kpis"]["reductionPct"] == 71.8
+    assert r.json().get("_telemetry") != "live"
 
 
 @pytest.mark.asyncio

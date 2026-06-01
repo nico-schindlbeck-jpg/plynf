@@ -304,28 +304,59 @@ class ControlStore:
 async def _overlay_live(
     client: httpx.AsyncClient, settings: Settings, state: dict[str, Any]
 ) -> None:
-    """Enrich the store snapshot with live downstream data. Never raises."""
+    """Derive Overview / Economics KPIs from live telemetry. Never raises.
+
+    Token-reduction & € saved come from the proxy's response-shaping savings
+    sink (``/v1/savings/summary``); tool-call volume, cache-hit rate and actual
+    spend come from the gateway audit (``/v1/audit/stats``). When a downstream
+    is unreachable the seeded KPI keeps showing — the page never breaks.
+    """
     proxy_url = settings.proxy_url.rstrip("/")
-    # Mark which configured providers/aliases the proxy actually reports.
+    gw_url = settings.gateway_url.rstrip("/")
+    kpis = state.setdefault("kpis", {})
+
+    # 1) Proxy savings sink → token reduction + € saved (the response-shaping win).
     try:
-        resp = await client.get(f"{proxy_url}/v1/providers")
+        resp = await client.get(f"{proxy_url}/v1/savings/summary")
         if resp.status_code < 400:
-            data = resp.json()
-            live_names = {str(n).lower() for n in (data.get("providers") or [])}
-            for p in state.get("providers", []):
-                p["live"] = p["id"].lower() in live_names or p.get("isDefault", False)
-            state["_proxyReachable"] = True
+            s = resp.json() or {}
+            if s.get("total_calls"):
+                if s.get("total_raw_tokens"):
+                    kpis["rawTokensToday"] = s["total_raw_tokens"]
+                    kpis["shapedTokensToday"] = s.get("total_shaped_tokens", 0)
+                    kpis["savedTokensToday"] = s.get("total_saved_tokens", 0)
+                    kpis["reductionPct"] = round(s.get("savings_pct", 0.0) * 100, 1)
+                kpis["savedTodayEur"] = round(s.get("total_cost_saved_usd", 0.0), 2)
+                state["_telemetry"] = "live"
+        state["_proxyReachable"] = True
     except (httpx.HTTPError, ValueError):
         state["_proxyReachable"] = False
 
-    # Live gateway tools (real call volumes / cache).
+    # 2) Proxy provider liveness (which configured providers actually route).
     try:
-        gw_url = settings.gateway_url.rstrip("/")
-        resp = await client.get(f"{gw_url}/v1/tools")
+        resp = await client.get(f"{proxy_url}/v1/providers")
         if resp.status_code < 400:
-            tools = (resp.json() or {}).get("tools")
-            if isinstance(tools, list) and tools:
-                state["_gatewayReachable"] = True
+            live_names = {str(n).lower() for n in (resp.json().get("providers") or [])}
+            for p in state.get("providers", []):
+                p["live"] = p["id"].lower() in live_names or p.get("isDefault", False)
+    except (httpx.HTTPError, ValueError):
+        pass
+
+    # 3) Gateway audit → tool-call volume, cache-hit rate, actual spend today.
+    try:
+        resp = await client.get(f"{gw_url}/v1/audit/stats")
+        if resp.status_code < 400:
+            stats = (resp.json() or {}).get("stats") or {}
+            total = stats.get("total_invocations") or 0
+            if total:
+                kpis["toolCallsToday"] = total
+                kpis["cacheHitRate"] = round((stats.get("cached_count", 0) / total) * 100, 1)
+                kpis["costTodayEur"] = round(stats.get("total_cost_usd", 0.0), 2)
+                kpis["costWithoutTodayEur"] = round(
+                    kpis["costTodayEur"] + kpis.get("savedTodayEur", 0.0), 2
+                )
+                state["_telemetry"] = "live"
+            state["_gatewayReachable"] = True
     except (httpx.HTTPError, ValueError):
         state["_gatewayReachable"] = False
 

@@ -31,6 +31,7 @@ def settings() -> Settings:
         gateway_url="http://gateway.test",
         mock_mcp_url="http://mock-mcp.test",
         identity_url="http://identity.test",
+        proxy_url="http://proxy.test",
         api_token="Bearer test",
         log_level="WARNING",
         log_format="console",
