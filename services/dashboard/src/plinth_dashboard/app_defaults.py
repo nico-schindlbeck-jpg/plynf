@@ -29,6 +29,13 @@ def seed_state() -> dict[str, Any]:
             "savedTodayEur": 105.39,
             "savedMonthEur": 2_487.12,
             "savedAllTimeEur": 28_941.66,
+            # Cumulative tokens never sent to a model → an estimate of the
+            # data-center water that didn't need to evaporate cooling them.
+            # ~0.4 kWh / 1M tokens × ~1.8 L/kWh (data-center WUE) ≈ 0.72 mL / 1k
+            # tokens. Clearly an estimate; see WATER_L_PER_TOKEN in app_api.
+            "savedTokensAllTime": 9_400_000_000,
+            "waterSavedLitresToday": 25.3,
+            "waterSavedLitresAllTime": 6768,
             "activeAgents": 11,
             "totalAgents": 13,
             "activeWorkflows": 6,

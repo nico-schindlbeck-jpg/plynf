@@ -330,6 +330,7 @@ const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
           compact: function (n) { try { return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n); } catch (_) { return n; } },
           num: function (n) { try { return new Intl.NumberFormat("en-US").format(n); } catch (_) { return n; } },
           count: function (v) { return Array.isArray(v) ? v.length : v; },
+          litres: function (n) { try { return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n) + " L"; } catch (_) { return n + " L"; } },
           raw: function (n) { return String(n); },
         };
         window.plynfFmt = FMT; // exposed for section live-render scripts

@@ -235,6 +235,36 @@ const monthEstTotal = agentRows.reduce((s, a) => s + a.monthEst, 0);
     <Kpi label="Effective rate" value={`${eur(effRatePer1M, 2)}`} sub="per 1M tokens you actually pay" tint="cyan" depth="technical" />
   </section>
 
+  <!-- ── Water saved (the side-fact) ─────────────────────── -->
+  <section class="card glow-card card-tint-cyan p-5 sm:p-6 mb-4" data-reveal>
+    <div class="flex flex-wrap items-center justify-between gap-5">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="h-8 w-8 rounded-lg bg-bg-2 border border-border grid place-items-center text-[#6366f1]">💧</span>
+          <h3 class="font-semibold text-ink-primary">Water you didn't boil</h3>
+          <span class="dbadge dbadge-info !text-[0.6rem]">estimate</span>
+        </div>
+        <p class="text-sm text-ink-secondary mt-2 max-w-prose">
+          Every token Plynf trims is compute that never ran — and data-center cooling water that
+          never evaporated. At your current shaping, that's roughly
+          <span class="text-ink-primary" data-bind="kpis.waterSavedLitresAllTime" data-fmt="litres">{num(kpis.waterSavedLitresAllTime)} L</span>
+          saved since you switched on Plynf.
+        </p>
+      </div>
+      <div class="flex items-end gap-6">
+        <div>
+          <div class="kpi-label">Today</div>
+          <div class="text-2xl font-bold tnum text-ink-primary" data-bind="kpis.waterSavedLitresToday" data-fmt="litres">{num(kpis.waterSavedLitresToday)} L</div>
+        </div>
+        <div>
+          <div class="kpi-label">All-time</div>
+          <div class="text-[clamp(1.8rem,4vw,2.6rem)] font-bold tnum text-[#6366f1] leading-none" data-bind="kpis.waterSavedLitresAllTime" data-fmt="litres">{num(kpis.waterSavedLitresAllTime)} L</div>
+        </div>
+      </div>
+    </div>
+    <p class="text-2xs text-ink-muted mt-3">~0.4 kWh / 1M tokens × ~1.8 L/kWh data-center water-usage-effectiveness. An order-of-magnitude estimate, not a billed figure.</p>
+  </section>
+
   <!-- ── Per-agent drill-down (technical) ────────────────── -->
   <section class="card p-5 sm:p-6" data-reveal data-depth="technical">
     <div class="flex flex-wrap items-end justify-between gap-3 mb-4">

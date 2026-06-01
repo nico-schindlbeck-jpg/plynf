@@ -40,6 +40,12 @@ from .app_defaults import seed_state
 from .logging_config import get_logger
 from .settings import Settings
 
+# Estimated data-center cooling water per token shaped away, in litres.
+# ~0.4 kWh / 1M tokens of inference × ~1.8 L/kWh water-usage-effectiveness
+# ≈ 7.2e-7 L/token (≈ 0.72 mL per 1k tokens). An order-of-magnitude estimate
+# surfaced as an "interesting side-fact", not a billed figure.
+WATER_L_PER_TOKEN = 7.2e-7
+
 # ---------------------------------------------------------------------------
 # Seed state lives in app_defaults.seed_state() — it mirrors the frontend
 # data contract (src/data/dashboard.ts) so the live /api/app/state matches
@@ -324,8 +330,11 @@ async def _overlay_live(
                 if s.get("total_raw_tokens"):
                     kpis["rawTokensToday"] = s["total_raw_tokens"]
                     kpis["shapedTokensToday"] = s.get("total_shaped_tokens", 0)
-                    kpis["savedTokensToday"] = s.get("total_saved_tokens", 0)
+                    saved = s.get("total_saved_tokens", 0)
+                    kpis["savedTokensToday"] = saved
                     kpis["reductionPct"] = round(s.get("savings_pct", 0.0) * 100, 1)
+                    # Estimated data-center cooling water not evaporated.
+                    kpis["waterSavedLitresToday"] = round(saved * WATER_L_PER_TOKEN, 1)
                 kpis["savedTodayEur"] = round(s.get("total_cost_saved_usd", 0.0), 2)
                 state["_telemetry"] = "live"
         state["_proxyReachable"] = True

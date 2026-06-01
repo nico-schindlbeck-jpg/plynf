@@ -40,6 +40,9 @@ export interface Kpis {
   savedTodayEur: number;
   savedMonthEur: number;
   savedAllTimeEur: number;
+  savedTokensAllTime: number;
+  waterSavedLitresToday: number; // estimated data-center cooling water saved
+  waterSavedLitresAllTime: number;
   activeAgents: number;
   totalAgents: number;
   activeWorkflows: number;
@@ -59,6 +62,9 @@ export const kpis: Kpis = {
   savedTodayEur: 105.39,
   savedMonthEur: 2_487.12,
   savedAllTimeEur: 28_941.66,
+  savedTokensAllTime: 9_400_000_000,
+  waterSavedLitresToday: 25.3,
+  waterSavedLitresAllTime: 6768,
   activeAgents: 11,
   totalAgents: 13,
   activeWorkflows: 6,
