@@ -9,6 +9,7 @@ endpoint must work with the downstreams unreachable.
 
 from __future__ import annotations
 
+import json
 from contextlib import asynccontextmanager
 
 import httpx
@@ -341,3 +342,30 @@ async def test_session_issues_jwt_from_identity():
         body = r.json()
         assert body["token"] == "jwt-abc"
         assert body["claims"]["sub"] == "u@acme.io"
+
+
+# ---------------------------------------------------------------------------
+# Partner attribution (?ref= → recorded + baked into token metadata)
+
+
+@pytest.mark.asyncio
+async def test_session_records_partner_referral(client):
+    # Identity unreachable here → demo fallback, but the ref is still recorded.
+    r = await client.post("/api/app/session", json={"email": "u@acme.io", "ref": "cursor"})
+    assert r.status_code == 200
+    assert r.json()["ref"] == "cursor"
+    state = (await client.get("/api/app/state")).json()
+    assert state.get("referrals", {}).get("cursor") == 1
+
+
+@pytest.mark.asyncio
+async def test_session_passes_ref_into_token_metadata():
+    async with _auth_client() as c:
+        with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
+            route = router.post("http://identity.test/v1/tokens").mock(
+                return_value=httpx.Response(201, json={"token": "jwt", "claims": {}})
+            )
+            r = await c.post("/api/app/session", json={"email": "u@acme.io", "ref": "zapier"})
+        assert r.status_code == 200
+        sent = json.loads(route.calls.last.request.content)
+        assert sent["metadata"]["ref"] == "zapier"

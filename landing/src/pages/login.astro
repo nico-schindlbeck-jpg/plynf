@@ -120,6 +120,12 @@ const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
       // basic open-redirect guard: only allow same-origin app paths
       if (!next.startsWith("/app")) next = "/app";
       var API = (document.getElementById("main").getAttribute("data-api") || "").replace(/\/$/, "");
+      // Partner attribution: capture ?ref= and remember it across the auth bounce.
+      var ref = (params.get("ref") || "").slice(0, 64);
+      try {
+        if (ref) localStorage.setItem("plynf_ref", ref);
+        else ref = localStorage.getItem("plynf_ref") || "";
+      } catch (_) {}
 
       // Exchange the completed SSO/magic-link for a real session JWT minted by
       // the identity service (POST /api/app/session). Stored as plynf_session
@@ -129,12 +135,12 @@ const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
         fetch(API + "/api/app/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ provider: provider, email: email || "" }),
+          body: JSON.stringify({ provider: provider, email: email || "", ref: ref || undefined }),
         })
           .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
           .then(function (d) {
             if (!d || !d.token) throw new Error("no token");
-            try { localStorage.setItem("plynf_session", d.token); } catch (_) {}
+            try { localStorage.setItem("plynf_session", d.token); localStorage.removeItem("plynf_ref"); } catch (_) {}
             window.location.href = next;
           })
           .catch(function () {

@@ -302,6 +302,13 @@ class ControlStore:
         self._save()
         return member
 
+    def record_referral(self, ref: str) -> int:
+        """Tally a partner-attributed signup by its ?ref= tag. Returns the count."""
+        refs = self._state.setdefault("referrals", {})
+        refs[ref] = int(refs.get(ref, 0)) + 1
+        self._save()
+        return refs[ref]
+
 
 # ---------------------------------------------------------------------------
 # Live overlay (best-effort)
@@ -409,23 +416,33 @@ def register_app_api(app: FastAPI, settings: Settings, store: ControlStore) -> N
             body = {}
         subject = str(body.get("email") or body.get("agent") or "dashboard-user")
         tenant = str(body.get("tenant") or settings.app_session_tenant)
+        # Partner attribution: a ?ref= carried from an "Add to Plynf" button is
+        # recorded and baked into the token metadata, so partner-sourced signups
+        # are tagged end-to-end.
+        ref = str(body.get("ref") or "").strip()[:64]
+        if ref:
+            store.record_referral(ref)
+        token_req: dict[str, Any] = {
+            "agent_id": subject,
+            "tenant_id": tenant,
+            "scopes": ["dashboard:read", "dashboard:write"],
+            "ttl_seconds": settings.app_session_ttl_seconds,
+        }
+        if ref:
+            token_req["metadata"] = {"ref": ref}
         client = getattr(request.app.state, "overview", None)
         http = getattr(client, "client", None) if client else None
         if http is not None:
             try:
-                resp = await http.post(
-                    f"{id_url}/v1/tokens",
-                    json={
-                        "agent_id": subject,
-                        "tenant_id": tenant,
-                        "scopes": ["dashboard:read", "dashboard:write"],
-                        "ttl_seconds": settings.app_session_ttl_seconds,
-                    },
-                )
+                resp = await http.post(f"{id_url}/v1/tokens", json=token_req)
                 if resp.status_code < 400:
                     data = resp.json()
                     return JSONResponse(
-                        {"token": data.get("token"), "claims": data.get("claims", {})}
+                        {
+                            "token": data.get("token"),
+                            "claims": data.get("claims", {}),
+                            "ref": ref or None,
+                        }
                     )
             except (httpx.HTTPError, ValueError):
                 pass
@@ -443,7 +460,11 @@ def register_app_api(app: FastAPI, settings: Settings, store: ControlStore) -> N
                 },
             )
         return JSONResponse(
-            {"token": "demo", "claims": {"sub": subject, "tenant_id": tenant, "demo": True}}
+            {
+                "token": "demo",
+                "claims": {"sub": subject, "tenant_id": tenant, "demo": True, "ref": ref or None},
+                "ref": ref or None,
+            }
         )
 
     # -- providers ----------------------------------------------------------
