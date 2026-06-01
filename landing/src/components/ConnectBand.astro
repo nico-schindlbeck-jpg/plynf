@@ -1,0 +1,35 @@
+---
+// Homepage band: shows the breadth of what Plynf connects to and routes
+// visitors into the click-to-install flow (/install) and the partner program
+// (/partners). Names only (no third-party logos) — links to the real flows.
+import { platforms } from "../data/platforms";
+
+const names = platforms.map((p) => p.name);
+---
+<section class="section relative" id="connect">
+  <div class="container-page" data-reveal>
+    <div class="max-w-3xl">
+      <p class="section-eyebrow">Connect</p>
+      <h2 class="section-title text-balance">
+        Works with <span class="gradient-text-accent">everything</span> your team already uses.
+      </h2>
+      <p class="section-subtitle">
+        Point a base URL at Plynf, paste one config, or click Install — across every major AI SDK,
+        agent IDE and automation tool. No rewrite. Most people are one copy away.
+      </p>
+    </div>
+
+    <div class="mt-10 flex flex-wrap gap-2">
+      {names.map((n) => (
+        <span class="inline-flex items-center rounded-full border border-border bg-bg-1 px-3 py-1.5 text-sm text-ink-secondary">
+          {n}
+        </span>
+      ))}
+    </div>
+
+    <div class="mt-10 flex flex-wrap items-center gap-3">
+      <a href="/install" class="btn btn-primary">Connect your stack</a>
+      <a href="/partners" class="btn btn-secondary">Plynf for Platforms →</a>
+    </div>
+  </div>
+</section>
