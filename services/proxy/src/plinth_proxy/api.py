@@ -1101,6 +1101,25 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", **headers},
         )
 
+    @app.post("/v1/messages/count_tokens")
+    async def anthropic_count_tokens(request: Request) -> JSONResponse:
+        """Anthropic-compatible ``POST /v1/messages/count_tokens``.
+
+        The Anthropic SDK calls this to estimate a request's input tokens before
+        sending (``client.messages.count_tokens(...)``); without it those
+        clients get a 404. Plynf translates the Anthropic body to OpenAI
+        messages and returns ``{"input_tokens": N}`` using the same approximate
+        counter the savings pipeline uses — no upstream call, no charge. The
+        count covers the messages (system folded in); it is an estimate, like
+        the rest of Plynf's token accounting.
+        """
+        st: AppState = app.state.plinth
+        anth_body = await request.json()
+        await _authenticate(request, st)
+        openai_body = anthropic_request_to_openai(anth_body)
+        n = count_messages_tokens(openai_body.get("messages") or [])
+        return JSONResponse({"input_tokens": n})
+
     @app.post(
         "/v1/projects/{project}/locations/{location}"
         "/publishers/anthropic/models/{model}:rawPredict"

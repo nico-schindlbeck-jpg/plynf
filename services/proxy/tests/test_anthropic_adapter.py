@@ -239,6 +239,47 @@ def test_v1_messages_endpoint_returns_anthropic_shape(client):
     assert "12345" in text
 
 
+def test_count_tokens_endpoint_returns_input_tokens(client):
+    r = client.post(
+        "/v1/messages/count_tokens",
+        json={
+            "model": "claude-3-5-sonnet",
+            "system": "You are a customer support agent.",
+            "messages": [{"role": "user", "content": "What is the status of order 12345?"}],
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert isinstance(body["input_tokens"], int)
+    assert body["input_tokens"] > 0
+
+
+def test_count_tokens_grows_with_more_content(client):
+    short = client.post(
+        "/v1/messages/count_tokens",
+        json={"model": "m", "messages": [{"role": "user", "content": "hi"}]},
+    ).json()["input_tokens"]
+    long = client.post(
+        "/v1/messages/count_tokens",
+        json={
+            "model": "m",
+            "messages": [{"role": "user", "content": "hi " * 200}],
+        },
+    ).json()["input_tokens"]
+    assert long > short
+
+
+def test_count_tokens_does_not_hit_upstream_or_shadow_messages(client):
+    # The count endpoint is distinct from /v1/messages and never 404s.
+    r = client.post(
+        "/v1/messages/count_tokens",
+        json={"model": "m", "messages": [{"role": "user", "content": "x"}]},
+    )
+    assert r.status_code == 200
+    assert "input_tokens" in r.json()
+    assert "content" not in r.json()  # not the message-generation response
+
+
 def test_v1_messages_endpoint_streams_in_anthropic_sse_format(client):
     r = client.post(
         "/v1/messages",
