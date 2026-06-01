@@ -12,6 +12,10 @@ interface Props {
 }
 const { title, active, description = "Plynf control & monitoring dashboard." } = Astro.props;
 const fullTitle = `${title} · Plynf Dashboard`;
+// Control-plane API base. The dashboard fetches live state from the
+// plinth_dashboard aggregator (:7424) at runtime; if unreachable it renders
+// the bundled SSG data (offline demo). Override at build via PUBLIC_PLYNF_API.
+const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
 ---
 
 <!doctype html>
@@ -63,7 +67,7 @@ const fullTitle = `${title} · Plynf Dashboard`;
     </script>
   </head>
 
-  <body class="dash-bg" data-role="developer">
+  <body class="dash-bg" data-role="developer" data-api={apiBase} data-conn="connecting">
     <div class="dash-grid">
       <!-- ── Sidebar ─────────────────────────────────────── -->
       <aside class="dash-sidebar" id="dash-sidebar">
@@ -141,6 +145,9 @@ const fullTitle = `${title} · Plynf Dashboard`;
               <button data-role="security" aria-pressed="false">Security</button>
             </div>
 
+            <span id="conn-badge" class="dbadge !hidden sm:!inline-flex" title="Backend connection">
+              <span class="dot dot-paused !w-2 !h-2"></span><span id="conn-label">offline</span>
+            </span>
             <button class="btn btn-ghost h-9 w-9 !p-0 relative" aria-label="Alerts">
               <Icon name="bell" size={17} />
               {kpis.alertsCount > 0 && (
@@ -270,31 +277,128 @@ const fullTitle = `${title} · Plynf Dashboard`;
           if (e.key === "Escape") document.querySelectorAll('.modal-backdrop[data-open="true"]').forEach(function (bd) { bd.setAttribute("data-open", "false"); });
         });
 
-        // ── Toggles ([role=switch]) ──
-        document.querySelectorAll(".toggle").forEach(function (sw) {
-          sw.addEventListener("click", function () {
-            var on = sw.getAttribute("aria-checked") === "true";
-            sw.setAttribute("aria-checked", on ? "false" : "true");
-            var label = sw.getAttribute("data-label");
-            if (label) window.plynfToast(label + (on ? " disabled" : " enabled"));
+        // ── Live backend wire ───────────────────────────────────────────
+        // The dashboard fetches live state from the plinth_dashboard
+        // aggregator and POSTs control actions to it. Empty base = same-origin
+        // (relative), so a reverse-proxied prod deploy satisfies CSP 'self'.
+        var API = (document.body.getAttribute("data-api") || "").replace(/\/$/, "");
+        function apiCall(method, path, body) {
+          return fetch(API + path, {
+            method: method,
+            headers: body ? { "Content-Type": "application/json" } : undefined,
+            body: body ? JSON.stringify(body) : undefined,
+          }).then(function (r) {
+            return r.json().catch(function () { return {}; }).then(function (data) {
+              if (!r.ok) throw new Error((data.error && data.error.message) || (method + " " + path));
+              return data;
+            });
           });
+        }
+        window.plynfApi = apiCall;
+
+        // value formatters (mirror src/data/dashboard.ts)
+        var FMT = {
+          eur: function (n) { try { return new Intl.NumberFormat("en-US", { style: "currency", currency: "EUR" }).format(n); } catch (_) { return n; } },
+          pct: function (n) { return (typeof n === "number" ? n.toFixed(1) : n) + "%"; },
+          compact: function (n) { try { return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n); } catch (_) { return n; } },
+          num: function (n) { try { return new Intl.NumberFormat("en-US").format(n); } catch (_) { return n; } },
+          count: function (v) { return Array.isArray(v) ? v.length : v; },
+          raw: function (n) { return String(n); },
+        };
+        function resolvePath(obj, path) {
+          return path.split(".").reduce(function (o, k) { return o == null ? undefined : o[k]; }, obj);
+        }
+        function updateBindings(state) {
+          document.querySelectorAll("[data-bind]").forEach(function (el) {
+            var v = resolvePath(state, el.getAttribute("data-bind"));
+            if (v === undefined || v === null) return;
+            el.textContent = (FMT[el.getAttribute("data-fmt") || "raw"] || FMT.raw)(v);
+          });
+        }
+        function setConn(kind) {
+          document.body.setAttribute("data-conn", kind);
+          var badge = document.getElementById("conn-badge");
+          var label = document.getElementById("conn-label");
+          if (!badge) return;
+          badge.classList.remove("!hidden");
+          var dot = badge.querySelector(".dot");
+          if (kind === "live") {
+            if (label) label.textContent = "Live";
+            badge.classList.add("dbadge-ok");
+            if (dot) dot.className = "dot dot-healthy !w-2 !h-2";
+          } else {
+            if (label) label.textContent = "Demo data";
+            badge.classList.remove("dbadge-ok");
+            if (dot) dot.className = "dot dot-paused !w-2 !h-2";
+          }
+        }
+        function loadState() {
+          apiCall("GET", "/api/app/state")
+            .then(function (state) {
+              window.__PLYNF_LIVE = state;
+              updateBindings(state);
+              setConn("live");
+              // Pages with live lists (e.g. Routing) re-render on this event.
+              window.dispatchEvent(new CustomEvent("plynf:state", { detail: state }));
+            })
+            .catch(function () { setConn("demo"); });
+        }
+        window.plynfRefresh = loadState;
+        loadState();
+
+        function bodyFromEl(el) {
+          var raw = el.getAttribute("data-api-body");
+          if (!raw) return null;
+          try { return JSON.parse(raw); } catch (_) { return {}; }
+        }
+        // "POST /api/app/x" → run it; on success toast server message + refresh,
+        // on failure fall back to the optimistic data-action toast (offline).
+        function runApi(spec, body, fallback) {
+          var parts = spec.split(/\s+/);
+          apiCall(parts[0], parts[1], body)
+            .then(function (res) { window.plynfToast(res.message || fallback); if (API) loadState(); })
+            .catch(function () { window.plynfToast(fallback); });
+        }
+
+        // ── Delegated clicks: toggles + action buttons. Delegation means
+        //    dynamically re-rendered content (live lists) works without
+        //    re-binding listeners. ──
+        document.addEventListener("click", function (e) {
+          var sw = e.target.closest && e.target.closest(".toggle");
+          if (sw) {
+            var next = sw.getAttribute("aria-checked") !== "true";
+            sw.setAttribute("aria-checked", next ? "true" : "false");
+            var label = sw.getAttribute("data-label") || "Setting";
+            var fb = label + (next ? " enabled" : " disabled");
+            var tapi = sw.getAttribute("data-api");
+            if (tapi) runApi(tapi, { enabled: next }, fb);
+            else window.plynfToast(fb);
+            return;
+          }
+          var el = e.target.closest && e.target.closest("[data-action]");
+          if (!el || el.tagName === "FORM") return;
+          if (el.tagName === "A" && !el.getAttribute("href")) e.preventDefault();
+          var closeId = el.getAttribute("data-close-modal");
+          if (closeId) setModal(closeId, false);
+          var api = el.getAttribute("data-api");
+          if (api) runApi(api, bodyFromEl(el), el.getAttribute("data-action"));
+          else window.plynfToast(el.getAttribute("data-action"));
         });
 
-        // ── Generic action confirmations + form submits (no backend → optimistic) ──
-        document.querySelectorAll("[data-action]").forEach(function (el) {
-          el.addEventListener("click", function (e) {
-            if (el.tagName === "A" && !el.getAttribute("href")) e.preventDefault();
-            var closeId = el.getAttribute("data-close-modal");
-            if (closeId) setModal(closeId, false);
-            window.plynfToast(el.getAttribute("data-action"));
-          });
-        });
+        // ── Forms (optional data-api → POST the named fields) ──
         document.querySelectorAll("form[data-action]").forEach(function (f) {
           f.addEventListener("submit", function (e) {
             e.preventDefault();
             var closeId = f.getAttribute("data-close-modal");
             if (closeId) setModal(closeId, false);
-            window.plynfToast(f.getAttribute("data-action"));
+            var api = f.getAttribute("data-api");
+            if (api) {
+              var body = {};
+              new FormData(f).forEach(function (v, k) { body[k] = v; });
+              runApi(api, body, f.getAttribute("data-action"));
+            } else {
+              window.plynfToast(f.getAttribute("data-action"));
+            }
             try { f.reset(); } catch (_) {}
           });
         });

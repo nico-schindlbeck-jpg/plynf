@@ -33,13 +33,13 @@ const ampel = {
         <div>
           <div class="kpi-label">Token reduction today · with vs. without Plynf</div>
           <div class="mt-2 flex items-end gap-3">
-            <span class="text-[clamp(3rem,7vw,5rem)] font-bold leading-none tracking-[-0.05em] text-ink-primary">{pct(kpis.reductionPct)}</span>
+            <span class="text-[clamp(3rem,7vw,5rem)] font-bold leading-none tracking-[-0.05em] text-ink-primary" data-bind="kpis.reductionPct" data-fmt="pct">{pct(kpis.reductionPct)}</span>
             <span class="dbadge dbadge-ok mb-3"><Icon name="arrowup" size={12} />2.1 pts vs. last week</span>
           </div>
           <p class="mt-3 text-ink-secondary max-w-md text-[0.95rem]">
-            Plynf shaped <span class="text-ink-primary mono">{compact(kpis.savedTokensToday)}</span> tokens out of your
+            Plynf shaped <span class="text-ink-primary mono" data-bind="kpis.savedTokensToday" data-fmt="compact">{compact(kpis.savedTokensToday)}</span> tokens out of your
             agents' tool responses before they ever hit a model — that's
-            <span class="text-accent font-medium">{eur(kpis.savedTodayEur)}</span> saved today alone.
+            <span class="text-accent font-medium" data-bind="kpis.savedTodayEur" data-fmt="eur">{eur(kpis.savedTodayEur)}</span> saved today alone.
           </p>
         </div>
 
@@ -90,10 +90,10 @@ const ampel = {
 
   <!-- ── KPI row ─────────────────────────────────────────── -->
   <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-    <Kpi label="Spend today" value={eur(kpis.costTodayEur)} sub={`vs ${eur(kpis.costWithoutTodayEur)} without Plynf`} tint="orange" trend={-28.0} trendGood="down" />
-    <Kpi label="Tokens saved today" value={compact(kpis.savedTokensToday)} sub={`of ${compact(kpis.rawTokensToday)} raw`} tint="magenta" depth="technical" />
-    <Kpi label="Active workflows" value={String(kpis.activeWorkflows)} sub={`${num(kpis.toolCallsToday)} tool calls today`} tint="indigo" />
-    <Kpi label="Cache hit rate" value={pct(kpis.cacheHitRate)} sub="served without a tool round-trip" tint="cyan" depth="technical" />
+    <Kpi label="Spend today" value={eur(kpis.costTodayEur)} sub={`vs ${eur(kpis.costWithoutTodayEur)} without Plynf`} tint="orange" trend={-28.0} trendGood="down" bind="kpis.costTodayEur" bindFmt="eur" />
+    <Kpi label="Tokens saved today" value={compact(kpis.savedTokensToday)} sub={`of ${compact(kpis.rawTokensToday)} raw`} tint="magenta" depth="technical" bind="kpis.savedTokensToday" bindFmt="compact" />
+    <Kpi label="Active workflows" value={String(kpis.activeWorkflows)} sub={`${num(kpis.toolCallsToday)} tool calls today`} tint="indigo" bind="kpis.activeWorkflows" bindFmt="num" />
+    <Kpi label="Cache hit rate" value={pct(kpis.cacheHitRate)} sub="served without a tool round-trip" tint="cyan" depth="technical" bind="kpis.cacheHitRate" bindFmt="pct" />
   </section>
 
   <!-- ── Active workflows + needs-attention ──────────────── -->

@@ -47,13 +47,13 @@ const defaultProvider = providers.find((p) => p.isDefault);
   <!-- Providers -->
   <div class="card p-5 mb-4" data-reveal>
     <div class="flex items-center justify-between mb-3">
-      <h3 class="font-semibold text-ink-primary">Upstream providers <span class="text-ink-muted font-normal">({providers.length})</span></h3>
+      <h3 class="font-semibold text-ink-primary">Upstream providers <span class="text-ink-muted font-normal">(<span data-bind="providers" data-fmt="count">{providers.length}</span>)</span></h3>
       <button class="btn btn-ghost !py-1.5 text-sm" data-modal-open="provider"><Icon name="plus" size={14} />Add</button>
     </div>
     <div class="overflow-x-auto">
       <table class="dtable">
         <thead><tr><th>Provider</th><th>Base URL</th><th>API key</th><th>Headers</th><th class="num">Models</th><th>Status</th><th></th></tr></thead>
-        <tbody>
+        <tbody id="providers-body">
           {providers.map((p) => (
             <tr>
               <td class="strong">
@@ -66,9 +66,9 @@ const defaultProvider = providers.find((p) => p.isDefault);
               <td><StatusBadge status={p.status} /></td>
               <td class="num">
                 <div class="inline-flex items-center gap-1">
-                  {!p.isDefault && <button class="btn btn-ghost !py-1 !px-2 text-2xs" data-action={`${p.name} set as default upstream`}>Set default</button>}
+                  {!p.isDefault && <button class="btn btn-ghost !py-1 !px-2 text-2xs" data-action={`${p.name} set as default upstream`} data-api={`POST /api/app/providers/${p.id}/default`}>Set default</button>}
                   <button class="btn btn-ghost !p-1.5" aria-label="Edit" data-action={`Editing ${p.name}`}><Icon name="edit" size={14} /></button>
-                  <button class="btn btn-ghost !p-1.5" aria-label="Remove" data-action={`Removed ${p.name}`}><Icon name="trash" size={14} /></button>
+                  <button class="btn btn-ghost !p-1.5" aria-label="Remove" data-action={`Removed ${p.name}`} data-api={`DELETE /api/app/providers/${p.id}`}><Icon name="trash" size={14} /></button>
                 </div>
               </td>
             </tr>
@@ -86,13 +86,13 @@ const defaultProvider = providers.find((p) => p.isDefault);
         <button class="btn btn-ghost !py-1.5 text-sm" data-modal-open="alias"><Icon name="plus" size={14} />Add</button>
       </div>
       <p class="text-sm text-ink-secondary mb-3">Name a model once; swap the provider behind it here. Code references the alias — never the concrete model.</p>
-      <div class="space-y-2">
+      <div class="space-y-2" id="aliases-list">
         {modelAliases.map((a) => (
           <div class="flex items-center gap-3 rounded-xl border border-border bg-bg-1/40 px-3.5 py-2.5">
             <span class="dbadge dbadge-accent mono">{a.alias}</span>
             <Icon name="chevronr" size={14} class="text-ink-muted" />
             <span class="mono text-2xs text-ink-secondary flex-1 truncate">{a.target}</span>
-            <button class="btn btn-ghost !p-1.5" aria-label="Remove alias" data-action={`Removed alias “${a.alias}”`}><Icon name="trash" size={13} /></button>
+            <button class="btn btn-ghost !p-1.5" aria-label="Remove alias" data-action={`Removed alias “${a.alias}”`} data-api={`DELETE /api/app/aliases/${a.alias}`}><Icon name="trash" size={13} /></button>
           </div>
         ))}
       </div>
@@ -102,7 +102,7 @@ const defaultProvider = providers.find((p) => p.isDefault);
     <div class="card p-5" data-reveal>
       <h3 class="font-semibold text-ink-primary mb-1">Front doors</h3>
       <p class="text-sm text-ink-secondary mb-3">Each dialect a client can speak to Plynf. Toggle the surfaces you expose — all route to the same shaped pipeline.</p>
-      <div class="divide-card -mt-1">
+      <div class="divide-card -mt-1" id="frontdoors-list">
         {frontDoors.map((f) => (
           <div class="flex items-center gap-3 py-2.5">
             <div class="min-w-0 flex-1">
@@ -115,6 +115,7 @@ const defaultProvider = providers.find((p) => p.isDefault);
               aria-checked={f.enabled ? "true" : "false"}
               tabindex="0"
               data-label={`Front door ${f.name}`}
+              data-api={`POST /api/app/frontdoors/${f.id}/toggle`}
               aria-label={`Toggle ${f.name}`}
             ></span>
           </div>
@@ -189,6 +190,76 @@ const defaultProvider = providers.find((p) => p.isDefault);
     })();
   </script>
 
+  <!-- Live list rendering: when the backend is reachable these lists are
+       driven by GET /api/app/state, so adds/removes/toggles show immediately.
+       Offline, the SSG-rendered rows above remain as the fallback. -->
+  <script is:inline>
+    (function () {
+      function esc(s) {
+        return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+        });
+      }
+      function statusBadge(status) {
+        var m = {
+          connected: ["dbadge-ok", "dot-healthy", "Connected"],
+          degraded: ["dbadge-warn", "dot-degraded", "Degraded"],
+          error: ["dbadge-bad", "dot-down", "Error"],
+        }[status] || ["dbadge", "dot-paused", status];
+        return '<span class="dbadge ' + m[0] + '"><span class="dot ' + m[1] + ' !w-2 !h-2"></span>' + esc(m[2]) + "</span>";
+      }
+      function renderProviders(list) {
+        var body = document.getElementById("providers-body");
+        if (!body) return;
+        body.innerHTML = list.map(function (p) {
+          var headers = p.headers && p.headers.length
+            ? '<span class="dbadge dbadge-info">' + p.headers.length + " header" + (p.headers.length > 1 ? "s" : "") + "</span>"
+            : '<span class="text-ink-muted text-2xs">—</span>';
+          var setDefault = p.isDefault ? "" :
+            '<button class="btn btn-ghost !py-1 !px-2 text-2xs" data-action="' + esc(p.name) + ' set as default upstream" data-api="POST /api/app/providers/' + esc(p.id) + '/default">Set default</button>';
+          return "<tr>" +
+            '<td class="strong"><div class="flex items-center gap-2">' + esc(p.name) + (p.isDefault ? '<span class="dbadge dbadge-accent">default</span>' : "") + "</div></td>" +
+            '<td class="mono text-2xs">' + esc(p.baseUrl) + "</td>" +
+            '<td class="mono text-2xs text-ink-muted">' + esc(p.keyMasked) + "</td>" +
+            "<td>" + headers + "</td>" +
+            '<td class="num">' + esc(p.models) + "</td>" +
+            "<td>" + statusBadge(p.status) + "</td>" +
+            '<td class="num"><div class="inline-flex items-center gap-1">' + setDefault +
+            '<button class="btn btn-ghost !py-1 !px-2 text-2xs" data-action="Removed ' + esc(p.name) + '" data-api="DELETE /api/app/providers/' + esc(p.id) + '">Remove</button></div></td>' +
+            "</tr>";
+        }).join("");
+      }
+      function renderAliases(list) {
+        var el = document.getElementById("aliases-list");
+        if (!el) return;
+        el.innerHTML = list.map(function (a) {
+          return '<div class="flex items-center gap-3 rounded-xl border border-border bg-bg-1/40 px-3.5 py-2.5">' +
+            '<span class="dbadge dbadge-accent mono">' + esc(a.alias) + "</span>" +
+            '<span class="mono text-2xs text-ink-secondary flex-1 truncate">→ ' + esc(a.target) + "</span>" +
+            '<button class="btn btn-ghost !py-1 !px-2 text-2xs" data-action="Removed alias ' + esc(a.alias) + '" data-api="DELETE /api/app/aliases/' + esc(a.alias) + '">Remove</button></div>';
+        }).join("");
+      }
+      function renderFrontDoors(list) {
+        var el = document.getElementById("frontdoors-list");
+        if (!el) return;
+        el.innerHTML = list.map(function (f) {
+          return '<div class="flex items-center gap-3 py-2.5"><div class="min-w-0 flex-1">' +
+            '<div class="text-sm text-ink-primary">' + esc(f.name) + "</div>" +
+            '<div class="mono text-2xs text-ink-muted truncate">' + esc(f.path) + "</div></div>" +
+            '<span class="toggle" role="switch" aria-checked="' + (f.enabled ? "true" : "false") + '" tabindex="0" data-label="Front door ' + esc(f.name) + '" data-api="POST /api/app/frontdoors/' + esc(f.id) + '/toggle" aria-label="Toggle ' + esc(f.name) + '"></span></div>';
+        }).join("");
+      }
+      function apply(state) {
+        if (!state) return;
+        if (state.providers) renderProviders(state.providers);
+        if (state.modelAliases) renderAliases(state.modelAliases);
+        if (state.frontDoors) renderFrontDoors(state.frontDoors);
+      }
+      if (window.__PLYNF_LIVE) apply(window.__PLYNF_LIVE);
+      window.addEventListener("plynf:state", function (e) { apply(e.detail); });
+    })();
+  </script>
+
   <!-- Modals -->
   <div slot="modals" class="modal-backdrop" id="modal-provider">
     <div class="modal" role="dialog" aria-modal="true" aria-label="Add provider">
@@ -196,11 +267,11 @@ const defaultProvider = providers.find((p) => p.isDefault);
         <div><h3 class="font-semibold text-ink-primary text-lg">Add upstream provider</h3><p class="text-sm text-ink-muted mt-0.5">Any OpenAI-compatible base URL. Secrets are written to the proxy, never shown again.</p></div>
         <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
       </div>
-      <form class="modal-body space-y-3.5" data-action="Provider added — routing live" data-close-modal="provider">
-        <div><label class="dlabel">Name</label><input class="dinput" placeholder="e.g. Mistral" required /></div>
-        <div><label class="dlabel">Base URL</label><input class="dinput mono" placeholder="https://api.mistral.ai" required /></div>
-        <div><label class="dlabel">API key</label><input class="dinput mono" type="password" placeholder="sk-…  (or ${ENV_VAR})" /></div>
-        <div><label class="dlabel">Extra headers (optional)</label><textarea class="dtextarea" placeholder={'{"HTTP-Referer": "https://acme.io"}'}></textarea></div>
+      <form class="modal-body space-y-3.5" data-action="Provider added — routing live" data-api="POST /api/app/providers" data-close-modal="provider">
+        <div><label class="dlabel">Name</label><input name="name" class="dinput" placeholder="e.g. Mistral" required /></div>
+        <div><label class="dlabel">Base URL</label><input name="baseUrl" class="dinput mono" placeholder="https://api.mistral.ai" required /></div>
+        <div><label class="dlabel">API key</label><input name="apiKey" class="dinput mono" type="password" placeholder="sk-…  (or ${ENV_VAR})" /></div>
+        <div><label class="dlabel">Extra headers (optional)</label><textarea name="headersText" class="dtextarea" placeholder={'{"HTTP-Referer": "https://acme.io"}'}></textarea></div>
         <div class="modal-foot !px-0 !pb-0"><button type="button" class="btn btn-secondary" data-modal-close>Cancel</button><button type="submit" class="btn btn-primary">Add provider</button></div>
       </form>
     </div>
@@ -212,9 +283,9 @@ const defaultProvider = providers.find((p) => p.isDefault);
         <div><h3 class="font-semibold text-ink-primary text-lg">Add model alias</h3><p class="text-sm text-ink-muted mt-0.5">Reference the alias in code; repoint it here any time.</p></div>
         <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
       </div>
-      <form class="modal-body space-y-3.5" data-action="Alias saved" data-close-modal="alias">
-        <div><label class="dlabel">Alias</label><input class="dinput mono" placeholder="fast" required /></div>
-        <div><label class="dlabel">Target model</label><input class="dinput mono" placeholder="groq/llama-3.3-70b" required /></div>
+      <form class="modal-body space-y-3.5" data-action="Alias saved" data-api="POST /api/app/aliases" data-close-modal="alias">
+        <div><label class="dlabel">Alias</label><input name="alias" class="dinput mono" placeholder="fast" required /></div>
+        <div><label class="dlabel">Target model</label><input name="target" class="dinput mono" placeholder="groq/llama-3.3-70b" required /></div>
         <div class="modal-foot !px-0 !pb-0"><button type="button" class="btn btn-secondary" data-modal-close>Cancel</button><button type="submit" class="btn btn-primary">Save alias</button></div>
       </form>
     </div>

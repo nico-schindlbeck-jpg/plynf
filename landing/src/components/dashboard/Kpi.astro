@@ -8,8 +8,10 @@ interface Props {
   trend?: number; // positive => up, shown with arrow; sign chooses color
   trendGood?: "up" | "down"; // which direction is "good" (green)
   depth?: string; // role-gating attribute pass-through
+  bind?: string; // dotted path into live /api/app/state (e.g. "kpis.costTodayEur")
+  bindFmt?: "eur" | "pct" | "compact" | "num" | "raw";
 }
-const { label, value, sub, tint, trend, trendGood = "up", depth } = Astro.props;
+const { label, value, sub, tint, trend, trendGood = "up", depth, bind, bindFmt } = Astro.props;
 const tintClass = tint ? `card-tint-${tint}` : "";
 let trendCls = "";
 let arrow = "";
@@ -30,6 +32,6 @@ if (typeof trend === "number") {
       </span>
     )}
   </div>
-  <div class="kpi-value tnum">{value}</div>
+  <div class="kpi-value tnum" data-bind={bind} data-fmt={bindFmt}>{value}</div>
   {sub && <div class="kpi-sub">{sub}</div>}
 </div>
