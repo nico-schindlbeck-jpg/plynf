@@ -32,7 +32,7 @@ const coverageX = savingsTotals.savedMonthEur / billing.currentBillEur;
           <div>
             <div class="kpi-label">Current plan</div>
             <div class="mt-1 flex items-center gap-3">
-              <span class="text-[clamp(2rem,4vw,2.6rem)] font-bold leading-none tracking-[-0.04em] text-ink-primary">{billing.plan}</span>
+              <span class="text-[clamp(2rem,4vw,2.6rem)] font-bold leading-none tracking-[-0.04em] text-ink-primary" data-bind="billing.plan" data-fmt="raw">{billing.plan}</span>
               <span class="dbadge dbadge-accent">Active</span>
             </div>
             <p class="mt-2 text-ink-secondary text-[0.9rem] mono">{billing.priceModel}</p>
@@ -118,8 +118,8 @@ const coverageX = savingsTotals.savedMonthEur / billing.currentBillEur;
 
   <!-- ── KPI row ─────────────────────────────────────────── -->
   <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-    <Kpi label="This cycle" value={eur(billing.currentBillEur)} sub="Accrued so far" tint="indigo" />
-    <Kpi label="Projected" value={eur(billing.projectedBillEur)} sub="At current run-rate" tint="magenta" />
+    <Kpi label="This cycle" value={eur(billing.currentBillEur)} sub="Accrued so far" tint="indigo" bind="billing.currentBillEur" bindFmt="eur" />
+    <Kpi label="Projected" value={eur(billing.projectedBillEur)} sub="At current run-rate" tint="magenta" bind="billing.projectedBillEur" bindFmt="eur" />
     <Kpi label="Saved this month" value={eur(savingsTotals.savedMonthEur)} sub="Plynf more than pays for itself" tint="orange" />
     <Kpi label="Included tokens used" value={pct(usagePct)} sub={`${billing.usedTokensM}M of ${billing.includedTokensM}M`} tint="cyan" />
   </section>
@@ -141,7 +141,7 @@ const coverageX = savingsTotals.savedMonthEur / billing.currentBillEur;
               <th class="num">Invoice</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="invoices-body">
             {billing.invoices.map((inv) => (
               <tr>
                 <td class="strong">{inv.period}</td>
@@ -283,4 +283,24 @@ const coverageX = savingsTotals.savedMonthEur / billing.currentBillEur;
       </form>
     </div>
   </div>
+
+  <!-- Live invoices table from GET /api/app/state (SSG rows are the fallback). -->
+  <script is:inline>
+    (function () {
+      function render(state) {
+        var inv = state && state.billing && state.billing.invoices;
+        var body = document.getElementById("invoices-body");
+        if (!body || !inv || !window.plynfUI) return;
+        var ui = window.plynfUI, fmt = window.plynfFmt;
+        body.innerHTML = inv.map(function (i) {
+          return '<tr><td class="strong">' + ui.esc(i.period) + "</td>" +
+            '<td class="num strong tnum">' + fmt.eur(i.amountEur) + "</td>" +
+            "<td>" + ui.statusBadge(i.status) + "</td>" +
+            '<td class="num"><button type="button" class="btn btn-ghost !py-1 !px-2 text-2xs" data-action="Downloading invoice ' + ui.esc(i.period) + '">Download</button></td></tr>';
+        }).join("");
+      }
+      if (window.__PLYNF_LIVE) render(window.__PLYNF_LIVE);
+      window.addEventListener("plynf:state", function (e) { render(e.detail); });
+    })();
+  </script>
 </DashboardLayout>

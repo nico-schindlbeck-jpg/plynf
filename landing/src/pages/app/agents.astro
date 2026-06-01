@@ -88,7 +88,7 @@ const dlqTotal = dlqAgents.reduce((s, a) => s + a.dlq, 0) + failedWorkflows.leng
             <th class="num">Actions</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="fleet-body">
           {agents.map((a) => (
             <tr data-status={a.status} class="cursor-default">
               <td>
@@ -141,7 +141,7 @@ const dlqTotal = dlqAgents.reduce((s, a) => s + a.dlq, 0) + failedWorkflows.leng
       <span class="dbadge dbadge-info hidden sm:inline-flex"><Icon name="rotate" size={12} />Checkpoint = crash-safe</span>
     </div>
 
-    <div class="grid lg:grid-cols-2 gap-4">
+    <div class="grid lg:grid-cols-2 gap-4" id="workflows-grid">
       {orderedWorkflows.map((w) => {
         const needsRecovery = w.status === "recovered" || w.status === "failed";
         const progCls = w.status === "failed" ? "prog-bad" : w.status === "recovered" ? "prog-warn" : w.status === "completed" ? "prog-ok" : "";
@@ -262,14 +262,14 @@ const dlqTotal = dlqAgents.reduce((s, a) => s + a.dlq, 0) + failedWorkflows.leng
         </div>
         <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
       </div>
-      <form class="modal-body space-y-3.5" data-action="Agent created — provisioning workspace" data-close-modal="agent">
+      <form class="modal-body space-y-3.5" data-action="Agent created — provisioning workspace" data-api="POST /api/app/agents" data-close-modal="agent">
         <div>
           <label class="dlabel" for="ag-name">Name</label>
-          <input id="ag-name" class="dinput" placeholder="e.g. Refund Triage" required />
+          <input id="ag-name" name="name" class="dinput" placeholder="e.g. Refund Triage" required />
         </div>
         <div>
           <label class="dlabel" for="ag-model">Model</label>
-          <select id="ag-model" class="dselect">
+          <select id="ag-model" name="model" class="dselect">
             {modelAliases.map((a) => (
               <option value={a.alias}>{a.alias} · {a.target}</option>
             ))}
@@ -278,11 +278,11 @@ const dlqTotal = dlqAgents.reduce((s, a) => s + a.dlq, 0) + failedWorkflows.leng
         </div>
         <div>
           <label class="dlabel" for="ag-workspace">Workspace id</label>
-          <input id="ag-workspace" class="dinput mono" placeholder="ws_acme_refund" required />
+          <input id="ag-workspace" name="workspace" class="dinput mono" placeholder="ws_acme_refund" required />
         </div>
         <div>
           <label class="dlabel" for="ag-cap">Daily cost cap €</label>
-          <input id="ag-cap" class="dinput" type="number" min="0" step="1" placeholder="50" />
+          <input id="ag-cap" name="dailyCapEur" class="dinput" type="number" min="0" step="1" placeholder="50" />
         </div>
         <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-1/40 px-3.5 py-3">
           <div class="min-w-0">
@@ -298,20 +298,19 @@ const dlqTotal = dlqAgents.reduce((s, a) => s + a.dlq, 0) + failedWorkflows.leng
       </form>
     </div>
   </div>
-</DashboardLayout>
 
-<script is:inline>
+  <script is:inline>
   (function () {
     var group = document.getElementById("fleet-filter");
     var table = document.getElementById("fleet-table");
     var empty = document.getElementById("fleet-empty");
     if (!group || !table) return;
     var buttons = group.querySelectorAll("button[data-filter]");
-    var rows = table.querySelectorAll("tbody tr");
 
     function apply(key) {
       var shown = 0;
-      rows.forEach(function (row) {
+      // Re-query each call so the live re-rendered rows are picked up.
+      table.querySelectorAll("tbody tr").forEach(function (row) {
         var match = key === "all" || row.getAttribute("data-status") === key;
         row.style.display = match ? "" : "none";
         if (match) shown++;
@@ -328,3 +327,88 @@ const dlqTotal = dlqAgents.reduce((s, a) => s + a.dlq, 0) + failedWorkflows.leng
     });
   })();
 </script>
+
+<!-- Live fleet table + workflows from GET /api/app/state (SSG is the fallback). -->
+<script is:inline>
+  (function () {
+    var envCls = { prod: "dbadge-ok", staging: "dbadge-warn", dev: "dbadge-info" };
+    var stepCls = { done: "step-done", active: "step-active", failed: "step-failed", checkpoint: "step-checkpoint", pending: "" };
+    var stepGlyph = { done: "✓", failed: "!", checkpoint: "↻" };
+    var wfOrder = { failed: 0, recovered: 1, running: 2, queued: 3, completed: 4 };
+
+    function renderFleet(list) {
+      var body = document.getElementById("fleet-body");
+      if (!body || !window.plynfUI) return;
+      var ui = window.plynfUI, fmt = window.plynfFmt;
+      body.innerHTML = list.map(function (a) {
+        var recovered = a.recoveredToday > 0
+          ? '<span class="dbadge dbadge-info !text-[0.62rem] !py-0.5" title="Crash-recovered runs today">↻ ' + a.recoveredToday + "</span>" : "";
+        var action = a.status === "paused"
+          ? '<button class="btn btn-ghost !py-1 !px-2 text-2xs" data-action="Resumed ' + ui.esc(a.name) + '" data-api="POST /api/app/agents/' + ui.esc(a.id) + '/resume">Resume</button>'
+          : '<button class="btn btn-ghost !py-1 !px-2 text-2xs" data-action="Paused ' + ui.esc(a.name) + '" data-api="POST /api/app/agents/' + ui.esc(a.id) + '/pause">Pause</button>';
+        var err = (a.status === "down" || a.status === "paused") ? "—" : fmt.pct(a.errorRatePct);
+        return '<tr data-status="' + ui.esc(a.status) + '" class="cursor-default">' +
+          '<td><div class="flex items-center gap-2.5"><span class="strong">' + ui.esc(a.name) + '</span>' +
+          '<span class="dbadge ' + (envCls[a.env] || "dbadge") + ' !text-[0.62rem] !py-0.5">' + ui.esc(a.env) + "</span>" + recovered + "</div></td>" +
+          "<td>" + ui.statusBadge(a.status) + "</td>" +
+          '<td><span class="mono text-2xs">' + ui.esc(a.model) + "</span></td>" +
+          '<td class="num strong">' + (a.requestsToday > 0 ? fmt.num(a.requestsToday) : "—") + "</td>" +
+          '<td class="num">' + (a.savedPct > 0 ? fmt.pct(a.savedPct) : "—") + "</td>" +
+          '<td class="num">' + fmt.eur(a.costTodayEur) + "</td>" +
+          '<td class="num" data-depth="technical">' + (a.p95ms > 0 ? fmt.num(a.p95ms) + " ms" : "—") + "</td>" +
+          '<td class="num" data-depth="technical"><span class="' + (a.errorRatePct >= 2 ? "text-[#f87f93]" : "") + '">' + err + "</span></td>" +
+          '<td><span class="mono text-2xs text-ink-muted">' + ui.esc(a.owner) + "</span></td>" +
+          '<td class="num"><div class="inline-flex items-center gap-1">' + action +
+          '<button class="btn btn-ghost !py-1 !px-2 text-2xs" data-action="Opening ' + ui.esc(a.name) + ' config">Config</button></div></td></tr>';
+      }).join("");
+    }
+
+    function renderWorkflows(list) {
+      var grid = document.getElementById("workflows-grid");
+      if (!grid || !window.plynfUI) return;
+      var ui = window.plynfUI, fmt = window.plynfFmt;
+      var ordered = list.slice().sort(function (a, b) {
+        return (wfOrder[a.status] == null ? 9 : wfOrder[a.status]) - (wfOrder[b.status] == null ? 9 : wfOrder[b.status]);
+      });
+      grid.innerHTML = ordered.map(function (w) {
+        var needsRecovery = w.status === "recovered" || w.status === "failed";
+        var progCls = w.status === "failed" ? "prog-bad" : w.status === "recovered" ? "prog-warn" : w.status === "completed" ? "prog-ok" : "";
+        var recovery = (needsRecovery && w.recoveredFrom)
+          ? '<div class="mt-4 flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 ' +
+            (w.status === "failed" ? "border-[rgba(244,86,111,0.3)] bg-[rgba(244,86,111,0.06)]" : "border-[rgba(99,102,241,0.32)] bg-[rgba(99,102,241,0.06)]") + '">' +
+            '<div class="min-w-0 flex items-center gap-2.5"><span class="dot ' + (w.status === "failed" ? "dot-down" : "dot-degraded") + '"></span>' +
+            '<div class="min-w-0"><div class="text-2xs text-ink-secondary">' + (w.status === "failed" ? "Halted — last good checkpoint" : "Recovered from checkpoint") + "</div>" +
+            '<div class="text-[0.84rem] text-ink-primary truncate">' + ui.esc(w.recoveredFrom) + "</div></div></div>" +
+            '<div class="flex items-center gap-1.5 shrink-0">' +
+            '<button class="btn btn-ghost !py-1.5 !px-2.5 text-2xs whitespace-nowrap" data-action="Opening timeline for ' + ui.esc(w.name) + '">Timeline</button>' +
+            '<button class="btn btn-secondary !py-1.5 !px-3 text-2xs whitespace-nowrap" data-action="Resuming ' + ui.esc(w.name) + ' from checkpoint" data-api="POST /api/app/workflows/' + ui.esc(w.id) + '/resume">Resume</button></div></div>'
+          : "";
+        var steps = (w.steps || []).map(function (s) {
+          var glyph = stepGlyph[s.status] ? '<span class="text-[0.6rem] font-bold leading-none">' + stepGlyph[s.status] + "</span>" : "";
+          var cp = (s.checkpoint || s.status === "checkpoint") ? '<span class="dbadge dbadge-info !text-[0.6rem] !py-0 !px-1.5">checkpoint</span>' : "";
+          var meta = typeof s.durationMs === "number" ? '<span class="step-meta">' + fmt.num(s.durationMs) + " ms</span>"
+            : s.status === "active" ? '<span class="step-meta text-accent">running…</span>'
+            : s.status === "failed" ? '<span class="step-meta text-[#f87f93]">failed — replay available</span>' : "";
+          return '<div class="step ' + (stepCls[s.status] || "") + '"><span class="step-dot">' + glyph + "</span>" +
+            '<div class="min-w-0 flex-1 -mt-0.5"><div class="flex items-center gap-2 flex-wrap"><span class="step-name truncate">' + ui.esc(s.name) + "</span>" + cp + "</div>" + meta + "</div></div>";
+        }).join("");
+        return '<div class="card p-5 ' + (needsRecovery ? "card-hover" : "") + '">' +
+          '<div class="flex items-start justify-between gap-3"><div class="min-w-0"><div class="flex items-center gap-2 flex-wrap">' +
+          '<span class="font-medium text-ink-primary truncate">' + ui.esc(w.name) + "</span>" + ui.statusBadge(w.status) + "</div>" +
+          '<div class="text-2xs text-ink-muted mt-0.5">' + ui.esc(w.agent) + " · " + ui.esc(w.startedAgo) + "</div></div>" +
+          '<span class="text-2xs mono text-ink-muted tnum mt-1">' + w.progress + "%</span></div>" +
+          '<div class="prog ' + progCls + ' mt-3"><span style="width:' + w.progress + '%"></span></div>' +
+          recovery + '<div class="stepper mt-4">' + steps + "</div></div>";
+      }).join("");
+    }
+
+    function apply(state) {
+      if (!state) return;
+      if (state.agents) renderFleet(state.agents);
+      if (state.workflows) renderWorkflows(state.workflows);
+    }
+    if (window.__PLYNF_LIVE) apply(window.__PLYNF_LIVE);
+    window.addEventListener("plynf:state", function (e) { apply(e.detail); });
+  })();
+  </script>
+</DashboardLayout>

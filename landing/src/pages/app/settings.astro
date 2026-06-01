@@ -90,7 +90,7 @@ const pctOf = (a: number, b: number) => (b > 0 ? Math.min(100, (a / b) * 100) : 
               <th class="num">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="tokens-body">
             {capabilityTokens.map((t) => (
               <tr>
                 <td>
@@ -219,7 +219,7 @@ const pctOf = (a: number, b: number) => (b > 0 ? Math.min(100, (a / b) * 100) : 
               <th class="num"></th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="team-body">
             {team.map((m) => (
               <tr>
                 <td>
@@ -394,28 +394,28 @@ const pctOf = (a: number, b: number) => (b > 0 ? Math.min(100, (a / b) * 100) : 
         </div>
         <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
       </div>
-      <form class="modal-body space-y-3.5" data-action="Capability token issued" data-close-modal="token">
+      <form class="modal-body space-y-3.5" data-action="Capability token issued" data-api="POST /api/app/tokens" data-close-modal="token">
         <div>
           <label class="dlabel" for="tok-agent">Agent</label>
-          <select id="tok-agent" class="dselect" required>
+          <select id="tok-agent" name="agent" class="dselect" required>
             {agents.map((a) => <option value={a.id}>{a.name} · {a.id}</option>)}
           </select>
         </div>
         <div>
           <label class="dlabel" for="tok-scopes">Scopes</label>
-          <input id="tok-scopes" class="dinput mono" placeholder="tool:web.* workspace:ws_x:rw" value="tool:orders:read tool:email:write" required />
+          <input id="tok-scopes" name="scopes" class="dinput mono" placeholder="tool:web.* workspace:ws_x:rw" value="tool:orders:read tool:email:write" required />
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="dlabel" for="tok-alg">Algorithm</label>
-            <select id="tok-alg" class="dselect">
+            <select id="tok-alg" name="alg" class="dselect">
               <option>RS256</option>
               <option>HS256</option>
             </select>
           </div>
           <div>
             <label class="dlabel" for="tok-ttl">TTL (days)</label>
-            <input id="tok-ttl" class="dinput mono" type="number" value="30" min="1" />
+            <input id="tok-ttl" name="ttlDays" class="dinput mono" type="number" value="30" min="1" />
           </div>
         </div>
         <div class="modal-foot !px-0 !pb-0">
@@ -435,14 +435,14 @@ const pctOf = (a: number, b: number) => (b > 0 ? Math.min(100, (a / b) * 100) : 
         </div>
         <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
       </div>
-      <form class="modal-body space-y-3.5" data-action="Invitation sent" data-close-modal="invite">
+      <form class="modal-body space-y-3.5" data-action="Invitation sent" data-api="POST /api/app/team/invite" data-close-modal="invite">
         <div>
           <label class="dlabel" for="inv-email">Email</label>
-          <input id="inv-email" class="dinput mono" type="email" placeholder="name@acme.io" required />
+          <input id="inv-email" name="email" class="dinput mono" type="email" placeholder="name@acme.io" required />
         </div>
         <div>
           <label class="dlabel" for="inv-role">Role</label>
-          <select id="inv-role" class="dselect">
+          <select id="inv-role" name="role" class="dselect">
             <option>Owner</option>
             <option>Admin</option>
             <option selected>Developer</option>
@@ -479,6 +479,58 @@ const pctOf = (a: number, b: number) => (b > 0 ? Math.min(100, (a / b) * 100) : 
       </form>
     </div>
   </div>
+
+  <!-- Live tokens + team tables from GET /api/app/state (SSG rows are fallback). -->
+  <script is:inline>
+    (function () {
+      function rotColor(s) {
+        return s === "expired" ? "text-[#f87f93]" : s === "rotate-soon" ? "text-[#f6bd5e]" : "text-ink-secondary";
+      }
+      function renderTokens(list) {
+        var body = document.getElementById("tokens-body");
+        if (!body || !window.plynfUI) return;
+        var ui = window.plynfUI;
+        body.innerHTML = list.map(function (t) {
+          var scopes = (t.scopes || []).map(function (s) { return '<span class="dbadge !text-[0.65rem] !py-0.5">' + ui.esc(s) + "</span>"; }).join(" ");
+          return "<tr>" +
+            '<td><div class="flex items-center gap-2"><span class="mono strong">' + ui.esc(t.name) + "</span>" + ui.statusBadge(t.status) + "</div>" +
+            '<div class="text-2xs text-ink-muted mono mt-0.5">' + ui.esc(t.id) + "</div></td>" +
+            '<td><div class="flex flex-wrap gap-1">' + scopes + "</div></td>" +
+            '<td><span class="dbadge dbadge-info !text-[0.65rem]">' + ui.esc(t.tenant) + "</span></td>" +
+            '<td><span class="' + rotColor(t.status) + ' mono text-[0.8rem]">' + ui.esc(t.rotatedAgo) + "</span></td>" +
+            '<td><span class="text-ink-muted mono text-[0.8rem]">' + ui.esc(t.lastUsed) + "</span></td>" +
+            '<td class="num"><div class="inline-flex items-center gap-1">' +
+            '<button class="btn btn-ghost !py-1 !px-2 text-2xs" data-action="Rotating ' + ui.esc(t.id) + ' — new key minted" data-api="POST /api/app/tokens/' + ui.esc(t.id) + '/rotate">Rotate</button>' +
+            '<button class="btn btn-ghost !py-1 !px-2 text-2xs copy-btn" data-copy="' + ui.esc(t.id) + '">ID</button>' +
+            '<button class="btn btn-ghost !py-1 !px-2 text-2xs text-[#f87f93]" data-action="Revoked ' + ui.esc(t.id) + '" data-api="DELETE /api/app/tokens/' + ui.esc(t.id) + '">Revoke</button>' +
+            "</div></td></tr>";
+        }).join("");
+      }
+      function renderTeam(list) {
+        var body = document.getElementById("team-body");
+        if (!body || !window.plynfUI) return;
+        var ui = window.plynfUI;
+        body.innerHTML = list.map(function (m) {
+          var action = m.role === "Owner"
+            ? '<span class="text-2xs text-ink-muted">—</span>'
+            : '<button class="btn btn-ghost !py-1 !px-2 text-2xs" data-action="Managing ' + ui.esc(m.name) + '">Manage</button>';
+          return "<tr>" +
+            '<td><div class="strong">' + ui.esc(m.name) + '</div><div class="text-2xs text-ink-muted mono mt-0.5">' + ui.esc(m.email) + "</div></td>" +
+            '<td><span class="dbadge !text-[0.7rem]">' + ui.esc(m.role) + "</span></td>" +
+            '<td><span class="dbadge dbadge-info !text-[0.65rem]">' + ui.esc(m.tenant) + "</span></td>" +
+            '<td class="num"><span class="text-ink-muted mono text-[0.8rem]">' + ui.esc(m.lastActive) + "</span></td>" +
+            '<td class="num">' + action + "</td></tr>";
+        }).join("");
+      }
+      function apply(state) {
+        if (!state) return;
+        if (state.capabilityTokens) renderTokens(state.capabilityTokens);
+        if (state.team) renderTeam(state.team);
+      }
+      if (window.__PLYNF_LIVE) apply(window.__PLYNF_LIVE);
+      window.addEventListener("plynf:state", function (e) { apply(e.detail); });
+    })();
+  </script>
 </DashboardLayout>
 
 <style>

@@ -64,7 +64,7 @@ const cacheTone = (r: number) => (r >= 40 ? "prog-ok" : r >= 15 ? "prog-warn" : 
             <th></th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="gw-tools-body">
           {gatewayTools.map((t) => (
             <tr>
               <td class="mono strong">{t.name}</td>
@@ -109,7 +109,7 @@ const cacheTone = (r: number) => (r >= 40 ? "prog-ok" : r >= 15 ? "prog-warn" : 
       <button class="btn btn-secondary !py-2" data-modal-open="policy"><Icon name="plus" size={15} />New policy</button>
     </div>
 
-    <div class="grid md:grid-cols-2 gap-4 mt-4">
+    <div class="grid md:grid-cols-2 gap-4 mt-4" id="gw-policies">
       {toolPolicies.map((p) => (
         <div class="rounded-xl border border-border bg-bg-1/40 p-4">
           <div class="flex items-start justify-between gap-3">
@@ -336,4 +336,57 @@ const cacheTone = (r: number) => (r >= 40 ? "prog-ok" : r >= 15 ? "prog-warn" : 
       </form>
     </div>
   </div>
+
+  <!-- Live integrations + policies from GET /api/app/state (SSG is fallback). -->
+  <script is:inline>
+    (function () {
+      function cacheTone(v) { return v >= 50 ? "prog-ok" : v >= 20 ? "prog-warn" : "prog-bad"; }
+      function renderTools(list) {
+        var body = document.getElementById("gw-tools-body");
+        if (!body || !window.plynfUI) return;
+        var ui = window.plynfUI, fmt = window.plynfFmt;
+        body.innerHTML = list.map(function (t) {
+          var cost = t.costTodayEur > 0 ? fmt.eur(t.costTodayEur) : '<span class="text-ink-muted">€0.00</span>';
+          return "<tr>" +
+            '<td class="mono strong">' + ui.esc(t.name) + "</td>" +
+            '<td class="text-ink-secondary">' + ui.esc(t.category) + "</td>" +
+            "<td>" + ui.statusBadge(t.status) + "</td>" +
+            '<td class="num">' + fmt.num(t.callsToday) + "</td>" +
+            '<td><div class="flex items-center gap-2.5 w-40"><div class="prog ' + cacheTone(t.cacheHitRate) + ' flex-1"><span style="width:' + t.cacheHitRate + '%"></span></div>' +
+            '<span class="mono text-2xs text-ink-muted tnum w-9 text-right">' + fmt.pct(t.cacheHitRate) + "</span></div></td>" +
+            '<td class="num mono text-ink-secondary" data-depth="technical">' + (t.p95ms ? fmt.num(t.p95ms) + "ms" : "—") + "</td>" +
+            '<td class="num">' + cost + "</td>" +
+            '<td class="num"><div class="inline-flex items-center gap-1">' +
+            '<button class="btn btn-ghost !py-1 !px-2 text-2xs" data-action="Configuring ' + ui.esc(t.name) + '">Configure</button>' +
+            '<button class="btn btn-ghost !py-1 !px-2 text-2xs" data-action="Disconnected ' + ui.esc(t.name) + '">Disconnect</button>' +
+            "</div></td></tr>";
+        }).join("");
+      }
+      function renderPolicies(list) {
+        var el = document.getElementById("gw-policies");
+        if (!el || !window.plynfUI) return;
+        var ui = window.plynfUI, fmt = window.plynfFmt;
+        el.innerHTML = list.map(function (p) {
+          var fields = (p.keepFields || []).map(function (f) { return '<span class="dbadge mono">' + ui.esc(f) + "</span>"; }).join(" ");
+          return '<div class="rounded-xl border border-border bg-bg-1/40 p-4">' +
+            '<div class="flex items-start justify-between gap-3"><div class="min-w-0"><span class="mono strong text-ink-primary text-sm">' + ui.esc(p.tool) + "</span>" +
+            '<div class="mt-1.5"><span class="dbadge dbadge-ok">' + fmt.pct(p.reductionPct) + ' reduction</span></div></div>' +
+            '<button class="btn btn-ghost !py-1.5 text-sm shrink-0" data-modal-open="policy">Edit policy</button></div>' +
+            '<div class="mt-3"><span class="kpi-label">Keep fields</span><div class="flex flex-wrap gap-1.5 mt-1.5">' + fields + "</div></div>" +
+            '<div class="grid grid-cols-2 gap-3 mt-3.5"><div><span class="kpi-label">Max tokens</span><div class="mono text-ink-primary text-sm mt-0.5 tnum">' + fmt.num(p.maxTokens) + "</div></div>" +
+            '<div><span class="kpi-label">Cache TTL</span><div class="mono text-ink-primary text-sm mt-0.5 tnum">' + fmt.num(p.cacheTtlS) + 's</div></div></div>' +
+            '<div class="flex items-center justify-between gap-3 mt-3.5 pt-3.5 border-t border-border"><div class="min-w-0"><div class="text-sm text-ink-primary">Block writes</div>' +
+            '<div class="text-2xs text-ink-muted">Reject mutating calls from this tool</div></div>' +
+            '<span class="toggle" role="switch" aria-checked="' + (p.blockWrites ? "true" : "false") + '" tabindex="0" data-label="Block writes for ' + ui.esc(p.tool) + '"></span></div></div>';
+        }).join("");
+      }
+      function apply(state) {
+        if (!state) return;
+        if (state.gatewayTools) renderTools(state.gatewayTools);
+        if (state.toolPolicies) renderPolicies(state.toolPolicies);
+      }
+      if (window.__PLYNF_LIVE) apply(window.__PLYNF_LIVE);
+      window.addEventListener("plynf:state", function (e) { apply(e.detail); });
+    })();
+  </script>
 </DashboardLayout>

@@ -233,15 +233,8 @@ const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
           window.location.href = "/login";
         });
 
-        // ── Copy buttons (api keys, tokens, ids) ──
-        document.querySelectorAll("[data-copy]").forEach(function (el) {
-          el.addEventListener("click", function () {
-            var val = el.getAttribute("data-copy") || "";
-            navigator.clipboard && navigator.clipboard.writeText(val);
-            el.setAttribute("data-copied", "1");
-            setTimeout(function () { el.removeAttribute("data-copied"); }, 1400);
-          });
-        });
+        // Copy buttons are handled by the delegated click listener below
+        // (so dynamically re-rendered rows with [data-copy] work too).
 
         // ── Toasts (transient confirmation for control actions) ──
         var host = document.getElementById("toast-host");
@@ -296,6 +289,29 @@ const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
         }
         window.plynfApi = apiCall;
 
+        // Shared UI helpers for live list re-render (used by section pages).
+        var STATUS = {
+          healthy: ["dbadge-ok", "dot-healthy", "Healthy"], connected: ["dbadge-ok", "dot-healthy", "Connected"],
+          running: ["dbadge-ok", "dot-healthy", "Running"], completed: ["dbadge-ok", "dot-healthy", "Completed"],
+          active: ["dbadge-ok", "dot-healthy", "Active"], paid: ["dbadge-ok", "dot-healthy", "Paid"],
+          degraded: ["dbadge-warn", "dot-degraded", "Degraded"], "rotate-soon": ["dbadge-warn", "dot-degraded", "Rotate soon"],
+          open: ["dbadge-warn", "dot-degraded", "Open"], queued: ["dbadge", "dot-paused", "Queued"],
+          paused: ["dbadge", "dot-paused", "Paused"], down: ["dbadge-bad", "dot-down", "Down"],
+          error: ["dbadge-bad", "dot-down", "Error"], failed: ["dbadge-bad", "dot-down", "Failed"],
+          expired: ["dbadge-bad", "dot-down", "Expired"], recovered: ["dbadge-info", "dot-degraded", "Recovered"],
+        };
+        window.plynfUI = {
+          esc: function (s) {
+            return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+              return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+            });
+          },
+          statusBadge: function (status, label) {
+            var s = STATUS[status] || ["dbadge", "dot-paused", status];
+            return '<span class="dbadge ' + s[0] + '"><span class="dot ' + s[1] + ' !w-2 !h-2"></span>' + window.plynfUI.esc(label || s[2]) + "</span>";
+          },
+        };
+
         // value formatters (mirror src/data/dashboard.ts)
         var FMT = {
           eur: function (n) { try { return new Intl.NumberFormat("en-US", { style: "currency", currency: "EUR" }).format(n); } catch (_) { return n; } },
@@ -305,6 +321,7 @@ const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
           count: function (v) { return Array.isArray(v) ? v.length : v; },
           raw: function (n) { return String(n); },
         };
+        window.plynfFmt = FMT; // exposed for section live-render scripts
         function resolvePath(obj, path) {
           return path.split(".").reduce(function (o, k) { return o == null ? undefined : o[k]; }, obj);
         }
@@ -364,6 +381,13 @@ const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
         //    dynamically re-rendered content (live lists) works without
         //    re-binding listeners. ──
         document.addEventListener("click", function (e) {
+          var cp = e.target.closest && e.target.closest("[data-copy]");
+          if (cp) {
+            navigator.clipboard && navigator.clipboard.writeText(cp.getAttribute("data-copy") || "");
+            cp.setAttribute("data-copied", "1");
+            setTimeout(function () { cp.removeAttribute("data-copied"); }, 1400);
+            return;
+          }
           var sw = e.target.closest && e.target.closest(".toggle");
           if (sw) {
             var next = sw.getAttribute("aria-checked") !== "true";

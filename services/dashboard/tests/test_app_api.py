@@ -23,18 +23,25 @@ async def test_state_returns_full_contract(client):
         "modelAliases",
         "frontDoors",
         "agents",
+        "workflows",
+        "summaries",
         "toolPolicies",
         "capabilityTokens",
         "guardrails",
         "team",
         "tenants",
         "gatewayTools",
+        "auditLog",
         "billing",
         "onboarding",
     ):
         assert key in state, f"missing {key}"
     assert state["kpis"]["reductionPct"] == 71.8
     assert any(p["isDefault"] for p in state["providers"])
+    # Rich enough to drive every live list (matches the SSG demo).
+    assert len(state["agents"]) >= 12
+    assert len(state["workflows"]) >= 6
+    assert state["billing"]["invoices"]
 
 
 @pytest.mark.asyncio
