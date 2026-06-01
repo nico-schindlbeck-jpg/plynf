@@ -9,9 +9,37 @@ endpoint must work with the downstreams unreachable.
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 import httpx
 import pytest
 import respx
+from httpx import ASGITransport, AsyncClient
+
+from plinth_dashboard.server import create_app
+from plinth_dashboard.settings import Settings
+
+
+@asynccontextmanager
+async def _auth_client():
+    """A dashboard client with app_auth_required=True (JWT enforced)."""
+    s = Settings(
+        app_auth_required=True,
+        identity_url="http://identity.test",
+        proxy_url="http://proxy.test",
+        gateway_url="http://gateway.test",
+        workspace_url="http://workspace.test",
+        mock_mcp_url="http://mock.test",
+        api_token="Bearer t",
+        log_level="WARNING",
+    )
+    app = create_app(s)
+    transport = ASGITransport(app=app)
+    async with (
+        AsyncClient(transport=transport, base_url="http://testserver") as c,
+        app.router.lifespan_context(app),
+    ):
+        yield c
 
 
 @pytest.mark.asyncio
@@ -260,3 +288,56 @@ async def test_onboarding_billing_team(client):
 
     r = await client.post("/api/app/team/invite", json={"email": "not-an-email"})
     assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Real JWT auth (app_auth_required=True): issue on /session, verify on /app/*
+
+
+@pytest.mark.asyncio
+async def test_app_auth_rejects_missing_token():
+    async with _auth_client() as c:
+        r = await c.get("/api/app/state")
+        assert r.status_code == 401
+        assert r.json()["error"]["code"] == "UNAUTHENTICATED"
+
+
+@pytest.mark.asyncio
+async def test_app_auth_accepts_verified_token():
+    async with _auth_client() as c:
+        with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
+            router.post("http://identity.test/v1/tokens/verify").mock(
+                return_value=httpx.Response(200, json={"sub": "u", "tenant_id": "acme"})
+            )
+            r = await c.get("/api/app/state", headers={"Authorization": "Bearer good-jwt"})
+        assert r.status_code == 200
+        assert "kpis" in r.json()
+
+
+@pytest.mark.asyncio
+async def test_app_auth_rejects_token_identity_denies():
+    async with _auth_client() as c:
+        with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
+            router.post("http://identity.test/v1/tokens/verify").mock(
+                return_value=httpx.Response(401, json={"error": {"code": "INVALID_TOKEN"}})
+            )
+            r = await c.get("/api/app/state", headers={"Authorization": "Bearer bad-jwt"})
+        assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_session_issues_jwt_from_identity():
+    # /session is exempt from auth (it mints the token) and proxies to identity.
+    async with _auth_client() as c:
+        with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
+            router.post("http://identity.test/v1/tokens").mock(
+                return_value=httpx.Response(
+                    201,
+                    json={"token": "jwt-abc", "jti": "jti_1", "claims": {"sub": "u@acme.io"}},
+                )
+            )
+            r = await c.post("/api/app/session", json={"email": "u@acme.io"})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["token"] == "jwt-abc"
+        assert body["claims"]["sub"] == "u@acme.io"

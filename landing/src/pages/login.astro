@@ -1,12 +1,14 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import ThemeToggle from "../components/ThemeToggle.astro";
+// Control-plane API that mints the dashboard session JWT (via identity).
+const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
 ---
 <BaseLayout
   title="Log in"
   description="Sign in to the Plynf dashboard — your agents' control & monitoring surface."
 >
-  <main id="main" class="min-h-screen grid lg:grid-cols-2">
+  <main id="main" class="min-h-screen grid lg:grid-cols-2" data-api={apiBase}>
     <!-- ── Brand / value panel ─────────────────────────── -->
     <section class="relative hidden lg:flex flex-col justify-between overflow-hidden p-12 border-r border-border">
       <div class="bg-hero-glow opacity-[0.16]"></div>
@@ -117,17 +119,35 @@ import ThemeToggle from "../components/ThemeToggle.astro";
       var next = params.get("next") || "/app";
       // basic open-redirect guard: only allow same-origin app paths
       if (!next.startsWith("/app")) next = "/app";
+      var API = (document.getElementById("main").getAttribute("data-api") || "").replace(/\/$/, "");
 
-      function signIn(provider) {
-        try { localStorage.setItem("plynf_session", "demo-" + provider); } catch (_) {}
-        window.location.href = next;
+      // Exchange the completed SSO/magic-link for a real session JWT minted by
+      // the identity service (POST /api/app/session). Stored as plynf_session
+      // and sent as a Bearer on every /api/app/* call. Falls back to a demo
+      // token if the control-plane API is unreachable so the offline demo works.
+      function signIn(provider, email) {
+        fetch(API + "/api/app/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ provider: provider, email: email || "" }),
+        })
+          .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+          .then(function (d) {
+            if (!d || !d.token) throw new Error("no token");
+            try { localStorage.setItem("plynf_session", d.token); } catch (_) {}
+            window.location.href = next;
+          })
+          .catch(function () {
+            try { localStorage.setItem("plynf_session", "demo-" + provider); } catch (_) {}
+            window.location.href = next;
+          });
       }
 
       document.querySelectorAll("#sso button[data-provider]").forEach(function (b) {
         b.addEventListener("click", function () {
           b.setAttribute("aria-busy", "true");
-          b.querySelector("span").textContent = "Redirecting…";
-          setTimeout(function () { signIn(b.getAttribute("data-provider")); }, 450);
+          b.querySelector("span").textContent = "Signing in…";
+          signIn(b.getAttribute("data-provider"));
         });
       });
 
@@ -141,7 +161,10 @@ import ThemeToggle from "../components/ThemeToggle.astro";
         sent.classList.remove("hidden");
       });
       var demo = document.getElementById("magic-demo");
-      demo && demo.addEventListener("click", function () { signIn("magic"); });
+      demo && demo.addEventListener("click", function () {
+        var email = (new FormData(form)).get("email");
+        signIn("magic", email);
+      });
     })();
   </script>
 </BaseLayout>

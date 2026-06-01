@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     cors_origins: str = Field(
         default="http://localhost:4321,http://localhost:4322,https://app.plynf.com"
     )
+    # When true, ``/api/app/*`` (except the session-issue endpoint) requires a
+    # valid JWT capability token, verified against the identity service. Off by
+    # default so the offline demo + tests run unauthenticated; turn on in prod.
+    app_auth_required: bool = Field(default=False)
+    # Defaults for dashboard-session tokens minted via POST /api/app/session.
+    app_session_tenant: str = Field(default="acme")
+    app_session_ttl_seconds: int = Field(default=3600)
     backend_timeout_seconds: float = Field(default=5.0)
     log_level: str = Field(default="INFO")
     log_format: Literal["console", "json"] = Field(default="console")

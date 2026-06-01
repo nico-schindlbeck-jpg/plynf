@@ -386,6 +386,57 @@ def register_app_api(app: FastAPI, settings: Settings, store: ControlStore) -> N
             await _overlay_live(client.client, settings, state)
         return JSONResponse(state)
 
+    # -- session: mint a short-lived JWT capability token on login ----------
+    # In production this is gated by a verified SSO/OAuth assertion (the
+    # marketing-site login completes the OAuth dance, then calls this to
+    # exchange it for a dashboard session token). The token is minted by the
+    # identity service and verified on every other /api/app/* call.
+    @app.post("/api/app/session", tags=["app"])
+    async def app_session(request: Request) -> JSONResponse:
+        body = {}
+        try:
+            body = await request.json()
+        except (ValueError, TypeError):
+            body = {}
+        subject = str(body.get("email") or body.get("agent") or "dashboard-user")
+        tenant = str(body.get("tenant") or settings.app_session_tenant)
+        client = getattr(request.app.state, "overview", None)
+        http = getattr(client, "client", None) if client else None
+        if http is not None:
+            try:
+                resp = await http.post(
+                    f"{id_url}/v1/tokens",
+                    json={
+                        "agent_id": subject,
+                        "tenant_id": tenant,
+                        "scopes": ["dashboard:read", "dashboard:write"],
+                        "ttl_seconds": settings.app_session_ttl_seconds,
+                    },
+                )
+                if resp.status_code < 400:
+                    data = resp.json()
+                    return JSONResponse(
+                        {"token": data.get("token"), "claims": data.get("claims", {})}
+                    )
+            except (httpx.HTTPError, ValueError):
+                pass
+        # Identity unreachable. In enforced mode that's a hard failure; in demo
+        # mode hand back a demo token so the offline experience still works.
+        if settings.app_auth_required:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "error": {
+                        "code": "IDENTITY_UNAVAILABLE",
+                        "message": "Could not issue a session token.",
+                        "details": {},
+                    }
+                },
+            )
+        return JSONResponse(
+            {"token": "demo", "claims": {"sub": subject, "tenant_id": tenant, "demo": True}}
+        )
+
     # -- providers ----------------------------------------------------------
 
     @app.post("/api/app/providers", tags=["app"])
@@ -558,4 +609,56 @@ def register_app_api(app: FastAPI, settings: Settings, store: ControlStore) -> N
         return _ok(f"Replaying dead-lettered messages ({target})")
 
 
-__all__ = ["ControlStore", "register_app_api"]
+# ---------------------------------------------------------------------------
+# Auth: verify the JWT capability token on /api/app/* (when enabled)
+
+
+async def _verify_session(client: httpx.AsyncClient, id_url: str, token: str) -> bool:
+    """Return True iff the identity service verifies ``token``."""
+    if not token:
+        return False
+    try:
+        resp = await client.post(f"{id_url}/v1/tokens/verify", json={"token": token})
+        return resp.status_code == 200
+    except (httpx.HTTPError, ValueError):
+        return False
+
+
+def install_app_auth(app: FastAPI, settings: Settings) -> None:
+    """Gate ``/api/app/*`` behind a verified JWT when ``app_auth_required``.
+
+    The session-issue endpoint and CORS preflight are exempt. No-op when auth
+    isn't required (demo / tests run open).
+    """
+    if not settings.app_auth_required:
+        return
+    id_url = settings.identity_url.rstrip("/")
+
+    @app.middleware("http")
+    async def _app_auth(request: Request, call_next):
+        path = request.url.path
+        if (
+            request.method != "OPTIONS"
+            and path.startswith("/api/app/")
+            and path != "/api/app/session"
+        ):
+            auth = request.headers.get("authorization", "")
+            token = auth[7:].strip() if auth[:7].lower() == "bearer " else ""
+            overview = getattr(request.app.state, "overview", None)
+            http = getattr(overview, "client", None) if overview else None
+            ok = bool(http) and await _verify_session(http, id_url, token)
+            if not ok:
+                return JSONResponse(
+                    status_code=401,
+                    content={
+                        "error": {
+                            "code": "UNAUTHENTICATED",
+                            "message": "A valid session token is required.",
+                            "details": {},
+                        }
+                    },
+                )
+        return await call_next(request)
+
+
+__all__ = ["ControlStore", "register_app_api", "install_app_auth"]

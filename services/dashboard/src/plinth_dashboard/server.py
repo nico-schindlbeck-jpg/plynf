@@ -38,7 +38,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __service__, __version__
-from .app_api import ControlStore, register_app_api
+from .app_api import ControlStore, install_app_auth, register_app_api
 from .logging_config import configure_logging, get_logger
 from .metrics import (
     MetricsRegistry,
@@ -141,6 +141,7 @@ def create_app(
     store = ControlStore(settings.app_state_path or None)
     app.state.control = store
     register_app_api(app, settings, store)
+    install_app_auth(app, settings)
 
     _register_routes(app, settings)
     return app
