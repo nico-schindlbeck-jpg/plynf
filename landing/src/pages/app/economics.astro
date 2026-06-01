@@ -1,0 +1,291 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import PageHeader from "../../components/dashboard/PageHeader.astro";
+import Kpi from "../../components/dashboard/Kpi.astro";
+import Icon from "../../components/dashboard/Icon.astro";
+import { kpis, agents, savingsSeries, savingsTotals, eur, pct, compact, num } from "../../data/dashboard";
+
+// ── Hero comparison bars ──────────────────────────────────────────────
+// "Without" is the 100% reference; "with" is drawn proportionally.
+const withPctOfWithout = (savingsTotals.withMonthEur / savingsTotals.withoutMonthEur) * 100;
+
+// ── Effective rate: € per 1M shaped tokens (what you actually pay) ─────
+// Annualised-style derivation from today's actual spend vs shaped tokens.
+const effRatePer1M = kpis.costTodayEur / (kpis.shapedTokensToday / 1_000_000);
+
+// ── Cost-over-time chart geometry (computed in frontmatter) ───────────
+// viewBox space; markup scales it responsively via width:100%.
+const VW = 760;
+const VH = 280;
+const padL = 8;
+const padR = 8;
+const padT = 18;
+const padB = 30;
+const plotW = VW - padL - padR;
+const plotH = VH - padT - padB;
+
+const n = savingsSeries.length;
+const maxVal = Math.max(...savingsSeries.map((p) => p.withoutEur));
+const yMax = Math.ceil(maxVal / 50) * 50; // round up to a clean gridline
+
+const xAt = (i: number) => padL + (i / (n - 1)) * plotW;
+const yAt = (v: number) => padT + plotH - (v / yMax) * plotH;
+
+const ptsWithout = savingsSeries.map((p, i) => ({ x: xAt(i), y: yAt(p.withoutEur) }));
+const ptsWith = savingsSeries.map((p, i) => ({ x: xAt(i), y: yAt(p.withEur) }));
+
+const toLine = (pts: { x: number; y: number }[]) =>
+  pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+
+const baseY = (padT + plotH).toFixed(1);
+const lineWithout = toLine(ptsWithout);
+const lineWith = toLine(ptsWith);
+
+// Filled "without" area down to baseline.
+const areaWithout = `${lineWithout} L${ptsWithout[n - 1].x.toFixed(1)} ${baseY} L${ptsWithout[0].x.toFixed(1)} ${baseY} Z`;
+// Saved band = between the "without" line (top) and the "with" line (bottom).
+const savedBand =
+  `${lineWithout} ` +
+  ptsWith
+    .slice()
+    .reverse()
+    .map((p) => `L${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+    .join(" ") +
+  " Z";
+// Filled "with Plynf" area down to baseline.
+const areaWith = `${lineWith} L${ptsWith[n - 1].x.toFixed(1)} ${baseY} L${ptsWith[0].x.toFixed(1)} ${baseY} Z`;
+
+// Gridlines (€ values) + their pixel y.
+const gridSteps = 4;
+const gridLines = Array.from({ length: gridSteps + 1 }, (_, i) => {
+  const v = (yMax / gridSteps) * i;
+  return { v, y: yAt(v) };
+});
+
+// X axis tick labels: first, middle, last.
+const midIdx = Math.floor((n - 1) / 2);
+const xTicks = [
+  { i: 0, label: savingsSeries[0].label, x: xAt(0), anchor: "start" },
+  { i: midIdx, label: savingsSeries[midIdx].label, x: xAt(midIdx), anchor: "middle" },
+  { i: n - 1, label: savingsSeries[n - 1].label, x: xAt(n - 1), anchor: "end" },
+];
+
+// ── Per-agent drill-down (technical) — active agents, biggest savers first.
+const agentRows = agents
+  .filter((a) => a.costTodayEur > 0)
+  .map((a) => ({ ...a, monthEst: a.costTodayEur * 30 }))
+  .sort((b, c) => c.monthEst - b.monthEst);
+const monthEstTotal = agentRows.reduce((s, a) => s + a.monthEst, 0);
+---
+
+<DashboardLayout title="Token Economics" active="/app/economics">
+  <PageHeader
+    kicker="Token Economics"
+    title="What Plynf saved you — in plain euros"
+    lead="Every agent reply your team runs would normally carry a lot of dead weight to the model. Plynf trims it before you pay for it. Here's exactly what that's worth this month."
+  >
+    <button slot="actions" type="button" class="btn btn-secondary !py-2" data-action="Exporting report (CSV)">
+      <Icon name="download" size={15} />Export CSV
+    </button>
+    <button slot="actions" type="button" class="btn btn-secondary !py-2" data-action="Exporting report (PDF)">
+      <Icon name="download" size={15} />Export PDF
+    </button>
+  </PageHeader>
+
+  <!-- ── Scheduled report control ────────────────────────── -->
+  <div class="card p-4 mb-4 flex flex-wrap items-center justify-between gap-3" data-reveal>
+    <div class="flex items-center gap-2.5 min-w-0">
+      <Icon name="bell" size={16} class="text-accent shrink-0" />
+      <div class="min-w-0">
+        <div class="text-sm font-medium text-ink-primary">Email me this report monthly</div>
+        <div class="text-2xs text-ink-muted">A PDF savings summary lands in your inbox on the 1st of each month.</div>
+      </div>
+    </div>
+    <span class="toggle shrink-0" role="switch" aria-checked="false" tabindex="0" data-label="Monthly report email"></span>
+  </div>
+
+  <!-- ── Hero: the money story ───────────────────────────── -->
+  <section class="grid lg:grid-cols-3 gap-4 mb-4">
+    <div class="card glow-card card-tint-orange lg:col-span-2 p-6 sm:p-7 relative overflow-hidden" data-reveal>
+      <div class="bg-grid-dense opacity-30"></div>
+      <div class="relative">
+        <div class="flex flex-wrap items-start justify-between gap-6">
+          <div>
+            <div class="kpi-label">Saved this month · with vs. without Plynf</div>
+            <div class="mt-2 flex items-end gap-3">
+              <span class="text-[clamp(3rem,7vw,5rem)] font-bold leading-none tracking-[-0.05em] text-accent tnum">{eur(savingsTotals.savedMonthEur)}</span>
+            </div>
+            <p class="mt-3 text-ink-secondary max-w-md text-[0.95rem]">
+              That's a <span class="text-ink-primary font-medium">{pct(kpis.reductionPct)}</span> reduction in token cost.
+              You spent <span class="text-accent font-medium">{eur(savingsTotals.withMonthEur)}</span> this month instead of
+              <span class="text-ink-primary">{eur(savingsTotals.withoutMonthEur)}</span> — same work, smaller bill.
+            </p>
+          </div>
+
+          <!-- Big reduction figure -->
+          <div class="text-right shrink-0">
+            <div class="kpi-label">Token reduction</div>
+            <div class="text-[clamp(2.5rem,5vw,3.5rem)] font-bold leading-none tracking-[-0.04em] text-ink-primary tnum mt-1">{pct(kpis.reductionPct)}</div>
+            <span class="dbadge dbadge-ok mt-2"><Icon name="arrowup" size={12} />2.1 pts vs. last week</span>
+          </div>
+        </div>
+
+        <!-- with vs without bars -->
+        <div class="mt-6 space-y-3 max-w-xl">
+          <div>
+            <div class="flex justify-between text-2xs mono text-ink-muted mb-1">
+              <span>WITHOUT PLYNF</span><span>{eur(savingsTotals.withoutMonthEur)}</span>
+            </div>
+            <div class="prog prog-bad"><span style="width:100%"></span></div>
+          </div>
+          <div>
+            <div class="flex justify-between text-2xs mono text-ink-muted mb-1">
+              <span>WITH PLYNF</span><span class="text-accent">{eur(savingsTotals.withMonthEur)}</span>
+            </div>
+            <div class="prog"><span style={`width:${withPctOfWithout.toFixed(1)}%`}></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Plain-language summary card -->
+    <div class="card p-6 flex flex-col justify-between" data-reveal>
+      <div>
+        <span class="kpi-label">In one sentence</span>
+        <p class="mt-3 text-ink-primary text-[1.05rem] leading-relaxed">
+          For every <span class="mono text-ink-secondary">€10</span> you would have spent on model tokens,
+          Plynf hands back about <span class="text-accent font-semibold">{eur((kpis.reductionPct / 10), 2)}</span>.
+        </p>
+      </div>
+      <div class="mt-5 grid grid-cols-2 gap-3">
+        <div class="rounded-xl bg-bg-2/60 border border-border p-3">
+          <div class="kpi-label">Saved all-time</div>
+          <div class="text-xl font-bold tnum text-accent mt-1">{eur(kpis.savedAllTimeEur)}</div>
+        </div>
+        <div class="rounded-xl bg-bg-2/60 border border-border p-3" data-depth="technical">
+          <div class="kpi-label">Tokens trimmed</div>
+          <div class="text-xl font-bold tnum text-ink-primary mt-1">{compact(kpis.savedTokensToday)}</div>
+          <div class="text-2xs text-ink-muted mt-0.5">today</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Cost over time ──────────────────────────────────── -->
+  <section class="card p-5 sm:p-6 mb-4" data-reveal>
+    <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+      <div>
+        <h3 class="font-semibold text-ink-primary text-lg">Cost over the last 30 days</h3>
+        <p class="text-sm text-ink-secondary mt-0.5">The shaded band is money Plynf kept off your bill, day by day.</p>
+      </div>
+      <div class="flex items-center gap-4 text-2xs mono">
+        <span class="flex items-center gap-1.5 text-ink-muted">
+          <span class="inline-block w-3 h-[3px] rounded-full" style="background:#f4566f"></span>WITHOUT PLYNF
+        </span>
+        <span class="flex items-center gap-1.5 text-ink-muted">
+          <span class="inline-block w-3 h-[3px] rounded-full" style="background:var(--accent)"></span>WITH PLYNF
+        </span>
+        <span class="flex items-center gap-1.5 text-accent">
+          <span class="inline-block w-3 h-3 rounded-sm" style="background:var(--accent-subtle);border:1px solid var(--accent)"></span>SAVED
+        </span>
+      </div>
+    </div>
+
+    <svg viewBox={`0 0 ${VW} ${VH}`} class="w-full h-auto" role="img" aria-label="Daily token cost with and without Plynf over 30 days" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="savedGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.34" />
+          <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.04" />
+        </linearGradient>
+      </defs>
+
+      <!-- gridlines + € labels -->
+      {gridLines.map((g) => (
+        <g>
+          <line x1={padL} y1={g.y} x2={VW - padR} y2={g.y} class="chart-grid-line" stroke-dasharray="2 4" />
+          <text x={VW - padR} y={g.y - 4} text-anchor="end" font-size="11" font-family="JetBrains Mono, monospace" fill="var(--text-muted)">{eur(g.v, 0)}</text>
+        </g>
+      ))}
+
+      <!-- without Plynf: faint red area + line -->
+      <path d={areaWithout} fill="rgba(244,86,111,0.08)" stroke="none" />
+      <!-- saved band (the gap) -->
+      <path d={savedBand} fill="url(#savedGrad)" stroke="none" />
+      <!-- with Plynf: vivid accent area + line -->
+      <path d={areaWith} fill="rgba(255,133,81,0.05)" stroke="none" />
+
+      <path d={lineWithout} fill="none" stroke="#f4566f" stroke-width="2" stroke-opacity="0.85" stroke-linejoin="round" />
+      <path d={lineWith} fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linejoin="round" />
+
+      <!-- baseline -->
+      <line x1={padL} y1={baseY} x2={VW - padR} y2={baseY} class="chart-grid-line" />
+
+      <!-- x labels -->
+      {xTicks.map((t) => (
+        <text x={t.x} y={VH - 8} text-anchor={t.anchor} font-size="11" font-family="JetBrains Mono, monospace" fill="var(--text-muted)">{t.label}</text>
+      ))}
+    </svg>
+  </section>
+
+  <!-- ── KPI row ─────────────────────────────────────────── -->
+  <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+    <Kpi label="Saved this month" value={eur(savingsTotals.savedMonthEur)} sub="across all agents" tint="orange" trend={11.4} trendGood="up" />
+    <Kpi label="Saved all-time" value={eur(kpis.savedAllTimeEur)} sub="since you switched on Plynf" tint="magenta" />
+    <Kpi label="Token reduction" value={pct(kpis.reductionPct)} sub="trimmed before the model" tint="indigo" />
+    <Kpi label="Effective rate" value={`${eur(effRatePer1M, 2)}`} sub="per 1M tokens you actually pay" tint="cyan" depth="technical" />
+  </section>
+
+  <!-- ── Per-agent drill-down (technical) ────────────────── -->
+  <section class="card p-5 sm:p-6" data-reveal data-depth="technical">
+    <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+      <div>
+        <h3 class="font-semibold text-ink-primary text-lg">Savings by agent</h3>
+        <p class="text-sm text-ink-secondary mt-0.5">Where the savings come from, and a rough monthly run-rate per agent.</p>
+      </div>
+      <span class="dbadge dbadge-accent">{num(agentRows.length)} agents spending today</span>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="dtable">
+        <thead>
+          <tr>
+            <th>Agent</th>
+            <th class="!text-left" style="min-width:160px">Tokens trimmed</th>
+            <th class="num">Cost today</th>
+            <th class="num">Est. / month</th>
+          </tr>
+        </thead>
+        <tbody>
+          {agentRows.map((a) => (
+            <tr>
+              <td>
+                <div class="flex items-center gap-2.5">
+                  <span class="strong">{a.name}</span>
+                  <span class="dbadge !py-0.5 !px-1.5 !text-[0.62rem] uppercase">{a.env}</span>
+                </div>
+              </td>
+              <td>
+                <div class="flex items-center gap-3">
+                  <div class="prog flex-1 min-w-[90px]"><span style={`width:${a.savedPct}%`}></span></div>
+                  <span class="mono text-2xs text-ink-secondary tnum w-12 text-right">{pct(a.savedPct)}</span>
+                </div>
+              </td>
+              <td class="num strong tnum">{eur(a.costTodayEur)}</td>
+              <td class="num tnum text-ink-secondary">{eur(a.monthEst)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td class="strong" style="padding:0.7rem 0.75rem;border-top:1px solid var(--border)">Total</td>
+            <td style="border-top:1px solid var(--border)"></td>
+            <td class="num strong tnum" style="border-top:1px solid var(--border)">{eur(agentRows.reduce((s, a) => s + a.costTodayEur, 0))}</td>
+            <td class="num strong tnum text-accent" style="border-top:1px solid var(--border)">{eur(monthEstTotal)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <p class="text-2xs text-ink-muted mt-3">Monthly estimate = today's spend × 30. Indicative only; actual billing follows real usage.</p>
+  </section>
+
+</DashboardLayout>

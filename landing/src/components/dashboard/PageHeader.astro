@@ -1,0 +1,18 @@
+---
+interface Props {
+  kicker?: string;
+  title: string;
+  lead?: string;
+}
+const { kicker, title, lead } = Astro.props;
+---
+<div class="flex flex-wrap items-end justify-between gap-4 mb-6">
+  <div>
+    {kicker && <div class="dash-kicker mb-1.5">{kicker}</div>}
+    <h2 class="dash-h1">{title}</h2>
+    {lead && <p class="dash-lead">{lead}</p>}
+  </div>
+  <div class="flex items-center gap-2">
+    <slot name="actions" />
+  </div>
+</div>

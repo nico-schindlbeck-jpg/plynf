@@ -1,0 +1,330 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import PageHeader from "../../components/dashboard/PageHeader.astro";
+import StatusBadge from "../../components/dashboard/StatusBadge.astro";
+import Icon from "../../components/dashboard/Icon.astro";
+import { kpis, agents, workflows, modelAliases, eur, pct, num } from "../../data/dashboard";
+
+// Fleet roll-up for the filter chips.
+const counts = {
+  all: agents.length,
+  healthy: agents.filter((a) => a.status === "healthy").length,
+  degraded: agents.filter((a) => a.status === "degraded").length,
+  down: agents.filter((a) => a.status === "down").length,
+  paused: agents.filter((a) => a.status === "paused").length,
+};
+
+const filters = [
+  { key: "all", label: "All", count: counts.all },
+  { key: "healthy", label: "Healthy", count: counts.healthy },
+  { key: "degraded", label: "Degraded", count: counts.degraded },
+  { key: "down", label: "Down", count: counts.down },
+  { key: "paused", label: "Paused", count: counts.paused },
+] as const;
+
+const envBadge: Record<string, string> = {
+  prod: "dbadge-accent",
+  staging: "dbadge-info",
+  dev: "dbadge",
+};
+
+const stepClass: Record<string, string> = {
+  done: "step-done",
+  active: "step-active",
+  failed: "step-failed",
+  checkpoint: "step-checkpoint",
+  pending: "",
+};
+
+// Workflows ordered so the things a lead must look at land first.
+const wfOrder: Record<string, number> = { failed: 0, recovered: 1, running: 2, queued: 3, completed: 4 };
+const orderedWorkflows = [...workflows].sort((a, b) => (wfOrder[a.status] ?? 9) - (wfOrder[b.status] ?? 9));
+
+// DLQ / dead-letter inbox: agents with dead-lettered work + workflows that failed outright.
+const dlqAgents = agents.filter((a) => a.dlq > 0);
+const failedWorkflows = workflows.filter((w) => w.status === "failed");
+const dlqTotal = dlqAgents.reduce((s, a) => s + a.dlq, 0) + failedWorkflows.length;
+---
+<DashboardLayout title="Agents & Workflows" active="/app/agents">
+  <PageHeader
+    kicker="Agents & Workflows"
+    title="Your fleet, and every run it's recovering from"
+    lead="Operational truth for the whole fleet: who's healthy, what each agent costs, and — when a run crashes — exactly which checkpoint it resumed from. No silent failures."
+  >
+    <button slot="actions" type="button" class="btn btn-primary !py-2" data-modal-open="agent">
+      <Icon name="sparkles" size={15} />New agent
+    </button>
+  </PageHeader>
+
+  <!-- ── Fleet table ─────────────────────────────────────── -->
+  <section class="card p-5 mb-4" data-reveal>
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div>
+        <h3 class="font-semibold text-ink-primary">Fleet</h3>
+        <p class="text-2xs text-ink-muted mt-0.5">{kpis.activeAgents} of {kpis.totalAgents} agents live · updated continuously</p>
+      </div>
+      <div class="segmented" role="group" aria-label="Filter agents by status" id="fleet-filter">
+        {filters.map((f, i) => (
+          <button type="button" data-filter={f.key} aria-pressed={i === 0 ? "true" : "false"}>
+            {f.label}<span class="ml-1.5 opacity-60 tnum">{f.count}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+
+    <div class="overflow-x-auto -mx-1">
+      <table class="dtable" id="fleet-table">
+        <thead>
+          <tr>
+            <th>Agent</th>
+            <th>Status</th>
+            <th>Model</th>
+            <th class="num">Requests today</th>
+            <th class="num">Saved %</th>
+            <th class="num">Cost today</th>
+            <th class="num" data-depth="technical">p95</th>
+            <th class="num" data-depth="technical">Error rate</th>
+            <th>Owner</th>
+            <th class="num">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {agents.map((a) => (
+            <tr data-status={a.status} class="cursor-default">
+              <td>
+                <div class="flex items-center gap-2.5">
+                  <span class="strong">{a.name}</span>
+                  <span class={`dbadge ${envBadge[a.env] ?? "dbadge"} !text-[0.62rem] !py-0.5`}>{a.env}</span>
+                  {a.recoveredToday > 0 && (
+                    <span class="dbadge dbadge-info !text-[0.62rem] !py-0.5" title="Crash-recovered runs today">
+                      <Icon name="rotate" size={10} />{a.recoveredToday}
+                    </span>
+                  )}
+                </div>
+              </td>
+              <td><StatusBadge status={a.status} /></td>
+              <td><span class="mono text-2xs">{a.model}</span></td>
+              <td class="num strong">{a.requestsToday > 0 ? num(a.requestsToday) : "—"}</td>
+              <td class="num">{a.savedPct > 0 ? pct(a.savedPct) : "—"}</td>
+              <td class="num">{eur(a.costTodayEur)}</td>
+              <td class="num" data-depth="technical">{a.p95ms > 0 ? `${num(a.p95ms)} ms` : "—"}</td>
+              <td class="num" data-depth="technical">
+                <span class={a.errorRatePct >= 2 ? "text-[#f87f93]" : ""}>{a.status === "down" || a.status === "paused" ? "—" : pct(a.errorRatePct)}</span>
+              </td>
+              <td><span class="mono text-2xs text-ink-muted">{a.owner}</span></td>
+              <td class="num">
+                <div class="inline-flex items-center gap-1">
+                  {a.status === "paused" ? (
+                    <button type="button" class="btn btn-ghost !p-1.5" aria-label={`Resume ${a.name}`} title="Resume" data-action={`Resumed ${a.name}`}><Icon name="play" size={14} /></button>
+                  ) : (
+                    <button type="button" class="btn btn-ghost !p-1.5" aria-label={`Pause ${a.name}`} title="Pause" data-action={`Paused ${a.name}`}><Icon name="pause" size={14} /></button>
+                  )}
+                  <button type="button" class="btn btn-ghost !p-1.5" aria-label={`Configure ${a.name}`} title="Configure" data-action={`Opening ${a.name} config`}><Icon name="edit" size={14} /></button>
+                  <a class="btn btn-ghost !p-1.5" aria-label={`Inspect ${a.name}`} title="Inspect runs" data-action={`Inspecting ${a.name}`}><Icon name="chevronr" size={14} /></a>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p id="fleet-empty" class="hidden text-sm text-ink-muted px-1 py-4">No agents in this state — nice and quiet.</p>
+    </div>
+  </section>
+
+  <!-- ── Workflow visualization ──────────────────────────── -->
+  <section class="mb-4" data-reveal>
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <h3 class="font-semibold text-ink-primary">Workflows</h3>
+        <p class="text-2xs text-ink-muted mt-0.5">Live runs with checkpoints — the save points Plynf resumes from after a crash.</p>
+      </div>
+      <span class="dbadge dbadge-info hidden sm:inline-flex"><Icon name="rotate" size={12} />Checkpoint = crash-safe</span>
+    </div>
+
+    <div class="grid lg:grid-cols-2 gap-4">
+      {orderedWorkflows.map((w) => {
+        const needsRecovery = w.status === "recovered" || w.status === "failed";
+        const progCls = w.status === "failed" ? "prog-bad" : w.status === "recovered" ? "prog-warn" : w.status === "completed" ? "prog-ok" : "";
+        return (
+          <div class={`card p-5 ${needsRecovery ? "card-hover" : ""}`}>
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-medium text-ink-primary truncate">{w.name}</span>
+                  <StatusBadge status={w.status} />
+                </div>
+                <div class="text-2xs text-ink-muted mt-0.5">{w.agent} · {w.startedAgo}</div>
+              </div>
+              <span class="text-2xs mono text-ink-muted tnum mt-1">{w.progress}%</span>
+            </div>
+
+            <div class={`prog ${progCls} mt-3`}><span style={`width:${w.progress}%`}></span></div>
+
+            {needsRecovery && w.recoveredFrom && (
+              <div class={`mt-4 flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 ${w.status === "failed" ? "border-[rgba(244,86,111,0.3)] bg-[rgba(244,86,111,0.06)]" : "border-[rgba(99,102,241,0.32)] bg-[rgba(99,102,241,0.06)]"}`}>
+                <div class="min-w-0 flex items-center gap-2.5">
+                  <span class={`dot ${w.status === "failed" ? "dot-down" : "dot-degraded"}`}></span>
+                  <div class="min-w-0">
+                    <div class="text-2xs text-ink-secondary">{w.status === "failed" ? "Halted — last good checkpoint" : "Recovered from checkpoint"}</div>
+                    <div class="text-[0.84rem] text-ink-primary truncate">{w.recoveredFrom}</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <button type="button" class="btn btn-ghost !py-1.5 !px-2.5 text-2xs whitespace-nowrap" data-action={`Opening timeline for ${w.name}`}>
+                    <Icon name="route" size={13} />Timeline
+                  </button>
+                  <button type="button" class="btn btn-secondary !py-1.5 !px-3 text-2xs whitespace-nowrap" data-action={`Resuming ${w.name} from checkpoint`}>
+                    <Icon name="resume" size={13} />Resume
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div class="stepper mt-4">
+              {w.steps.map((s) => (
+                <div class={`step ${stepClass[s.status] ?? ""}`}>
+                  <span class="step-dot">
+                    {s.status === "done" && <Icon name="check" size={11} />}
+                    {s.status === "failed" && <span class="text-[0.6rem] font-bold leading-none">!</span>}
+                    {s.status === "checkpoint" && <Icon name="rotate" size={10} />}
+                  </span>
+                  <div class="min-w-0 flex-1 -mt-0.5">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="step-name truncate">{s.name}</span>
+                      {(s.checkpoint || s.status === "checkpoint") && (
+                        <span class="dbadge dbadge-info !text-[0.6rem] !py-0 !px-1.5" title="Crash-recovery save point">checkpoint</span>
+                      )}
+                    </div>
+                    {typeof s.durationMs === "number" && <span class="step-meta">{num(s.durationMs)} ms</span>}
+                    {s.status === "active" && <span class="step-meta text-accent">running…</span>}
+                    {s.status === "failed" && <span class="step-meta text-[#f87f93]">failed — replay available</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </section>
+
+  <!-- ── Dead-letter queue (technical) ───────────────────── -->
+  <section class="card p-5" data-reveal data-depth="technical">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div>
+        <h3 class="font-semibold text-ink-primary">Dead-letter queue</h3>
+        <p class="text-2xs text-ink-muted mt-0.5">Items that exhausted retries or crashed past their last checkpoint. Replay re-runs from that checkpoint.</p>
+      </div>
+      {dlqTotal > 0
+        ? <span class="dbadge dbadge-bad">{num(kpis.dlqCount)} in DLQ</span>
+        : <span class="dbadge dbadge-ok"><Icon name="check" size={12} />Empty</span>}
+    </div>
+
+    {dlqTotal === 0 ? (
+      <p class="text-sm text-ink-muted">Nothing dead-lettered — every run either completed or recovered cleanly.</p>
+    ) : (
+      <div class="space-y-2">
+        {failedWorkflows.map((w) => (
+          <div class="flex items-center gap-3 rounded-xl border border-border bg-bg-1/40 px-3.5 py-3">
+            <span class="dot dot-down"></span>
+            <div class="min-w-0 flex-1">
+              <div class="text-[0.88rem] text-ink-primary truncate">{w.name}</div>
+              <div class="text-2xs text-ink-muted">{w.agent} · failed at {w.recoveredFrom ? `step after “${w.recoveredFrom}”` : "an early step"} · <span class="mono">{w.id}</span></div>
+            </div>
+            <button type="button" class="btn btn-ghost !py-1 !px-2.5 text-2xs whitespace-nowrap" data-action="Replaying dead-lettered message">
+              <Icon name="resume" size={13} />Replay
+            </button>
+          </div>
+        ))}
+        {dlqAgents.map((a) => (
+          <div class="flex items-center gap-3 rounded-xl border border-border bg-bg-1/40 px-3.5 py-3">
+            <span class={`dot ${a.status === "down" ? "dot-down" : "dot-degraded"}`}></span>
+            <div class="min-w-0 flex-1">
+              <div class="text-[0.88rem] text-ink-primary truncate">{a.name}</div>
+              <div class="text-2xs text-ink-muted">{num(a.dlq)} dead-lettered {a.dlq === 1 ? "message" : "messages"} · owner <span class="mono">{a.owner}</span> · <span class="mono">{a.id}</span></div>
+            </div>
+            <button type="button" class="btn btn-ghost !py-1 !px-2.5 text-2xs whitespace-nowrap" data-action={a.dlq > 1 ? "Replaying all DLQ items" : "Replaying dead-lettered message"}>
+              <Icon name="resume" size={13} />Replay {a.dlq > 1 ? "all" : ""}
+            </button>
+          </div>
+        ))}
+      </div>
+    )}
+  </section>
+
+  <!-- ── New agent modal ─────────────────────────────────── -->
+  <div slot="modals" class="modal-backdrop" id="modal-agent">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="New agent">
+      <div class="modal-head">
+        <div>
+          <h3 class="font-semibold text-ink-primary text-lg">New agent</h3>
+          <p class="text-sm text-ink-muted mt-0.5">Provision a workspace and wire it to the proxy. Caps and durability apply from the first request.</p>
+        </div>
+        <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
+      </div>
+      <form class="modal-body space-y-3.5" data-action="Agent created — provisioning workspace" data-close-modal="agent">
+        <div>
+          <label class="dlabel" for="ag-name">Name</label>
+          <input id="ag-name" class="dinput" placeholder="e.g. Refund Triage" required />
+        </div>
+        <div>
+          <label class="dlabel" for="ag-model">Model</label>
+          <select id="ag-model" class="dselect">
+            {modelAliases.map((a) => (
+              <option value={a.alias}>{a.alias} · {a.target}</option>
+            ))}
+            <option value="gpt-4o">gpt-4o</option>
+          </select>
+        </div>
+        <div>
+          <label class="dlabel" for="ag-workspace">Workspace id</label>
+          <input id="ag-workspace" class="dinput mono" placeholder="ws_acme_refund" required />
+        </div>
+        <div>
+          <label class="dlabel" for="ag-cap">Daily cost cap €</label>
+          <input id="ag-cap" class="dinput" type="number" min="0" step="1" placeholder="50" />
+        </div>
+        <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-1/40 px-3.5 py-3">
+          <div class="min-w-0">
+            <div class="text-sm text-ink-primary">Durable workflow</div>
+            <div class="text-2xs text-ink-muted">Checkpoint long runs so crashes resume instead of restarting.</div>
+          </div>
+          <span class="toggle" role="switch" aria-checked="true" tabindex="0" data-label="Durable workflow" aria-label="Toggle durable workflow"></span>
+        </div>
+        <div class="modal-foot !px-0 !pb-0">
+          <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+          <button type="submit" class="btn btn-primary">Create agent</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</DashboardLayout>
+
+<script is:inline>
+  (function () {
+    var group = document.getElementById("fleet-filter");
+    var table = document.getElementById("fleet-table");
+    var empty = document.getElementById("fleet-empty");
+    if (!group || !table) return;
+    var buttons = group.querySelectorAll("button[data-filter]");
+    var rows = table.querySelectorAll("tbody tr");
+
+    function apply(key) {
+      var shown = 0;
+      rows.forEach(function (row) {
+        var match = key === "all" || row.getAttribute("data-status") === key;
+        row.style.display = match ? "" : "none";
+        if (match) shown++;
+      });
+      if (empty) empty.classList.toggle("hidden", shown !== 0);
+    }
+
+    buttons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        buttons.forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
+        btn.setAttribute("aria-pressed", "true");
+        apply(btn.getAttribute("data-filter") || "all");
+      });
+    });
+  })();
+</script>

@@ -1,0 +1,286 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import PageHeader from "../../components/dashboard/PageHeader.astro";
+import Kpi from "../../components/dashboard/Kpi.astro";
+import StatusBadge from "../../components/dashboard/StatusBadge.astro";
+import Icon from "../../components/dashboard/Icon.astro";
+import { billing, savingsTotals, eur, pct } from "../../data/dashboard";
+
+const usagePct = (billing.usedTokensM / billing.includedTokensM) * 100;
+const usageProgClass = usagePct > 80 ? "prog-warn" : "prog-ok";
+const usageLabel = `${billing.usedTokensM}M / ${billing.includedTokensM}M tokens`;
+
+// How much of this month's bill is covered by what Plynf saved.
+const coverageX = savingsTotals.savedMonthEur / billing.currentBillEur;
+---
+<DashboardLayout title="Account & Billing" active="/app/billing">
+  <PageHeader
+    kicker="Account & Billing"
+    title="Your plan, your usage, your savings"
+    lead="Usage-based pricing with no surprises: you only pay for the tokens Plynf actually shaped — and Plynf saves you far more than it costs."
+  >
+    <button slot="actions" class="btn btn-secondary !py-2" data-modal-open="budget"><Icon name="bell" size={15} />Budget alert</button>
+    <button slot="actions" class="btn btn-primary !py-2" data-modal-open="plan"><Icon name="coins" size={15} />Change plan</button>
+  </PageHeader>
+
+  <!-- ── Plan + usage hero ───────────────────────────────── -->
+  <section class="grid lg:grid-cols-3 gap-4 mb-4">
+    <div class="card glow-card card-tint-indigo lg:col-span-2 p-6 sm:p-7 relative overflow-hidden" data-reveal>
+      <div class="bg-grid-dense opacity-30"></div>
+      <div class="relative">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div class="kpi-label">Current plan</div>
+            <div class="mt-1 flex items-center gap-3">
+              <span class="text-[clamp(2rem,4vw,2.6rem)] font-bold leading-none tracking-[-0.04em] text-ink-primary">{billing.plan}</span>
+              <span class="dbadge dbadge-accent">Active</span>
+            </div>
+            <p class="mt-2 text-ink-secondary text-[0.9rem] mono">{billing.priceModel}</p>
+          </div>
+          <div class="text-right">
+            <div class="kpi-label">Cycle resets in</div>
+            <div class="mt-1 text-2xl font-bold tnum text-ink-primary">{billing.cycleResetsIn}</div>
+          </div>
+        </div>
+
+        <!-- usage meter -->
+        <div class="mt-6">
+          <div class="flex items-end justify-between mb-1.5">
+            <span class="text-sm text-ink-secondary">Included tokens used this cycle</span>
+            <span class="text-sm mono text-ink-primary tnum">{usageLabel}</span>
+          </div>
+          <div class={`prog ${usageProgClass}`}><span style={`width:${Math.min(100, usagePct)}%`}></span></div>
+          <div class="mt-1.5 text-2xs text-ink-muted">
+            {pct(usagePct)} of your {billing.includedTokensM}M included tokens · overage billed at the same per-million rate.
+          </div>
+        </div>
+
+        <!-- current vs projected -->
+        <div class="mt-6 grid grid-cols-2 gap-3">
+          <div class="rounded-xl bg-bg-2/60 border border-border p-4">
+            <div class="kpi-label">Current bill</div>
+            <div class="mt-1 text-2xl font-bold tnum text-ink-primary">{eur(billing.currentBillEur)}</div>
+            <div class="text-2xs text-ink-muted mt-1">Accrued so far this cycle</div>
+          </div>
+          <div class="rounded-xl bg-bg-2/60 border border-border p-4">
+            <div class="kpi-label">Projected bill</div>
+            <div class="mt-1 text-2xl font-bold tnum text-accent">{eur(billing.projectedBillEur)}</div>
+            <div class="text-2xs text-ink-muted mt-1">At your current run-rate</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pays-for-itself panel -->
+    <div class="card card-tint-orange p-6 flex flex-col" data-reveal>
+      <div class="kpi-label">Plynf pays for itself</div>
+      <div class="mt-3">
+        <div class="text-[clamp(2.2rem,5vw,3rem)] font-bold leading-none tracking-[-0.04em] text-accent tnum">{eur(savingsTotals.savedMonthEur)}</div>
+        <div class="text-sm text-ink-secondary mt-2">saved this month vs. running your agents without Plynf.</div>
+      </div>
+      <div class="mt-5 rounded-xl bg-bg-2/60 border border-border p-4">
+        <div class="flex items-baseline justify-between">
+          <span class="text-sm text-ink-secondary">Saved</span>
+          <span class="mono text-accent">{eur(savingsTotals.savedMonthEur)}</span>
+        </div>
+        <div class="flex items-baseline justify-between mt-1">
+          <span class="text-sm text-ink-secondary">You pay</span>
+          <span class="mono text-ink-primary">{eur(billing.currentBillEur)}</span>
+        </div>
+        <div class="prog prog-ok mt-3"><span style={`width:${Math.min(100, (billing.currentBillEur / savingsTotals.savedMonthEur) * 100)}%`}></span></div>
+        <div class="text-2xs text-ink-muted mt-2">
+          Every €1 on this bill returns about <span class="text-ink-primary mono">{coverageX.toFixed(1)}×</span> in saved model spend.
+        </div>
+      </div>
+      <a href="/app/economics" class="btn btn-ghost !py-2 mt-auto pt-4 text-sm">See the full savings report →</a>
+    </div>
+  </section>
+
+  <!-- ── How usage-based pricing works ───────────────────── -->
+  <section class="card p-5 sm:p-6 mb-4" data-reveal>
+    <h3 class="font-semibold text-ink-primary">How usage-based pricing works</h3>
+    <p class="text-sm text-ink-secondary mt-1 max-w-2xl">No seats, no minimums. You pay for what Plynf does — and only that.</p>
+    <div class="mt-5 grid sm:grid-cols-3 gap-4">
+      <div class="rounded-xl border border-border bg-bg-1/40 p-4">
+        <div class="flex items-center gap-2 text-accent"><Icon name="coins" size={18} /><span class="text-sm font-medium text-ink-primary">Pay per shaped token</span></div>
+        <p class="text-sm text-ink-secondary mt-2">You're billed €0.85 per million tokens Plynf shapes out of tool responses. Quiet days cost less — automatically.</p>
+      </div>
+      <div class="rounded-xl border border-border bg-bg-1/40 p-4">
+        <div class="flex items-center gap-2 text-accent"><Icon name="check" size={18} /><span class="text-sm font-medium text-ink-primary">Included allowance first</span></div>
+        <p class="text-sm text-ink-secondary mt-2">Your {billing.plan} plan includes {billing.includedTokensM}M tokens each cycle. Anything beyond is billed at the same flat rate — never a markup.</p>
+      </div>
+      <div class="rounded-xl border border-border bg-bg-1/40 p-4">
+        <div class="flex items-center gap-2 text-accent"><Icon name="shield" size={18} /><span class="text-sm font-medium text-ink-primary">No surprise invoices</span></div>
+        <p class="text-sm text-ink-secondary mt-2">We project your bill live and reset the meter every cycle. The savings Plynf creates always dwarf what it charges.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── KPI row ─────────────────────────────────────────── -->
+  <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+    <Kpi label="This cycle" value={eur(billing.currentBillEur)} sub="Accrued so far" tint="indigo" />
+    <Kpi label="Projected" value={eur(billing.projectedBillEur)} sub="At current run-rate" tint="magenta" />
+    <Kpi label="Saved this month" value={eur(savingsTotals.savedMonthEur)} sub="Plynf more than pays for itself" tint="orange" />
+    <Kpi label="Included tokens used" value={pct(usagePct)} sub={`${billing.usedTokensM}M of ${billing.includedTokensM}M`} tint="cyan" />
+  </section>
+
+  <!-- ── Invoices + payment method ───────────────────────── -->
+  <section class="grid lg:grid-cols-3 gap-4">
+    <div class="card p-5 lg:col-span-2" data-reveal>
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-ink-primary">Invoices</h3>
+        <span class="text-2xs mono text-ink-muted">{billing.invoices.length} on file</span>
+      </div>
+      <div class="overflow-x-auto -mx-1">
+        <table class="dtable">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th class="num">Amount</th>
+              <th>Status</th>
+              <th class="num">Invoice</th>
+            </tr>
+          </thead>
+          <tbody>
+            {billing.invoices.map((inv) => (
+              <tr>
+                <td class="strong">{inv.period}</td>
+                <td class="num strong tnum">{eur(inv.amountEur)}</td>
+                <td><StatusBadge status={inv.status} /></td>
+                <td class="num">
+                  <button type="button" class="btn btn-ghost !py-1 !px-2 text-2xs inline-flex items-center gap-1.5" aria-label={`Download invoice for ${inv.period}`} data-action={`Downloading invoice ${inv.period}`}>
+                    <Icon name="download" size={13} />Download
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card p-5" data-reveal>
+      <h3 class="font-semibold text-ink-primary mb-3">Payment method</h3>
+      <div class="rounded-xl border border-border bg-bg-1/40 p-4 flex items-center gap-3">
+        <div class="grid place-items-center w-10 h-10 rounded-lg bg-bg-2 border border-border text-ink-secondary">
+          <Icon name="card" size={18} />
+        </div>
+        <div class="min-w-0">
+          <div class="text-sm text-ink-primary truncate">{billing.paymentMethod}</div>
+          <div class="text-2xs text-ink-muted mt-0.5">Charged automatically at cycle close</div>
+        </div>
+      </div>
+      <button type="button" class="btn btn-secondary !py-2 w-full mt-4" data-modal-open="pay"><Icon name="edit" size={14} />Update</button>
+      <p class="text-2xs text-ink-muted mt-3">
+        Next charge of <span class="text-ink-primary mono">{eur(billing.projectedBillEur)}</span> projected in {billing.cycleResetsIn}.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── Modals ──────────────────────────────────────────── -->
+  <!-- Change plan -->
+  <div slot="modals" class="modal-backdrop" id="modal-plan">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Change plan">
+      <div class="modal-head">
+        <div>
+          <h3 class="font-semibold text-ink-primary text-lg">Change your plan</h3>
+          <p class="text-sm text-ink-muted mt-0.5">Pick a tier. Usage-based pricing still applies — the plan sets your included allowance and per-million rate.</p>
+        </div>
+        <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
+      </div>
+      <form class="modal-body space-y-3.5" data-action="Plan updated" data-close-modal="plan">
+        <fieldset class="grid sm:grid-cols-3 gap-3">
+          <legend class="sr-only">Plan tier</legend>
+          {[
+            { id: "starter", name: "Starter", price: "€0 + usage", rate: "€1.10 / 1M", runs: "10M tokens", note: "For early experiments" },
+            { id: "scale", name: "Scale", price: "€49 + usage", rate: "€0.85 / 1M", runs: "50M tokens", note: "Current plan", current: true },
+            { id: "enterprise", name: "Enterprise", price: "Custom", rate: "Volume rate", runs: "Unlimited", note: "Dedicated isolation + SSO" },
+          ].map((tier) => (
+            <label class="plan-tile rounded-xl border border-border bg-bg-1/40 p-4 cursor-pointer block transition has-[:checked]:border-accent has-[:checked]:bg-bg-2/60">
+              <span class="flex items-center justify-between">
+                <span class="text-sm font-medium text-ink-primary">{tier.name}</span>
+                <input type="radio" name="plan-tier" value={tier.id} class="accent-[var(--accent)]" checked={tier.current} required />
+              </span>
+              <span class="block text-lg font-bold tnum text-ink-primary mt-2">{tier.price}</span>
+              <span class="block mono text-2xs text-ink-muted mt-0.5">{tier.rate}</span>
+              <span class="block text-2xs text-ink-secondary mt-2">Includes <span class="text-ink-primary">{tier.runs}</span></span>
+              <span class="block text-2xs text-ink-muted mt-0.5">{tier.note}</span>
+            </label>
+          ))}
+        </fieldset>
+        <div class="modal-foot !px-0 !pb-0">
+          <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+          <button type="submit" class="btn btn-primary">Confirm plan change</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Update payment method -->
+  <div slot="modals" class="modal-backdrop" id="modal-pay">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Update payment method">
+      <div class="modal-head">
+        <div>
+          <h3 class="font-semibold text-ink-primary text-lg">Update payment method</h3>
+          <p class="text-sm text-ink-muted mt-0.5">Card details are sent straight to our processor and never stored on Plynf.</p>
+        </div>
+        <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
+      </div>
+      <form class="modal-body space-y-3.5" data-action="Payment method updated" data-close-modal="pay">
+        <div>
+          <label class="dlabel" for="pay-card">Card number</label>
+          <input id="pay-card" class="dinput mono" inputmode="numeric" autocomplete="cc-number" placeholder="4242 4242 4242 4242" required />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="dlabel" for="pay-exp">Expiry</label>
+            <input id="pay-exp" class="dinput mono" inputmode="numeric" autocomplete="cc-exp" placeholder="MM / YY" required />
+          </div>
+          <div>
+            <label class="dlabel" for="pay-cvc">CVC</label>
+            <input id="pay-cvc" class="dinput mono" inputmode="numeric" autocomplete="cc-csc" placeholder="123" required />
+          </div>
+        </div>
+        <div>
+          <label class="dlabel" for="pay-name">Name on card</label>
+          <input id="pay-name" class="dinput" autocomplete="cc-name" placeholder="Lena Hofer" />
+        </div>
+        <div class="modal-foot !px-0 !pb-0">
+          <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+          <button type="submit" class="btn btn-primary">Save card</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Budget alert -->
+  <div slot="modals" class="modal-backdrop" id="modal-budget">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Set budget alert">
+      <div class="modal-head">
+        <div>
+          <h3 class="font-semibold text-ink-primary text-lg">Set a budget alert</h3>
+          <p class="text-sm text-ink-muted mt-0.5">We'll notify you before this cycle's projected bill crosses your threshold — no surprise invoices.</p>
+        </div>
+        <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
+      </div>
+      <form class="modal-body space-y-3.5" data-action="Budget alert saved" data-close-modal="budget">
+        <div class="flex items-center justify-between rounded-xl border border-border bg-bg-1/40 px-3.5 py-2.5">
+          <div class="min-w-0">
+            <div class="text-sm text-ink-primary">Enable budget alerts</div>
+            <div class="text-2xs text-ink-muted mt-0.5">Email the account owner when the threshold is reached.</div>
+          </div>
+          <span class="toggle" role="switch" aria-checked="true" tabindex="0" data-label="Budget alerts" aria-label="Toggle budget alerts"></span>
+        </div>
+        <div>
+          <label class="dlabel" for="budget-amount">Alert threshold (EUR)</label>
+          <input id="budget-amount" class="dinput mono" inputmode="decimal" placeholder="250.00" value="250.00" required />
+          <p class="text-2xs text-ink-muted mt-1.5">Your bill is projected at <span class="text-ink-primary mono">{eur(billing.projectedBillEur)}</span> this cycle.</p>
+        </div>
+        <div class="modal-foot !px-0 !pb-0">
+          <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+          <button type="submit" class="btn btn-primary">Save alert</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</DashboardLayout>

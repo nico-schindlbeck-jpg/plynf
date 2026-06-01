@@ -1,0 +1,178 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import PageHeader from "../../components/dashboard/PageHeader.astro";
+import Icon from "../../components/dashboard/Icon.astro";
+import { onboarding, bestPractices, frontDoors } from "../../data/dashboard";
+
+const doneCount = onboarding.filter((s) => s.done).length;
+---
+<DashboardLayout title="Setup & Best Practices" active="/app/setup">
+  <PageHeader
+    kicker="Configure & control"
+    title="Get Plynf running — and get the most out of it"
+    lead="Six steps from install to first savings, plus the playbook teams use to run Plynf well in production."
+  >
+    <a slot="actions" href="https://docs.plynf.com" class="btn btn-secondary !py-2"><Icon name="external" size={15} />Full docs</a>
+  </PageHeader>
+
+  <!-- Onboarding progress + checklist -->
+  <div class="card glow-card p-5 sm:p-6 mb-4" data-reveal>
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div>
+        <div class="kpi-label">Onboarding</div>
+        <div class="text-xl font-semibold text-ink-primary mt-1">You're <span id="ob-count">{doneCount}</span> of {onboarding.length} steps in</div>
+      </div>
+      <div class="w-full sm:w-64">
+        <div class="prog"><span id="ob-bar" style={`width:${(doneCount / onboarding.length) * 100}%`}></span></div>
+        <div class="text-2xs text-ink-muted mt-1.5 text-right" id="ob-pct">{Math.round((doneCount / onboarding.length) * 100)}% complete</div>
+      </div>
+    </div>
+
+    <ol class="space-y-2.5">
+      {onboarding.map((step, i) => (
+        <li class="ob-step rounded-xl border border-border bg-bg-1/40 p-4" data-step={step.id} data-done={step.done ? "true" : "false"}>
+          <div class="flex items-start gap-3.5">
+            <button class="ob-check mt-0.5 h-6 w-6 rounded-full border-2 grid place-items-center flex-none transition-colors" aria-label="Toggle step done">
+              <span class="ob-num text-2xs mono">{i + 1}</span>
+              <span class="ob-tick hidden"><Icon name="check" size={13} /></span>
+            </button>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <h4 class="font-medium text-ink-primary">{step.title}</h4>
+              </div>
+              <p class="text-sm text-ink-secondary mt-0.5">{step.desc}</p>
+              {step.code && (
+                <div class="code-block mt-3 !py-2.5 flex items-start justify-between gap-3">
+                  <pre class="overflow-x-auto text-2xs leading-relaxed flex-1"><code>{step.code}</code></pre>
+                  <button class="btn btn-ghost !p-1.5 flex-none" data-copy={step.code} aria-label="Copy command"><Icon name="copy" size={14} /></button>
+                </div>
+              )}
+            </div>
+          </div>
+        </li>
+      ))}
+    </ol>
+  </div>
+
+  <!-- Quick connect (SDK tabs) -->
+  <div class="card p-5 sm:p-6 mb-4" data-reveal>
+    <h3 class="font-semibold text-ink-primary mb-1">Point your stack at Plynf</h3>
+    <p class="text-sm text-ink-secondary mb-4">One line. Every OpenAI-compatible SDK works — keep your code, change the base URL.</p>
+    <div class="segmented mb-3" role="group" id="sdk-tabs">
+      <button data-sdk="python" aria-pressed="true">Python</button>
+      <button data-sdk="node" aria-pressed="false">Node</button>
+      <button data-sdk="curl" aria-pressed="false">curl</button>
+    </div>
+    <div class="code-block" data-sdk-panel="python"><pre class="overflow-x-auto text-xs leading-relaxed"><code>{`from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://app.plynf.com/v1",
+    api_key="plynf_sk_…",
+)
+# Same call you already make — now shaped + routed + audited.
+client.chat.completions.create(model="smart", messages=[...])`}</code></pre></div>
+    <div class="code-block hidden" data-sdk-panel="node"><pre class="overflow-x-auto text-xs leading-relaxed"><code>{`import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "https://app.plynf.com/v1",
+  apiKey: "plynf_sk_…",
+});
+await client.chat.completions.create({ model: "smart", messages: [...] });`}</code></pre></div>
+    <div class="code-block hidden" data-sdk-panel="curl"><pre class="overflow-x-auto text-xs leading-relaxed"><code>{`curl https://app.plynf.com/v1/chat/completions \\
+  -H "Authorization: Bearer plynf_sk_…" \\
+  -H "Content-Type: application/json" \\
+  -d '{"model":"smart","messages":[{"role":"user","content":"hi"}]}'`}</code></pre></div>
+  </div>
+
+  <!-- Front doors reference -->
+  <div class="card p-5 sm:p-6 mb-4" data-reveal>
+    <h3 class="font-semibold text-ink-primary mb-1">Speak any dialect</h3>
+    <p class="text-sm text-ink-secondary mb-4">Already using a non-OpenAI SDK? Plynf exposes native front doors — point them here too. Manage which are live under <a href="/app/routing" class="text-accent hover:underline">Routing &amp; Providers</a>.</p>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+      {frontDoors.map((f) => (
+        <div class="rounded-xl border border-border bg-bg-2/40 p-3.5">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-sm text-ink-primary">{f.name}</span>
+            <span class={`dbadge ${f.enabled ? "dbadge-ok" : ""} !text-[0.6rem]`}>{f.enabled ? "live" : "off"}</span>
+          </div>
+          <div class="mono text-2xs text-ink-muted mt-1.5 truncate">{f.path}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+
+  <!-- Best practices -->
+  <div class="mb-2" data-reveal>
+    <h3 class="dash-h1 !text-xl mb-1">The Plynf playbook</h3>
+    <p class="dash-lead">How teams get 70%+ reduction and keep it reliable in production.</p>
+  </div>
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4" data-reveal>
+    {bestPractices.map((b) => (
+      <div class="card card-hover p-5">
+        <div class="flex items-center gap-2 mb-2.5">
+          <span class="h-8 w-8 rounded-lg bg-bg-2 border border-border grid place-items-center text-accent"><Icon name={b.icon} size={16} /></span>
+          <span class="dbadge dbadge-accent !text-[0.6rem]">{b.tag}</span>
+        </div>
+        <h4 class="font-medium text-ink-primary">{b.title}</h4>
+        <p class="text-sm text-ink-secondary mt-1.5 leading-relaxed">{b.body}</p>
+      </div>
+    ))}
+  </div>
+
+  <script is:inline>
+    (function () {
+      // ── Onboarding checklist (persisted to localStorage) ──
+      var KEY = "plynf-onboard";
+      var steps = Array.prototype.slice.call(document.querySelectorAll(".ob-step"));
+      var stored = {};
+      try { stored = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (_) {}
+
+      function paint(li) {
+        var done = li.getAttribute("data-done") === "true";
+        var check = li.querySelector(".ob-check");
+        var num = li.querySelector(".ob-num");
+        var tick = li.querySelector(".ob-tick");
+        check.style.borderColor = done ? "#2dd4a7" : "var(--border-strong)";
+        check.style.background = done ? "#2dd4a7" : "transparent";
+        check.style.color = done ? "#06140f" : "var(--text-muted)";
+        num.classList.toggle("hidden", done);
+        tick.classList.toggle("hidden", !done);
+      }
+      function progress() {
+        var done = steps.filter(function (li) { return li.getAttribute("data-done") === "true"; }).length;
+        var pct = Math.round((done / steps.length) * 100);
+        var bar = document.getElementById("ob-bar");
+        if (bar) bar.style.width = pct + "%";
+        var c = document.getElementById("ob-count"); if (c) c.textContent = String(done);
+        var p = document.getElementById("ob-pct"); if (p) p.textContent = pct + "% complete";
+      }
+      steps.forEach(function (li) {
+        var id = li.getAttribute("data-step");
+        if (stored[id] === true || stored[id] === false) li.setAttribute("data-done", stored[id] ? "true" : "false");
+        paint(li);
+        var check = li.querySelector(".ob-check");
+        check.addEventListener("click", function () {
+          var done = li.getAttribute("data-done") !== "true";
+          li.setAttribute("data-done", done ? "true" : "false");
+          stored[id] = done;
+          try { localStorage.setItem(KEY, JSON.stringify(stored)); } catch (_) {}
+          paint(li); progress();
+          if (window.plynfToast) window.plynfToast(done ? "Step complete" : "Step reopened");
+        });
+      });
+      progress();
+
+      // ── SDK tabs ──
+      var tabs = document.querySelectorAll("#sdk-tabs button");
+      tabs.forEach(function (b) {
+        b.addEventListener("click", function () {
+          var sdk = b.getAttribute("data-sdk");
+          tabs.forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+          document.querySelectorAll("[data-sdk-panel]").forEach(function (p) {
+            p.classList.toggle("hidden", p.getAttribute("data-sdk-panel") !== sdk);
+          });
+        });
+      });
+    })();
+  </script>
+</DashboardLayout>

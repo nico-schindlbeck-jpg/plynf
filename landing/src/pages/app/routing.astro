@@ -1,0 +1,222 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import PageHeader from "../../components/dashboard/PageHeader.astro";
+import StatusBadge from "../../components/dashboard/StatusBadge.astro";
+import Icon from "../../components/dashboard/Icon.astro";
+import { providers, modelAliases, frontDoors } from "../../data/dashboard";
+
+// Data the client-side routing tester needs (mirrors UpstreamRouter.resolve).
+const routeData = {
+  providers: providers.map((p) => ({ id: p.id, name: p.name, baseUrl: p.baseUrl, isDefault: p.isDefault })),
+  aliases: Object.fromEntries(modelAliases.map((a) => [a.alias, a.target])),
+};
+const defaultProvider = providers.find((p) => p.isDefault);
+---
+<DashboardLayout title="Routing & Providers" active="/app/routing">
+  <PageHeader
+    kicker="Configure & control"
+    title="Route every request, from one place"
+    lead="One Plynf instance fronts any number of OpenAI-compatible providers. Add upstreams, alias models, toggle front doors — no redeploy, no code change. Routing is never gated on integration type."
+  >
+    <button slot="actions" class="btn btn-secondary !py-2" data-modal-open="alias"><Icon name="plus" size={15} />Add alias</button>
+    <button slot="actions" class="btn btn-primary !py-2" data-modal-open="provider"><Icon name="plus" size={15} />Add provider</button>
+  </PageHeader>
+
+  <!-- Resolution order explainer -->
+  <div class="card p-5 mb-4" data-reveal>
+    <div class="flex items-center gap-2 mb-3">
+      <Icon name="route" size={18} class="text-accent" />
+      <h3 class="font-semibold text-ink-primary">Resolution order</h3>
+      <span class="dbadge dbadge-info ml-2">per request</span>
+    </div>
+    <div class="grid sm:grid-cols-4 gap-3">
+      {[
+        { n: "1", t: "Alias", d: "fast → groq/llama-3.3-70b" },
+        { n: "2", t: "Header override", d: "X-Plynf-Upstream" },
+        { n: "3", t: "provider/ prefix", d: "groq/llama-3.3-70b" },
+        { n: "4", t: "Default upstream", d: defaultProvider ? defaultProvider.name : "—" },
+      ].map((s) => (
+        <div class="rounded-xl border border-border bg-bg-2/50 p-3.5">
+          <div class="flex items-center gap-2"><span class="dbadge dbadge-accent !px-2">{s.n}</span><span class="text-sm text-ink-primary font-medium">{s.t}</span></div>
+          <div class="mono text-2xs text-ink-muted mt-2 truncate">{s.d}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+
+  <!-- Providers -->
+  <div class="card p-5 mb-4" data-reveal>
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-semibold text-ink-primary">Upstream providers <span class="text-ink-muted font-normal">({providers.length})</span></h3>
+      <button class="btn btn-ghost !py-1.5 text-sm" data-modal-open="provider"><Icon name="plus" size={14} />Add</button>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="dtable">
+        <thead><tr><th>Provider</th><th>Base URL</th><th>API key</th><th>Headers</th><th class="num">Models</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {providers.map((p) => (
+            <tr>
+              <td class="strong">
+                <div class="flex items-center gap-2">{p.name}{p.isDefault && <span class="dbadge dbadge-accent">default</span>}</div>
+              </td>
+              <td class="mono text-2xs">{p.baseUrl}</td>
+              <td class="mono text-2xs text-ink-muted">{p.keyMasked}</td>
+              <td>{p.headers.length ? <span class="dbadge dbadge-info">{p.headers.length} header{p.headers.length > 1 ? "s" : ""}</span> : <span class="text-ink-muted text-2xs">—</span>}</td>
+              <td class="num">{p.models}</td>
+              <td><StatusBadge status={p.status} /></td>
+              <td class="num">
+                <div class="inline-flex items-center gap-1">
+                  {!p.isDefault && <button class="btn btn-ghost !py-1 !px-2 text-2xs" data-action={`${p.name} set as default upstream`}>Set default</button>}
+                  <button class="btn btn-ghost !p-1.5" aria-label="Edit" data-action={`Editing ${p.name}`}><Icon name="edit" size={14} /></button>
+                  <button class="btn btn-ghost !p-1.5" aria-label="Remove" data-action={`Removed ${p.name}`}><Icon name="trash" size={14} /></button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid lg:grid-cols-2 gap-4 mb-4">
+    <!-- Aliases -->
+    <div class="card p-5" data-reveal>
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-semibold text-ink-primary">Model aliases</h3>
+        <button class="btn btn-ghost !py-1.5 text-sm" data-modal-open="alias"><Icon name="plus" size={14} />Add</button>
+      </div>
+      <p class="text-sm text-ink-secondary mb-3">Name a model once; swap the provider behind it here. Code references the alias — never the concrete model.</p>
+      <div class="space-y-2">
+        {modelAliases.map((a) => (
+          <div class="flex items-center gap-3 rounded-xl border border-border bg-bg-1/40 px-3.5 py-2.5">
+            <span class="dbadge dbadge-accent mono">{a.alias}</span>
+            <Icon name="chevronr" size={14} class="text-ink-muted" />
+            <span class="mono text-2xs text-ink-secondary flex-1 truncate">{a.target}</span>
+            <button class="btn btn-ghost !p-1.5" aria-label="Remove alias" data-action={`Removed alias “${a.alias}”`}><Icon name="trash" size={13} /></button>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- Front doors -->
+    <div class="card p-5" data-reveal>
+      <h3 class="font-semibold text-ink-primary mb-1">Front doors</h3>
+      <p class="text-sm text-ink-secondary mb-3">Each dialect a client can speak to Plynf. Toggle the surfaces you expose — all route to the same shaped pipeline.</p>
+      <div class="divide-card -mt-1">
+        {frontDoors.map((f) => (
+          <div class="flex items-center gap-3 py-2.5">
+            <div class="min-w-0 flex-1">
+              <div class="text-sm text-ink-primary">{f.name}</div>
+              <div class="mono text-2xs text-ink-muted truncate">{f.path}</div>
+            </div>
+            <span
+              class="toggle"
+              role="switch"
+              aria-checked={f.enabled ? "true" : "false"}
+              tabindex="0"
+              data-label={`Front door ${f.name}`}
+              aria-label={`Toggle ${f.name}`}
+            ></span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+
+  <!-- Routing tester -->
+  <div class="card glow-card p-5" data-reveal>
+    <div class="flex items-center gap-2 mb-1">
+      <Icon name="search" size={17} class="text-accent" />
+      <h3 class="font-semibold text-ink-primary">Routing tester</h3>
+    </div>
+    <p class="text-sm text-ink-secondary mb-4">Enter a model string (and an optional header override) to see exactly where Plynf would send the request.</p>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <div>
+        <label class="dlabel" for="rt-model">Model</label>
+        <input id="rt-model" class="dinput mono" placeholder="fast · groq/llama-3.3-70b · gpt-4o" value="fast" />
+      </div>
+      <div>
+        <label class="dlabel" for="rt-header">X-Plynf-Upstream (optional)</label>
+        <input id="rt-header" class="dinput mono" placeholder="https://my-upstream.example" />
+      </div>
+    </div>
+    <div id="rt-result" class="mt-4 rounded-xl border border-border bg-bg-1/60 p-4 font-mono text-sm"></div>
+  </div>
+
+  <script type="application/json" id="route-data" is:inline set:html={JSON.stringify(routeData)}></script>
+
+  <script is:inline>
+    (function () {
+      var el = document.getElementById("route-data");
+      if (!el) return;
+      var data = JSON.parse(el.textContent || "{}");
+      var providers = data.providers || [];
+      var aliases = data.aliases || {};
+      var byId = {};
+      providers.forEach(function (p) { byId[p.id] = p; });
+      var def = providers.find(function (p) { return p.isDefault; }) || providers[0];
+
+      function resolve(model, header) {
+        model = (model || "").trim();
+        if (aliases[model]) model = aliases[model]; // 1. alias (single level)
+        if (header && header.trim()) // 2. header override
+          return { provider: "header (override)", base: header.trim(), model: model, kind: "info" };
+        if (model.indexOf("/") !== -1) { // 3. provider/model prefix
+          var prefix = model.slice(0, model.indexOf("/"));
+          var rest = model.slice(model.indexOf("/") + 1);
+          if (byId[prefix] && rest) return { provider: byId[prefix].name, base: byId[prefix].baseUrl, model: rest, kind: "ok" };
+        }
+        return { provider: (def ? def.name : "—") + " (default)", base: def ? def.baseUrl : "—", model: model, kind: "accent" }; // 4. default
+      }
+
+      function render() {
+        var m = document.getElementById("rt-model").value;
+        var h = document.getElementById("rt-header").value;
+        var r = resolve(m, h);
+        var badge = r.kind === "ok" ? "dbadge-ok" : r.kind === "info" ? "dbadge-info" : "dbadge-accent";
+        document.getElementById("rt-result").innerHTML =
+          '<div class="flex flex-wrap items-center gap-2 mb-2"><span class="dbadge ' + badge + '">routed → ' + r.provider + '</span></div>' +
+          '<div style="color:var(--text-muted)">POST</div>' +
+          '<div style="color:var(--text-primary)">' + r.base + '/v1/chat/completions</div>' +
+          '<div style="margin-top:.5rem;color:var(--text-muted)">model sent to upstream</div>' +
+          '<div style="color:var(--accent)">' + (r.model || "—") + '</div>';
+      }
+      ["rt-model", "rt-header"].forEach(function (id) {
+        var i = document.getElementById(id);
+        i && i.addEventListener("input", render);
+      });
+      render();
+    })();
+  </script>
+
+  <!-- Modals -->
+  <div slot="modals" class="modal-backdrop" id="modal-provider">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Add provider">
+      <div class="modal-head">
+        <div><h3 class="font-semibold text-ink-primary text-lg">Add upstream provider</h3><p class="text-sm text-ink-muted mt-0.5">Any OpenAI-compatible base URL. Secrets are written to the proxy, never shown again.</p></div>
+        <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
+      </div>
+      <form class="modal-body space-y-3.5" data-action="Provider added — routing live" data-close-modal="provider">
+        <div><label class="dlabel">Name</label><input class="dinput" placeholder="e.g. Mistral" required /></div>
+        <div><label class="dlabel">Base URL</label><input class="dinput mono" placeholder="https://api.mistral.ai" required /></div>
+        <div><label class="dlabel">API key</label><input class="dinput mono" type="password" placeholder="sk-…  (or ${ENV_VAR})" /></div>
+        <div><label class="dlabel">Extra headers (optional)</label><textarea class="dtextarea" placeholder={'{"HTTP-Referer": "https://acme.io"}'}></textarea></div>
+        <div class="modal-foot !px-0 !pb-0"><button type="button" class="btn btn-secondary" data-modal-close>Cancel</button><button type="submit" class="btn btn-primary">Add provider</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div slot="modals" class="modal-backdrop" id="modal-alias">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Add alias">
+      <div class="modal-head">
+        <div><h3 class="font-semibold text-ink-primary text-lg">Add model alias</h3><p class="text-sm text-ink-muted mt-0.5">Reference the alias in code; repoint it here any time.</p></div>
+        <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
+      </div>
+      <form class="modal-body space-y-3.5" data-action="Alias saved" data-close-modal="alias">
+        <div><label class="dlabel">Alias</label><input class="dinput mono" placeholder="fast" required /></div>
+        <div><label class="dlabel">Target model</label><input class="dinput mono" placeholder="groq/llama-3.3-70b" required /></div>
+        <div class="modal-foot !px-0 !pb-0"><button type="button" class="btn btn-secondary" data-modal-close>Cancel</button><button type="submit" class="btn btn-primary">Save alias</button></div>
+      </form>
+    </div>
+  </div>
+</DashboardLayout>

@@ -1,0 +1,339 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import PageHeader from "../../components/dashboard/PageHeader.astro";
+import Kpi from "../../components/dashboard/Kpi.astro";
+import StatusBadge from "../../components/dashboard/StatusBadge.astro";
+import Icon from "../../components/dashboard/Icon.astro";
+import { kpis, gatewayTools, auditLog, toolPolicies, eur, pct, num } from "../../data/dashboard";
+
+// ── Derived KPI inputs ─────────────────────────────────────
+const connectedCount = gatewayTools.filter((t) => t.status === "connected").length;
+const costViaTools = gatewayTools.reduce((s, t) => s + t.costTodayEur, 0);
+
+// Decision → badge styling for the audit log.
+const decisionBadge: Record<string, { cls: string; label: string }> = {
+  allow: { cls: "dbadge-ok", label: "allow" },
+  shaped: { cls: "dbadge-info", label: "shaped" },
+  deny: { cls: "dbadge-bad", label: "deny" },
+};
+
+// Cache-bar tone: high hit rate is good, near-zero is wasted round-trips.
+const cacheTone = (r: number) => (r >= 40 ? "prog-ok" : r >= 15 ? "prog-warn" : "prog-bad");
+---
+<DashboardLayout title="Tool Gateway" active="/app/gateway">
+  <PageHeader
+    kicker="Tool Gateway"
+    title="Every tool call, brokered and logged"
+    lead="Plynf sits between your agents and the outside world: it brokers each tool call through a capability token, shapes the response, and writes a tamper-evident record. Connected integrations, cache economics, and the full audit trail live here."
+  >
+    <a slot="actions" href="#audit" class="btn btn-secondary !py-2">Jump to audit log</a>
+    <button slot="actions" type="button" class="btn btn-primary !py-2" data-modal-open="connect">
+      <Icon name="plug" size={15} />Connect tool
+    </button>
+  </PageHeader>
+
+  <!-- ── KPI row ─────────────────────────────────────────── -->
+  <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+    <Kpi label="Tool calls today" value={num(kpis.toolCallsToday)} sub="brokered through the gateway" tint="indigo" />
+    <Kpi label="Cache hit rate" value={pct(kpis.cacheHitRate)} sub="served without a tool round-trip" tint="cyan" depth="technical" />
+    <Kpi label="Connected tools" value={`${connectedCount}/${gatewayTools.length}`} sub="integrations live right now" tint="lime" />
+    <Kpi label="Cost via tools" value={eur(costViaTools)} sub="external API spend today" tint="orange" />
+  </section>
+
+  <!-- ── Integrations table ──────────────────────────────── -->
+  <section class="card p-5 mb-4" data-reveal>
+    <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+      <div>
+        <h3 class="font-semibold text-ink-primary">Connected integrations</h3>
+        <p class="text-2xs text-ink-muted mt-0.5">Each tool is reached through a scoped capability token — never a raw key.</p>
+      </div>
+      <span class="dbadge dbadge-info"><Icon name="plug" size={12} />{connectedCount} connected · {gatewayTools.length - connectedCount} need attention</span>
+    </div>
+
+    <div class="overflow-x-auto -mx-1 px-1">
+      <table class="dtable min-w-[680px]">
+        <thead>
+          <tr>
+            <th>Tool</th>
+            <th>Category</th>
+            <th>Status</th>
+            <th class="num">Calls today</th>
+            <th>Cache hit</th>
+            <th class="num" data-depth="technical">p95</th>
+            <th class="num">Cost today</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {gatewayTools.map((t) => (
+            <tr>
+              <td class="mono strong">{t.name}</td>
+              <td class="text-ink-secondary">{t.category}</td>
+              <td><StatusBadge status={t.status} /></td>
+              <td class="num">{num(t.callsToday)}</td>
+              <td>
+                <div class="flex items-center gap-2.5 w-40">
+                  <div class={`prog ${cacheTone(t.cacheHitRate)} flex-1`}><span style={`width:${t.cacheHitRate}%`}></span></div>
+                  <span class="mono text-2xs text-ink-muted tnum w-9 text-right">{pct(t.cacheHitRate, 0)}</span>
+                </div>
+              </td>
+              <td class="num mono text-ink-secondary" data-depth="technical">{t.p95ms ? `${num(t.p95ms)}ms` : "—"}</td>
+              <td class="num">{t.costTodayEur > 0 ? eur(t.costTodayEur) : <span class="text-ink-muted">€0.00</span>}</td>
+              <td class="num">
+                <div class="inline-flex items-center gap-1">
+                  <button class="btn btn-ghost !py-1 !px-2 text-2xs" data-action={`Configuring ${t.name}`}><Icon name="edit" size={13} />Configure</button>
+                  <button class="btn btn-ghost !p-1.5" aria-label={`Disconnect ${t.name}`} data-action={`Disconnected ${t.name}`}><Icon name="trash" size={14} /></button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Response-shaping policies (the core product lever) ── -->
+  <section class="card glow-card card-tint-lime p-5 mb-4" data-reveal>
+    <div class="flex flex-wrap items-end justify-between gap-3 mb-1">
+      <div>
+        <div class="flex items-center gap-2">
+          <Icon name="coins" size={18} class="text-accent" />
+          <h3 class="font-semibold text-ink-primary">Response-shaping policies</h3>
+          <span class="dbadge dbadge-ok">{pct(kpis.reductionPct)} avg reduction</span>
+        </div>
+        <p class="text-[0.9rem] text-ink-secondary mt-2 max-w-2xl">
+          Keep only the fields each agent actually needs. A 150-field tool response becomes a handful — that's
+          where the token reduction comes from. Edit a policy and it applies on the next call, no redeploy.
+        </p>
+      </div>
+      <button class="btn btn-secondary !py-2" data-modal-open="policy"><Icon name="plus" size={15} />New policy</button>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-4 mt-4">
+      {toolPolicies.map((p) => (
+        <div class="rounded-xl border border-border bg-bg-1/40 p-4">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <span class="mono strong text-ink-primary text-sm">{p.tool}</span>
+              <div class="mt-1.5"><span class="dbadge dbadge-ok">{pct(p.reductionPct)} reduction</span></div>
+            </div>
+            <button class="btn btn-ghost !py-1.5 text-sm shrink-0" data-modal-open="policy"><Icon name="edit" size={14} />Edit policy</button>
+          </div>
+
+          <div class="mt-3">
+            <span class="kpi-label">Keep fields</span>
+            <div class="flex flex-wrap gap-1.5 mt-1.5">
+              {p.keepFields.map((f) => <span class="dbadge mono">{f}</span>)}
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 mt-3.5">
+            <div>
+              <span class="kpi-label">Max tokens</span>
+              <div class="mono text-ink-primary text-sm mt-0.5 tnum">{num(p.maxTokens)}</div>
+            </div>
+            <div>
+              <span class="kpi-label">Cache TTL</span>
+              <div class="mono text-ink-primary text-sm mt-0.5 tnum">{num(p.cacheTtlS)}s</div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between gap-3 mt-3.5 pt-3.5 border-t border-border">
+            <div class="min-w-0">
+              <div class="text-sm text-ink-primary">Block writes</div>
+              <div class="text-2xs text-ink-muted">Reject mutating calls from this tool</div>
+            </div>
+            <span
+              class="toggle"
+              role="switch"
+              aria-checked={p.blockWrites ? "true" : "false"}
+              tabindex="0"
+              data-label={`Block writes for ${p.tool}`}
+              aria-label={`Toggle block writes for ${p.tool}`}
+            ></span>
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- ── Audit log (tamper-evident) ──────────────────────── -->
+  <section id="audit" class="card glow-card card-tint-indigo p-5 sm:p-6 relative overflow-hidden" data-reveal data-depth="security">
+    <div class="bg-grid-dense opacity-20"></div>
+    <div class="relative">
+      <!-- header -->
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="max-w-xl">
+          <div class="flex items-center gap-2">
+            <Icon name="shield" size={18} class="text-accent" />
+            <h3 class="font-semibold text-ink-primary">Gateway audit log</h3>
+            <span class="dbadge dbadge-ok"><Icon name="check" size={12} />Verify chain ✓</span>
+          </div>
+          <p class="text-[0.9rem] text-ink-secondary mt-2">
+            Every brokered action is appended to a <span class="text-ink-primary">hash-chained</span>, append-only log: each
+            entry seals the hash of the one before it, so any tampering breaks the chain and is detectable. The latest
+            block verified clean.
+          </p>
+        </div>
+
+        <!-- decisions legend -->
+        <div class="flex flex-col items-start sm:items-end gap-2">
+          <span class="kpi-label">Decisions</span>
+          <div class="flex flex-wrap gap-1.5">
+            <span class="dbadge dbadge-ok">allow</span>
+            <span class="dbadge dbadge-info">shaped</span>
+            <span class="dbadge dbadge-bad">deny</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- filter -->
+      <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <div class="segmented" id="audit-filter" role="group" aria-label="Filter audit entries by decision">
+          <button type="button" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-filter="allow" aria-pressed="false">allow</button>
+          <button type="button" data-filter="shaped" aria-pressed="false">shaped</button>
+          <button type="button" data-filter="deny" aria-pressed="false">deny</button>
+        </div>
+        <span class="text-2xs mono text-ink-muted"><span id="audit-count">{auditLog.length}</span> of {auditLog.length} entries</span>
+      </div>
+
+      <!-- entries -->
+      <div class="mt-3 divide-card rounded-xl border border-border bg-bg-1/40" id="audit-log">
+        {auditLog.map((e) => {
+          const d = decisionBadge[e.decision] ?? { cls: "dbadge", label: e.decision };
+          return (
+            <div class="logrow" data-decision={e.decision}>
+              <span class="ts">{e.ts}</span>
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span class="mono text-ink-primary text-2xs">{e.actor}</span>
+                  <span class="text-ink-secondary text-2xs">{e.action}</span>
+                  {e.tool !== "—" && <span class="text-ink-muted text-2xs">· {e.tool}</span>}
+                </div>
+                <div class="text-2xs text-ink-muted mt-0.5">tenant <span class="mono">{e.tenant}</span></div>
+              </div>
+              <div class="flex items-center gap-2.5 justify-self-end">
+                <span class={`dbadge ${d.cls}`}>{d.label}</span>
+                <span class="hash hidden sm:inline">{e.hash}</span>
+              </div>
+            </div>
+          );
+        })}
+        <p class="text-sm text-ink-muted px-3 py-6 text-center hidden" id="audit-empty">No entries match this filter.</p>
+      </div>
+    </div>
+  </section>
+
+  <script is:inline>
+    (function () {
+      const root = document.getElementById("audit-filter");
+      const log = document.getElementById("audit-log");
+      const countEl = document.getElementById("audit-count");
+      const emptyEl = document.getElementById("audit-empty");
+      if (!root || !log) return;
+
+      const rows = Array.from(log.querySelectorAll(".logrow"));
+      const buttons = Array.from(root.querySelectorAll("button"));
+
+      function apply(filter) {
+        let shown = 0;
+        rows.forEach((row) => {
+          const match = filter === "all" || row.getAttribute("data-decision") === filter;
+          row.style.display = match ? "" : "none";
+          if (match) shown++;
+        });
+        if (countEl) countEl.textContent = String(shown);
+        if (emptyEl) emptyEl.classList.toggle("hidden", shown !== 0);
+      }
+
+      buttons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          buttons.forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+          apply(btn.getAttribute("data-filter") || "all");
+        });
+      });
+    })();
+  </script>
+
+  <!-- ── Modals ──────────────────────────────────────────── -->
+  <div slot="modals" class="modal-backdrop" id="modal-connect">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Connect tool">
+      <div class="modal-head">
+        <div>
+          <h3 class="font-semibold text-ink-primary text-lg">Connect a tool</h3>
+          <p class="text-sm text-ink-muted mt-0.5">Plynf brokers every call through a scoped capability token and shapes the response before it reaches the model.</p>
+        </div>
+        <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
+      </div>
+      <form class="modal-body space-y-3.5" data-action="Authorizing connector…" data-close-modal="connect">
+        <div>
+          <label class="dlabel" for="connect-provider">Provider</label>
+          <select id="connect-provider" class="dinput dselect">
+            <option>GitHub</option>
+            <option>Slack</option>
+            <option>Salesforce</option>
+            <option>Notion</option>
+            <option>Google</option>
+            <option>Linear</option>
+            <option>Custom REST</option>
+          </select>
+        </div>
+        <div>
+          <label class="dlabel" for="connect-auth">Auth method</label>
+          <select id="connect-auth" class="dinput dselect">
+            <option>OAuth</option>
+            <option>API key</option>
+          </select>
+        </div>
+        <div>
+          <label class="dlabel" for="connect-scopes">Scopes</label>
+          <input id="connect-scopes" class="dinput mono" placeholder="tool:orders:read, tool:email:write" />
+        </div>
+        <div class="modal-foot !px-0 !pb-0">
+          <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+          <button type="submit" class="btn btn-primary">Authorize</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div slot="modals" class="modal-backdrop" id="modal-policy">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Edit response-shaping policy">
+      <div class="modal-head">
+        <div>
+          <h3 class="font-semibold text-ink-primary text-lg">Response-shaping policy</h3>
+          <p class="text-sm text-ink-muted mt-0.5">Keep only the fields the agent needs. Fewer fields → fewer tokens → lower cost. Changes apply on the next call.</p>
+        </div>
+        <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
+      </div>
+      <form class="modal-body space-y-3.5" data-action="Shaping policy saved — applies on next call" data-close-modal="policy">
+        <div>
+          <label class="dlabel" for="policy-keep">Keep fields</label>
+          <textarea id="policy-keep" class="dtextarea mono" rows="4" placeholder="id, status, total, items[].sku, customer.email"></textarea>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="dlabel" for="policy-max">Max tokens</label>
+            <input id="policy-max" class="dinput mono" type="number" placeholder="256" />
+          </div>
+          <div>
+            <label class="dlabel" for="policy-ttl">Cache TTL (seconds)</label>
+            <input id="policy-ttl" class="dinput mono" type="number" placeholder="300" />
+          </div>
+        </div>
+        <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-1/40 px-3.5 py-3">
+          <div class="min-w-0">
+            <div class="text-sm text-ink-primary">Block writes</div>
+            <div class="text-2xs text-ink-muted">Reject mutating calls from this tool</div>
+          </div>
+          <span class="toggle" role="switch" aria-checked="true" tabindex="0" data-label="Block writes" aria-label="Toggle block writes"></span>
+        </div>
+        <div class="modal-foot !px-0 !pb-0">
+          <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+          <button type="submit" class="btn btn-primary">Save policy</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</DashboardLayout>

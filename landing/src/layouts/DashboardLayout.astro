@@ -1,0 +1,304 @@
+---
+import "../styles/globals.css";
+import "../styles/dashboard.css";
+import Icon from "../components/dashboard/Icon.astro";
+import ThemeToggle from "../components/ThemeToggle.astro";
+import { dashboardNav, navGroups, tenants, kpis } from "../data/dashboard";
+
+interface Props {
+  title: string;
+  active: string; // current nav href, e.g. "/app"
+  description?: string;
+}
+const { title, active, description = "Plynf control & monitoring dashboard." } = Astro.props;
+const fullTitle = `${title} · Plynf Dashboard`;
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#08070d" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+
+    <!-- Theme + role bootstrap before paint (no flash) -->
+    <script is:inline>
+      (function () {
+        try {
+          var t = localStorage.getItem("plinth-theme");
+          if (t === "light" || t === "dark")
+            document.documentElement.setAttribute("data-theme", t);
+        } catch (_) {}
+      })();
+    </script>
+
+    <!-- Session guard: dashboard is gated. Demo mode lets ?demo=1 through. -->
+    <script is:inline>
+      (function () {
+        try {
+          var url = new URL(window.location.href);
+          // Accept a token arriving in the fragment (OAuth broker style).
+          if (location.hash && location.hash.indexOf("token=") !== -1) {
+            var tok = location.hash.split("token=")[1].split("&")[0];
+            if (tok) {
+              localStorage.setItem("plynf_session", tok);
+              history.replaceState(null, "", url.pathname + url.search);
+            }
+          }
+          if (url.searchParams.get("demo") === "1") {
+            localStorage.setItem("plynf_session", "demo");
+          }
+          var session = localStorage.getItem("plynf_session");
+          if (!session) {
+            var next = encodeURIComponent(url.pathname);
+            window.location.replace("/login?next=" + next);
+          }
+        } catch (_) {}
+      })();
+    </script>
+  </head>
+
+  <body class="dash-bg" data-role="developer">
+    <div class="dash-grid">
+      <!-- ── Sidebar ─────────────────────────────────────── -->
+      <aside class="dash-sidebar" id="dash-sidebar">
+        <a href="/" class="flex items-center gap-2.5 px-2 py-1.5 mb-2" aria-label="Plynf home">
+          <span class="relative flex h-7 w-7 items-center justify-center rounded-lg bg-bg-2 border border-border overflow-hidden">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <defs>
+                <linearGradient id="db-rock" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#ff8551" />
+                  <stop offset="50%" stop-color="#d946ef" />
+                  <stop offset="100%" stop-color="#6366f1" />
+                </linearGradient>
+              </defs>
+              <path d="M5 17 L8 9 L12 6 L17 6 L20 11 L20 17 Z" fill="url(#db-rock)" stroke="#1d1f29" stroke-width="0.6" stroke-linejoin="round" />
+            </svg>
+          </span>
+          <span class="font-semibold tracking-tight text-ink-primary text-[15px]">Plynf</span>
+          <span class="dbadge dbadge-accent ml-auto !text-[0.6rem]">app</span>
+        </a>
+
+        <!-- Tenant switcher -->
+        <button class="dash-navlink mb-1 w-full" id="tenant-switch" aria-haspopup="listbox">
+          <span class="dot dot-healthy"></span>
+          <span class="flex-1 text-left">
+            <span class="block text-ink-primary text-[0.82rem] leading-tight" id="tenant-name">{tenants[0].name}</span>
+            <span class="block text-2xs text-ink-muted mono">{tenants[0].isolation} · {tenants[0].region}</span>
+          </span>
+          <Icon name="chevron" size={15} />
+        </button>
+
+        <nav class="flex flex-col gap-0.5 mt-1 overflow-y-auto" aria-label="Dashboard">
+          {navGroups.map((group) => (
+            <div class="mt-2 first:mt-1">
+              <div class="px-2.5 pb-1 text-[0.62rem] mono uppercase tracking-[0.14em] text-ink-muted">{group.label}</div>
+              {dashboardNav.filter((i) => i.group === group.id).map((item) => (
+                <a href={item.href} class="dash-navlink" aria-current={item.href === active ? "page" : undefined}>
+                  <Icon name={item.icon} />
+                  <span class="flex-1">{item.label}</span>
+                  {item.badge ? <span class="dbadge dbadge-bad !text-[0.65rem] !px-1.5 !py-0.5">{item.badge}</span> : null}
+                </a>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        <div class="mt-auto pt-3 border-t border-border">
+          <a href="https://docs.plynf.com" class="dash-navlink"><Icon name="external" size={16} /><span>Docs</span></a>
+          <button class="dash-navlink w-full" id="logout-btn"><Icon name="logout" size={16} /><span>Sign out</span></button>
+          <div class="flex items-center gap-2.5 px-2.5 py-2 mt-1">
+            <span class="h-7 w-7 rounded-full bg-gradient-to-br from-grad-orange to-grad-magenta grid place-items-center text-[0.7rem] font-semibold text-[#190612]">LH</span>
+            <span class="flex-1 min-w-0">
+              <span class="block text-[0.8rem] text-ink-primary truncate">Lena Hofer</span>
+              <span class="block text-2xs text-ink-muted truncate">Owner · acme</span>
+            </span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ── Main column ─────────────────────────────────── -->
+      <div class="min-w-0">
+        <header class="dash-topbar">
+          <div class="flex items-center gap-3 min-w-0">
+            <button class="btn btn-ghost h-9 w-9 !p-0 md:hidden" id="menu-btn" aria-label="Open navigation">
+              <Icon name="menu" size={18} />
+            </button>
+            <h1 class="text-[0.95rem] font-semibold text-ink-primary truncate">{title}</h1>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <!-- Role toggle: re-weights the whole dashboard per persona -->
+            <div class="segmented hidden sm:inline-flex" role="group" aria-label="View as role" id="role-toggle">
+              <button data-role="developer" aria-pressed="true">Developer</button>
+              <button data-role="lead" aria-pressed="false">Lead</button>
+              <button data-role="finance" aria-pressed="false">Finance</button>
+              <button data-role="security" aria-pressed="false">Security</button>
+            </div>
+
+            <button class="btn btn-ghost h-9 w-9 !p-0 relative" aria-label="Alerts">
+              <Icon name="bell" size={17} />
+              {kpis.alertsCount > 0 && (
+                <span class="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[#f4566f] ring-2 ring-bg-0"></span>
+              )}
+            </button>
+            <ThemeToggle />
+          </div>
+        </header>
+
+        <!-- Mobile role toggle -->
+        <div class="sm:hidden px-4 pt-3">
+          <div class="segmented w-full justify-between" role="group" aria-label="View as role" id="role-toggle-m">
+            <button data-role="developer" aria-pressed="true">Dev</button>
+            <button data-role="lead" aria-pressed="false">Lead</button>
+            <button data-role="finance" aria-pressed="false">Finance</button>
+            <button data-role="security" aria-pressed="false">Security</button>
+          </div>
+        </div>
+
+        <main class="dash-main mx-auto">
+          <slot />
+        </main>
+      </div>
+    </div>
+
+    <!-- Mobile sidebar backdrop -->
+    <div id="sidebar-backdrop" class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm hidden md:!hidden"></div>
+
+    <!-- Toast host -->
+    <div id="toast-host" aria-live="polite"></div>
+
+    <slot name="modals" />
+
+    <script is:inline>
+      (function () {
+        // ── Reveal-on-scroll (data-reveal → .is-visible). Without this the
+        //    dashboard cards stay at opacity:0 (rule lives in globals.css). ──
+        var reveals = document.querySelectorAll("[data-reveal]");
+        if (typeof IntersectionObserver === "undefined") {
+          reveals.forEach(function (el) { el.classList.add("is-visible"); });
+        } else {
+          var io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) {
+              if (e.isIntersecting) { e.target.classList.add("is-visible"); io.unobserve(e.target); }
+            });
+          }, { threshold: 0.08, rootMargin: "0px 0px -4% 0px" });
+          reveals.forEach(function (el) { io.observe(el); });
+        }
+
+        // ── Role toggle (persisted, drives [data-role] on <body>) ──
+        function applyRole(role) {
+          document.body.setAttribute("data-role", role);
+          try { localStorage.setItem("plynf-role", role); } catch (_) {}
+          document.querySelectorAll("#role-toggle button, #role-toggle-m button").forEach(function (b) {
+            b.setAttribute("aria-pressed", b.getAttribute("data-role") === role ? "true" : "false");
+          });
+        }
+        try {
+          var saved = localStorage.getItem("plynf-role");
+          if (saved) applyRole(saved);
+        } catch (_) {}
+        document.querySelectorAll("#role-toggle button, #role-toggle-m button").forEach(function (b) {
+          b.addEventListener("click", function () { applyRole(b.getAttribute("data-role")); });
+        });
+
+        // ── Mobile sidebar ──
+        var sidebar = document.getElementById("dash-sidebar");
+        var menuBtn = document.getElementById("menu-btn");
+        var backdrop = document.getElementById("sidebar-backdrop");
+        function openNav(open) {
+          if (!sidebar) return;
+          sidebar.setAttribute("data-open", open ? "true" : "false");
+          if (backdrop) backdrop.classList.toggle("hidden", !open);
+        }
+        menuBtn && menuBtn.addEventListener("click", function () { openNav(true); });
+        backdrop && backdrop.addEventListener("click", function () { openNav(false); });
+
+        // ── Sign out ──
+        var logout = document.getElementById("logout-btn");
+        logout && logout.addEventListener("click", function () {
+          try { localStorage.removeItem("plynf_session"); } catch (_) {}
+          window.location.href = "/login";
+        });
+
+        // ── Copy buttons (api keys, tokens, ids) ──
+        document.querySelectorAll("[data-copy]").forEach(function (el) {
+          el.addEventListener("click", function () {
+            var val = el.getAttribute("data-copy") || "";
+            navigator.clipboard && navigator.clipboard.writeText(val);
+            el.setAttribute("data-copied", "1");
+            setTimeout(function () { el.removeAttribute("data-copied"); }, 1400);
+          });
+        });
+
+        // ── Toasts (transient confirmation for control actions) ──
+        var host = document.getElementById("toast-host");
+        window.plynfToast = function (msg) {
+          if (!host) return;
+          var t = document.createElement("div");
+          t.className = "toast";
+          t.innerHTML = '<span class="dot" style="width:8px;height:8px"></span>';
+          t.appendChild(document.createTextNode(msg));
+          host.appendChild(t);
+          setTimeout(function () {
+            t.style.transition = "opacity .3s, transform .3s";
+            t.style.opacity = "0"; t.style.transform = "translateY(8px)";
+            setTimeout(function () { t.remove(); }, 320);
+          }, 2600);
+        };
+
+        // ── Modals: [data-modal-open="id"] opens #modal-<id>; [data-modal-close] / backdrop / Esc close ──
+        function setModal(id, open) {
+          var m = document.getElementById("modal-" + id);
+          if (m) m.setAttribute("data-open", open ? "true" : "false");
+        }
+        document.querySelectorAll("[data-modal-open]").forEach(function (b) {
+          b.addEventListener("click", function () { setModal(b.getAttribute("data-modal-open"), true); });
+        });
+        document.querySelectorAll(".modal-backdrop").forEach(function (bd) {
+          bd.addEventListener("click", function (e) { if (e.target === bd) bd.setAttribute("data-open", "false"); });
+          bd.querySelectorAll("[data-modal-close]").forEach(function (c) {
+            c.addEventListener("click", function () { bd.setAttribute("data-open", "false"); });
+          });
+        });
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "Escape") document.querySelectorAll('.modal-backdrop[data-open="true"]').forEach(function (bd) { bd.setAttribute("data-open", "false"); });
+        });
+
+        // ── Toggles ([role=switch]) ──
+        document.querySelectorAll(".toggle").forEach(function (sw) {
+          sw.addEventListener("click", function () {
+            var on = sw.getAttribute("aria-checked") === "true";
+            sw.setAttribute("aria-checked", on ? "false" : "true");
+            var label = sw.getAttribute("data-label");
+            if (label) window.plynfToast(label + (on ? " disabled" : " enabled"));
+          });
+        });
+
+        // ── Generic action confirmations + form submits (no backend → optimistic) ──
+        document.querySelectorAll("[data-action]").forEach(function (el) {
+          el.addEventListener("click", function (e) {
+            if (el.tagName === "A" && !el.getAttribute("href")) e.preventDefault();
+            var closeId = el.getAttribute("data-close-modal");
+            if (closeId) setModal(closeId, false);
+            window.plynfToast(el.getAttribute("data-action"));
+          });
+        });
+        document.querySelectorAll("form[data-action]").forEach(function (f) {
+          f.addEventListener("submit", function (e) {
+            e.preventDefault();
+            var closeId = f.getAttribute("data-close-modal");
+            if (closeId) setModal(closeId, false);
+            window.plynfToast(f.getAttribute("data-action"));
+            try { f.reset(); } catch (_) {}
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>

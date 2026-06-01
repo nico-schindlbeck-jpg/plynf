@@ -1,0 +1,518 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import PageHeader from "../../components/dashboard/PageHeader.astro";
+import StatusBadge from "../../components/dashboard/StatusBadge.astro";
+import Icon from "../../components/dashboard/Icon.astro";
+import { capabilityTokens, guardrails, team, tenants, agents, eur } from "../../data/dashboard";
+
+// Personal API key (solo-dev fast access). Masked for display; the full value
+// is wired to the shell's [data-copy] handler.
+const apiKeyFull = "plynf_sk_live_9f2c8a4be11d4c7f8a02e5b3d9714c6e";
+const apiKeyMasked = `${apiKeyFull.slice(0, 16)}${"•".repeat(18)}${apiKeyFull.slice(-4)}`;
+
+// Token rotation posture — surfaced for the security reviewer.
+const tokensNeedingRotation = capabilityTokens.filter(
+  (t) => t.status === "rotate-soon" || t.status === "expired",
+);
+
+const pctOf = (a: number, b: number) => (b > 0 ? Math.min(100, (a / b) * 100) : 0);
+---
+<DashboardLayout title="Settings & Safety" active="/app/settings">
+  <PageHeader
+    kicker="Settings & Safety"
+    title="Capabilities, guardrails & compliance"
+    lead="Every credential is scoped and rotatable, every agent is rate- and cost-capped, and every tenant is isolated — with a tamper-evident trail that stands up to an enterprise security review."
+  >
+    <a slot="actions" href="/app/gateway" class="btn btn-secondary !py-2">Audit log</a>
+    <button slot="actions" class="btn btn-secondary !py-2" id="rotate-all-btn">
+      <Icon name="rotate" size={15} />Rotate keys
+    </button>
+    <button slot="actions" class="btn btn-primary !py-2" data-modal-open="token">
+      <Icon name="key" size={15} />Create token
+    </button>
+  </PageHeader>
+
+  <!-- ── Your API key (solo-dev fast access) ─────────────── -->
+  <section class="mb-4">
+    <div class="card glow-card card-tint-orange p-6 sm:p-7 relative overflow-hidden" data-reveal>
+      <div class="bg-grid-dense opacity-30"></div>
+      <div class="relative flex flex-wrap items-center justify-between gap-6">
+        <div class="min-w-0">
+          <div class="kpi-label flex items-center gap-2"><Icon name="shield" size={13} />Your API key</div>
+          <p class="mt-2 text-ink-secondary text-[0.92rem] max-w-md">
+            One key for the SDK and CLI — scoped to <span class="text-ink-primary mono">acme</span>,
+            full tool access. Treat it like a password; rotate it the moment it leaks.
+          </p>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <code class="mono text-[0.85rem] text-ink-primary bg-bg-2/70 border border-border rounded-lg px-3.5 py-2 select-all truncate max-w-full">{apiKeyMasked}</code>
+            <button
+              class="btn btn-secondary !py-2 copy-btn"
+              data-copy={apiKeyFull}
+              data-label="Copy key"
+              aria-label="Copy API key"
+            >
+              <Icon name="copy" size={15} /><span class="copy-text">Copy</span>
+            </button>
+            <button class="btn btn-ghost !py-2" data-rotate="api-key" data-action="API key rotated"><Icon name="rotate" size={15} />Rotate</button>
+          </div>
+        </div>
+        <div class="w-full sm:w-auto sm:text-right">
+          <div class="kpi-label">Key status</div>
+          <div class="mt-2 flex sm:justify-end"><StatusBadge status="active" /></div>
+          <div class="mt-2 text-2xs text-ink-muted mono">last rotated 12d ago</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Capability tokens ───────────────────────────────── -->
+  <section class="mb-4">
+    <div class="card p-5 sm:p-6" data-reveal>
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div>
+          <h3 class="font-semibold text-ink-primary">Capability tokens</h3>
+          <p class="text-sm text-ink-muted mt-0.5">Least-privilege, per-tenant credentials. Scopes are explicit — no token can reach a tool it wasn't granted.</p>
+        </div>
+        {tokensNeedingRotation.length > 0 && (
+          <span class="dbadge dbadge-warn"><Icon name="rotate" size={12} />{tokensNeedingRotation.length} need rotation</span>
+        )}
+      </div>
+
+      <div class="overflow-x-auto -mx-1 px-1">
+        <table class="dtable">
+          <thead>
+            <tr>
+              <th>Token</th>
+              <th>Scopes</th>
+              <th>Tenant</th>
+              <th>Rotated</th>
+              <th>Last used</th>
+              <th class="num">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {capabilityTokens.map((t) => (
+              <tr>
+                <td>
+                  <div class="flex items-center gap-2">
+                    <span class="mono strong">{t.name}</span>
+                    <StatusBadge status={t.status} />
+                  </div>
+                  <div class="text-2xs text-ink-muted mono mt-0.5">{t.id}</div>
+                </td>
+                <td>
+                  <div class="flex flex-wrap gap-1">
+                    {t.scopes.map((s) => (
+                      <span class="dbadge !text-[0.65rem] !py-0.5">{s}</span>
+                    ))}
+                  </div>
+                </td>
+                <td><span class="dbadge dbadge-info !text-[0.65rem]">{t.tenant}</span></td>
+                <td>
+                  <span class={t.status === "expired" ? "text-[#f87f93] mono text-[0.8rem]" : t.status === "rotate-soon" ? "text-[#f6bd5e] mono text-[0.8rem]" : "text-ink-secondary mono text-[0.8rem]"}>{t.rotatedAgo}</span>
+                </td>
+                <td><span class="text-ink-muted mono text-[0.8rem]">{t.lastUsed}</span></td>
+                <td class="num">
+                  <div class="inline-flex items-center gap-1">
+                    <button class="btn btn-ghost !py-1 !px-2 text-2xs" data-rotate={t.id} data-action={`Rotating ${t.id} — new key minted`}><Icon name="rotate" size={13} />Rotate</button>
+                    <button
+                      class="btn btn-ghost !py-1 !px-2 text-2xs copy-btn"
+                      data-copy={t.id}
+                      data-label="Copy ID"
+                      aria-label={`Copy ${t.name} token id`}
+                    >
+                      <Icon name="copy" size={13} /><span class="copy-text">ID</span>
+                    </button>
+                    <button class="btn btn-ghost !py-1 !px-2 text-2xs text-[#f87f93]" data-action={`Revoked ${t.id}`} aria-label={`Revoke ${t.name}`}><Icon name="trash" size={13} />Revoke</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Rate limits & cost caps (technical) ─────────────── -->
+  <section class="mb-4" data-depth="technical">
+    <div class="card p-5 sm:p-6" data-reveal>
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div>
+          <h3 class="font-semibold text-ink-primary">Rate limits & cost caps</h3>
+          <p class="text-sm text-ink-muted mt-0.5">Hard ceilings per agent. A runaway loop is capped in requests-per-minute and in euros — automatically, before the bill arrives.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="dbadge dbadge-ok"><Icon name="shield" size={12} />Enforced</span>
+          <button class="btn btn-primary !py-1.5 !px-3 text-sm" data-action="Guardrails updated"><Icon name="check" size={14} />Save limits</button>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-2 gap-3">
+        {guardrails.map((g) => {
+          const rpmPct = pctOf(g.rpmCurrent, g.rpmLimit);
+          const costPct = pctOf(g.spentTodayEur, g.dailyCapEur);
+          return (
+            <div class="rounded-xl border border-border bg-bg-1/40 p-4">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-[0.9rem] text-ink-primary">{g.agent}</span>
+                <span class="text-2xs text-ink-muted mono">{g.agentId}</span>
+              </div>
+
+              <!-- RPM guardrail -->
+              <div class="mb-3">
+                <div class="flex items-center justify-between text-2xs mono text-ink-muted mb-1">
+                  <span>REQUESTS / MIN</span>
+                  <span class="tnum">{g.rpmCurrent} / {g.rpmLimit}</span>
+                </div>
+                <div class={`prog ${rpmPct > 70 ? "prog-warn" : "prog-ok"}`}><span style={`width:${rpmPct}%`}></span></div>
+                <div class="mt-2 grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="dlabel !text-2xs !mb-1" for={`rpm-${g.agentId}`}>Limit (rpm)</label>
+                    <input id={`rpm-${g.agentId}`} class="dinput mono !py-1.5 !text-[0.8rem]" type="number" value={g.rpmLimit} aria-label={`${g.agent} requests per minute limit`} />
+                  </div>
+                  <div>
+                    <label class="dlabel !text-2xs !mb-1" for={`burst-${g.agentId}`}>Burst</label>
+                    <input id={`burst-${g.agentId}`} class="dinput mono !py-1.5 !text-[0.8rem]" type="number" value={Math.round(g.rpmLimit * 1.5)} aria-label={`${g.agent} burst ceiling`} />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Daily cost cap -->
+              <div>
+                <div class="flex items-center justify-between text-2xs mono text-ink-muted mb-1">
+                  <span>DAILY COST CAP</span>
+                  <span class="tnum">{eur(g.spentTodayEur)} / {eur(g.dailyCapEur)}</span>
+                </div>
+                <div class={`prog ${costPct > 80 ? "prog-bad" : ""}`}><span style={`width:${costPct}%`}></span></div>
+                <div class="mt-2 flex items-end gap-2">
+                  <div class="flex-1">
+                    <label class="dlabel !text-2xs !mb-1" for={`cap-${g.agentId}`}>Daily cap (€)</label>
+                    <input id={`cap-${g.agentId}`} class="dinput mono !py-1.5 !text-[0.8rem]" type="number" value={g.dailyCapEur} aria-label={`${g.agent} daily cost cap in euros`} />
+                  </div>
+                  <button class="btn btn-secondary !py-1.5 !px-3 text-2xs" data-action={`Guardrails updated — ${g.agent}`}>Save</button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Team & tenants ──────────────────────────────────── -->
+  <section class="grid lg:grid-cols-3 gap-4 mb-4">
+    <!-- Members -->
+    <div class="card p-5 sm:p-6 lg:col-span-2" data-reveal>
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-semibold text-ink-primary">Team members</h3>
+        <button class="btn btn-secondary !py-1.5 !px-3 text-sm" data-modal-open="invite"><Icon name="plus" size={14} />Invite member</button>
+      </div>
+      <div class="overflow-x-auto -mx-1 px-1">
+        <table class="dtable">
+          <thead>
+            <tr>
+              <th>Member</th>
+              <th>Role</th>
+              <th>Tenant</th>
+              <th class="num">Last active</th>
+              <th class="num"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {team.map((m) => (
+              <tr>
+                <td>
+                  <div class="strong">{m.name}</div>
+                  <div class="text-2xs text-ink-muted mono mt-0.5">{m.email}</div>
+                </td>
+                <td>
+                  <select
+                    class="dselect role-select !py-1 !px-2 !text-[0.72rem] w-auto"
+                    aria-label={`Role for ${m.name}`}
+                    data-member={m.name}
+                  >
+                    {["Owner", "Admin", "Developer", "Finance", "Viewer"].map((r) => (
+                      <option selected={r === m.role}>{r}</option>
+                    ))}
+                  </select>
+                </td>
+                <td><span class="dbadge dbadge-info !text-[0.65rem]">{m.tenant}</span></td>
+                <td class="num"><span class="text-ink-muted mono text-[0.8rem]">{m.lastActive}</span></td>
+                <td class="num">
+                  {m.role === "Owner"
+                    ? <span class="text-2xs text-ink-muted">—</span>
+                    : <button class="btn btn-ghost !py-1 !px-2 text-2xs" data-action={`Managing ${m.name}`}>Manage</button>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tenant isolation -->
+    <div class="card p-5 sm:p-6" data-reveal data-depth="security">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-semibold text-ink-primary">Tenant isolation</h3>
+        <Icon name="shield" size={16} class="text-accent" />
+      </div>
+      <div class="space-y-3">
+        {tenants.map((t) => (
+          <div class="rounded-xl border border-border bg-bg-1/40 p-4">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[0.9rem] text-ink-primary">{t.name}</span>
+              <span class={`dbadge ${t.isolation === "dedicated" ? "dbadge-ok" : "dbadge-warn"} !text-[0.65rem]`}>
+                {t.isolation === "dedicated" ? "Dedicated" : "Pooled"}
+              </span>
+            </div>
+            <div class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-2xs mono text-ink-muted">
+              <span>Region</span><span class="text-right text-ink-secondary">{t.region}</span>
+              <span>Agents</span><span class="text-right text-ink-secondary tnum">{t.agents}</span>
+              <span>Monthly spend</span><span class="text-right text-ink-secondary tnum">{eur(t.monthlySpendEur)}</span>
+            </div>
+            <div class="mt-3 flex items-center gap-2 text-2xs text-ink-muted">
+              <span class={`dot ${t.isolation === "dedicated" ? "dot-healthy" : "dot-degraded"} !w-2 !h-2`}></span>
+              {t.isolation === "dedicated"
+                ? "Isolated compute & data plane — no shared state."
+                : "Shared plane with per-tenant scoping & row-level isolation."}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Data & compliance (security) ────────────────────── -->
+  <section class="grid lg:grid-cols-2 gap-4" data-depth="security">
+    <!-- GDPR + audit posture -->
+    <div class="card p-5 sm:p-6" data-reveal>
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-semibold text-ink-primary">Data & compliance</h3>
+        <span class="dbadge dbadge-info"><Icon name="shield" size={12} />GDPR</span>
+      </div>
+
+      <!-- GDPR data subject actions -->
+      <div class="rounded-xl border border-border bg-bg-1/40 p-4 mb-3">
+        <div class="text-[0.82rem] text-ink-primary mb-1">Data subject requests</div>
+        <p class="text-2xs text-ink-muted mb-3">Export or erase all data tied to a tenant. Erasure is irreversible and logged.</p>
+        <div class="flex flex-wrap gap-2">
+          <button class="btn btn-secondary !py-2 text-sm" data-action="Data export started — link will be emailed"><Icon name="download" size={15} />Export data</button>
+          <button class="btn btn-ghost !py-2 text-sm text-[#f87f93]" data-modal-open="delete-data"><Icon name="trash" size={15} />Delete tenant data</button>
+        </div>
+      </div>
+
+      <!-- Retention selector -->
+      <div class="flex items-center justify-between rounded-xl border border-border bg-bg-1/40 px-4 py-3 mb-3">
+        <div>
+          <div class="text-[0.82rem] text-ink-primary">Data retention</div>
+          <div class="text-2xs text-ink-muted">How long shaped payloads & logs are kept.</div>
+        </div>
+        <select
+          class="dselect retention-select !py-1.5 !px-3 !text-[0.8rem] w-auto"
+          aria-label="Data retention period"
+        >
+          <option>30 days</option>
+          <option selected>90 days</option>
+          <option>180 days</option>
+          <option>1 year</option>
+        </select>
+      </div>
+
+      <!-- Tamper-evident audit logs -->
+      <div class="flex items-center justify-between rounded-xl border border-border bg-bg-1/40 px-4 py-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <span class="dot dot-healthy"></span>
+          <div class="min-w-0">
+            <div class="text-[0.82rem] text-ink-primary">Tamper-evident audit logs</div>
+            <div class="text-2xs text-ink-muted mono truncate">hash-chained · every decision signed</div>
+          </div>
+        </div>
+        <span class="dbadge dbadge-ok !text-[0.65rem]">Enabled</span>
+      </div>
+    </div>
+
+    <!-- Observability export toggles -->
+    <div class="card p-5 sm:p-6" data-reveal>
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-semibold text-ink-primary">Observability export</h3>
+        <span class="dbadge dbadge-accent"><Icon name="plug" size={12} />Streams</span>
+      </div>
+      <p class="text-sm text-ink-muted mb-4">Stream traces, metrics & decisions to your own stack — nothing is locked in Plynf.</p>
+
+      <div class="space-y-2">
+        <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-1/40 px-4 py-3">
+          <span class="min-w-0">
+            <span class="block text-[0.85rem] text-ink-primary">OTLP traces</span>
+            <span class="block text-2xs text-ink-muted mono truncate">otel-collector.acme.internal:4317</span>
+          </span>
+          <span class="toggle" role="switch" aria-checked="true" tabindex="0" data-label="OTLP export" aria-label="Toggle OTLP export"></span>
+        </div>
+
+        <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-1/40 px-4 py-3">
+          <span class="min-w-0">
+            <span class="block text-[0.85rem] text-ink-primary">Prometheus metrics</span>
+            <span class="block text-2xs text-ink-muted mono truncate">/metrics · scraped every 15s</span>
+          </span>
+          <span class="toggle" role="switch" aria-checked="true" tabindex="0" data-label="Prometheus export" aria-label="Toggle Prometheus export"></span>
+        </div>
+
+        <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-1/40 px-4 py-3">
+          <span class="min-w-0">
+            <span class="block text-[0.85rem] text-ink-primary">Webhook events</span>
+            <span class="block text-2xs text-ink-muted mono truncate">decisions, alerts & DLQ events</span>
+          </span>
+          <span class="toggle" role="switch" aria-checked="false" tabindex="0" data-label="Webhook export" aria-label="Toggle webhook export"></span>
+        </div>
+
+        <div class="flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-1/40 px-4 py-3">
+          <span class="min-w-0">
+            <span class="block text-[0.85rem] text-ink-primary">Tamper-evident chain</span>
+            <span class="block text-2xs text-ink-muted mono truncate">hash-chain every exported record</span>
+          </span>
+          <span class="toggle" role="switch" aria-checked="true" tabindex="0" data-label="Tamper-evident chain" aria-label="Toggle tamper-evident chain"></span>
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <label class="dlabel" for="otlp-endpoint">Export endpoint</label>
+        <div class="flex items-center gap-2">
+          <input id="otlp-endpoint" class="dinput mono" value="https://hooks.acme.io/plynf" placeholder="https://collector.example:4317" />
+          <button class="btn btn-secondary !py-2" data-action="Export endpoint saved">Save</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Modals ──────────────────────────────────────────── -->
+  <div slot="modals" class="modal-backdrop" id="modal-token">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Create capability token">
+      <div class="modal-head">
+        <div>
+          <h3 class="font-semibold text-ink-primary text-lg">Create capability token</h3>
+          <p class="text-sm text-ink-muted mt-0.5">Least-privilege by default. The token is shown once on creation, then only ever masked.</p>
+        </div>
+        <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
+      </div>
+      <form class="modal-body space-y-3.5" data-action="Capability token issued" data-close-modal="token">
+        <div>
+          <label class="dlabel" for="tok-agent">Agent</label>
+          <select id="tok-agent" class="dselect" required>
+            {agents.map((a) => <option value={a.id}>{a.name} · {a.id}</option>)}
+          </select>
+        </div>
+        <div>
+          <label class="dlabel" for="tok-scopes">Scopes</label>
+          <input id="tok-scopes" class="dinput mono" placeholder="tool:web.* workspace:ws_x:rw" value="tool:orders:read tool:email:write" required />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="dlabel" for="tok-alg">Algorithm</label>
+            <select id="tok-alg" class="dselect">
+              <option>RS256</option>
+              <option>HS256</option>
+            </select>
+          </div>
+          <div>
+            <label class="dlabel" for="tok-ttl">TTL (days)</label>
+            <input id="tok-ttl" class="dinput mono" type="number" value="30" min="1" />
+          </div>
+        </div>
+        <div class="modal-foot !px-0 !pb-0">
+          <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+          <button type="submit" class="btn btn-primary"><Icon name="key" size={15} />Issue token</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div slot="modals" class="modal-backdrop" id="modal-invite">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Invite team member">
+      <div class="modal-head">
+        <div>
+          <h3 class="font-semibold text-ink-primary text-lg">Invite a team member</h3>
+          <p class="text-sm text-ink-muted mt-0.5">They get a scoped seat on this tenant. You can change or revoke their role any time.</p>
+        </div>
+        <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
+      </div>
+      <form class="modal-body space-y-3.5" data-action="Invitation sent" data-close-modal="invite">
+        <div>
+          <label class="dlabel" for="inv-email">Email</label>
+          <input id="inv-email" class="dinput mono" type="email" placeholder="name@acme.io" required />
+        </div>
+        <div>
+          <label class="dlabel" for="inv-role">Role</label>
+          <select id="inv-role" class="dselect">
+            <option>Owner</option>
+            <option>Admin</option>
+            <option selected>Developer</option>
+            <option>Finance</option>
+            <option>Viewer</option>
+          </select>
+        </div>
+        <div class="modal-foot !px-0 !pb-0">
+          <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+          <button type="submit" class="btn btn-primary">Send invite</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div slot="modals" class="modal-backdrop" id="modal-delete-data">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Delete tenant data">
+      <div class="modal-head">
+        <div>
+          <h3 class="font-semibold text-ink-primary text-lg">Delete tenant data</h3>
+          <p class="text-sm text-ink-muted mt-0.5">Irreversible. This erases all shaped payloads, logs & summaries for the tenant and is recorded in the tamper-evident audit chain.</p>
+        </div>
+        <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
+      </div>
+      <form class="modal-body space-y-3.5" data-action="Tenant data erasure scheduled" data-close-modal="delete-data">
+        <div>
+          <label class="dlabel" for="del-confirm">Type the tenant id to confirm</label>
+          <input id="del-confirm" class="dinput mono" placeholder="acme" required />
+        </div>
+        <div class="modal-foot !px-0 !pb-0">
+          <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
+          <button type="submit" class="btn btn-primary !bg-[#f4566f] !border-[#f4566f]"><Icon name="trash" size={15} />Delete data</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</DashboardLayout>
+
+<style>
+  /* Copy-button confirmation, wired by the shell's [data-copied] flip. */
+  [data-copied="1"] .copy-text::after { content: "ied!"; }
+  [data-copied="1"] .copy-text { font-size: 0; }
+  [data-copied="1"] .copy-text::before { content: "Copied"; font-size: 0.75rem; }
+</style>
+
+<script is:inline>
+  (function () {
+    // Decorative rotate buttons — give tactile feedback without a backend.
+    document.querySelectorAll("[data-rotate]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (btn.getAttribute("data-busy") === "1") return;
+        btn.setAttribute("data-busy", "1");
+        var original = btn.innerHTML;
+        btn.innerHTML = "Rotating…";
+        setTimeout(function () {
+          btn.innerHTML = original;
+          btn.removeAttribute("data-busy");
+        }, 1100);
+      });
+    });
+
+    // "Rotate keys" header button scrolls to the tokens table.
+    var rotateAll = document.getElementById("rotate-all-btn");
+    if (rotateAll) {
+      rotateAll.addEventListener("click", function () {
+        var section = document.querySelector(".dtable");
+        if (section && section.scrollIntoView) {
+          section.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      });
+    }
+  })();
+</script>

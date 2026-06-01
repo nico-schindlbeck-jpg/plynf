@@ -1,0 +1,35 @@
+---
+/**
+ * Status pill with an ampel dot. Maps a status keyword to colour + label.
+ * Works for agent status, tool status, workflow status, token status.
+ */
+interface Props {
+  status: string;
+  label?: string;
+}
+const { status, label } = Astro.props;
+
+const map: Record<string, { dot: string; badge: string; text: string }> = {
+  healthy: { dot: "dot-healthy", badge: "dbadge-ok", text: "Healthy" },
+  connected: { dot: "dot-healthy", badge: "dbadge-ok", text: "Connected" },
+  running: { dot: "dot-healthy", badge: "dbadge-ok", text: "Running" },
+  completed: { dot: "dot-healthy", badge: "dbadge-ok", text: "Completed" },
+  active: { dot: "dot-healthy", badge: "dbadge-ok", text: "Active" },
+  paid: { dot: "dot-healthy", badge: "dbadge-ok", text: "Paid" },
+  degraded: { dot: "dot-degraded", badge: "dbadge-warn", text: "Degraded" },
+  "rotate-soon": { dot: "dot-degraded", badge: "dbadge-warn", text: "Rotate soon" },
+  queued: { dot: "dot-paused", badge: "dbadge", text: "Queued" },
+  open: { dot: "dot-degraded", badge: "dbadge-warn", text: "Open" },
+  down: { dot: "dot-down", badge: "dbadge-bad", text: "Down" },
+  error: { dot: "dot-down", badge: "dbadge-bad", text: "Error" },
+  failed: { dot: "dot-down", badge: "dbadge-bad", text: "Failed" },
+  expired: { dot: "dot-down", badge: "dbadge-bad", text: "Expired" },
+  recovered: { dot: "dot-degraded", badge: "dbadge-info", text: "Recovered" },
+  paused: { dot: "dot-paused", badge: "dbadge", text: "Paused" },
+};
+const s = map[status] ?? { dot: "dot-paused", badge: "dbadge", text: status };
+---
+<span class={`dbadge ${s.badge}`}>
+  <span class={`dot ${s.dot} !w-2 !h-2`}></span>
+  {label ?? s.text}
+</span>

@@ -1,0 +1,377 @@
+/* =========================================================
+   Plynf Dashboard — component primitives.
+   Layers on top of globals.css design tokens (same palette,
+   fonts, shadows). Dashboard-only chrome lives here so the
+   marketing site stays lean.
+   ========================================================= */
+
+/* ── App shell ─────────────────────────────────────────── */
+.dash-bg {
+  min-height: 100vh;
+  background:
+    radial-gradient(60rem 40rem at 12% -10%, rgba(255, 133, 81, 0.06), transparent 60%),
+    radial-gradient(50rem 40rem at 100% 0%, rgba(99, 102, 241, 0.06), transparent 55%),
+    var(--bg-0);
+}
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+@media (max-width: 900px) {
+  .dash-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Sidebar ───────────────────────────────────────────── */
+.dash-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem 0.75rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 40%), var(--bg-1);
+  border-right: 1px solid var(--border);
+}
+
+@media (max-width: 900px) {
+  .dash-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 60;
+    width: 264px;
+    transform: translateX(-100%);
+    transition: transform 0.28s var(--ease-out-expo);
+  }
+  .dash-sidebar[data-open="true"] { transform: translateX(0); }
+}
+
+.dash-navlink {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.dash-navlink:hover { background: var(--bg-2); color: var(--text-primary); }
+.dash-navlink[aria-current="page"] {
+  background: var(--accent-subtle);
+  color: var(--text-primary);
+  border-color: rgba(255, 133, 81, 0.22);
+}
+.dash-navlink[aria-current="page"] svg { color: var(--accent); }
+.dash-navlink svg { width: 17px; height: 17px; flex: none; color: var(--text-muted); }
+
+/* ── Topbar ────────────────────────────────────────────── */
+.dash-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  height: 60px;
+  padding: 0 clamp(1rem, 3vw, 2rem);
+  background: color-mix(in srgb, var(--bg-0) 72%, transparent);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+
+.dash-main { padding: clamp(1.25rem, 3vw, 2rem); max-width: 1320px; }
+
+/* ── Segmented control (role toggle) ───────────────────── */
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.segmented button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.segmented button[aria-pressed="true"] {
+  background: linear-gradient(135deg, var(--grad-orange), var(--grad-magenta));
+  color: #190612;
+  box-shadow: 0 2px 10px rgba(255, 133, 81, 0.3);
+}
+
+/* ── KPI tile ──────────────────────────────────────────── */
+.kpi { padding: 1.1rem 1.25rem; border-radius: 16px; }
+.kpi-label {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.kpi-value {
+  margin-top: 0.4rem;
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--text-primary);
+}
+.kpi-sub { margin-top: 0.45rem; font-size: 0.8rem; color: var(--text-secondary); }
+
+/* ── Status ampel ──────────────────────────────────────── */
+.dot {
+  position: relative;
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  flex: none;
+}
+.dot::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  opacity: 0.35;
+}
+.dot-healthy { background: #2dd4a7; color: #2dd4a7; box-shadow: 0 0 10px rgba(45, 212, 167, 0.6); }
+.dot-healthy::after { animation: dot-ping 2.4s ease-in-out infinite; }
+.dot-degraded { background: #f5b042; color: #f5b042; box-shadow: 0 0 10px rgba(245, 176, 66, 0.55); }
+.dot-down { background: #f4566f; color: #f4566f; box-shadow: 0 0 10px rgba(244, 86, 111, 0.6); }
+.dot-paused { background: #6e6a8a; color: #6e6a8a; }
+@keyframes dot-ping {
+  0%, 100% { transform: scale(1); opacity: 0.35; }
+  50% { transform: scale(1.7); opacity: 0; }
+}
+
+/* ── Badges ────────────────────────────────────────────── */
+.dbadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-2);
+  color: var(--text-secondary);
+}
+.dbadge-ok { background: rgba(45, 212, 167, 0.12); color: #4fe0bd; border-color: rgba(45, 212, 167, 0.3); }
+.dbadge-warn { background: rgba(245, 176, 66, 0.12); color: #f6bd5e; border-color: rgba(245, 176, 66, 0.3); }
+.dbadge-bad { background: rgba(244, 86, 111, 0.12); color: #f87f93; border-color: rgba(244, 86, 111, 0.32); }
+.dbadge-accent { background: var(--accent-subtle); color: var(--accent); border-color: rgba(255, 133, 81, 0.3); }
+.dbadge-info { background: rgba(99, 102, 241, 0.14); color: #a5a7f6; border-color: rgba(99, 102, 241, 0.32); }
+
+/* ── Data table ────────────────────────────────────────── */
+.dtable { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.dtable thead th {
+  text-align: left;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 500;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.dtable tbody td {
+  padding: 0.7rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+.dtable tbody tr { transition: background 0.12s; }
+.dtable tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
+.dtable tbody tr:last-child td { border-bottom: 0; }
+.dtable .num { font-variant-numeric: tabular-nums; text-align: right; }
+.dtable .strong { color: var(--text-primary); font-weight: 500; }
+
+/* ── Progress bar ──────────────────────────────────────── */
+.prog { height: 6px; border-radius: 999px; background: var(--bg-3); overflow: hidden; }
+.prog > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--grad-orange), var(--grad-magenta));
+}
+.prog-ok > span { background: linear-gradient(90deg, #2dd4a7, #4fe0bd); }
+.prog-warn > span { background: linear-gradient(90deg, #f5b042, #f6bd5e); }
+.prog-bad > span { background: linear-gradient(90deg, #f4566f, #f87f93); }
+
+/* ── Workflow stepper ──────────────────────────────────── */
+.stepper { display: flex; flex-direction: column; gap: 0; }
+.step { display: flex; gap: 0.75rem; align-items: flex-start; padding-bottom: 1.1rem; position: relative; }
+.step:last-child { padding-bottom: 0; }
+.step::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 18px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--border);
+}
+.step:last-child::before { display: none; }
+.step-dot {
+  width: 18px; height: 18px; border-radius: 999px; flex: none; z-index: 1;
+  display: grid; place-items: center; border: 2px solid var(--border-strong);
+  background: var(--bg-2); color: var(--text-muted);
+}
+.step-done .step-dot { background: #2dd4a7; border-color: #2dd4a7; color: #06140f; }
+.step-active .step-dot { background: var(--accent); border-color: var(--accent); color: #190612; animation: dot-ping 2s ease-in-out infinite; }
+.step-failed .step-dot { background: #f4566f; border-color: #f4566f; color: #fff; }
+.step-checkpoint .step-dot { background: var(--grad-indigo); border-color: var(--grad-indigo); color: #fff; }
+.step-name { font-size: 0.85rem; color: var(--text-primary); }
+.step-meta { font-size: 0.72rem; color: var(--text-muted); font-family: "JetBrains Mono", monospace; }
+
+/* ── Log row (audit) ───────────────────────────────────── */
+.logrow {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  border: 1px solid transparent;
+  transition: background 0.12s;
+}
+.logrow:hover { background: rgba(255, 255, 255, 0.02); }
+.logrow .ts { font-family: "JetBrains Mono", monospace; color: var(--text-muted); font-size: 0.75rem; }
+.logrow .hash { font-family: "JetBrains Mono", monospace; color: var(--text-muted); font-size: 0.72rem; }
+
+/* ── Charts (inline SVG helpers) ───────────────────────── */
+.chart-area-with { fill: rgba(244, 86, 111, 0.12); stroke: #f4566f; stroke-width: 2; }
+.chart-area-saved { fill: url(#savedGrad); stroke: var(--accent); stroke-width: 2.5; }
+.chart-grid-line { stroke: var(--border); stroke-width: 1; }
+.bar-without { fill: rgba(244, 86, 111, 0.35); }
+.bar-with { fill: url(#barGrad); }
+
+/* ── Mini sparkline bars ───────────────────────────────── */
+.sparkbars { display: flex; align-items: flex-end; gap: 2px; height: 38px; }
+.sparkbars > i {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(180deg, var(--grad-orange), rgba(217, 70, 239, 0.5));
+  opacity: 0.85;
+}
+
+/* ── Section header ────────────────────────────────────── */
+.dash-h1 { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 700; letter-spacing: -0.03em; color: var(--text-primary); }
+.dash-lead { margin-top: 0.35rem; color: var(--text-secondary); font-size: 0.95rem; max-width: 60ch; }
+.dash-kicker { font-family: "JetBrains Mono", monospace; font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+
+/* ── Role-based visibility ─────────────────────────────────
+   [data-depth] blocks are shown/hidden by the active role.
+   technical: devs/leads/security  ·  finance: money-first view
+   The body carries data-role; CSS hides depth blocks not meant
+   for that role. JS in DashboardLayout flips data-role.
+   ───────────────────────────────────────────────────────── */
+[data-role="finance"] [data-depth="technical"] { display: none !important; }
+[data-role="developer"] [data-depth="finance-only"],
+[data-role="lead"] [data-depth="finance-only"],
+[data-role="security"] [data-depth="finance-only"] { display: none !important; }
+[data-role="security"] [data-depth="security"] { outline: 1px solid rgba(99, 102, 241, 0.0); }
+/* Security role highlights compliance blocks */
+[data-role="security"] [data-depth="security"] {
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25), 0 0 40px -20px rgba(99, 102, 241, 0.5);
+}
+
+/* ── Form controls (control-plane inputs) ──────────────── */
+.dlabel { display: block; font-family: "JetBrains Mono", monospace; font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.35rem; }
+.dinput, .dselect, .dtextarea {
+  width: 100%;
+  background: var(--bg-1);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.dinput::placeholder, .dtextarea::placeholder { color: var(--text-muted); }
+.dinput:focus, .dselect:focus, .dtextarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-subtle); }
+.dinput.mono { font-family: "JetBrains Mono", monospace; }
+.dtextarea { resize: vertical; min-height: 72px; font-family: "JetBrains Mono", monospace; font-size: 0.8rem; }
+
+/* Toggle switch */
+.toggle { position: relative; display: inline-flex; align-items: center; width: 40px; height: 22px; border-radius: 999px; background: var(--bg-3); border: 1px solid var(--border-strong); cursor: pointer; transition: background 0.18s, border-color 0.18s; flex: none; }
+.toggle::after { content: ""; position: absolute; left: 2px; top: 1px; width: 18px; height: 18px; border-radius: 999px; background: var(--text-muted); transition: transform 0.2s var(--ease-out-quart), background 0.2s; }
+.toggle[aria-checked="true"] { background: linear-gradient(135deg, var(--grad-orange), var(--grad-magenta)); border-color: transparent; }
+.toggle[aria-checked="true"]::after { transform: translateX(18px); background: #fff; }
+
+/* ── Modal / drawer ────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 80;
+  background: rgba(4, 3, 8, 0.6);
+  backdrop-filter: blur(6px);
+  display: grid; place-items: center;
+  padding: 1rem;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s var(--ease-out-quart);
+}
+.modal-backdrop[data-open="true"] { opacity: 1; pointer-events: auto; }
+.modal {
+  width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto;
+  background: var(--bg-1);
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  box-shadow: 0 24px 80px -20px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 133, 81, 0.06);
+  transform: translateY(8px) scale(0.99);
+  transition: transform 0.2s var(--ease-out-expo);
+}
+.modal-backdrop[data-open="true"] .modal { transform: translateY(0) scale(1); }
+.modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1.1rem 1.25rem 0.5rem; }
+.modal-body { padding: 0.5rem 1.25rem 1.25rem; }
+.modal-foot { display: flex; justify-content: flex-end; gap: 0.6rem; padding: 0.5rem 1.25rem 1.25rem; }
+
+/* ── Toast ─────────────────────────────────────────────── */
+#toast-host { position: fixed; bottom: 1.25rem; left: 50%; transform: translateX(-50%); z-index: 90; display: flex; flex-direction: column; gap: 0.5rem; align-items: center; pointer-events: none; }
+.toast {
+  display: flex; align-items: center; gap: 0.6rem;
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 0.6rem 1.1rem;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  box-shadow: 0 12px 40px -12px rgba(0, 0, 0, 0.6);
+  animation: toast-in 0.25s var(--ease-out-expo);
+}
+.toast .dot { background: var(--accent); color: var(--accent); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Copy button feedback */
+[data-copy] { position: relative; }
+[data-copied="1"]::after { content: "Copied"; position: absolute; top: -1.6rem; right: 0; font-size: 0.65rem; font-family: "JetBrains Mono", monospace; color: var(--accent); }
+
+/* ── Misc utilities ────────────────────────────────────── */
+.mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+.tnum { font-variant-numeric: tabular-nums; }
+.divide-card > * + * { border-top: 1px solid var(--border); }
+.copy-btn { cursor: pointer; }
+.copy-btn:active { transform: scale(0.96); }

@@ -1,0 +1,35 @@
+---
+import Icon from "./Icon.astro";
+interface Props {
+  label: string;
+  value: string;
+  sub?: string;
+  tint?: "orange" | "indigo" | "magenta" | "cyan" | "pink" | "lime";
+  trend?: number; // positive => up, shown with arrow; sign chooses color
+  trendGood?: "up" | "down"; // which direction is "good" (green)
+  depth?: string; // role-gating attribute pass-through
+}
+const { label, value, sub, tint, trend, trendGood = "up", depth } = Astro.props;
+const tintClass = tint ? `card-tint-${tint}` : "";
+let trendCls = "";
+let arrow = "";
+if (typeof trend === "number") {
+  const isUp = trend >= 0;
+  arrow = isUp ? "arrowup" : "arrowdown";
+  const good = (isUp && trendGood === "up") || (!isUp && trendGood === "down");
+  trendCls = good ? "dbadge-ok" : "dbadge-bad";
+}
+---
+<div class={`card kpi ${tintClass}`} data-depth={depth}>
+  <div class="flex items-start justify-between gap-2">
+    <span class="kpi-label">{label}</span>
+    {typeof trend === "number" && (
+      <span class={`dbadge ${trendCls} !text-[0.65rem]`}>
+        <Icon name={arrow} size={11} />
+        {Math.abs(trend).toFixed(1)}%
+      </span>
+    )}
+  </div>
+  <div class="kpi-value tnum">{value}</div>
+  {sub && <div class="kpi-sub">{sub}</div>}
+</div>

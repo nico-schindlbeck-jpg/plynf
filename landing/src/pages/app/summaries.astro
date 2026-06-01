@@ -1,0 +1,189 @@
+---
+import DashboardLayout from "../../layouts/DashboardLayout.astro";
+import PageHeader from "../../components/dashboard/PageHeader.astro";
+import Icon from "../../components/dashboard/Icon.astro";
+import { summaries, kpis, eur, pct, num } from "../../data/dashboard";
+
+// Distinct agents for the filter chips (preserve first-seen order).
+const filterAgents = summaries.reduce<{ id: string; name: string }[]>((acc, s) => {
+  if (!acc.some((a) => a.id === s.agentId)) acc.push({ id: s.agentId, name: s.agent });
+  return acc;
+}, []);
+
+// Synthesized "Today in a sentence" digest — finance-friendly, plain language.
+const taskCount = summaries.length;
+const distinctTools = [...new Set(summaries.flatMap((s) => s.tools))].length;
+const avgSavedPct = summaries.reduce((s, x) => s + x.tokensSavedPct, 0) / (summaries.length || 1);
+---
+<DashboardLayout title="Work Summaries" active="/app/summaries">
+  <PageHeader
+    kicker="Work Summaries"
+    title="What your agents actually got done"
+    lead="Plynf reads its own work back to you in plain language — every task, in a sentence you can forward to anyone."
+  >
+    <button slot="actions" class="btn btn-secondary !py-2" data-action="Exporting work digest"><Icon name="download" size={15} />Export digest</button>
+  </PageHeader>
+
+  <!-- ── Today in a sentence: plain-language digest ───────── -->
+  <section class="grid lg:grid-cols-3 gap-4 mb-4">
+    <div class="card glow-card card-tint-indigo lg:col-span-2 p-6 sm:p-7 relative overflow-hidden" data-reveal>
+      <div class="bg-grid-dense opacity-30"></div>
+      <div class="relative">
+        <div class="flex items-center gap-2 kpi-label">
+          <Icon name="sparkles" size={14} />
+          Today, in a sentence
+        </div>
+        <p class="mt-3 text-[clamp(1.15rem,2.2vw,1.55rem)] leading-snug text-ink-primary max-w-2xl tracking-[-0.01em]">
+          Your agents finished <span class="text-accent font-semibold">{taskCount} pieces of work</span> today —
+          from refund disputes to a competitor brief and a contract redline — calling
+          <span class="text-ink-primary font-medium">{distinctTools} different tools</span> along the way, and
+          Plynf trimmed their tool responses enough to save you
+          <span class="text-accent font-semibold">{eur(kpis.savedTodayEur)}</span>.
+        </p>
+        <p class="mt-3 text-ink-secondary max-w-xl text-[0.95rem]">
+          No dashboards to decode. Every run below is written the way you'd explain it to a colleague —
+          what it set out to do, what it touched, and how it landed.
+        </p>
+      </div>
+    </div>
+
+    <!-- Quick stats rail -->
+    <div class="card p-6 flex flex-col justify-center gap-5" data-reveal>
+      <div>
+        <div class="kpi-label">Stories today</div>
+        <div class="kpi-value tnum">{num(taskCount)}</div>
+        <div class="kpi-sub">across {filterAgents.length} agents</div>
+      </div>
+      <div class="h-px bg-border"></div>
+      <div data-depth="finance-only">
+        <div class="kpi-label">Saved today</div>
+        <div class="kpi-value tnum text-accent">{eur(kpis.savedTodayEur)}</div>
+        <div class="kpi-sub">vs. running these tasks raw</div>
+      </div>
+      <div data-depth="technical">
+        <div class="kpi-label">Avg. token reduction</div>
+        <div class="kpi-value tnum">{pct(avgSavedPct)}</div>
+        <div class="kpi-sub">mean across today's stories</div>
+      </div>
+      <div class="h-px bg-border"></div>
+      <label class="flex items-center justify-between gap-3 cursor-pointer">
+        <span>
+          <span class="block text-sm text-ink-primary">Daily summary email</span>
+          <span class="block kpi-sub">a digest like this, every morning</span>
+        </span>
+        <span class="toggle shrink-0" role="switch" aria-checked="true" tabindex="0" data-label="Daily summary email"></span>
+      </label>
+    </div>
+  </section>
+
+  <!-- ── Filter row ───────────────────────────────────────── -->
+  <section class="flex flex-wrap items-center gap-3 mb-5" data-reveal>
+    <span class="dash-kicker">Filter by agent</span>
+    <div class="segmented flex-wrap" id="agent-filter">
+      <button type="button" data-agent="all" aria-pressed="true">All</button>
+      {filterAgents.map((a) => (
+        <button type="button" data-agent={a.id} aria-pressed="false">{a.name}</button>
+      ))}
+    </div>
+    <span class="text-2xs mono text-ink-muted ml-auto" id="filter-count">{taskCount} stories</span>
+  </section>
+
+  <!-- ── The feed ─────────────────────────────────────────── -->
+  <section class="space-y-4" id="summary-feed">
+    {summaries.map((s) => (
+      <article class="summary-card card card-hover p-6 sm:p-7" data-agent={s.agentId} data-reveal>
+        <!-- header -->
+        <div class="flex flex-wrap items-center gap-3 mb-3">
+          <span class="dot dot-healthy"></span>
+          <span class="text-sm font-medium text-ink-primary">{s.agent}</span>
+          <span class="text-2xs mono text-ink-muted">{s.when}</span>
+          <span class="dbadge dbadge-ok ml-auto" data-depth="technical">
+            <Icon name="arrowdown" size={11} />
+            {pct(s.tokensSavedPct)} tokens saved
+          </span>
+        </div>
+
+        <!-- title -->
+        <h3 class="text-[1.15rem] sm:text-[1.3rem] font-semibold text-ink-primary tracking-[-0.01em] leading-snug">
+          {s.title}
+        </h3>
+
+        <!-- body -->
+        <p class="mt-2.5 text-ink-secondary text-[0.95rem] leading-relaxed max-w-[68ch]">
+          {s.body}
+        </p>
+
+        <!-- tools + sources -->
+        <div class="mt-5 grid sm:grid-cols-2 gap-4" data-depth="technical">
+          <div>
+            <div class="text-2xs mono text-ink-muted mb-2 uppercase tracking-[0.08em]">Tools used</div>
+            <div class="flex flex-wrap gap-1.5">
+              {s.tools.map((t) => <span class="dbadge mono">{t}</span>)}
+            </div>
+          </div>
+          <div>
+            <div class="text-2xs mono text-ink-muted mb-2 uppercase tracking-[0.08em]">Sources</div>
+            <div class="flex flex-wrap gap-1.5">
+              {s.sources.map((src) => (
+                <span class="inline-flex items-center rounded-full border border-border bg-bg-1/50 px-2.5 py-0.5 text-2xs text-ink-secondary">{src}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <!-- result -->
+        <div class="mt-5 flex items-start gap-2.5 rounded-xl border border-accent/20 bg-accent/[0.06] px-4 py-3">
+          <span class="dbadge dbadge-accent mt-0.5 shrink-0">Result</span>
+          <p class="text-[0.92rem] text-ink-primary leading-snug">{s.result}</p>
+        </div>
+
+        <!-- subtle reading-mode actions -->
+        <div class="mt-3 flex items-center gap-1">
+          <button type="button" class="btn btn-ghost !py-1.5 text-sm" data-action={`Opening ${s.result}`}>
+            <Icon name="external" size={14} />Open report
+          </button>
+          <button type="button" class="btn btn-ghost !py-1.5 text-sm" data-action="Share link copied">
+            <Icon name="link" size={14} />Share
+          </button>
+        </div>
+      </article>
+    ))}
+
+    <!-- empty state (shown by JS when a filter matches nothing) -->
+    <div class="card p-8 text-center hidden" id="feed-empty">
+      <p class="text-ink-muted text-sm">No stories from this agent today.</p>
+    </div>
+  </section>
+
+  <script is:inline>
+  (function () {
+    const filter = document.getElementById("agent-filter");
+    const feed = document.getElementById("summary-feed");
+    const countEl = document.getElementById("filter-count");
+    const emptyEl = document.getElementById("feed-empty");
+    if (!filter || !feed) return;
+
+    const buttons = Array.from(filter.querySelectorAll("button[data-agent]"));
+    const cards = Array.from(feed.querySelectorAll(".summary-card"));
+
+    function apply(agent) {
+      let shown = 0;
+      cards.forEach(function (card) {
+        const match = agent === "all" || card.getAttribute("data-agent") === agent;
+        card.classList.toggle("hidden", !match);
+        if (match) shown++;
+      });
+      if (countEl) countEl.textContent = shown + (shown === 1 ? " story" : " stories");
+      if (emptyEl) emptyEl.classList.toggle("hidden", shown !== 0);
+    }
+
+    buttons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        buttons.forEach(function (b) { b.setAttribute("aria-pressed", "false"); });
+        btn.setAttribute("aria-pressed", "true");
+        apply(btn.getAttribute("data-agent") || "all");
+      });
+    });
+  })();
+  </script>
+</DashboardLayout>
