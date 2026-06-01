@@ -1,0 +1,144 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+
+// Partner program tiers. Deliberately concrete so a platform team can see
+// exactly what "working together" means and self-select.
+const tiers = [
+  {
+    name: "Listed",
+    who: "Any platform that's OpenAI-compatible",
+    blurb: "Your users point a base URL at Plynf today. We list you in the Connect directory.",
+    points: ["Appears in /install + the in-product Connect picker", "Copy-paste setup snippet", "No engineering from your side"],
+    cta: "It already works",
+    href: "/install",
+    featured: false,
+  },
+  {
+    name: "Verified",
+    who: "Tools with a marketplace or plugin system",
+    blurb: "We co-build and certify a first-class connector, published in your store.",
+    points: ["Co-built + tested integration", "Pre-registered OAuth (no end-user dev portal)", "Listed as a verified Plynf integration"],
+    cta: "Build a connector",
+    href: "mailto:partners@plynf.com?subject=Verified%20Plynf%20connector",
+    featured: true,
+  },
+  {
+    name: "Native",
+    who: "Model providers & agent platforms",
+    blurb: "Plynf is one click inside your product — an “Add to Plynf” button and joint savings reporting.",
+    points: ["“Add to Plynf” button in your UI", "Embedded savings dashboard for your users", "Co-marketing + a shared case study"],
+    cta: "Go native",
+    href: "mailto:partners@plynf.com?subject=Native%20Plynf%20integration",
+    featured: false,
+  },
+];
+
+// Ecosystem Plynf already speaks to. Neutral monogram treatment — these are
+// the surfaces our adapters/connectors target, NOT endorsements. Trademarks
+// belong to their owners.
+const ecosystem = [
+  "OpenAI", "Anthropic", "Google Gemini", "Cohere", "Mistral", "Groq",
+  "Azure OpenAI", "AWS Bedrock", "OpenRouter", "Together", "DeepSeek", "Perplexity",
+  "LangChain", "LlamaIndex", "Vercel AI", "LiteLLM", "Cursor", "Claude Code",
+  "Continue", "Ollama", "n8n", "Zapier", "Make", "Slack", "Salesforce", "Notion",
+  "Linear", "GitHub",
+];
+const tints = ["#ff8551", "#d946ef", "#6366f1"];
+---
+<BaseLayout
+  title="Partners — Plynf for Platforms"
+  description="Make Plynf one click for your users. Co-built connectors, pre-registered OAuth, an Add-to-Plynf button and joint cost-savings reporting for model providers, agent platforms and automation tools."
+>
+  <Nav />
+  <main id="main">
+    <!-- Hero -->
+    <section class="container-page" style="padding-top: 4rem; padding-bottom: 1rem;">
+      <div class="eyebrow mb-5"><span class="eyebrow-dot"></span>Plynf for Platforms</div>
+      <h1 class="hero-headline" style="font-size: clamp(2.2rem, 5vw, 4rem);">
+        Make Plynf <span class="gradient-text-accent">one click</span> for your users.
+      </h1>
+      <p class="mt-6 max-w-2xl text-ink-secondary text-lg leading-relaxed">
+        Build a platform that agents run on — a model API, an agent IDE, an automation tool? We work
+        with you directly so your users cut tokens 70%+ without leaving your surface. Three ways in,
+        from a zero-effort listing to a fully native integration.
+      </p>
+      <div class="mt-7 flex flex-wrap items-center gap-3">
+        <a href="mailto:partners@plynf.com?subject=Plynf%20partnership" class="btn btn-primary">Partner with us</a>
+        <a href="https://github.com/nico-schindlbeck-jpg/plynf/discussions" rel="noopener" class="btn btn-secondary">Talk on GitHub</a>
+      </div>
+    </section>
+
+    <!-- Tiers -->
+    <section class="container-page section-sm">
+      <div class="grid md:grid-cols-3 gap-4">
+        {tiers.map((t) => (
+          <div class={`card p-6 relative ${t.featured ? "glow-card card-tint-orange" : ""}`}>
+            {t.featured && <span class="dbadge dbadge-accent absolute top-5 right-5">Most partners</span>}
+            <h3 class="text-xl font-bold text-ink-primary">{t.name}</h3>
+            <p class="text-2xs mono uppercase tracking-wider text-ink-muted mt-1">{t.who}</p>
+            <p class="text-sm text-ink-secondary mt-3 leading-relaxed">{t.blurb}</p>
+            <ul class="mt-4 space-y-2">
+              {t.points.map((p) => (
+                <li class="flex items-start gap-2 text-sm text-ink-secondary">
+                  <span class="text-accent mt-0.5">✓</span><span>{p}</span>
+                </li>
+              ))}
+            </ul>
+            <a href={t.href} rel="noopener" class={`btn ${t.featured ? "btn-primary" : "btn-secondary"} mt-5`}>{t.cta}</a>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- What we bring -->
+    <section class="container-page section-sm">
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { t: "Pre-registered OAuth", d: "Your users connect tools without touching a developer portal — auth is brokered, scoped and revocable." },
+          { t: "Co-built connectors", d: "We pair with your team and ship the integration; you keep the surface, your users gain shaping." },
+          { t: "Add-to-Plynf button", d: "An embeddable button + redirect that provisions an endpoint and key in your product." },
+          { t: "Joint savings reporting", d: "Show your users their token + € savings inside your UI, powered by Plynf telemetry." },
+        ].map((c) => (
+          <div class="card p-5">
+            <div class="text-sm font-medium text-ink-primary">{c.t}</div>
+            <p class="text-sm text-ink-secondary mt-1.5 leading-relaxed">{c.d}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Ecosystem -->
+    <section class="container-page section-sm">
+      <p class="section-eyebrow">The ecosystem</p>
+      <h2 class="section-title" style="font-size: clamp(1.6rem, 3vw, 2.2rem);">Plynf already speaks to these</h2>
+      <p class="section-subtitle">Native front doors for the model APIs, and connectors or copy-paste setup for the tools teams ship with.</p>
+      <div class="mt-7 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+        {ecosystem.map((name, i) => (
+          <div class="flex items-center gap-3 rounded-xl border border-border bg-bg-1/40 px-3.5 py-3">
+            <span class="h-8 w-8 rounded-lg grid place-items-center text-[0.8rem] font-bold flex-none" style={`background:${tints[i % 3]}1f;color:${tints[i % 3]}`}>{name[0]}</span>
+            <span class="text-sm text-ink-primary truncate">{name}</span>
+          </div>
+        ))}
+      </div>
+      <p class="mt-4 text-2xs text-ink-muted">
+        Independent integrations. Product names and trademarks belong to their respective owners and
+        do not imply endorsement. Want your logo here, officially? <a href="mailto:partners@plynf.com" class="text-accent hover:underline">Let's talk.</a>
+      </p>
+    </section>
+
+    <!-- CTA band -->
+    <section class="container-page" style="padding-top: 1rem; padding-bottom: 6rem;">
+      <div class="card glow-card card-tint-indigo p-7 text-center">
+        <h2 class="text-2xl font-bold text-ink-primary">Let's put Plynf in front of your users.</h2>
+        <p class="mt-3 text-ink-secondary max-w-xl mx-auto">Tell us what you're building. We'll come back with the shortest path to a native, one-click Plynf for your platform.</p>
+        <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <a href="mailto:partners@plynf.com?subject=Plynf%20partnership" class="btn btn-primary">Partner with us</a>
+          <a href="/install" class="btn btn-secondary">See how users connect</a>
+        </div>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</BaseLayout>

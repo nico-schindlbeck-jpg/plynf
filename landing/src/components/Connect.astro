@@ -15,26 +15,34 @@ import {
   platformTags,
   connectors,
   PLYNF_ENDPOINT,
+  PLYNF_BASE,
   PLYNF_KEY_PLACEHOLDER,
 } from "../data/platforms";
 
 interface Props {
   endpoint?: string;
+  base?: string; // dialect-door base (Anthropic/Gemini/Ollama)
   keyValue?: string; // real key on the dashboard; placeholder on marketing
   cloudHref?: string; // where "Start on Plynf Cloud" goes
   connectorHref?: string; // where a connector "Connect" goes
+  settingsHref?: string; // where the "find your key" hint goes
   showCloud?: boolean;
 }
 const {
   endpoint = PLYNF_ENDPOINT,
+  base = PLYNF_BASE,
   keyValue = PLYNF_KEY_PLACEHOLDER,
   cloudHref = "/login?next=%2Fapp",
   connectorHref = "/login?next=%2Fapp%2Fgateway",
+  settingsHref = "/login?next=%2Fapp%2Fsettings",
   showCloud = true,
 } = Astro.props;
 
 const sub = (code: string) =>
-  code.replaceAll("__ENDPOINT__", endpoint).replaceAll("__KEY__", keyValue);
+  code
+    .replaceAll("__ENDPOINT__", endpoint)
+    .replaceAll("__BASE__", base)
+    .replaceAll("__KEY__", keyValue);
 const tintHex: Record<string, string> = {
   orange: "#ff8551",
   magenta: "#d946ef",
@@ -127,7 +135,7 @@ const tintHex: Record<string, string> = {
               </div>
               <div class="flex items-center gap-2 mt-3">
                 <button class="btn btn-primary connect-copy" data-copy-from={`code-${p.id}`}><Icon name="copy" size={15} />{p.action}</button>
-                <span class="text-2xs text-ink-muted">Find your key under <a href="/login?next=%2Fapp%2Fsettings" class="text-accent hover:underline">Settings → API key</a>.</span>
+                <span class="text-2xs text-ink-muted">Find your key under <a href={settingsHref} class="text-accent hover:underline">Settings → API key</a>.</span>
               </div>
             </div>
           )}
