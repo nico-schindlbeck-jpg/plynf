@@ -109,6 +109,35 @@ const tints = ["#ff8551", "#d946ef", "#6366f1"];
       </div>
     </section>
 
+    <!-- Add to Plynf — the embeddable button (Native tier) -->
+    <section class="container-page section-sm">
+      <div class="card p-6 sm:p-8">
+        <p class="section-eyebrow">Add to Plynf</p>
+        <h2 class="section-title" style="font-size: clamp(1.6rem, 3vw, 2.2rem);">One button in your product. A provisioned Plynf for your user.</h2>
+        <p class="section-subtitle">
+          Drop this button into your UI. It sends users to a co-branded flow that provisions a Plynf
+          endpoint + key and lands them back in your product — connected, shaping, saving. We pass
+          your <code class="mono text-accent">ref</code> so usage is attributed to you.
+        </p>
+        <div class="mt-6 grid lg:grid-cols-[auto_minmax(0,1fr)] gap-6 items-center">
+          <div class="flex items-center justify-center rounded-xl border border-border bg-bg-1/40 p-8">
+            <a href="https://app.plynf.com/login?ref=demo" class="btn btn-primary !py-3 !px-5">
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 17 L8 9 L12 6 L17 6 L20 11 L20 17 Z" fill="#190612" stroke="#190612" stroke-width="0.6" stroke-linejoin="round"/></svg>
+              Add to Plynf
+            </a>
+          </div>
+          <div>
+            <div class="code-block !py-3 relative">
+              <pre id="embed-code" class="overflow-x-auto text-xs leading-relaxed"><code>{`<a href="https://app.plynf.com/login?ref=YOUR_APP"
+   class="plynf-add-button">Add to Plynf</a>`}</code></pre>
+            </div>
+            <button class="btn btn-secondary mt-3 partners-copy" data-copy-from="embed-code">Copy embed snippet</button>
+            <p class="text-2xs text-ink-muted mt-2">We'll send you the exact markup + brand assets when we set up your <code class="mono">ref</code>.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Ecosystem -->
     <section class="container-page section-sm">
       <p class="section-eyebrow">The ecosystem</p>
@@ -140,5 +169,18 @@ const tints = ["#ff8551", "#d946ef", "#6366f1"];
       </div>
     </section>
   </main>
+  <script is:inline>
+    (function () {
+      document.querySelectorAll(".partners-copy").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var src = document.getElementById(btn.getAttribute("data-copy-from") || "");
+          if (src && navigator.clipboard) navigator.clipboard.writeText(src.textContent || "");
+          var t = btn.textContent;
+          btn.textContent = "Copied ✓";
+          setTimeout(function () { btn.textContent = t; }, 1400);
+        });
+      });
+    })();
+  </script>
   <Footer />
 </BaseLayout>
