@@ -71,8 +71,10 @@ from .mock_llm import (
 )
 from .ollama_adapter import (
     ollama_chat_request_to_openai,
+    ollama_generate_request_to_openai,
     ollama_tags_from_models,
     openai_response_to_ollama_chat,
+    openai_response_to_ollama_generate,
 )
 from .policy_engine import ConnectorPolicy, PolicyError, ToolPolicy, apply, load_all_policies
 from .policy_overrides import (
@@ -967,6 +969,62 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
             return JSONResponse(ollama_final, headers=headers)
         return StreamingResponse(
             _synthesize_ollama_ndjson(ollama_final),
+            media_type="application/x-ndjson",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", **headers},
+        )
+
+    @app.post("/api/generate")
+    async def ollama_generate(request: Request) -> Response:
+        """Ollama native ``POST /api/generate`` endpoint (single-turn prompt).
+
+        The prompt-style sibling of ``/api/chat`` that many simple scripts use:
+        an optional ``system`` plus a ``prompt`` are translated to an OpenAI
+        chat request, run through the full Plynf pipeline, and returned as
+        Ollama's flat ``{response, done, done_reason, prompt_eval_count,
+        eval_count}`` body. Streaming defaults true and is served as NDJSON with
+        ``response`` chunks. Routing and savings headers behave exactly as on
+        ``/api/chat``.
+        """
+        st: AppState = app.state.plinth
+        ollama_body = await request.json()
+        raw_stream = ollama_body.get("stream")
+        wants_stream = True if raw_stream is None else bool(raw_stream)
+        tenant_id, tier = await _authenticate(request, st)
+        _enforce_tier(st, tenant_id, tier)
+
+        openai_body = ollama_generate_request_to_openai(ollama_body)
+        openai_body["stream"] = False
+
+        header_base_url = request.headers.get(HEADER_BASE_URL)
+        header_api_key = request.headers.get(HEADER_API_KEY)
+        before = len(st.events)
+        openai_final = await _handle_chat(
+            st,
+            openai_body,
+            tenant_id,
+            header_base_url=header_base_url,
+            header_api_key=header_api_key,
+        )
+        new_shaped = sum(ev.shaped_response_tokens for ev in st.events[before:])
+        if new_shaped:
+            st.gate.record_tokens(tenant_id, new_shaped)
+
+        ollama_final = openai_response_to_ollama_generate(
+            openai_final, model=ollama_body.get("model")
+        )
+        headers = _savings_headers(st, before)
+        headers.update(
+            _provider_header(
+                st,
+                openai_body.get("model") or "",
+                header_base_url=header_base_url,
+                header_api_key=header_api_key,
+            )
+        )
+        if not wants_stream:
+            return JSONResponse(ollama_final, headers=headers)
+        return StreamingResponse(
+            _synthesize_ollama_generate_ndjson(ollama_final),
             media_type="application/x-ndjson",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", **headers},
         )
@@ -2629,6 +2687,47 @@ async def _synthesize_ollama_ndjson(final: dict[str, Any]):
             "model": model,
             "created_at": created_at,
             "message": final_msg,
+            "done": True,
+            "done_reason": final.get("done_reason", "stop"),
+            "prompt_eval_count": final.get("prompt_eval_count", 0),
+            "eval_count": final.get("eval_count", 0),
+        }
+    )
+
+
+async def _synthesize_ollama_generate_ndjson(final: dict[str, Any]):
+    """Yield Ollama ``/api/generate`` NDJSON chunks for a completed response.
+
+    Like :func:`_synthesize_ollama_ndjson` but for the flat ``response`` string
+    form (no ``message`` wrapper, no tool calls): a run of ``{response: piece,
+    done:false}`` lines then a terminal ``{response:"", done:true, ...}`` line
+    carrying ``done_reason`` and token counts.
+    """
+    model = final.get("model", "")
+    created_at = final.get("created_at", "")
+    response = final.get("response") or ""
+
+    def _line(obj: dict[str, Any]) -> str:
+        return json.dumps(obj, separators=(",", ":")) + "\n"
+
+    if response:
+        parts = response.split(" ")
+        for i, part in enumerate(parts):
+            piece = part if i == 0 else " " + part
+            yield _line(
+                {
+                    "model": model,
+                    "created_at": created_at,
+                    "response": piece,
+                    "done": False,
+                }
+            )
+
+    yield _line(
+        {
+            "model": model,
+            "created_at": created_at,
+            "response": "",
             "done": True,
             "done_reason": final.get("done_reason", "stop"),
             "prompt_eval_count": final.get("prompt_eval_count", 0),

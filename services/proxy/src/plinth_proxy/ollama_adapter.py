@@ -76,7 +76,18 @@ def ollama_chat_request_to_openai(
     if fn_tools:
         out["tools"] = fn_tools
 
-    # format → response_format
+    _apply_inference_params(out, body)
+    return out
+
+
+def _apply_inference_params(out: dict[str, Any], body: dict[str, Any]) -> None:
+    """Map Ollama's ``format`` + ``options`` onto an OpenAI request in place.
+
+    Shared by the ``/api/chat`` and ``/api/generate`` translators: ``format``
+    ("json" or a JSON-Schema object) → ``response_format``, and the nested
+    ``options`` knobs (``num_predict`` → ``max_tokens``, plus temperature /
+    top_p / stop / seed) onto their OpenAI equivalents.
+    """
     fmt = body.get("format")
     if fmt == "json":
         out["response_format"] = {"type": "json_object"}
@@ -86,7 +97,6 @@ def ollama_chat_request_to_openai(
             "json_schema": {"name": "response", "schema": fmt},
         }
 
-    # options → inference knobs (Ollama nests them; num_predict is max_tokens).
     opts = body.get("options")
     if isinstance(opts, dict):
         if "temperature" in opts:
@@ -102,6 +112,30 @@ def ollama_chat_request_to_openai(
         if stop:
             out["stop"] = stop
 
+
+def ollama_generate_request_to_openai(
+    body: dict[str, Any], model: str | None = None
+) -> dict[str, Any]:
+    """Translate an Ollama ``/api/generate`` request into OpenAI chat shape.
+
+    ``/api/generate`` is single-turn: an optional ``system`` string plus a
+    ``prompt`` become a ``messages`` array. It predates tool-calling, so no
+    tools are translated. ``format`` / ``options`` are applied as for
+    ``/api/chat``. Stateful ``context`` tokens have no stateless equivalent and
+    are dropped.
+    """
+    messages: list[dict[str, Any]] = []
+    system = body.get("system")
+    if isinstance(system, str) and system:
+        messages.append({"role": "system", "content": system})
+    prompt = body.get("prompt")
+    messages.append({"role": "user", "content": prompt if isinstance(prompt, str) else ""})
+
+    out: dict[str, Any] = {
+        "model": model or body.get("model") or "gpt-4o",
+        "messages": messages,
+    }
+    _apply_inference_params(out, body)
     return out
 
 
@@ -213,6 +247,28 @@ def _tool_calls_out(tool_calls: list[Any]) -> list[dict[str, Any]]:
     return out
 
 
+def openai_response_to_ollama_generate(
+    resp: dict[str, Any], model: str | None = None
+) -> dict[str, Any]:
+    """Translate an OpenAI chat result into an Ollama ``/api/generate`` response.
+
+    ``/api/generate`` carries the assistant text as a flat ``response`` string
+    (no ``message`` wrapper, no tool calls — it predates tool-calling)."""
+    choice = (resp.get("choices") or [{}])[0]
+    msg = choice.get("message") or {}
+    finish = choice.get("finish_reason") or "stop"
+    usage = resp.get("usage") or {}
+    return {
+        "model": model or resp.get("model") or "",
+        "created_at": _created_at(resp.get("created")),
+        "response": msg.get("content") or "",
+        "done": True,
+        "done_reason": _DONE_REASON_MAP.get(finish, "stop"),
+        "prompt_eval_count": usage.get("prompt_tokens", 0) or 0,
+        "eval_count": usage.get("completion_tokens", 0) or 0,
+    }
+
+
 def _created_at(created: Any) -> str:
     """RFC3339 timestamp for Ollama's ``created_at`` from OpenAI's unix int."""
     if isinstance(created, (int, float)) and created > 0:
@@ -262,6 +318,8 @@ def ollama_tags_from_models(models: dict[str, Any]) -> dict[str, Any]:
 
 __all__ = [
     "ollama_chat_request_to_openai",
+    "ollama_generate_request_to_openai",
     "openai_response_to_ollama_chat",
+    "openai_response_to_ollama_generate",
     "ollama_tags_from_models",
 ]

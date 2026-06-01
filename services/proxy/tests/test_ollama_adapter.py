@@ -13,8 +13,10 @@ from fastapi.testclient import TestClient
 from plinth_proxy.api import create_app
 from plinth_proxy.ollama_adapter import (
     ollama_chat_request_to_openai,
+    ollama_generate_request_to_openai,
     ollama_tags_from_models,
     openai_response_to_ollama_chat,
+    openai_response_to_ollama_generate,
 )
 from plinth_proxy.settings import ProxySettings
 
@@ -140,6 +142,49 @@ def test_response_tool_calls_args_decoded_to_object():
 
 
 # ---------------------------------------------------------------------------
+# /api/generate translation (single-turn prompt)
+# ---------------------------------------------------------------------------
+
+
+def test_generate_request_builds_messages_from_system_and_prompt():
+    out = ollama_generate_request_to_openai(
+        {"model": "llama3.2", "system": "be brief", "prompt": "why is the sky blue?"}
+    )
+    assert out["model"] == "llama3.2"
+    assert out["messages"] == [
+        {"role": "system", "content": "be brief"},
+        {"role": "user", "content": "why is the sky blue?"},
+    ]
+
+
+def test_generate_request_without_system_is_single_user_turn():
+    out = ollama_generate_request_to_openai({"model": "m", "prompt": "hi"})
+    assert out["messages"] == [{"role": "user", "content": "hi"}]
+
+
+def test_generate_request_applies_format_and_options():
+    out = ollama_generate_request_to_openai(
+        {"model": "m", "prompt": "x", "format": "json", "options": {"num_predict": 64}}
+    )
+    assert out["response_format"] == {"type": "json_object"}
+    assert out["max_tokens"] == 64
+
+
+def test_generate_response_is_flat_response_string():
+    resp = {
+        "choices": [{"message": {"content": "blue light scatters"}, "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 6, "completion_tokens": 3},
+    }
+    out = openai_response_to_ollama_generate(resp, model="llama3.2")
+    assert out["response"] == "blue light scatters"
+    assert "message" not in out  # flat, not wrapped
+    assert out["done"] is True
+    assert out["done_reason"] == "stop"
+    assert out["prompt_eval_count"] == 6
+    assert out["eval_count"] == 3
+
+
+# ---------------------------------------------------------------------------
 # Model listing: OpenAI ListModels → Ollama /api/tags
 # ---------------------------------------------------------------------------
 
@@ -221,3 +266,17 @@ def test_api_version(demo_client):
     r = demo_client.get("/api/version")
     assert r.status_code == 200
     assert r.json()["version"].startswith("0.0.0-plynf")
+
+
+def test_api_generate_non_stream_returns_flat_response(demo_client):
+    r = demo_client.post(
+        "/api/generate",
+        json={"model": "llama3.2", "prompt": "why is the sky blue?", "stream": False},
+    )
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/json")
+    body = r.json()
+    assert body["model"] == "llama3.2"
+    assert isinstance(body["response"], str) and body["response"]
+    assert "message" not in body  # /api/generate is flat
+    assert body["done"] is True

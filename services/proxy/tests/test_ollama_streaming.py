@@ -15,7 +15,11 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from plinth_proxy.api import _synthesize_ollama_ndjson, create_app
+from plinth_proxy.api import (
+    _synthesize_ollama_generate_ndjson,
+    _synthesize_ollama_ndjson,
+    create_app,
+)
 from plinth_proxy.settings import ProxySettings
 
 
@@ -108,3 +112,37 @@ async def test_synthesize_emits_tool_calls_on_final_line():
     assert lines[0]["done"] is True
     assert lines[0]["message"]["tool_calls"][0]["function"]["name"] == "get_order"
     assert lines[0]["eval_count"] == 5
+
+
+# ---------------------------------------------------------------------------
+# /api/generate streaming (flat `response` NDJSON)
+# ---------------------------------------------------------------------------
+
+
+def test_generate_stream_defaults_on_and_reconstructs(demo_client):
+    body = {"model": "llama3.2", "prompt": "why is the sky blue?"}
+    unary = demo_client.post("/api/generate", json=dict(body, stream=False)).json()
+    r = demo_client.post("/api/generate", json=body)  # stream omitted → NDJSON
+    assert r.headers["content-type"].startswith("application/x-ndjson")
+    lines = _lines(r.text)
+    assert lines[-1]["done"] is True
+    streamed = "".join(ln.get("response", "") for ln in lines)
+    assert streamed == unary["response"]
+
+
+async def test_synthesize_generate_final_line_carries_counts():
+    final = {
+        "model": "llama3.2",
+        "created_at": "2026-01-01T00:00:00Z",
+        "response": "blue light scatters",
+        "done": True,
+        "done_reason": "stop",
+        "prompt_eval_count": 6,
+        "eval_count": 3,
+    }
+    lines = [json.loads(c) async for c in _synthesize_ollama_generate_ndjson(final)]
+    assert "".join(ln.get("response", "") for ln in lines) == "blue light scatters"
+    assert lines[-1]["done"] is True
+    assert lines[-1]["done_reason"] == "stop"
+    assert lines[-1]["eval_count"] == 3
+    assert all("message" not in ln for ln in lines)  # flat form, never wrapped
