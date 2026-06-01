@@ -2,9 +2,11 @@
 
 A precise, ordered runbook to take Plynf from "works on my laptop" to a public
 product at **plynf.com**. Written for a non-developer: do the steps top to
-bottom. Steps marked **[needs a dev]** are the two that genuinely want an
-engineer for ~an afternoon (hosting + TLS). Everything else is accounts,
-copy-paste, and clicks.
+bottom. The backend (step 4) is now **one command** — the proxy and automatic
+HTTPS are bundled into the compose stack — so the only thing that wants a little
+terminal comfort is pointing a domain at a server and running it (~30 min). The
+managed Render/Fly path (step 4, Option B) needs even less. Everything else is
+accounts, copy-paste, and clicks.
 
 Each step ends with **Done when:** — don't move on until that's true.
 
@@ -21,11 +23,13 @@ You'll end up with four public surfaces on your domain:
 | `oauth.plynf.com` | OAuth broker for one-click tool connectors | Cloudflare Worker (step 8) |
 | `docs.plynf.com` | Docs (optional, later) | — |
 
-Two backend groups run behind `app.plynf.com`:
+Everything behind `app.plynf.com` ships in **one** `deploy/compose.prod.yml`:
 - **Runtime services**: dashboard (7424), identity (7425), gateway (7422),
-  workspace (7421) — shipped in `deploy/compose.prod.yml` + Helm.
-- **The proxy** (the token-shaping LLM front door, `services/proxy`, port 7430)
-  — deployed alongside; this is what SDKs point their base URL at.
+  workspace (7421).
+- **The proxy** — the token-shaping LLM front door SDKs point their base URL at.
+- **Caddy** — the edge that terminates HTTPS and routes `/v1/*` + `/api/chat*`
+  to the proxy and everything else to the dashboard. Certificates are fetched
+  and renewed automatically; there's nothing to run by hand.
 
 ---
 
@@ -34,7 +38,7 @@ Two backend groups run behind `app.plynf.com`:
 - [ ] A domain you control (**plynf.com**) at any registrar.
 - [ ] **Netlify** account (free) — hosts the site.
 - [ ] **Cloudflare** account (free) — hosts the OAuth broker + manages DNS (easiest).
-- [ ] A host for the backend (pick one): **Hetzner/DigitalOcean VPS** (cheapest, [needs a dev]) **or** **Render/Fly.io** (managed, deploy files already in `deploy/`).
+- [ ] A host for the backend (pick one): **Hetzner/DigitalOcean VPS** (cheapest — one `docker compose up`) **or** **Render/Fly.io** (managed; deploy files already in `deploy/` + `services/proxy/`).
 - [ ] An **OpenAI** (or Anthropic/etc.) API key — the upstream the proxy forwards to.
 - [ ] An **email** provider for `partners@` / `support@` (e.g. Cloudflare Email Routing — free).
 - [ ] Later: **npm**, **Zapier developer**, **Make developer**, **Stripe** (see step 9–11).
@@ -74,50 +78,54 @@ Save both in your host's secret manager (next step). **Never commit them.**
 
 ---
 
-## 4. Deploy the runtime services [needs a dev] (1–2 h)
+## 4. Put the backend online (one command)
 
-**Option A — one VPS (recommended, cheapest).**
-1. SSH to the VPS, install Docker.
-2. Copy `deploy/compose.prod.yml` + a `.env` with at least:
-   ```
-   PLINTH_IDENTITY_JWT_SECRET=<the secret from step 3>
-   PLINTH_LOG_FORMAT=json
-   ```
-3. Put **Caddy** in front for automatic HTTPS + path routing. Minimal `Caddyfile`:
-   ```
-   app.plynf.com {
-     handle /api/app/*   { reverse_proxy localhost:7424 }   # dashboard API
-     handle /v1/*        { reverse_proxy localhost:7430 }   # proxy (OpenAI door)
-     handle /v1/messages { reverse_proxy localhost:7430 }   # Anthropic door
-     handle /api/chat*   { reverse_proxy localhost:7430 }   # Ollama door
-     handle              { reverse_proxy localhost:7424 }   # everything else → dashboard
-   }
-   ```
-4. `docker compose -f deploy/compose.prod.yml up -d` and run Caddy.
+The whole backend — runtime services, the **proxy**, and an automatic-HTTPS
+**Caddy** edge — is one compose stack. There's no separate reverse proxy to
+install and no certificates to manage.
 
-**Option B — managed (Render/Fly).** Use the configs in `deploy/` to create one
-service per component; each gets its own HTTPS URL. Then map `app.plynf.com`
-to the dashboard + proxy (a small reverse-proxy or Fly `[[services]]` routing).
+**Option A — one small server (recommended, cheapest).**
+1. Create a Linux server (Hetzner/DigitalOcean, 2 vCPU / 4 GB is plenty). Point
+   `app.plynf.com`'s A record at its IP (step 2) and open ports **80 + 443**.
+2. Install Docker, copy the repo (or just the `deploy/` folder), and make your
+   env file from the template:
+   ```bash
+   cp deploy/prod.env.example deploy/.env
+   nano deploy/.env     # set PLYNF_APP_DOMAIN + PLYNF_ACME_EMAIL now
+                        # (the model/proxy vars come in step 5)
+   ```
+3. Bring it up:
+   ```bash
+   docker compose -f deploy/compose.prod.yml pull
+   docker compose -f deploy/compose.prod.yml up -d --wait
+   ```
+   Caddy fetches and renews the TLS certificate for your domain automatically.
 
-**Done when:** `curl https://app.plynf.com/healthz` returns `{"status":"ok"…}`.
+**Option B — managed (Render/Fly).** Use the deploy configs in `deploy/` and
+`services/proxy/` (`render.yaml`, `fly.toml`) to create one service per
+component — each gets its own HTTPS URL. Then map `app.plynf.com` to the
+dashboard + proxy.
+
+**Done when:** `curl https://app.plynf.com/healthz` returns `{"status":"ok"…}`
+(allow Caddy ~30 s on first boot to issue the certificate).
 
 ---
 
-## 5. Deploy the proxy + point it at a real model (30 min)
+## 5. Point the proxy at a real model (5 min)
 
-The proxy (`services/proxy`) runs as its own container/process on **7430**. Set:
+The proxy is already running from step 4 — in **safe mock mode** until you give
+it a model. To forward to a real upstream, fill these in the **same**
+`deploy/.env` and re-apply:
 
 ```
 PLINTH_PROXY_DEMO_MODE=false
 PLINTH_PROXY_UPSTREAM_BASE_URL=https://api.openai.com
 PLINTH_PROXY_UPSTREAM_API_KEY=<your OpenAI key>
 PLINTH_PROXY_API_KEYS=<the tenant:key:tier from step 3>
-PLINTH_PROXY_IDENTITY_URL=https://app.plynf.com        # verify dashboard tokens
-# Optional multi-provider routing (JSON), see Routing & Providers in the app:
-# PLINTH_PROXY_PROVIDERS=[{"name":"groq","base_url":"https://api.groq.com/openai","api_key":"${GROQ_API_KEY}"}]
 ```
 
-Run: `uvicorn plinth_proxy.api:app --host 0.0.0.0 --port 7430` (or its container).
+The proxy's identity + gateway URLs are already wired internally — nothing else
+to set. Re-apply with `docker compose -f deploy/compose.prod.yml up -d`.
 
 **Done when:**
 ```bash
@@ -129,16 +137,15 @@ returns a real completion (not a mock).
 
 ---
 
-## 6. Turn on dashboard auth (5 min)
+## 6. Turn on dashboard auth (2 min)
 
-On the **dashboard** service set:
+The dashboard's internal URLs (identity/gateway/proxy) and CORS are already
+wired in the compose stack. To require a login on the control plane, flip one
+flag in `deploy/.env`:
 ```
 PLINTH_DASHBOARD_APP_AUTH_REQUIRED=true
-PLINTH_DASHBOARD_IDENTITY_URL=http://identity:7425   # internal URL on your host
-PLINTH_DASHBOARD_PROXY_URL=http://localhost:7430      # for live savings telemetry
-PLINTH_DASHBOARD_CORS_ORIGINS=https://plynf.com,https://app.plynf.com
 ```
-Restart it.
+Re-apply: `docker compose -f deploy/compose.prod.yml up -d`.
 
 **Done when:** `curl https://app.plynf.com/api/app/state` returns **401** (good —
 it now requires a token), and logging in via the site works (step 7).

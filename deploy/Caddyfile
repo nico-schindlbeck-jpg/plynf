@@ -1,0 +1,34 @@
+# Plynf edge — terminates TLS for your app domain and routes traffic to the
+# two public surfaces: the LLM proxy and the dashboard control plane.
+#
+# Caddy obtains and renews Let's Encrypt certificates automatically the moment
+# ${PLYNF_APP_DOMAIN}'s A/AAAA record points at this host (ports 80 + 443 must
+# be reachable). Nothing to run by hand — bring the stack up and it just works.
+#
+# Used by deploy/compose.prod.yml (mounted read-only at /etc/caddy/Caddyfile).
+# PLYNF_APP_DOMAIN and PLYNF_ACME_EMAIL come from the compose environment.
+
+{$PLYNF_APP_DOMAIN} {
+	tls {$PLYNF_ACME_EMAIL}
+	encode zstd gzip
+
+	# ── LLM proxy: OpenAI/Anthropic-compatible API + the Ollama-style door ──
+	handle /v1/* {
+		reverse_proxy proxy:7430
+	}
+	handle /api/chat* {
+		reverse_proxy proxy:7430
+	}
+
+	# ── Dashboard control plane (/api/app/*), health probes, overview reads ──
+	handle {
+		reverse_proxy dashboard:7424
+	}
+
+	header {
+		# Sensible security defaults for an API edge.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+}
