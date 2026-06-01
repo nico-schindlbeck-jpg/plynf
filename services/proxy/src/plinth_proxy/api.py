@@ -69,6 +69,11 @@ from .mock_llm import (
     mock_models,
     mock_text_completion,
 )
+from .ollama_adapter import (
+    ollama_chat_request_to_openai,
+    ollama_tags_from_models,
+    openai_response_to_ollama_chat,
+)
 from .policy_engine import ConnectorPolicy, PolicyError, ToolPolicy, apply, load_all_policies
 from .policy_overrides import (
     PolicyOverrideStore,
@@ -905,6 +910,86 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", **headers},
         )
 
+    @app.post("/api/chat")
+    async def ollama_chat(request: Request) -> Response:
+        """Ollama native ``POST /api/chat`` endpoint.
+
+        Translates the Ollama-shaped request to OpenAI, runs the same Plynf
+        pipeline (auth → tier-gate → tool-call interception → shaping →
+        savings), then translates back to Ollama's ``{message, done,
+        done_reason, prompt_eval_count, eval_count}`` envelope. Any tool that
+        speaks the Ollama native protocol only needs its base URL pointed at
+        Plynf to get response-shaping savings.
+
+        Ollama defaults ``stream`` to true; streaming is served as Ollama's
+        newline-delimited JSON (NDJSON). Plynf computes the result unary
+        (tool-call interception must finish first) and replays the shaped final
+        message as NDJSON, so a native client needs no code change and the
+        per-call savings headers ride along.
+        """
+        st: AppState = app.state.plinth
+        ollama_body = await request.json()
+        raw_stream = ollama_body.get("stream")
+        wants_stream = True if raw_stream is None else bool(raw_stream)
+        tenant_id, tier = await _authenticate(request, st)
+        _enforce_tier(st, tenant_id, tier)
+
+        openai_body = ollama_chat_request_to_openai(ollama_body)
+        openai_body["stream"] = False
+
+        header_base_url = request.headers.get(HEADER_BASE_URL)
+        header_api_key = request.headers.get(HEADER_API_KEY)
+        before = len(st.events)
+        openai_final = await _handle_chat(
+            st,
+            openai_body,
+            tenant_id,
+            header_base_url=header_base_url,
+            header_api_key=header_api_key,
+        )
+        new_shaped = sum(ev.shaped_response_tokens for ev in st.events[before:])
+        if new_shaped:
+            st.gate.record_tokens(tenant_id, new_shaped)
+
+        ollama_final = openai_response_to_ollama_chat(
+            openai_final, model=ollama_body.get("model")
+        )
+        headers = _savings_headers(st, before)
+        headers.update(
+            _provider_header(
+                st,
+                openai_body.get("model") or "",
+                header_base_url=header_base_url,
+                header_api_key=header_api_key,
+            )
+        )
+        if not wants_stream:
+            return JSONResponse(ollama_final, headers=headers)
+        return StreamingResponse(
+            _synthesize_ollama_ndjson(ollama_final),
+            media_type="application/x-ndjson",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", **headers},
+        )
+
+    @app.get("/api/tags")
+    async def ollama_tags(request: Request) -> JSONResponse:
+        """Ollama ``GET /api/tags`` — the local-model listing.
+
+        Reshapes the same catalog ``GET /v1/models`` serves into Ollama's
+        ``{models: [...]}`` body, so a native client's model picker is populated
+        with every routable id (provider-prefixed + aliases included).
+        """
+        st: AppState = app.state.plinth
+        await _authenticate(request, st)
+        catalog = await _models_catalog(st)
+        return JSONResponse(ollama_tags_from_models(catalog))
+
+    @app.get("/api/version")
+    async def ollama_version() -> JSONResponse:
+        """Ollama ``GET /api/version`` — advertised so native clients detect the
+        API. Unauthenticated (a capability probe that leaks nothing)."""
+        return JSONResponse({"version": f"0.0.0-plynf-{__version__}"})
+
     @app.post("/v1/messages")
     async def anthropic_messages(request: Request) -> JSONResponse:
         """Anthropic-compatible /v1/messages endpoint.
@@ -1082,15 +1167,7 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         # Listing is metadata: authenticate to resolve the tenant, but it is
         # neither tier-gated nor charged.
         await _authenticate(request, st)
-        router = st.upstream_router
-        # Multi-provider / aliased deployments get a self-describing catalog
-        # whose ids are directly routable (provider/model + alias names). The
-        # single-provider and demo paths below are byte-for-byte unchanged.
-        if not st.settings.demo_mode and (router.providers or router.alias_names):
-            return JSONResponse(await _aggregated_models(st))
-        if st.settings.upstream_base_url and not st.settings.demo_mode:
-            return JSONResponse(await _forward_upstream(st, "GET", "/v1/models"))
-        return JSONResponse(mock_models())
+        return JSONResponse(await _models_catalog(st))
 
     @app.get("/v1/models/{model:path}")
     async def retrieve_model(model: str, request: Request) -> JSONResponse:
@@ -1790,6 +1867,22 @@ async def _aggregated_models(st: AppState) -> dict[str, Any]:
         entry["owned_by"] = "plynf-alias"
         data.append(entry)
     return {"object": "list", "data": data}
+
+
+async def _models_catalog(st: AppState) -> dict[str, Any]:
+    """Return the OpenAI ``ListModels`` catalog this proxy serves.
+
+    Multi-provider / aliased deployments get the aggregated, self-describing
+    catalog; single-provider deployments forward to the default upstream; demo /
+    no-upstream serves the mock. Shared by ``GET /v1/models`` and the Ollama
+    ``GET /api/tags`` front door so both expose the identical model set.
+    """
+    router = st.upstream_router
+    if not st.settings.demo_mode and (router.providers or router.alias_names):
+        return await _aggregated_models(st)
+    if st.settings.upstream_base_url and not st.settings.demo_mode:
+        return await _forward_upstream(st, "GET", "/v1/models")
+    return mock_models()
 
 
 async def _forward_upstream(
@@ -2494,6 +2587,54 @@ async def _synthesize_sse(final: dict[str, Any]):
     # 3. terminator
     yield _chunk({}, finish=finish_reason)
     yield "data: [DONE]\n\n"
+
+
+async def _synthesize_ollama_ndjson(final: dict[str, Any]):
+    """Yield Ollama-native NDJSON chat chunks for a completed response.
+
+    Ollama streaming is newline-delimited JSON (not SSE): a run of
+    ``{message:{content: piece}, done:false}`` lines followed by a single
+    ``done:true`` line carrying ``done_reason`` and token counts (and any
+    tool_calls). Content is split on whitespace for a realistic streaming UX,
+    matching :func:`_synthesize_sse`. Tool calls are already executed/shaped by
+    the time we reach here, so they only appear on the final line.
+    """
+    model = final.get("model", "")
+    created_at = final.get("created_at", "")
+    message = final.get("message") or {}
+    content = message.get("content") or ""
+    tool_calls = message.get("tool_calls") or []
+
+    def _line(obj: dict[str, Any]) -> str:
+        return json.dumps(obj, separators=(",", ":")) + "\n"
+
+    if content:
+        parts = content.split(" ")
+        for i, part in enumerate(parts):
+            piece = part if i == 0 else " " + part
+            yield _line(
+                {
+                    "model": model,
+                    "created_at": created_at,
+                    "message": {"role": "assistant", "content": piece},
+                    "done": False,
+                }
+            )
+
+    final_msg: dict[str, Any] = {"role": "assistant", "content": ""}
+    if tool_calls:
+        final_msg["tool_calls"] = tool_calls
+    yield _line(
+        {
+            "model": model,
+            "created_at": created_at,
+            "message": final_msg,
+            "done": True,
+            "done_reason": final.get("done_reason", "stop"),
+            "prompt_eval_count": final.get("prompt_eval_count", 0),
+            "eval_count": final.get("eval_count", 0),
+        }
+    )
 
 
 # Default app for ``uvicorn plinth_proxy.api:app``.
