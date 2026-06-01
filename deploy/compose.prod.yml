@@ -126,6 +126,24 @@ services:
       <<: *healthcheck-defaults
       test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7424/healthz\").read()'"]
 
+  # ─── Postgres (durable savings sink) ────────────────────────────────
+  # The proxy persists savings events here so the dashboard's token/cost
+  # totals survive restarts (the in-memory mirror does not). Internal network
+  # only — not published on the host. Change POSTGRES_PASSWORD for a real deploy.
+  postgres:
+    <<: *defaults
+    image: postgres:16-alpine
+    container_name: plynf-postgres
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-plynf}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-plynf}"
+      POSTGRES_DB: "${POSTGRES_DB:-plynf}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-plynf} -d ${POSTGRES_DB:-plynf}"]
+
   # ─── LLM proxy (the response-shaping front door for models) ─────────
   # Boots in safe MOCK mode (no upstream key needed). To forward to a real
   # model, set PLINTH_PROXY_DEMO_MODE=false and the two UPSTREAM_* vars in
@@ -149,12 +167,17 @@ services:
       # Verify bearer tokens against identity; route tool calls to the gateway.
       PLINTH_PROXY_IDENTITY_URL: "http://identity:7425"
       PLINTH_PROXY_GATEWAY_URL: "http://gateway:7422"
-      # Savings sink → feeds the dashboard's live token-reduction KPIs.
+      # Durable savings sink → feeds the dashboard's live KPIs. Postgres in
+      # prod (survives restarts); the JSONL path is the fallback used only
+      # when PLINTH_PROXY_POSTGRES_URL is empty.
+      PLINTH_PROXY_POSTGRES_URL: "${PLINTH_PROXY_POSTGRES_URL:-postgresql://plynf:plynf@postgres:5432/plynf}"
       PLINTH_PROXY_SAVINGS_LOG: "/tmp/savings.jsonl"
     depends_on:
       identity:
         condition: service_healthy
       gateway:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     healthcheck:
       <<: *healthcheck-defaults
@@ -350,3 +373,5 @@ volumes:
     name: plynf_caddy_data
   caddy_config:
     name: plynf_caddy_config
+  postgres_data:
+    name: plynf_postgres_data

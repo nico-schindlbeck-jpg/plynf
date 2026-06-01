@@ -19,6 +19,9 @@ dependencies = [
     # Tiktoken is the official OpenAI tokenizer. We use it for token counting
     # so savings numbers match what OpenAI actually bills.
     "tiktoken>=0.7",
+    # Postgres-backed savings sink (production). Lazily imported by
+    # postgres_sink.py; only exercised when PLINTH_PROXY_POSTGRES_URL is set.
+    "asyncpg>=0.29",
 ]
 
 [project.optional-dependencies]

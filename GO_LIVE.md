@@ -30,6 +30,8 @@ Everything behind `app.plynf.com` ships in **one** `deploy/compose.prod.yml`:
 - **Caddy** — the edge that terminates HTTPS and routes `/v1/*` + `/api/chat*`
   to the proxy and everything else to the dashboard. Certificates are fetched
   and renewed automatically; there's nothing to run by hand.
+- **Postgres** — durably stores savings events so the dashboard's token/cost
+  totals survive a restart (internal-network only; not exposed publicly).
 
 ---
 
@@ -80,9 +82,10 @@ Save both in your host's secret manager (next step). **Never commit them.**
 
 ## 4. Put the backend online (one command)
 
-The whole backend — runtime services, the **proxy**, and an automatic-HTTPS
-**Caddy** edge — is one compose stack. There's no separate reverse proxy to
-install and no certificates to manage.
+The whole backend — runtime services, the **proxy**, an automatic-HTTPS
+**Caddy** edge, and a **Postgres** that durably stores your savings totals (so
+they survive restarts) — is one compose stack. There's no separate reverse
+proxy to install and no certificates to manage.
 
 **Option A — one small server (recommended, cheapest).**
 1. Create a Linux server (Hetzner/DigitalOcean, 2 vCPU / 4 GB is plenty). Point
@@ -91,8 +94,8 @@ install and no certificates to manage.
    env file from the template:
    ```bash
    cp deploy/prod.env.example deploy/.env
-   nano deploy/.env     # set PLYNF_APP_DOMAIN + PLYNF_ACME_EMAIL now
-                        # (the model/proxy vars come in step 5)
+   nano deploy/.env     # set PLYNF_APP_DOMAIN + PLYNF_ACME_EMAIL + a strong
+                        # POSTGRES_PASSWORD now (model/proxy vars come in step 5)
    ```
 3. Bring it up:
    ```bash

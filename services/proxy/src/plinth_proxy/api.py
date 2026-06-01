@@ -464,8 +464,22 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
         }
 
     @app.get("/v1/savings/summary")
-    async def savings_summary() -> dict[str, Any]:
+    async def savings_summary(tenant: str = "") -> dict[str, Any]:
         st: AppState = app.state.plinth
+        # When Postgres is the system of record, read aggregates back from it so
+        # the totals survive a proxy restart (the in-memory mirror does not).
+        # Optional ?tenant= scopes to one tenant; omitted = deployment-wide.
+        # Any DB hiccup falls back to the in-memory mirror — never 500 the page.
+        if isinstance(st.sink, PostgresSavingsSink):
+            try:
+                if tenant:
+                    return await st.sink.aggregate_for_tenant(tenant)
+                return await st.sink.aggregate_all()
+            except Exception:  # noqa: BLE001 — resilience over precision here
+                log.warning(
+                    "savings_summary: Postgres read failed, using in-memory mirror",
+                    exc_info=True,
+                )
         return aggregate(st.events)
 
     @app.get("/v1/savings/timeseries")

@@ -93,6 +93,44 @@ ORDER BY saved DESC
 LIMIT 10
 """
 
+# All-tenant variants — back the dashboard's /v1/savings/summary, which is
+# tenant-agnostic (it shows the deployment's totals, matching the in-memory
+# aggregate). Same column shape as the per-tenant queries above.
+ALL_AGGREGATE_SQL = """
+SELECT
+    COUNT(*)::BIGINT                            AS total_calls,
+    COALESCE(SUM(raw_response_tokens), 0)::BIGINT     AS total_raw_tokens,
+    COALESCE(SUM(shaped_response_tokens), 0)::BIGINT  AS total_shaped_tokens,
+    COALESCE(SUM(saved_tokens), 0)::BIGINT             AS total_saved_tokens,
+    COALESCE(SUM(cost_saved_usd), 0)::DOUBLE PRECISION AS total_cost_saved_usd,
+    COALESCE(AVG(CASE WHEN cache_hit THEN 1.0 ELSE 0.0 END), 0)::DOUBLE PRECISION
+                                                        AS cache_hit_rate
+FROM proxy_savings_events
+"""
+
+ALL_TOP_CONNECTORS_SQL = """
+SELECT connector, SUM(saved_tokens)::BIGINT AS saved
+FROM proxy_savings_events
+GROUP BY connector
+ORDER BY saved DESC
+LIMIT 10
+"""
+
+
+def _finalize_aggregate(row: Any, tops: Any) -> dict[str, Any]:
+    """Shape a raw aggregate row + top-connectors rows into the summary dict.
+
+    Matches the key set of :func:`plinth_proxy.savings.aggregate` so the
+    /v1/savings/summary response is identical whether it's served from the
+    in-memory mirror or read back from Postgres.
+    """
+    out = dict(row) if row else {}
+    out["top_connectors_by_savings"] = [(r["connector"], int(r["saved"])) for r in tops]
+    total_raw = int(out.get("total_raw_tokens") or 0)
+    total_saved = int(out.get("total_saved_tokens") or 0)
+    out["savings_pct"] = round(total_saved / total_raw, 4) if total_raw else 0.0
+    return out
+
 
 def _row_args(e: SavingsEvent) -> tuple:
     """Map a SavingsEvent to a positional argument tuple for INSERT_SQL."""
@@ -169,15 +207,15 @@ class PostgresSavingsSink:
         async with pool.acquire() as conn:
             row = await conn.fetchrow(AGGREGATE_SQL, tenant_id)
             tops = await conn.fetch(TOP_CONNECTORS_SQL, tenant_id)
-        out = dict(row) if row else {}
-        out["top_connectors_by_savings"] = [
-            (r["connector"], int(r["saved"])) for r in tops
-        ]
-        # Compute savings_pct here so callers don't repeat the math.
-        total_raw = int(out.get("total_raw_tokens") or 0)
-        total_saved = int(out.get("total_saved_tokens") or 0)
-        out["savings_pct"] = round(total_saved / total_raw, 4) if total_raw else 0.0
-        return out
+        return _finalize_aggregate(row, tops)
+
+    async def aggregate_all(self) -> dict[str, Any]:
+        """Aggregate across every tenant — the deployment-wide summary."""
+        pool = await self._ensure_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(ALL_AGGREGATE_SQL)
+            tops = await conn.fetch(ALL_TOP_CONNECTORS_SQL)
+        return _finalize_aggregate(row, tops)
 
     async def close(self) -> None:
         if self._pool is not None:
