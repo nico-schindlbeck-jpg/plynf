@@ -33,10 +33,12 @@ from typing import Any
 import httpx
 import structlog
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __service__, __version__
+from .app_api import ControlStore, register_app_api
 from .logging_config import configure_logging, get_logger
 from .metrics import (
     MetricsRegistry,
@@ -117,9 +119,28 @@ def create_app(
     app.middleware("http")(metrics_middleware_factory(metrics))
     app.middleware("http")(_request_context_middleware)
 
+    # CORS — the marketing-stack /app dashboard is a SEPARATE origin (Astro
+    # dev server / app.plynf.com), so it needs cross-origin access to the
+    # control-plane API. The observability proxies are same-origin (served by
+    # this app's own SPA) and unaffected.
+    origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+    if origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+            allow_headers=["Content-Type", "Authorization", "X-Request-Id"],
+            max_age=600,
+        )
+
     # Static SPA: vanilla HTML/CSS/JS, no build step.
     if STATIC_DIR.exists():
         app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    # Control-plane store + /api/app/* routes (backs the Astro /app dashboard).
+    store = ControlStore(settings.app_state_path or None)
+    app.state.control = store
+    register_app_api(app, settings, store)
 
     _register_routes(app, settings)
     return app

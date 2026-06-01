@@ -41,7 +41,16 @@ class Settings(BaseSettings):
     gateway_url: str = Field(default="http://localhost:7422")
     mock_mcp_url: str = Field(default="http://localhost:7423")
     identity_url: str = Field(default="http://localhost:7425")
+    proxy_url: str = Field(default="http://localhost:7430")
     api_token: str = Field(default="dashboard-token")
+    # Control-plane API (``/api/app/*``) backing the marketing-stack /app
+    # dashboard. ``app_state_path`` empty = in-memory; set a path to persist
+    # config across restarts. ``cors_origins`` allow-lists the separate
+    # dashboard origin (Astro dev server / app.plynf.com).
+    app_state_path: str = Field(default="")
+    cors_origins: str = Field(
+        default="http://localhost:4321,http://localhost:4322,https://app.plynf.com"
+    )
     backend_timeout_seconds: float = Field(default=5.0)
     log_level: str = Field(default="INFO")
     log_format: Literal["console", "json"] = Field(default="console")
