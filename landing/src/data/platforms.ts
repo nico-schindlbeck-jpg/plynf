@@ -36,8 +36,10 @@ export interface Platform {
 
 // The hosted endpoint + the per-tenant key placeholder. On the dashboard the
 // Connect component swaps __KEY__ for the tenant's real key when available.
-export const PLYNF_ENDPOINT = "https://app.plynf.com/v1";
-export const PLYNF_BASE = "https://app.plynf.com"; // for dialect doors (Anthropic/Gemini/Ollama)
+// Set PUBLIC_PLYNF_ENDPOINT / PUBLIC_PLYNF_BASE at build time to point at your
+// own proxy origin (see GO_LIVE.md); defaults to app.plynf.com.
+export const PLYNF_ENDPOINT = import.meta.env.PUBLIC_PLYNF_ENDPOINT || "https://app.plynf.com/v1";
+export const PLYNF_BASE = import.meta.env.PUBLIC_PLYNF_BASE || "https://app.plynf.com"; // dialect doors
 export const PLYNF_KEY_PLACEHOLDER = "plynf_sk_live_…";
 const GH = "https://github.com/nico-schindlbeck-jpg/plynf/tree/main/integrations";
 
