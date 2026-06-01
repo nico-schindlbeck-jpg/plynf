@@ -25,6 +25,7 @@ jobs:
           - sdk-python
           - mock-mcp
           - dashboard
+          - proxy
           - github-mcp
           - slack-mcp
           - linear-mcp
@@ -77,6 +78,7 @@ jobs:
               ;;
             mock-mcp)     pip install -e "./mock-mcp-server[dev]" ;;
             dashboard)    pip install -e "./services/dashboard[dev]" ;;
+            proxy)        pip install -e "./services/proxy[dev]" ;;
             github-mcp)   pip install -e "./mcp-servers/github[dev]" ;;
             slack-mcp)    pip install -e "./mcp-servers/slack[dev]" ;;
             linear-mcp)   pip install -e "./mcp-servers/linear[dev]" ;;
@@ -101,6 +103,7 @@ jobs:
             sdk-python)   cd sdk/python && pytest -q --cov=plinth ;;
             mock-mcp)     cd mock-mcp-server && pytest -q --cov=mock_mcp ;;
             dashboard)    cd services/dashboard && pytest -q --cov=plinth_dashboard ;;
+            proxy)        cd services/proxy && pytest -q --cov=plinth_proxy ;;
             github-mcp)   cd mcp-servers/github && pytest -q --cov=github_mcp ;;
             slack-mcp)    cd mcp-servers/slack && pytest -q --cov=slack_mcp ;;
             linear-mcp)   cd mcp-servers/linear && pytest -q --cov=linear_mcp ;;
