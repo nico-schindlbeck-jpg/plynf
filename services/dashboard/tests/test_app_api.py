@@ -17,6 +17,7 @@ import pytest
 import respx
 from httpx import ASGITransport, AsyncClient
 
+from plinth_dashboard.app_api import _attribution_summary
 from plinth_dashboard.server import create_app
 from plinth_dashboard.settings import Settings
 
@@ -369,3 +370,35 @@ async def test_session_passes_ref_into_token_metadata():
         assert r.status_code == 200
         sent = json.loads(route.calls.last.request.content)
         assert sent["metadata"]["ref"] == "zapier"
+
+
+def test_attribution_summary_rolls_up_and_sorts():
+    summary = _attribution_summary({"a": 2, "b": 9, "c": 0, "d": 9})
+    # Zero-count sources are dropped; ties break alphabetically by ref.
+    assert summary["totalReferred"] == 20
+    assert summary["uniqueSources"] == 3
+    assert [s["ref"] for s in summary["sources"]] == ["b", "d", "a"]
+
+
+def test_attribution_summary_handles_empty():
+    summary = _attribution_summary({})
+    assert summary == {"totalReferred": 0, "uniqueSources": 0, "sources": []}
+
+
+@pytest.mark.asyncio
+async def test_state_exposes_attribution_from_seed(client):
+    state = (await client.get("/api/app/state")).json()
+    attr = state["attribution"]
+    # Seeded demo referrals: 18+12+7+5+3 = 45 across 5 sources, biggest first.
+    assert attr["totalReferred"] == 45
+    assert attr["uniqueSources"] == 5
+    assert attr["sources"][0] == {"ref": "n8n-listing", "count": 18}
+
+
+@pytest.mark.asyncio
+async def test_recording_a_referral_bumps_attribution(client):
+    await client.post("/api/app/session", json={"email": "u@acme.io", "ref": "cursor"})
+    attr = (await client.get("/api/app/state")).json()["attribution"]
+    assert attr["totalReferred"] == 46
+    assert attr["uniqueSources"] == 6
+    assert {"ref": "cursor", "count": 1} in attr["sources"]

@@ -919,6 +919,16 @@ def seed_state() -> dict[str, Any]:
             {"id": "shape", "done": False},
             {"id": "savings", "done": False},
         ],
+        # Partner-attributed signups, keyed by the ?ref= tag carried from an
+        # "Add to Plynf" button. record_referral() increments these; snapshot()
+        # derives the Attribution panel's view (attribution.*) from this map.
+        "referrals": {
+            "n8n-listing": 18,
+            "partner-acme": 12,
+            "zapier": 7,
+            "make": 5,
+            "launch-blog": 3,
+        },
     }
 
 

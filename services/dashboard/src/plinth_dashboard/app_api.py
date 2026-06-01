@@ -56,6 +56,28 @@ def _seed_state() -> dict[str, Any]:
     return seed_state()
 
 
+def _attribution_summary(referrals: dict[str, Any]) -> dict[str, Any]:
+    """Roll the raw ``{ref: count}`` tally up into the dashboard view shape.
+
+    ``referrals`` is populated by :meth:`ControlStore.record_referral` whenever a
+    signup carries an ``?ref=`` tag from an "Add to Plynf" button. The dashboard's
+    Attribution panel binds to ``attribution.totalReferred`` /
+    ``attribution.uniqueSources`` and renders ``attribution.sources`` (already
+    sorted, biggest first). Always returns a well-formed object, even when empty.
+    """
+    items = [
+        {"ref": str(ref), "count": int(count or 0)}
+        for ref, count in (referrals or {}).items()
+        if int(count or 0) > 0
+    ]
+    items.sort(key=lambda r: (-r["count"], r["ref"]))
+    return {
+        "totalReferred": sum(r["count"] for r in items),
+        "uniqueSources": len(items),
+        "sources": items,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Store
 
@@ -75,7 +97,10 @@ class ControlStore:
                 get_logger().warning("dashboard.control_store.load_failed", error=str(exc))
 
     def snapshot(self) -> dict[str, Any]:
-        return copy.deepcopy(self._state)
+        snap = copy.deepcopy(self._state)
+        # Derived, always-present view of the ?ref= partner-attribution tally.
+        snap["attribution"] = _attribution_summary(snap.get("referrals", {}))
+        return snap
 
     def _save(self) -> None:
         if not self._path:

@@ -528,6 +528,32 @@ export const onboarding: OnboardStep[] = [
   { id: "savings", title: "See your first savings", desc: "Send a request and watch the Overview hero update. Most teams see 68–74% token reduction on day one.", done: false },
 ];
 
+// Partner attribution — signups tagged by the ?ref= an "Add to Plynf" button
+// carries. The live /api/app/state derives this from the recorded referral
+// tally; these seed values mirror the backend defaults for the offline render.
+export interface AttributionSource {
+  ref: string;
+  count: number;
+}
+
+export interface Attribution {
+  totalReferred: number;
+  uniqueSources: number;
+  sources: AttributionSource[];
+}
+
+export const attribution: Attribution = {
+  totalReferred: 45,
+  uniqueSources: 5,
+  sources: [
+    { ref: "n8n-listing", count: 18 },
+    { ref: "partner-acme", count: 12 },
+    { ref: "zapier", count: 7 },
+    { ref: "make", count: 5 },
+    { ref: "launch-blog", count: 3 },
+  ],
+};
+
 export interface BestPractice {
   icon: string;
   tag: string;

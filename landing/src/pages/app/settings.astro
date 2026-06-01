@@ -3,7 +3,7 @@ import DashboardLayout from "../../layouts/DashboardLayout.astro";
 import PageHeader from "../../components/dashboard/PageHeader.astro";
 import StatusBadge from "../../components/dashboard/StatusBadge.astro";
 import Icon from "../../components/dashboard/Icon.astro";
-import { capabilityTokens, guardrails, team, tenants, agents, eur } from "../../data/dashboard";
+import { capabilityTokens, guardrails, team, tenants, agents, eur, attribution } from "../../data/dashboard";
 
 // Personal API key (solo-dev fast access). Masked for display; the full value
 // is wired to the shell's [data-copy] handler.
@@ -16,6 +16,10 @@ const tokensNeedingRotation = capabilityTokens.filter(
 );
 
 const pctOf = (a: number, b: number) => (b > 0 ? Math.min(100, (a / b) * 100) : 0);
+
+// Largest source drives the bar widths in the attribution panel (min 1 so we
+// never divide by zero on an empty tally).
+const attrMax = Math.max(1, ...attribution.sources.map((s) => s.count));
 ---
 <DashboardLayout title="Settings & Safety" active="/app/settings">
   <PageHeader
@@ -283,6 +287,47 @@ const pctOf = (a: number, b: number) => (b > 0 ? Math.min(100, (a / b) * 100) : 
     </div>
   </section>
 
+  <!-- ── Partner attribution ─────────────────────────────── -->
+  <section class="grid gap-4">
+    <div class="card p-5 sm:p-6" data-reveal>
+      <div class="flex items-start justify-between mb-5">
+        <div>
+          <h3 class="font-semibold text-ink-primary">Partner attribution</h3>
+          <p class="text-2xs text-ink-muted mt-0.5">
+            Signups tagged by the <span class="mono">?ref=</span> an “Add to Plynf” button carries — counted end-to-end at login.
+          </p>
+        </div>
+        <Icon name="route" size={16} class="text-accent" />
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 mb-5 max-w-sm">
+        <div class="rounded-xl border border-border bg-bg-1/40 p-4">
+          <div class="text-2xl font-semibold text-ink-primary tnum" data-bind="attribution.totalReferred">{attribution.totalReferred}</div>
+          <div class="text-2xs text-ink-muted mt-1">Attributed signups</div>
+        </div>
+        <div class="rounded-xl border border-border bg-bg-1/40 p-4">
+          <div class="text-2xl font-semibold text-ink-primary tnum" data-bind="attribution.uniqueSources">{attribution.uniqueSources}</div>
+          <div class="text-2xs text-ink-muted mt-1">Unique sources</div>
+        </div>
+      </div>
+
+      <div id="attribution-body" class="space-y-2.5">
+        {attribution.sources.map((s) => (
+          <div class="flex items-center gap-3">
+            <span class="mono text-[0.8rem] text-ink-secondary w-36 shrink-0 truncate" title={s.ref}>{s.ref}</span>
+            <div class="flex-1 h-2 rounded-full bg-bg-1 overflow-hidden">
+              <div class="h-full rounded-full" style={`width:${pctOf(s.count, attrMax)}%;background:linear-gradient(90deg,#ff8551,#d946ef)`}></div>
+            </div>
+            <span class="num mono text-[0.8rem] text-ink-primary tnum w-8 text-right shrink-0">{s.count}</span>
+          </div>
+        ))}
+      </div>
+      <p id="attribution-empty" class="hidden text-sm text-ink-muted">
+        No partner-attributed signups yet. Share an “Add to Plynf” link with a <span class="mono">?ref=you</span> tag and they’ll show here.
+      </p>
+    </div>
+  </section>
+
   <!-- ── Data & compliance (security) ────────────────────── -->
   <section class="grid lg:grid-cols-2 gap-4" data-depth="security">
     <!-- GDPR + audit posture -->
@@ -522,10 +567,29 @@ const pctOf = (a: number, b: number) => (b > 0 ? Math.min(100, (a / b) * 100) : 
             '<td class="num">' + action + "</td></tr>";
         }).join("");
       }
+      function renderAttribution(attr) {
+        var body = document.getElementById("attribution-body");
+        var empty = document.getElementById("attribution-empty");
+        if (!body || !window.plynfUI) return;
+        var ui = window.plynfUI;
+        var sources = (attr && attr.sources) || [];
+        if (empty) empty.classList.toggle("hidden", sources.length > 0);
+        var max = sources.reduce(function (m, s) { return Math.max(m, s.count || 0); }, 1);
+        body.innerHTML = sources.map(function (s) {
+          var w = Math.min(100, ((s.count || 0) / max) * 100);
+          return '<div class="flex items-center gap-3">' +
+            '<span class="mono text-[0.8rem] text-ink-secondary w-36 shrink-0 truncate" title="' + ui.esc(s.ref) + '">' + ui.esc(s.ref) + "</span>" +
+            '<div class="flex-1 h-2 rounded-full bg-bg-1 overflow-hidden">' +
+            '<div class="h-full rounded-full" style="width:' + w + '%;background:linear-gradient(90deg,#ff8551,#d946ef)"></div></div>' +
+            '<span class="num mono text-[0.8rem] text-ink-primary tnum w-8 text-right shrink-0">' + (s.count || 0) + "</span>" +
+            "</div>";
+        }).join("");
+      }
       function apply(state) {
         if (!state) return;
         if (state.capabilityTokens) renderTokens(state.capabilityTokens);
         if (state.team) renderTeam(state.team);
+        if (state.attribution) renderAttribution(state.attribution);
       }
       if (window.__PLYNF_LIVE) apply(window.__PLYNF_LIVE);
       window.addEventListener("plynf:state", function (e) { apply(e.detail); });
