@@ -671,13 +671,38 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
 
     @app.get("/v1/tier")
     async def tier_info(request: Request) -> dict[str, Any]:
-        """Show the caller's current tier + month-to-date usage."""
+        """Caller's plan, month-to-date usage, and which features it unlocks.
+
+        Introspection endpoint: the dashboard, SDK, and CLI ask "what's my plan
+        and what can I do?" here instead of discovering limits via 402s. The
+        ``features`` map mirrors exactly what the gate enforces per request, so
+        the UI can grey-out locked features honestly. The flat
+        ``tokens_used_this_month`` field is retained for back-compat.
+        """
         st: AppState = app.state.plinth
         tenant_id, tier = await _authenticate(request, st)
+        limits = TIERS.get(tier) or TIERS["free"]
+        used = st.gate.usage(tenant_id)
+        budget = limits.monthly_token_budget
         return {
             "tenant_id": tenant_id,
             "tier": tier,
-            "tokens_used_this_month": st.gate.usage(tenant_id),
+            "tokens_used_this_month": used,
+            "monthly_token_budget": budget,  # None = unlimited
+            "tokens_remaining": None if budget is None else max(0, budget - used),
+            "over_budget": budget is not None and used >= budget,
+            "limits": {
+                "max_connectors": limits.max_connectors,
+                "max_tenants": limits.max_tenants,
+                "audit_log_retention_days": limits.audit_log_retention_days,
+            },
+            "features": {
+                "pii_redaction": limits.allow_pii_redaction,
+                "audit_log": limits.allow_audit_log,
+                "custom_rest_connectors": limits.allow_custom_rest_connectors,
+                "self_hosted_helm": limits.allow_self_hosted_helm,
+            },
+            "upgrade_hint": None if tier == "enterprise" else upgrade_hint(tier),
         }
 
     @app.post("/v1/shape")

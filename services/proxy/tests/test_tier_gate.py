@@ -89,6 +89,52 @@ def test_tier_endpoint_reports_current_tier(app_with_free_keyed):
     assert body["tier"] == "free"
 
 
+def test_tier_endpoint_reports_usage_and_locked_features_free(app_with_free_keyed):
+    client = TestClient(app_with_free_keyed)
+    app_with_free_keyed.state.plinth.gate.record_tokens("tenant-a", 40_000)
+    body = client.get("/v1/tier", headers={"Authorization": "Bearer key-a"}).json()
+    assert body["monthly_token_budget"] == 100_000
+    assert body["tokens_used_this_month"] == 40_000
+    assert body["tokens_remaining"] == 60_000
+    assert body["over_budget"] is False
+    # Free locks every paid feature — the UI greys these out from this map.
+    assert body["features"] == {
+        "pii_redaction": False,
+        "audit_log": False,
+        "custom_rest_connectors": False,
+        "self_hosted_helm": False,
+    }
+    assert body["upgrade_hint"]  # free → a hint is present
+
+
+def test_tier_endpoint_flags_over_budget(app_with_free_keyed):
+    client = TestClient(app_with_free_keyed)
+    app_with_free_keyed.state.plinth.gate.record_tokens("tenant-a", 100_000)
+    body = client.get("/v1/tier", headers={"Authorization": "Bearer key-a"}).json()
+    assert body["over_budget"] is True
+    assert body["tokens_remaining"] == 0
+
+
+def test_tier_endpoint_pro_unlocks_features():
+    app = create_app(ProxySettings(demo_mode=True, api_keys="t-pro:key-pro:pro"))
+    body = TestClient(app).get("/v1/tier", headers={"Authorization": "Bearer key-pro"}).json()
+    assert body["tier"] == "pro"
+    assert body["features"]["pii_redaction"] is True
+    assert body["features"]["custom_rest_connectors"] is True
+    assert body["features"]["self_hosted_helm"] is False
+    assert body["monthly_token_budget"] == 5_000_000
+
+
+def test_tier_endpoint_enterprise_unlimited_no_hint():
+    app = create_app(ProxySettings(demo_mode=True, api_keys="t-ent:key-ent:enterprise"))
+    body = TestClient(app).get("/v1/tier", headers={"Authorization": "Bearer key-ent"}).json()
+    assert body["tier"] == "enterprise"
+    assert body["monthly_token_budget"] is None
+    assert body["tokens_remaining"] is None
+    assert body["features"]["self_hosted_helm"] is True
+    assert body["upgrade_hint"] is None
+
+
 def test_chat_endpoint_returns_402_when_free_budget_exceeded(app_with_free_keyed):
     client = TestClient(app_with_free_keyed)
     # Pre-charge the gate to exhaust the free tier.
