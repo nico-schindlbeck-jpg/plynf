@@ -14,6 +14,8 @@ Supported rule types (MVP):
 * ``deny_fields``   — explicit blacklist applied after allow_fields
 * ``max_response_tokens`` — hard cap; oversized lists/strings get truncated
 * ``strip_metadata`` — drops common audit columns (``created_at`` etc.)
+* ``drop_empty_fields`` — lossless minimisation: removes null/""/[]/{} fields
+  (keeps 0 / 0.0 / false). Safe with no keep-list; cannot change the answer.
 * ``cache_ttl``     — seconds; consumed by the cache layer, not this module
 * ``redact_pii``    — hash / mask / remove on named fields
 * ``block_write_actions`` — if true and tool name matches a write-pattern
@@ -119,6 +121,10 @@ class ToolPolicy:
     cache_ttl: int | None = None  # consumed elsewhere
     redact_pii: RedactRule | None = None
     block_write_actions: bool = False
+    # Lossless minimisation: drop fields that carry no signal (null / "" /
+    # [] / {}). Safe even with no keep-list — see _drop_empty. The agent
+    # cannot use a null value, so removing it cannot change the answer.
+    drop_empty_fields: bool = False
 
     @property
     def is_write_action(self) -> bool:
@@ -151,6 +157,7 @@ class ConnectorPolicy:
                 cache_ttl=self.defaults.cache_ttl,
                 redact_pii=self.defaults.redact_pii,
                 block_write_actions=self.defaults.block_write_actions,
+                drop_empty_fields=self.defaults.drop_empty_fields,
             )
         return ToolPolicy(tool=tool_name)
 
@@ -182,6 +189,7 @@ def _parse_tool_policy(name: str, raw: dict[str, Any]) -> ToolPolicy:
         cache_ttl=raw.get("cache_ttl"),
         redact_pii=_parse_redact(raw.get("redact_pii")),
         block_write_actions=bool(raw.get("block_write_actions", False)),
+        drop_empty_fields=bool(raw.get("drop_empty_fields", False)),
     )
 
 
@@ -278,6 +286,13 @@ def apply(
     if policy.redact_pii:
         out = _redact_pii(out, policy.redact_pii)
 
+    # Lossless: drop null/empty fields. Runs even with no keep-list, so an
+    # unknown tool still saves tokens with zero quality risk (the model cannot
+    # use a null value). Applied last among the content steps so it also tidies
+    # the safe-fallback output.
+    if policy.drop_empty_fields:
+        out = _drop_empty(out)
+
     if policy.max_response_tokens is not None:
         out = _truncate_to_tokens(out, policy.max_response_tokens, token_counter)
 
@@ -298,6 +313,28 @@ def _strip_metadata(value: Any) -> Any:
         }
     if isinstance(value, list):
         return [_strip_metadata(item) for item in value]
+    return value
+
+
+def _drop_empty(value: Any) -> Any:
+    """Recursively drop dict fields that carry no signal: None, "", [], {}.
+
+    LOSSLESS for the model: it cannot reason from a null/empty value, so
+    removing the field can't change the answer. Real values are kept —
+    importantly ``0``, ``0.0`` and ``False`` are NOT empty. List length is
+    preserved (elements are recursed into, never removed) so positional and
+    count semantics stay intact.
+    """
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        for k, v in value.items():
+            vv = _drop_empty(v)
+            if vv is None or vv == "" or vv == [] or vv == {}:
+                continue
+            out[k] = vv
+        return out
+    if isinstance(value, list):
+        return [_drop_empty(v) for v in value]
     return value
 
 

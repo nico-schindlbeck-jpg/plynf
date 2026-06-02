@@ -121,6 +121,42 @@ def test_allow_fields_synonyms_via_pipe():
 
 
 # ---------------------------------------------------------------------------
+# drop_empty_fields — lossless minimisation (no keep-list needed)
+# ---------------------------------------------------------------------------
+
+
+def test_drop_empty_removes_null_and_empty_but_keeps_zero_and_false():
+    policy = ToolPolicy(tool="t", drop_empty_fields=True)
+    raw = {
+        "id": "A1", "note": None, "tags": [], "meta": {}, "name": "",
+        "qty": 0, "active": False, "ratio": 0.0, "status": "open",
+    }
+    # 0 / 0.0 / False are real values and MUST survive; only null/""/[]/{} go.
+    assert apply(raw, policy) == {
+        "id": "A1", "qty": 0, "active": False, "ratio": 0.0, "status": "open",
+    }
+
+
+def test_drop_empty_recurses_and_preserves_list_length():
+    policy = ToolPolicy(tool="t", drop_empty_fields=True)
+    raw = {"items": [{"sku": "x", "discount": None}, {"sku": "y", "discount": 0}], "memo": ""}
+    assert apply(raw, policy) == {"items": [{"sku": "x"}, {"sku": "y", "discount": 0}]}
+
+
+def test_drop_empty_composes_losslessly_with_allow_fields():
+    policy = ToolPolicy(tool="t", allow_fields=("id", "phone"), drop_empty_fields=True)
+    raw = {"id": "1", "phone": None, "junk": "x"}
+    assert apply(raw, policy) == {"id": "1"}  # phone projected but null → dropped
+
+
+def test_orders_default_applies_drop_empty_for_unknown_tool():
+    policy = load_policy(POLICIES_DIR / "orders.default.yaml").policy_for("brand_new_tool")
+    assert policy.drop_empty_fields is True
+    raw = {"order_id": "A1", "coupon": None, "notes": "", "created_at": "2026-01-01"}
+    assert apply(raw, policy) == {"order_id": "A1"}  # metadata + empties gone, value kept
+
+
+# ---------------------------------------------------------------------------
 # deny_fields
 # ---------------------------------------------------------------------------
 

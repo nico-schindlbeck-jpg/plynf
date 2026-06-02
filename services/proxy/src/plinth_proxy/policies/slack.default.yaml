@@ -6,6 +6,7 @@ version: 1
 
 defaults:
   strip_metadata: true
+  drop_empty_fields: true   # lossless: drop null/empty fields (keeps 0/false)
   cache_ttl: 30
 
 tools:
