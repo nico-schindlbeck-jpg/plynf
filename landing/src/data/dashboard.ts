@@ -11,6 +11,8 @@
  * it ever reached the model.
  */
 
+import type { TierId } from "./plans";
+
 // ─── Formatters ────────────────────────────────────────────────────────────
 
 export const eur = (n: number, frac = 2): string =>
@@ -438,20 +440,22 @@ export interface Invoice {
   status: "paid" | "open" | "void";
 }
 
+// Fixed-tier billing (mirrors plans.ts / the proxy gate). The demo tenant is
+// on Pro: a flat monthly fee + a fixed token budget. Over budget = upgrade,
+// never surprise overage. `tier` drives the feature-access gate on the page.
 export const billing = {
-  plan: "Scale",
-  priceModel: "Usage-based · €0.85 / 1M shaped tokens",
-  includedTokensM: 50,
-  usedTokensM: 41.3,
+  tier: "pro" as TierId,
+  priceLabel: "$49 / month · flat",
+  monthlyFeeEur: 45,
+  monthlyTokenBudget: 5_000_000, // plans.ts pro.monthlyTokens
+  usedTokens: 3_180_000,
   cycleResetsIn: "9 days",
-  currentBillEur: 187.4,
-  projectedBillEur: 224.0,
   paymentMethod: "Visa •••• 4242",
   invoices: <Invoice[]>[
-    { id: "inv_2026_05", period: "May 2026", amountEur: 224.0, status: "open" },
-    { id: "inv_2026_04", period: "Apr 2026", amountEur: 198.7, status: "paid" },
-    { id: "inv_2026_03", period: "Mar 2026", amountEur: 176.2, status: "paid" },
-    { id: "inv_2026_02", period: "Feb 2026", amountEur: 154.9, status: "paid" },
+    { id: "inv_2026_05", period: "May 2026", amountEur: 45.0, status: "open" },
+    { id: "inv_2026_04", period: "Apr 2026", amountEur: 45.0, status: "paid" },
+    { id: "inv_2026_03", period: "Mar 2026", amountEur: 45.0, status: "paid" },
+    { id: "inv_2026_02", period: "Feb 2026", amountEur: 45.0, status: "paid" },
   ],
 };
 

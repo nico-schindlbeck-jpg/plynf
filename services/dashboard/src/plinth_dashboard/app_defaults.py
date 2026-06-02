@@ -896,19 +896,18 @@ def seed_state() -> dict[str, Any]:
             },
         ],
         "billing": {
-            "plan": "Scale",
-            "priceModel": "Usage-based · €0.85 / 1M shaped tokens",
-            "includedTokensM": 50,
-            "usedTokensM": 41.3,
+            "tier": "pro",  # mirrors plans.ts / tier_gate.py
+            "priceLabel": "$49 / month · flat",
+            "monthlyFeeEur": 45,
+            "monthlyTokenBudget": 5_000_000,
+            "usedTokens": 3_180_000,
             "cycleResetsIn": "9 days",
-            "currentBillEur": 187.4,
-            "projectedBillEur": 224.0,
             "paymentMethod": "Visa •••• 4242",
             "invoices": [
-                {"id": "inv_2026_05", "period": "May 2026", "amountEur": 224.0, "status": "open"},
-                {"id": "inv_2026_04", "period": "Apr 2026", "amountEur": 198.7, "status": "paid"},
-                {"id": "inv_2026_03", "period": "Mar 2026", "amountEur": 176.2, "status": "paid"},
-                {"id": "inv_2026_02", "period": "Feb 2026", "amountEur": 154.9, "status": "paid"},
+                {"id": "inv_2026_05", "period": "May 2026", "amountEur": 45.0, "status": "open"},
+                {"id": "inv_2026_04", "period": "Apr 2026", "amountEur": 45.0, "status": "paid"},
+                {"id": "inv_2026_03", "period": "Mar 2026", "amountEur": 45.0, "status": "paid"},
+                {"id": "inv_2026_02", "period": "Feb 2026", "amountEur": 45.0, "status": "paid"},
             ],
         },
         "onboarding": [

@@ -4,20 +4,30 @@ import PageHeader from "../../components/dashboard/PageHeader.astro";
 import Kpi from "../../components/dashboard/Kpi.astro";
 import StatusBadge from "../../components/dashboard/StatusBadge.astro";
 import Icon from "../../components/dashboard/Icon.astro";
-import { billing, savingsTotals, eur, pct } from "../../data/dashboard";
+import { billing, savingsTotals, eur, pct, compact } from "../../data/dashboard";
+import { PLANS, FEATURES, planFor } from "../../data/plans";
 
-const usagePct = (billing.usedTokensM / billing.includedTokensM) * 100;
+const tier = billing.tier;
+const plan = planFor(tier);
+const budget = billing.monthlyTokenBudget; // number | null (null = unlimited)
+const used = billing.usedTokens;
+const usagePct = budget ? (used / budget) * 100 : 0;
 const usageProgClass = usagePct > 80 ? "prog-warn" : "prog-ok";
-const usageLabel = `${billing.usedTokensM}M / ${billing.includedTokensM}M tokens`;
+const tokensRemaining = budget ? Math.max(0, budget - used) : null;
+const usageLabel = budget ? `${compact(used)} / ${compact(budget)} tokens` : `${compact(used)} tokens · unlimited`;
 
-// How much of this month's bill is covered by what Plynf saved.
-const coverageX = savingsTotals.savedMonthEur / billing.currentBillEur;
+// What Plynf saves vs. the flat fee — the "pays for itself" story.
+const coverageX = savingsTotals.savedMonthEur / billing.monthlyFeeEur;
+
+// Gate rows (what's unlocked per plan) + the token-allowance label per plan.
+const gatedFeatures = FEATURES.filter((f) => f.gate);
+const tokenRow = FEATURES.find((f) => f.label === "Shaped tokens / mo");
 ---
 <DashboardLayout title="Account & Billing" active="/app/billing">
   <PageHeader
     kicker="Account & Billing"
     title="Your plan, your usage, your savings"
-    lead="Usage-based pricing with no surprises: you only pay for the tokens Plynf actually shaped — and Plynf saves you far more than it costs."
+    lead="One flat price per tier — no per-seat fees, no surprise overage. Your tier sets a monthly token budget and which features are unlocked; Plynf saves you far more than it costs."
   >
     <button slot="actions" class="btn btn-secondary !py-2" data-modal-open="budget"><Icon name="bell" size={15} />Budget alert</button>
     <button slot="actions" class="btn btn-primary !py-2" data-modal-open="plan"><Icon name="coins" size={15} />Change plan</button>
@@ -32,10 +42,10 @@ const coverageX = savingsTotals.savedMonthEur / billing.currentBillEur;
           <div>
             <div class="kpi-label">Current plan</div>
             <div class="mt-1 flex items-center gap-3">
-              <span class="text-[clamp(2rem,4vw,2.6rem)] font-bold leading-none tracking-[-0.04em] text-ink-primary" data-bind="billing.plan" data-fmt="raw">{billing.plan}</span>
+              <span class="text-[clamp(2rem,4vw,2.6rem)] font-bold leading-none tracking-[-0.04em] text-ink-primary">{plan.name}</span>
               <span class="dbadge dbadge-accent">Active</span>
             </div>
-            <p class="mt-2 text-ink-secondary text-[0.9rem] mono">{billing.priceModel}</p>
+            <p class="mt-2 text-ink-secondary text-[0.9rem] mono">{billing.priceLabel}</p>
           </div>
           <div class="text-right">
             <div class="kpi-label">Cycle resets in</div>
@@ -43,29 +53,29 @@ const coverageX = savingsTotals.savedMonthEur / billing.currentBillEur;
           </div>
         </div>
 
-        <!-- usage meter -->
+        <!-- token-budget meter -->
         <div class="mt-6">
           <div class="flex items-end justify-between mb-1.5">
-            <span class="text-sm text-ink-secondary">Included tokens used this cycle</span>
+            <span class="text-sm text-ink-secondary">Token budget used this cycle</span>
             <span class="text-sm mono text-ink-primary tnum">{usageLabel}</span>
           </div>
           <div class={`prog ${usageProgClass}`}><span style={`width:${Math.min(100, usagePct)}%`}></span></div>
           <div class="mt-1.5 text-2xs text-ink-muted">
-            {pct(usagePct)} of your {billing.includedTokensM}M included tokens · overage billed at the same per-million rate.
+            {pct(usagePct)} of your {plan.name} budget. Hit the cap and calls pause until next cycle — or upgrade for a bigger budget. No surprise overage charges.
           </div>
         </div>
 
-        <!-- current vs projected -->
+        <!-- flat fee + remaining -->
         <div class="mt-6 grid grid-cols-2 gap-3">
           <div class="rounded-xl bg-bg-2/60 border border-border p-4">
-            <div class="kpi-label">Current bill</div>
-            <div class="mt-1 text-2xl font-bold tnum text-ink-primary">{eur(billing.currentBillEur)}</div>
-            <div class="text-2xs text-ink-muted mt-1">Accrued so far this cycle</div>
+            <div class="kpi-label">Monthly fee</div>
+            <div class="mt-1 text-2xl font-bold tnum text-ink-primary" data-bind="billing.monthlyFeeEur" data-fmt="eur">{eur(billing.monthlyFeeEur)}</div>
+            <div class="text-2xs text-ink-muted mt-1">Flat — same every cycle</div>
           </div>
           <div class="rounded-xl bg-bg-2/60 border border-border p-4">
-            <div class="kpi-label">Projected bill</div>
-            <div class="mt-1 text-2xl font-bold tnum text-accent">{eur(billing.projectedBillEur)}</div>
-            <div class="text-2xs text-ink-muted mt-1">At your current run-rate</div>
+            <div class="kpi-label">Tokens remaining</div>
+            <div class="mt-1 text-2xl font-bold tnum text-accent">{tokensRemaining === null ? "Unlimited" : compact(tokensRemaining)}</div>
+            <div class="text-2xs text-ink-muted mt-1">Before this cycle's cap</div>
           </div>
         </div>
       </div>
@@ -85,43 +95,54 @@ const coverageX = savingsTotals.savedMonthEur / billing.currentBillEur;
         </div>
         <div class="flex items-baseline justify-between mt-1">
           <span class="text-sm text-ink-secondary">You pay</span>
-          <span class="mono text-ink-primary">{eur(billing.currentBillEur)}</span>
+          <span class="mono text-ink-primary">{eur(billing.monthlyFeeEur)}</span>
         </div>
-        <div class="prog prog-ok mt-3"><span style={`width:${Math.min(100, (billing.currentBillEur / savingsTotals.savedMonthEur) * 100)}%`}></span></div>
+        <div class="prog prog-ok mt-3"><span style={`width:${Math.min(100, (billing.monthlyFeeEur / savingsTotals.savedMonthEur) * 100)}%`}></span></div>
         <div class="text-2xs text-ink-muted mt-2">
-          Every €1 on this bill returns about <span class="text-ink-primary mono">{coverageX.toFixed(1)}×</span> in saved model spend.
+          Every €1 of your fee returns about <span class="text-ink-primary mono">{coverageX.toFixed(0)}×</span> in saved model spend.
         </div>
       </div>
       <a href="/app/economics" class="btn btn-ghost !py-2 mt-auto pt-4 text-sm">See the full savings report →</a>
     </div>
   </section>
 
-  <!-- ── How usage-based pricing works ───────────────────── -->
+  <!-- ── What your plan includes — the gate, made visible ── -->
   <section class="card p-5 sm:p-6 mb-4" data-reveal>
-    <h3 class="font-semibold text-ink-primary">How usage-based pricing works</h3>
-    <p class="text-sm text-ink-secondary mt-1 max-w-2xl">No seats, no minimums. You pay for what Plynf does — and only that.</p>
-    <div class="mt-5 grid sm:grid-cols-3 gap-4">
-      <div class="rounded-xl border border-border bg-bg-1/40 p-4">
-        <div class="flex items-center gap-2 text-accent"><Icon name="coins" size={18} /><span class="text-sm font-medium text-ink-primary">Pay per shaped token</span></div>
-        <p class="text-sm text-ink-secondary mt-2">You're billed €0.85 per million tokens Plynf shapes out of tool responses. Quiet days cost less — automatically.</p>
-      </div>
-      <div class="rounded-xl border border-border bg-bg-1/40 p-4">
-        <div class="flex items-center gap-2 text-accent"><Icon name="check" size={18} /><span class="text-sm font-medium text-ink-primary">Included allowance first</span></div>
-        <p class="text-sm text-ink-secondary mt-2">Your {billing.plan} plan includes {billing.includedTokensM}M tokens each cycle. Anything beyond is billed at the same flat rate — never a markup.</p>
-      </div>
-      <div class="rounded-xl border border-border bg-bg-1/40 p-4">
-        <div class="flex items-center gap-2 text-accent"><Icon name="shield" size={18} /><span class="text-sm font-medium text-ink-primary">No surprise invoices</span></div>
-        <p class="text-sm text-ink-secondary mt-2">We project your bill live and reset the meter every cycle. The savings Plynf creates always dwarf what it charges.</p>
-      </div>
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+      <h3 class="font-semibold text-ink-primary">What your {plan.name} plan unlocks</h3>
+      <a href="/pricing" class="text-2xs text-accent hover:underline">Compare all plans →</a>
+    </div>
+    <p class="text-sm text-ink-secondary mb-4 max-w-2xl">Features are gated by plan — this mirrors exactly what the proxy enforces. Locked rows show the tier that unlocks them, so nothing surprises you mid-integration.</p>
+    <div class="grid sm:grid-cols-2 gap-2.5">
+      {gatedFeatures.map((f) => {
+        const need = f.gate!.minTier;
+        const allowed = PLANS.findIndex((p) => p.id === tier) >= PLANS.findIndex((p) => p.id === need);
+        return (
+          <div class={`flex items-center gap-3 rounded-xl border p-3.5 ${allowed ? "border-border bg-bg-1/40" : "border-border/60 bg-bg-1/20"}`}>
+            <span class={`grid place-items-center h-7 w-7 rounded-lg flex-none ${allowed ? "text-[#2dd4a7] bg-[#2dd4a7]/10" : "text-ink-muted bg-bg-2"}`}>
+              <Icon name={allowed ? "check" : "shield"} size={15} />
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class={`text-sm ${allowed ? "text-ink-primary" : "text-ink-secondary"}`}>{f.label}</div>
+              <div class="text-2xs text-ink-muted">{f.values[tier]}</div>
+            </div>
+            {!allowed && (
+              <a href="/pricing" class="dbadge !text-[0.6rem] whitespace-nowrap inline-flex items-center gap-1" title={`Unlocks on ${planFor(need).name}`}>
+                <Icon name="shield" size={10} />{planFor(need).name}
+              </a>
+            )}
+          </div>
+        );
+      })}
     </div>
   </section>
 
   <!-- ── KPI row ─────────────────────────────────────────── -->
   <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-    <Kpi label="This cycle" value={eur(billing.currentBillEur)} sub="Accrued so far" tint="indigo" bind="billing.currentBillEur" bindFmt="eur" />
-    <Kpi label="Projected" value={eur(billing.projectedBillEur)} sub="At current run-rate" tint="magenta" bind="billing.projectedBillEur" bindFmt="eur" />
+    <Kpi label="Monthly fee" value={eur(billing.monthlyFeeEur)} sub="Flat — no overage" tint="indigo" bind="billing.monthlyFeeEur" bindFmt="eur" />
     <Kpi label="Saved this month" value={eur(savingsTotals.savedMonthEur)} sub="Plynf more than pays for itself" tint="orange" />
-    <Kpi label="Included tokens used" value={pct(usagePct)} sub={`${billing.usedTokensM}M of ${billing.includedTokensM}M`} tint="cyan" />
+    <Kpi label="Token budget used" value={pct(usagePct)} sub={`${compact(used)} of ${budget ? compact(budget) : "∞"}`} tint="cyan" />
+    <Kpi label="Plan" value={plan.name} sub={`${tokenRow ? tokenRow.values[tier] : ""} / mo`} tint="magenta" />
   </section>
 
   <!-- ── Invoices + payment method ───────────────────────── -->
@@ -172,7 +193,7 @@ const coverageX = savingsTotals.savedMonthEur / billing.currentBillEur;
       </div>
       <button type="button" class="btn btn-secondary !py-2 w-full mt-4" data-modal-open="pay"><Icon name="edit" size={14} />Update</button>
       <p class="text-2xs text-ink-muted mt-3">
-        Next charge of <span class="text-ink-primary mono">{eur(billing.projectedBillEur)}</span> projected in {billing.cycleResetsIn}.
+        Next charge of <span class="text-ink-primary mono">{eur(billing.monthlyFeeEur)}</span> in {billing.cycleResetsIn}.
       </p>
     </div>
   </section>
@@ -184,27 +205,23 @@ const coverageX = savingsTotals.savedMonthEur / billing.currentBillEur;
       <div class="modal-head">
         <div>
           <h3 class="font-semibold text-ink-primary text-lg">Change your plan</h3>
-          <p class="text-sm text-ink-muted mt-0.5">Pick a tier. Usage-based pricing still applies — the plan sets your included allowance and per-million rate.</p>
+          <p class="text-sm text-ink-muted mt-0.5">One flat price per tier. The plan sets your monthly token budget and which features are unlocked.</p>
         </div>
         <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
       </div>
       <form class="modal-body space-y-3.5" data-action="Plan updated" data-close-modal="plan">
         <fieldset class="grid sm:grid-cols-3 gap-3">
           <legend class="sr-only">Plan tier</legend>
-          {[
-            { id: "starter", name: "Starter", price: "€0 + usage", rate: "€1.10 / 1M", runs: "10M tokens", note: "For early experiments" },
-            { id: "scale", name: "Scale", price: "€49 + usage", rate: "€0.85 / 1M", runs: "50M tokens", note: "Current plan", current: true },
-            { id: "enterprise", name: "Enterprise", price: "Custom", rate: "Volume rate", runs: "Unlimited", note: "Dedicated isolation + SSO" },
-          ].map((tier) => (
+          {PLANS.map((p) => (
             <label class="plan-tile rounded-xl border border-border bg-bg-1/40 p-4 cursor-pointer block transition has-[:checked]:border-accent has-[:checked]:bg-bg-2/60">
               <span class="flex items-center justify-between">
-                <span class="text-sm font-medium text-ink-primary">{tier.name}</span>
-                <input type="radio" name="plan-tier" value={tier.id} class="accent-[var(--accent)]" checked={tier.current} required />
+                <span class="text-sm font-medium text-ink-primary">{p.name}</span>
+                <input type="radio" name="plan-tier" value={p.id} class="accent-[var(--accent)]" checked={p.id === tier} required />
               </span>
-              <span class="block text-lg font-bold tnum text-ink-primary mt-2">{tier.price}</span>
-              <span class="block mono text-2xs text-ink-muted mt-0.5">{tier.rate}</span>
-              <span class="block text-2xs text-ink-secondary mt-2">Includes <span class="text-ink-primary">{tier.runs}</span></span>
-              <span class="block text-2xs text-ink-muted mt-0.5">{tier.note}</span>
+              <span class="block text-lg font-bold tnum text-ink-primary mt-2">{p.price}</span>
+              <span class="block mono text-2xs text-ink-muted mt-0.5">/ {p.cadence}</span>
+              <span class="block text-2xs text-ink-secondary mt-2">{tokenRow ? tokenRow.values[p.id] : ""} tokens / mo</span>
+              <span class="block text-2xs text-ink-muted mt-0.5">{p.id === tier ? "Current plan" : p.blurb}</span>
             </label>
           ))}
         </fieldset>
@@ -259,7 +276,7 @@ const coverageX = savingsTotals.savedMonthEur / billing.currentBillEur;
       <div class="modal-head">
         <div>
           <h3 class="font-semibold text-ink-primary text-lg">Set a budget alert</h3>
-          <p class="text-sm text-ink-muted mt-0.5">We'll notify you before this cycle's projected bill crosses your threshold — no surprise invoices.</p>
+          <p class="text-sm text-ink-muted mt-0.5">We'll notify you before you reach your monthly token budget — so calls never pause unexpectedly.</p>
         </div>
         <button class="btn btn-ghost !p-1.5" data-modal-close aria-label="Close"><Icon name="plus" size={18} class="rotate-45" /></button>
       </div>
@@ -272,9 +289,9 @@ const coverageX = savingsTotals.savedMonthEur / billing.currentBillEur;
           <span class="toggle" role="switch" aria-checked="true" tabindex="0" data-label="Budget alerts" aria-label="Toggle budget alerts"></span>
         </div>
         <div>
-          <label class="dlabel" for="budget-amount">Alert threshold (EUR)</label>
-          <input id="budget-amount" class="dinput mono" inputmode="decimal" placeholder="250.00" value="250.00" required />
-          <p class="text-2xs text-ink-muted mt-1.5">Your bill is projected at <span class="text-ink-primary mono">{eur(billing.projectedBillEur)}</span> this cycle.</p>
+          <label class="dlabel" for="budget-amount">Alert at % of token budget</label>
+          <input id="budget-amount" class="dinput mono" inputmode="numeric" placeholder="80" value="80" required />
+          <p class="text-2xs text-ink-muted mt-1.5">You're at <span class="text-ink-primary mono">{pct(usagePct)}</span> of your {plan.name} budget this cycle.</p>
         </div>
         <div class="modal-foot !px-0 !pb-0">
           <button type="button" class="btn btn-secondary" data-modal-close>Cancel</button>
