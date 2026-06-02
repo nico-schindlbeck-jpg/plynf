@@ -77,6 +77,23 @@ const tintHex: Record<string, string> = {
     </div>
   )}
 
+  <!-- Verify it works — instant confidence before wiring anything in -->
+  <div class="card p-4 mb-6" data-conn-test data-base={base} data-endpoint={endpoint}>
+    <div class="flex flex-wrap items-center gap-3">
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center gap-2">
+          <Icon name="rocket" size={15} class="text-accent" />
+          <span class="text-sm font-medium text-ink-primary">Test your connection</span>
+          <span class="text-2xs mono text-ink-muted truncate">{base}</span>
+        </div>
+        <div class="text-2xs text-ink-muted mt-0.5">One click checks Plynf is reachable — paste your key to also verify auth &amp; see your plan.</div>
+      </div>
+      <input type="text" class="dinput mono !py-1.5 !text-xs w-full sm:w-60 flex-none" data-conn-key placeholder="plynf_sk_live_… (optional)" autocomplete="off" spellcheck="false" />
+      <button class="btn btn-secondary !py-1.5 flex-none" data-conn-run><Icon name="rotate" size={14} />Test connection</button>
+    </div>
+    <div class="mt-3 text-sm" data-conn-result hidden></div>
+  </div>
+
   <!-- Platform picker -->
   <div class="mb-3 flex flex-wrap items-center gap-2">
     <span class="text-2xs mono text-ink-muted uppercase tracking-wider mr-1">Connect what you use</span>
@@ -220,5 +237,57 @@ const tintHex: Record<string, string> = {
         toast("Copied — paste it into your tool");
       });
     });
+
+    // ── "Test connection" — reachability, then optional auth + plan check ──
+    var conn = root.querySelector("[data-conn-test]");
+    if (conn) {
+      var cBase = (conn.getAttribute("data-base") || "").replace(/\/+$/, "");
+      var cEnd = (conn.getAttribute("data-endpoint") || "").replace(/\/+$/, "");
+      var cKey = conn.querySelector("[data-conn-key]");
+      var cBtn = conn.querySelector("[data-conn-run]");
+      var cOut = conn.querySelector("[data-conn-result]");
+      var cShow = function (kind, html) {
+        cOut.hidden = false;
+        cOut.style.color = kind === "ok" ? "#2dd4a7" : kind === "bad" ? "#f87f93" : "var(--text-muted)";
+        cOut.innerHTML = html;
+      };
+      cBtn.addEventListener("click", function () {
+        var key = (cKey.value || "").trim();
+        var orig = cBtn.innerHTML;
+        cBtn.disabled = true;
+        cBtn.textContent = "Testing…";
+        cShow("muted", "Checking " + cBase + " …");
+        fetch(cBase + "/healthz", { method: "GET", mode: "cors" })
+          .then(function (r) {
+            if (!r.ok) throw { step: "health", status: r.status };
+            if (!key) {
+              cShow("ok", "✅ Reachable. Paste your API key above to verify auth and see your plan.");
+              return null;
+            }
+            return fetch(cEnd + "/tier", { headers: { Authorization: "Bearer " + key } }).then(function (tr) {
+              if (tr.status === 401 || tr.status === 403) throw { step: "auth", status: tr.status };
+              if (!tr.ok) throw { step: "tier", status: tr.status };
+              return tr.json();
+            });
+          })
+          .then(function (info) {
+            if (!info) return;
+            var used = info.tokens_used_this_month, budget = info.monthly_token_budget;
+            var usage = budget == null
+              ? (used != null ? Math.round(used / 1000) + "k tokens · unlimited" : "unlimited")
+              : Math.round((used || 0) / 1000) + "k / " + Math.round(budget / 1e6) + "M tokens this month";
+            cShow("ok", "✅ Connected — plan <strong>" + (info.tier || "?") + "</strong> · " + usage + ".");
+          })
+          .catch(function (e) {
+            var msg;
+            if (e && e.step === "auth") msg = "❌ Key rejected (" + e.status + "). Check your API key under Settings → API key.";
+            else if (e && e.step === "health") msg = "❌ " + cBase + " returned " + e.status + ". Is the base URL right and the proxy healthy?";
+            else if (e && e.step === "tier") msg = "⚠️ Reachable, but the plan check failed (" + e.status + ").";
+            else msg = "❌ Couldn't reach " + cBase + ". Is your backend up and pointing here? (Local: is the proxy running?)";
+            cShow("bad", msg);
+          })
+          .then(function () { cBtn.disabled = false; cBtn.innerHTML = orig; });
+      });
+    }
   })();
 </script>

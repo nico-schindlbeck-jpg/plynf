@@ -122,6 +122,18 @@ class ProxySettings(BaseSettings):
     # custom REST connectors. Empty = none.
     rest_connectors: str = ""
 
+    # CORS origins allowed to call the proxy from a browser — the install-page
+    # "Test connection" check and any browser SDK. Comma-separated; empty
+    # disables CORS entirely (server-to-server only).
+    cors_origins: str = (
+        "https://plynf.com,https://www.plynf.com,https://app.plynf.com,"
+        "http://localhost:4321,http://localhost:4322"
+    )
+
+    def parsed_cors_origins(self) -> list[str]:
+        """Return the CORS allow-list as a clean list (drops blanks)."""
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
     @property
     def policies_path(self) -> Path:
         if self.policies_dir:

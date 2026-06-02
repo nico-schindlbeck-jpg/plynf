@@ -39,6 +39,7 @@ from typing import Any
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from starlette.datastructures import Headers
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -320,6 +321,17 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
     app.add_middleware(_RequestIDMiddleware)
     if settings is not None:
         app.state.plinth = _build_state(settings)
+        # Browser access (install-page "Test connection", browser SDKs). Added
+        # last so it's the outermost layer — preflight is answered before auth.
+        origins = settings.parsed_cors_origins()
+        if origins:
+            app.add_middleware(
+                CORSMiddleware,
+                allow_origins=origins,
+                allow_methods=["GET", "POST", "OPTIONS"],
+                allow_headers=["*"],
+                allow_credentials=False,
+            )
 
     @app.exception_handler(StarletteHTTPException)
     async def _dialect_error_handler(
