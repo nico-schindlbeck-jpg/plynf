@@ -375,7 +375,7 @@ const attrMax = Math.max(1, ...attribution.sources.map((s) => s.count));
       </div>
 
       <!-- Tamper-evident audit logs (gated: Pro+) -->
-      <div class="flex items-center justify-between rounded-xl border border-border bg-bg-1/40 px-4 py-3" style={auditLocked ? "opacity:.62" : undefined}>
+      <div class="flex items-center justify-between rounded-xl border border-border bg-bg-1/40 px-4 py-3" data-gate-row="audit_log" style={auditLocked ? "opacity:.62" : undefined}>
         <div class="flex items-center gap-3 min-w-0">
           <span class={`dot ${auditLocked ? "" : "dot-healthy"}`}></span>
           <div class="min-w-0">
@@ -390,7 +390,7 @@ const attrMax = Math.max(1, ...attribution.sources.map((s) => s.count));
       </div>
 
       <!-- PII redaction (gated: Pro+) -->
-      <div class="flex items-center justify-between rounded-xl border border-border bg-bg-1/40 px-4 py-3 mt-3" style={piiLocked ? "opacity:.62" : undefined}>
+      <div class="flex items-center justify-between rounded-xl border border-border bg-bg-1/40 px-4 py-3 mt-3" data-gate-row="pii_redaction" style={piiLocked ? "opacity:.62" : undefined}>
         <div class="min-w-0 pr-3">
           <div class="text-[0.82rem] text-ink-primary">PII redaction</div>
           <div class="text-2xs text-ink-muted">Strip emails, names &amp; secrets from tool responses before the model sees them.</div>
@@ -402,7 +402,7 @@ const attrMax = Math.max(1, ...attribution.sources.map((s) => s.count));
       </div>
 
       <!-- SSO — SAML / OIDC (gated: Enterprise) -->
-      <div class="flex items-center justify-between rounded-xl border border-border bg-bg-1/40 px-4 py-3 mt-3" style={ssoLocked ? "opacity:.62" : undefined}>
+      <div class="flex items-center justify-between rounded-xl border border-border bg-bg-1/40 px-4 py-3 mt-3" data-gate-row="self_hosted_sso" style={ssoLocked ? "opacity:.62" : undefined}>
         <div class="min-w-0 pr-3">
           <div class="text-[0.82rem] text-ink-primary">Single sign-on — SAML / OIDC</div>
           <div class="text-2xs text-ink-muted">Let your team sign in through your identity provider.</div>

@@ -2,7 +2,12 @@
 // A small badge that shows, right at a gated control, whether the current
 // plan unlocks it (✓ Included) or which tier does (🔒 Pro / Enterprise →
 // links to pricing). Sourced from data/plans.ts, which mirrors the proxy's
-// enforced tier_gate.py — so what's shown here is exactly what the gate does.
+// enforced tier_gate.py.
+//
+// Renders BOTH forms; `data-allowed` (flipped live by DashboardLayout's
+// updateGates() from state.billing.features) decides which one CSS shows —
+// so the badge goes live without re-rendering any SVG. `needName` is the
+// feature's required tier and is constant, so it's safe to render once.
 import Icon from "./Icon.astro";
 import { featureAllowed, minTierFor, planFor } from "../../data/plans";
 import type { GateKey, TierId } from "../../data/plans";
@@ -17,16 +22,15 @@ const allowed = featureAllowed(feature, tier);
 const need = minTierFor(feature);
 const needName = need ? planFor(need).name : "";
 ---
-{allowed ? (
-  <span class={`dbadge dbadge-ok !text-[0.6rem] inline-flex items-center gap-1 ${cls}`} title={`Included in your ${planFor(tier).name} plan`}>
+<span class={`gatebadge inline-flex ${cls}`} data-gate={feature} data-allowed={allowed ? "1" : "0"}>
+  <span class="gatebadge-yes dbadge dbadge-ok !text-[0.6rem] inline-flex items-center gap-1" title={`Included in your plan`}>
     <Icon name="check" size={10} />Included
   </span>
-) : (
   <a
+    class="gatebadge-no dbadge !text-[0.6rem] inline-flex items-center gap-1 hover:border-accent/40"
     href="/pricing"
-    class={`dbadge !text-[0.6rem] inline-flex items-center gap-1 hover:border-accent/40 ${cls}`}
     title={`Unlocks on ${needName} — see pricing`}
   >
     <Icon name="shield" size={10} />{needName}
   </a>
-)}
+</span>

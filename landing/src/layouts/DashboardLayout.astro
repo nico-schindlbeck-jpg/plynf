@@ -344,6 +344,38 @@ const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
             el.textContent = (FMT[el.getAttribute("data-fmt") || "raw"] || FMT.raw)(v);
           });
         }
+        // Map the UI's gate keys → the proxy /v1/tier feature keys.
+        var GATE_FEATURE_KEY = {
+          pii_redaction: "pii_redaction",
+          audit_log: "audit_log",
+          custom_rest: "custom_rest_connectors",
+          self_hosted_sso: "self_hosted_helm",
+        };
+        // Flip every [data-gate] badge + [data-gate-cta] + grey [data-gate-row]
+        // from the live plan's unlocked-features map (state.billing.features).
+        function updateGates(state) {
+          var feats = state && state.billing && state.billing.features;
+          if (!feats) return;
+          document.querySelectorAll("[data-gate]").forEach(function (el) {
+            var k = GATE_FEATURE_KEY[el.getAttribute("data-gate")];
+            if (k == null || !(k in feats)) return;
+            var allowed = !!feats[k];
+            el.setAttribute("data-allowed", allowed ? "1" : "0");
+            var row = el.closest("[data-gate-row]");
+            if (row) {
+              row.style.opacity = allowed ? "" : "0.62";
+              var tg = row.querySelector(".toggle");
+              if (tg) {
+                tg.setAttribute("aria-disabled", allowed ? "false" : "true");
+                tg.setAttribute("tabindex", allowed ? "0" : "-1");
+              }
+            }
+          });
+          document.querySelectorAll("[data-gate-cta]").forEach(function (el) {
+            var k = GATE_FEATURE_KEY[el.getAttribute("data-gate-cta")];
+            if (k != null && k in feats) el.setAttribute("data-allowed", feats[k] ? "1" : "0");
+          });
+        }
         function setConn(kind) {
           document.body.setAttribute("data-conn", kind);
           var badge = document.getElementById("conn-badge");
@@ -366,6 +398,7 @@ const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
             .then(function (state) {
               window.__PLYNF_LIVE = state;
               updateBindings(state);
+              updateGates(state);
               setConn("live");
               // Pages with live lists (e.g. Routing) re-render on this event.
               window.dispatchEvent(new CustomEvent("plynf:state", { detail: state }));

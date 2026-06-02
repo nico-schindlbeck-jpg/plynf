@@ -85,7 +85,7 @@ const restLocked = !featureAllowed("custom_rest", tier);
     </div>
 
     <!-- Custom REST connectors (gated: Pro+) — map any HTTP API to a Plynf tool -->
-    <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg-1/40 px-4 py-3" style={restLocked ? "opacity:.62" : undefined}>
+    <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg-1/40 px-4 py-3" data-gate-row="custom_rest" style={restLocked ? "opacity:.62" : undefined}>
       <div class="min-w-0 pr-3">
         <div class="flex items-center gap-2">
           <span class="text-[0.85rem] text-ink-primary">Custom REST connectors</span>
@@ -93,11 +93,10 @@ const restLocked = !featureAllowed("custom_rest", tier);
         </div>
         <div class="text-2xs text-ink-muted mt-0.5">Wrap any HTTP endpoint as a shaped Plynf tool — beyond the eight built-in connectors.</div>
       </div>
-      {restLocked ? (
-        <a href="/pricing" class="btn btn-secondary !py-1.5 text-sm flex-none"><Icon name="shield" size={14} />Upgrade to add</a>
-      ) : (
-        <button class="btn btn-ghost !py-1.5 text-sm flex-none" data-modal-open="provider"><Icon name="plus" size={14} />Add REST connector</button>
-      )}
+      <span class="gate-cta flex-none" data-gate-cta="custom_rest" data-allowed={restLocked ? "0" : "1"}>
+        <button class="gate-cta-yes btn btn-ghost !py-1.5 text-sm" data-modal-open="provider"><Icon name="plus" size={14} />Add REST connector</button>
+        <a class="gate-cta-no btn btn-secondary !py-1.5 text-sm" href="/pricing"><Icon name="shield" size={14} />Upgrade to add</a>
+      </span>
     </div>
   </div>
 

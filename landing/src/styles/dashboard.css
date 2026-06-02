@@ -375,3 +375,10 @@
 .divide-card > * + * { border-top: 1px solid var(--border); }
 .copy-btn { cursor: pointer; }
 .copy-btn:active { transform: scale(0.96); }
+
+/* Tier-gate badges + CTAs: render both forms, show one by data-allowed.
+   DashboardLayout's updateGates() flips data-allowed from the live tier. */
+.gatebadge[data-allowed="1"] > .gatebadge-no { display: none; }
+.gatebadge[data-allowed="0"] > .gatebadge-yes { display: none; }
+.gate-cta[data-allowed="1"] > .gate-cta-no { display: none; }
+.gate-cta[data-allowed="0"] > .gate-cta-yes { display: none; }
