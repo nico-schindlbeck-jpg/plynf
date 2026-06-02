@@ -67,6 +67,60 @@ def test_allow_fields_none_returns_input_unchanged():
 
 
 # ---------------------------------------------------------------------------
+# allow_fields — schema-robust matching (casing / separators / mismatch)
+# ---------------------------------------------------------------------------
+
+
+def test_allow_fields_match_is_casing_and_separator_insensitive():
+    # Customer schema is camelCase / PascalCase / UPPER — the snake_case
+    # keep-list must still find the fields, with zero per-customer config.
+    policy = ToolPolicy(tool="get_order", allow_fields=("order_id", "customer_name", "status"))
+    raw = {"orderId": "A1", "CustomerName": "Jane", "STATUS": "open", "internalLedgerRef": "x"}
+    assert apply(raw, policy) == {"orderId": "A1", "CustomerName": "Jane", "STATUS": "open"}
+
+
+def test_allow_fields_normalised_match_on_nested_path():
+    policy = ToolPolicy(tool="get_account", allow_fields=("account_id", "owner.full_name"))
+    raw = {"accountId": "1", "Owner": {"FullName": "Sam", "email": "x@y.z"}, "extra": 1}
+    assert apply(raw, policy) == {"accountId": "1", "Owner": {"FullName": "Sam"}}
+
+
+def test_allow_fields_whole_segment_avoids_substring_false_match():
+    # "id" must NOT match "idempotency_key" / "ident" — matching is per whole
+    # normalised segment, not substring.
+    policy = ToolPolicy(tool="t", allow_fields=("id",))
+    raw = {"id": "keep", "idempotency_key": "drop", "ident": "drop2"}
+    assert apply(raw, policy) == {"id": "keep"}
+
+
+def test_allow_fields_total_mismatch_keeps_stripped_response_not_blank():
+    # Whitelist matches nothing (foreign field names) → must NOT blank the
+    # agent's data; falls back to the metadata-stripped response.
+    policy = ToolPolicy(
+        tool="get_order", allow_fields=("order_id", "status"), strip_metadata=True
+    )
+    raw = {"bestellnummer": "B-7", "zustand": "offen", "created_at": "2026-01-01"}
+    # created_at stripped; the real (foreign-named) data is preserved, not lost.
+    assert apply(raw, policy) == {"bestellnummer": "B-7", "zustand": "offen"}
+
+
+def test_allow_fields_partial_match_still_projects():
+    # At least one field matched → normal projection (no fallback).
+    policy = ToolPolicy(tool="get_order", allow_fields=("order_id", "status"))
+    raw = {"order_id": "A1", "zustand": "offen", "noise": "x"}
+    assert apply(raw, policy) == {"order_id": "A1"}
+
+
+def test_allow_fields_synonyms_via_pipe():
+    # True synonyms (different words): list alternatives with "|".
+    policy = ToolPolicy(
+        tool="get_order", allow_fields=("order_id|order_number|orderno", "status")
+    )
+    raw = {"orderNumber": "B-7", "status": "open", "junk": 1}
+    assert apply(raw, policy) == {"orderNumber": "B-7", "status": "open"}
+
+
+# ---------------------------------------------------------------------------
 # deny_fields
 # ---------------------------------------------------------------------------
 

@@ -7,7 +7,10 @@ allowed to see, what should be masked, and how long the result may be cached.
 
 Supported rule types (MVP):
 
-* ``allow_fields``  — whitelist of fields (supports dotted paths for nested)
+* ``allow_fields``  — whitelist of fields. Dotted paths for nested objects;
+  matching is casing/separator-insensitive (order_id == orderId == OrderID);
+  list "a|b|c" alternatives for synonyms. If it matches nothing (foreign
+  schema), the response is NOT blanked — see ``apply``.
 * ``deny_fields``   — explicit blacklist applied after allow_fields
 * ``max_response_tokens`` — hard cap; oversized lists/strings get truncated
 * ``strip_metadata`` — drops common audit columns (``created_at`` etc.)
@@ -24,11 +27,26 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+log = logging.getLogger("plinth.proxy.policy")
+
+
+def _norm(s: str) -> str:
+    """Canonicalise a field name for matching: lowercase, strip non-alphanumerics.
+
+    So ``order_id`` == ``orderId`` == ``OrderID`` == ``order-id`` == ``ORDER_ID``.
+    This is what makes allow_fields robust to a customer's snake_case vs
+    camelCase vs PascalCase schema. It compares whole segments (not substrings),
+    so ``id`` never accidentally matches ``idempotency_key``.
+    """
+    return re.sub(r"[^a-z0-9]+", "", s.lower())
 
 # Default metadata fields stripped by ``strip_metadata: true``.
 _DEFAULT_METADATA_FIELDS = frozenset(
@@ -56,6 +74,10 @@ _DEFAULT_METADATA_FIELDS = frozenset(
         "attributes",  # Salesforce wrapper
     }
 )
+
+# Normalised form, so metadata is stripped regardless of casing/separators
+# (CREATED_AT, created-at, CreatedAt … all match).
+_DEFAULT_METADATA_NORM = frozenset(_norm(f) for f in _DEFAULT_METADATA_FIELDS)
 
 # Tool names matching these prefixes are treated as write actions.
 _WRITE_PREFIXES = ("create_", "update_", "delete_", "send_", "post_", "patch_", "put_")
@@ -234,7 +256,21 @@ def apply(
         out = _strip_metadata(out)
 
     if policy.allow_fields:
-        out = _project_fields(out, policy.allow_fields)
+        projected = _project_fields(out, policy.allow_fields)
+        # Safety net: if the whitelist matched (almost) nothing while the source
+        # still had content, the customer's schema is using field names we don't
+        # recognise. Blanking the agent's data would be fatal — keep the
+        # metadata-stripped response instead and warn, so the policy gets fixed
+        # rather than silently returning {}.
+        if _looks_empty(projected) and not _looks_empty(out):
+            log.warning(
+                "policy.allow_fields matched no fields for tool %r — schema "
+                "mismatch? keeping metadata-stripped response (add the real "
+                "field names / synonyms to re-enable projection)",
+                policy.tool,
+            )
+        else:
+            out = projected
 
     if policy.deny_fields:
         out = _remove_fields(out, policy.deny_fields)
@@ -258,7 +294,7 @@ def _strip_metadata(value: Any) -> Any:
         return {
             k: _strip_metadata(v)
             for k, v in value.items()
-            if k not in _DEFAULT_METADATA_FIELDS
+            if _norm(k) not in _DEFAULT_METADATA_NORM
         }
     if isinstance(value, list):
         return [_strip_metadata(item) for item in value]
@@ -276,23 +312,47 @@ def _is_prefix(field_path: list[str], allow_path: list[str]) -> bool:
     return field_path[: len(allow_path)] == allow_path
 
 
+def _looks_empty(value: Any) -> bool:
+    """True if a value carries no usable content — an empty dict, or a list
+    whose elements are all empty. Scalars count as content. Used to detect a
+    whitelist that matched nothing (schema mismatch) so we don't blank a
+    response that actually had data."""
+    if isinstance(value, dict):
+        return len(value) == 0
+    if isinstance(value, list):
+        return all(_looks_empty(v) for v in value)  # [] and [{}] are empty
+    return value is None
+
+
 def _project_fields(value: Any, allow: tuple[str, ...]) -> Any:
-    """Whitelist projection. Supports dotted paths for nested objects."""
+    """Whitelist projection. Supports dotted paths for nested objects.
+
+    Matching is normalised (see :func:`_norm`), so the keep-list survives a
+    customer's snake_case vs camelCase vs PascalCase schema with no per-field
+    config (``order_id`` matches ``orderId`` / ``OrderID`` / ``order-id``).
+    """
     if not isinstance(value, dict):
         # Lists: project each element.
         if isinstance(value, list):
             return [_project_fields(item, allow) for item in value]
         return value
 
-    # Build a trie of allow paths for efficient lookup.
-    allow_paths = [_split_path(a) for a in allow]
+    # Build allow paths in normalised segment form for casing-robust lookup.
+    # An entry may list "syn1|syn2" alternatives (e.g. "order_id|order_number|
+    # orderno") for true synonyms; each expands to its own path.
+    allow_paths = [
+        [_norm(seg) for seg in _split_path(alt.strip())]
+        for a in allow
+        for alt in a.split("|")
+        if alt.strip()
+    ]
     return _project_dict(value, allow_paths, current_path=[])
 
 
 def _project_dict(d: dict, allow_paths: list[list[str]], current_path: list[str]) -> dict:
     out: dict[str, Any] = {}
     for key, val in d.items():
-        new_path = [*current_path, key]
+        new_path = [*current_path, _norm(key)]  # normalised for casing-robust match
         # Is this key allowed at the top level OR inside a deeper path?
         exact_match = any(new_path == ap for ap in allow_paths)
         nested_match = any(_is_prefix(ap, new_path) for ap in allow_paths)
