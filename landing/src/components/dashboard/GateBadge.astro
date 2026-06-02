@@ -1,0 +1,32 @@
+---
+// A small badge that shows, right at a gated control, whether the current
+// plan unlocks it (✓ Included) or which tier does (🔒 Pro / Enterprise →
+// links to pricing). Sourced from data/plans.ts, which mirrors the proxy's
+// enforced tier_gate.py — so what's shown here is exactly what the gate does.
+import Icon from "./Icon.astro";
+import { featureAllowed, minTierFor, planFor } from "../../data/plans";
+import type { GateKey, TierId } from "../../data/plans";
+
+interface Props {
+  feature: GateKey;
+  tier: TierId;
+  class?: string;
+}
+const { feature, tier, class: cls = "" } = Astro.props;
+const allowed = featureAllowed(feature, tier);
+const need = minTierFor(feature);
+const needName = need ? planFor(need).name : "";
+---
+{allowed ? (
+  <span class={`dbadge dbadge-ok !text-[0.6rem] inline-flex items-center gap-1 ${cls}`} title={`Included in your ${planFor(tier).name} plan`}>
+    <Icon name="check" size={10} />Included
+  </span>
+) : (
+  <a
+    href="/pricing"
+    class={`dbadge !text-[0.6rem] inline-flex items-center gap-1 hover:border-accent/40 ${cls}`}
+    title={`Unlocks on ${needName} — see pricing`}
+  >
+    <Icon name="shield" size={10} />{needName}
+  </a>
+)}

@@ -3,7 +3,17 @@ import DashboardLayout from "../../layouts/DashboardLayout.astro";
 import PageHeader from "../../components/dashboard/PageHeader.astro";
 import StatusBadge from "../../components/dashboard/StatusBadge.astro";
 import Icon from "../../components/dashboard/Icon.astro";
-import { capabilityTokens, guardrails, team, tenants, agents, eur, attribution } from "../../data/dashboard";
+import GateBadge from "../../components/dashboard/GateBadge.astro";
+import { capabilityTokens, guardrails, team, tenants, agents, eur, attribution, billing } from "../../data/dashboard";
+import { featureAllowed } from "../../data/plans";
+
+// Current plan drives the feature-gate badges shown at each gated control.
+// Locked controls are greyed + their toggle disabled, so you see what needs
+// an upgrade right where you'd flip it — never a surprise mid-integration.
+const tier = billing.tier;
+const auditLocked = !featureAllowed("audit_log", tier);
+const piiLocked = !featureAllowed("pii_redaction", tier);
+const ssoLocked = !featureAllowed("self_hosted_sso", tier);
 
 // Personal API key (solo-dev fast access). Masked for display; the full value
 // is wired to the shell's [data-copy] handler.
@@ -364,16 +374,43 @@ const attrMax = Math.max(1, ...attribution.sources.map((s) => s.count));
         </select>
       </div>
 
-      <!-- Tamper-evident audit logs -->
-      <div class="flex items-center justify-between rounded-xl border border-border bg-bg-1/40 px-4 py-3">
+      <!-- Tamper-evident audit logs (gated: Pro+) -->
+      <div class="flex items-center justify-between rounded-xl border border-border bg-bg-1/40 px-4 py-3" style={auditLocked ? "opacity:.62" : undefined}>
         <div class="flex items-center gap-3 min-w-0">
-          <span class="dot dot-healthy"></span>
+          <span class={`dot ${auditLocked ? "" : "dot-healthy"}`}></span>
           <div class="min-w-0">
             <div class="text-[0.82rem] text-ink-primary">Tamper-evident audit logs</div>
             <div class="text-2xs text-ink-muted mono truncate">hash-chained · every decision signed</div>
           </div>
         </div>
-        <span class="dbadge dbadge-ok !text-[0.65rem]">Enabled</span>
+        <div class="flex items-center gap-2 flex-none">
+          <GateBadge feature="audit_log" tier={tier} />
+          {!auditLocked && <span class="dbadge dbadge-ok !text-[0.65rem]">Enabled</span>}
+        </div>
+      </div>
+
+      <!-- PII redaction (gated: Pro+) -->
+      <div class="flex items-center justify-between rounded-xl border border-border bg-bg-1/40 px-4 py-3 mt-3" style={piiLocked ? "opacity:.62" : undefined}>
+        <div class="min-w-0 pr-3">
+          <div class="text-[0.82rem] text-ink-primary">PII redaction</div>
+          <div class="text-2xs text-ink-muted">Strip emails, names &amp; secrets from tool responses before the model sees them.</div>
+        </div>
+        <div class="flex items-center gap-2 flex-none">
+          <GateBadge feature="pii_redaction" tier={tier} />
+          <span class="toggle" role="switch" aria-checked={piiLocked ? "false" : "true"} aria-disabled={piiLocked ? "true" : undefined} tabindex={piiLocked ? -1 : 0} data-label="PII redaction" aria-label="Toggle PII redaction"></span>
+        </div>
+      </div>
+
+      <!-- SSO — SAML / OIDC (gated: Enterprise) -->
+      <div class="flex items-center justify-between rounded-xl border border-border bg-bg-1/40 px-4 py-3 mt-3" style={ssoLocked ? "opacity:.62" : undefined}>
+        <div class="min-w-0 pr-3">
+          <div class="text-[0.82rem] text-ink-primary">Single sign-on — SAML / OIDC</div>
+          <div class="text-2xs text-ink-muted">Let your team sign in through your identity provider.</div>
+        </div>
+        <div class="flex items-center gap-2 flex-none">
+          <GateBadge feature="self_hosted_sso" tier={tier} />
+          <span class="toggle" role="switch" aria-checked="false" aria-disabled={ssoLocked ? "true" : undefined} tabindex={ssoLocked ? -1 : 0} data-label="SSO" aria-label="Toggle SSO"></span>
+        </div>
       </div>
     </div>
 

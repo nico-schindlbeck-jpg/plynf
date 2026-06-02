@@ -3,7 +3,9 @@ import DashboardLayout from "../../layouts/DashboardLayout.astro";
 import PageHeader from "../../components/dashboard/PageHeader.astro";
 import StatusBadge from "../../components/dashboard/StatusBadge.astro";
 import Icon from "../../components/dashboard/Icon.astro";
-import { providers, modelAliases, frontDoors } from "../../data/dashboard";
+import GateBadge from "../../components/dashboard/GateBadge.astro";
+import { providers, modelAliases, frontDoors, billing } from "../../data/dashboard";
+import { featureAllowed } from "../../data/plans";
 
 // Data the client-side routing tester needs (mirrors UpstreamRouter.resolve).
 const routeData = {
@@ -11,6 +13,11 @@ const routeData = {
   aliases: Object.fromEntries(modelAliases.map((a) => [a.alias, a.target])),
 };
 const defaultProvider = providers.find((p) => p.isDefault);
+
+// Custom REST connectors are a gated feature (Pro+). When locked, the add
+// button greys out and shows the tier that unlocks it — right at the control.
+const tier = billing.tier;
+const restLocked = !featureAllowed("custom_rest", tier);
 ---
 <DashboardLayout title="Routing & Providers" active="/app/routing">
   <PageHeader
@@ -75,6 +82,22 @@ const defaultProvider = providers.find((p) => p.isDefault);
           ))}
         </tbody>
       </table>
+    </div>
+
+    <!-- Custom REST connectors (gated: Pro+) — map any HTTP API to a Plynf tool -->
+    <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-bg-1/40 px-4 py-3" style={restLocked ? "opacity:.62" : undefined}>
+      <div class="min-w-0 pr-3">
+        <div class="flex items-center gap-2">
+          <span class="text-[0.85rem] text-ink-primary">Custom REST connectors</span>
+          <GateBadge feature="custom_rest" tier={tier} />
+        </div>
+        <div class="text-2xs text-ink-muted mt-0.5">Wrap any HTTP endpoint as a shaped Plynf tool — beyond the eight built-in connectors.</div>
+      </div>
+      {restLocked ? (
+        <a href="/pricing" class="btn btn-secondary !py-1.5 text-sm flex-none"><Icon name="shield" size={14} />Upgrade to add</a>
+      ) : (
+        <button class="btn btn-ghost !py-1.5 text-sm flex-none" data-modal-open="provider"><Icon name="plus" size={14} />Add REST connector</button>
+      )}
     </div>
   </div>
 
