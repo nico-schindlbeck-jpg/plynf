@@ -401,6 +401,31 @@ async def _overlay_live(
     except (httpx.HTTPError, ValueError):
         state["_gatewayReachable"] = False
 
+    # 4) Proxy tier introspection → real plan, month-to-date usage, and which
+    # features are unlocked — folded into billing so the page + the gate badges
+    # reflect the actual account, not the seed. Auth: the dashboard's service
+    # token must be a key the proxy accepts; otherwise this 401s and the seeded
+    # billing stays (the page never breaks).
+    try:
+        resp = await client.get(
+            f"{proxy_url}/v1/tier",
+            headers={"Authorization": settings.auth_header},
+        )
+        if resp.status_code < 400:
+            t = resp.json() or {}
+            billing = state.setdefault("billing", {})
+            if t.get("tier"):
+                billing["tier"] = t["tier"]
+            if t.get("monthly_token_budget") is not None:
+                billing["monthlyTokenBudget"] = t["monthly_token_budget"]
+            if t.get("tokens_used_this_month") is not None:
+                billing["usedTokens"] = t["tokens_used_this_month"]
+            if isinstance(t.get("features"), dict):
+                billing["features"] = t["features"]
+            state["_telemetry"] = "live"
+    except (httpx.HTTPError, ValueError):
+        pass
+
 
 # ---------------------------------------------------------------------------
 # Routes

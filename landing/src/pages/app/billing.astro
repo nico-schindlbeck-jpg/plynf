@@ -42,7 +42,7 @@ const tokenRow = FEATURES.find((f) => f.label === "Shaped tokens / mo");
           <div>
             <div class="kpi-label">Current plan</div>
             <div class="mt-1 flex items-center gap-3">
-              <span class="text-[clamp(2rem,4vw,2.6rem)] font-bold leading-none tracking-[-0.04em] text-ink-primary">{plan.name}</span>
+              <span id="bill-plan" class="text-[clamp(2rem,4vw,2.6rem)] font-bold leading-none tracking-[-0.04em] text-ink-primary">{plan.name}</span>
               <span class="dbadge dbadge-accent">Active</span>
             </div>
             <p class="mt-2 text-ink-secondary text-[0.9rem] mono">{billing.priceLabel}</p>
@@ -57,11 +57,11 @@ const tokenRow = FEATURES.find((f) => f.label === "Shaped tokens / mo");
         <div class="mt-6">
           <div class="flex items-end justify-between mb-1.5">
             <span class="text-sm text-ink-secondary">Token budget used this cycle</span>
-            <span class="text-sm mono text-ink-primary tnum">{usageLabel}</span>
+            <span id="bill-usage" class="text-sm mono text-ink-primary tnum">{usageLabel}</span>
           </div>
-          <div class={`prog ${usageProgClass}`}><span style={`width:${Math.min(100, usagePct)}%`}></span></div>
+          <div class={`prog ${usageProgClass}`}><span id="bill-usage-bar" style={`width:${Math.min(100, usagePct)}%`}></span></div>
           <div class="mt-1.5 text-2xs text-ink-muted">
-            {pct(usagePct)} of your {plan.name} budget. Hit the cap and calls pause until next cycle — or upgrade for a bigger budget. No surprise overage charges.
+            <span id="bill-usage-note">{pct(usagePct)} of your {plan.name} budget.</span> Hit the cap and calls pause until next cycle — or upgrade for a bigger budget. No surprise overage charges.
           </div>
         </div>
 
@@ -74,7 +74,7 @@ const tokenRow = FEATURES.find((f) => f.label === "Shaped tokens / mo");
           </div>
           <div class="rounded-xl bg-bg-2/60 border border-border p-4">
             <div class="kpi-label">Tokens remaining</div>
-            <div class="mt-1 text-2xl font-bold tnum text-accent">{tokensRemaining === null ? "Unlimited" : compact(tokensRemaining)}</div>
+            <div id="bill-remaining" class="mt-1 text-2xl font-bold tnum text-accent">{tokensRemaining === null ? "Unlimited" : compact(tokensRemaining)}</div>
             <div class="text-2xs text-ink-muted mt-1">Before this cycle's cap</div>
           </div>
         </div>
@@ -318,6 +318,31 @@ const tokenRow = FEATURES.find((f) => f.label === "Shaped tokens / mo");
       }
       if (window.__PLYNF_LIVE) render(window.__PLYNF_LIVE);
       window.addEventListener("plynf:state", function (e) { render(e.detail); });
+    })();
+  </script>
+
+  <!-- Live plan + usage from GET /api/app/state's /v1/tier overlay (SSG = fallback). -->
+  <script is:inline>
+    (function () {
+      function paint(state) {
+        var b = state && state.billing;
+        if (!b || !window.plynfFmt) return;
+        var fmt = window.plynfFmt;
+        var used = b.usedTokens, budget = b.monthlyTokenBudget;
+        var set = function (id, v) { var el = document.getElementById(id); if (el && v != null) el.textContent = v; };
+        var planName = b.tier ? b.tier.charAt(0).toUpperCase() + b.tier.slice(1) : "";
+        if (planName) set("bill-plan", planName);
+        if (used != null) {
+          var pctUsed = budget ? Math.min(100, (used / budget) * 100) : 0;
+          var bar = document.getElementById("bill-usage-bar");
+          if (bar) bar.style.width = pctUsed + "%";
+          set("bill-usage", budget == null ? fmt.compact(used) + " tokens · unlimited" : fmt.compact(used) + " / " + fmt.compact(budget) + " tokens");
+          set("bill-usage-note", fmt.pct(pctUsed) + " of your " + planName + " budget.");
+          set("bill-remaining", budget == null ? "Unlimited" : fmt.compact(Math.max(0, budget - used)));
+        }
+      }
+      if (window.__PLYNF_LIVE) paint(window.__PLYNF_LIVE);
+      window.addEventListener("plynf:state", function (e) { paint(e.detail); });
     })();
   </script>
 </DashboardLayout>

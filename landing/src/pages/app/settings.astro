@@ -4,7 +4,7 @@ import PageHeader from "../../components/dashboard/PageHeader.astro";
 import StatusBadge from "../../components/dashboard/StatusBadge.astro";
 import Icon from "../../components/dashboard/Icon.astro";
 import GateBadge from "../../components/dashboard/GateBadge.astro";
-import { capabilityTokens, guardrails, team, tenants, agents, eur, attribution, billing } from "../../data/dashboard";
+import { capabilityTokens, guardrails, team, tenants, agents, eur, attribution, billing, demoApiKey } from "../../data/dashboard";
 import { featureAllowed } from "../../data/plans";
 
 // Current plan drives the feature-gate badges shown at each gated control.
@@ -17,7 +17,7 @@ const ssoLocked = !featureAllowed("self_hosted_sso", tier);
 
 // Personal API key (solo-dev fast access). Masked for display; the full value
 // is wired to the shell's [data-copy] handler.
-const apiKeyFull = "plynf_sk_live_9f2c8a4be11d4c7f8a02e5b3d9714c6e";
+const apiKeyFull = demoApiKey;
 const apiKeyMasked = `${apiKeyFull.slice(0, 16)}${"•".repeat(18)}${apiKeyFull.slice(-4)}`;
 
 // Token rotation posture — surfaced for the security reviewer.

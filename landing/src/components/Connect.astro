@@ -88,7 +88,7 @@ const tintHex: Record<string, string> = {
         </div>
         <div class="text-2xs text-ink-muted mt-0.5">One click checks Plynf is reachable — paste your key to also verify auth &amp; see your plan.</div>
       </div>
-      <input type="text" class="dinput mono !py-1.5 !text-xs w-full sm:w-60 flex-none" data-conn-key placeholder="plynf_sk_live_… (optional)" autocomplete="off" spellcheck="false" />
+      <input type="text" class="dinput mono !py-1.5 !text-xs w-full sm:w-60 flex-none" data-conn-key value={keyValue !== PLYNF_KEY_PLACEHOLDER ? keyValue : ""} placeholder="plynf_sk_live_… (optional)" autocomplete="off" spellcheck="false" />
       <button class="btn btn-secondary !py-1.5 flex-none" data-conn-run><Icon name="rotate" size={14} />Test connection</button>
     </div>
     <div class="mt-3 text-sm" data-conn-result hidden></div>

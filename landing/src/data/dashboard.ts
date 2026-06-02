@@ -459,6 +459,12 @@ export const billing = {
   ],
 };
 
+// The tenant's personal API key, shown (masked) in Settings and prefilled into
+// the Connect snippets + "Test connection" field when logged in — so there are
+// zero placeholders to swap out. Demo value; the live dashboard overlays the
+// real key. Not a real secret.
+export const demoApiKey = "plynf_sk_live_9f2c8a4be11d4c7f8a02e5b3d9714c6e";
+
 // ─── Upstream routing & providers — THE core product configuration ──────────
 // Plynf is a control plane: a tenant operates the proxy entirely from here.
 // These map 1:1 to PLINTH_PROXY_PROVIDERS / MODEL_ALIASES / front-door routes.

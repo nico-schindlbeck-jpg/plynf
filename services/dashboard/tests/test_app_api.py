@@ -80,7 +80,7 @@ async def test_state_returns_full_contract(client):
 async def test_state_derives_kpis_from_live_telemetry(client):
     """When the proxy savings sink + gateway audit are reachable, the Overview
     KPIs are derived from them — not the seed."""
-    with respx.mock(assert_all_called=False) as router:
+    with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
         router.get("http://proxy.test/v1/savings/summary").mock(
             return_value=httpx.Response(
                 200,
@@ -139,6 +139,37 @@ async def test_state_falls_back_to_seed_when_downstreams_down(client):
     assert r.status_code == 200
     assert r.json()["kpis"]["reductionPct"] == 71.8
     assert r.json().get("_telemetry") != "live"
+
+
+@pytest.mark.asyncio
+async def test_state_overlays_real_tier_into_billing(client):
+    """When the proxy /v1/tier is reachable, billing reflects the real plan,
+    usage and unlocked features — overriding the seed (tier=pro)."""
+    with respx.mock(assert_all_called=False, assert_all_mocked=False) as router:
+        router.get("http://proxy.test/v1/tier").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "tenant_id": "acme",
+                    "tier": "free",
+                    "tokens_used_this_month": 80_000,
+                    "monthly_token_budget": 100_000,
+                    "features": {
+                        "pii_redaction": False,
+                        "audit_log": False,
+                        "custom_rest_connectors": False,
+                        "self_hosted_helm": False,
+                    },
+                },
+            )
+        )
+        state = (await client.get("/api/app/state")).json()
+    b = state["billing"]
+    assert b["tier"] == "free"
+    assert b["usedTokens"] == 80_000
+    assert b["monthlyTokenBudget"] == 100_000
+    assert b["features"]["pii_redaction"] is False
+    assert state.get("_telemetry") == "live"
 
 
 @pytest.mark.asyncio
