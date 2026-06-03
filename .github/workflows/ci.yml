@@ -32,19 +32,10 @@ jobs:
           - worker
           - benchmarks
           - cli
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: plinth_test
-          POSTGRES_PASSWORD: plinth_test
-          POSTGRES_DB: plinth_test
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    # Postgres is started manually in a step (see "Start Postgres") rather than
+    # as a service container: service-container images are pulled in the
+    # implicit "Initialize containers" phase with NO retry, and Docker Hub
+    # occasionally times out there → false CI failures. A retry-pull step fixes it.
     env:
       PLINTH_TEST_POSTGRES_URL: postgresql://plinth_test:plinth_test@localhost:5432/plinth_test
     steps:
@@ -58,6 +49,22 @@ jobs:
 
       - name: Upgrade pip
         run: python -m pip install --upgrade pip wheel
+
+      - name: Start Postgres (retry pull — Docker Hub can time out)
+        run: |
+          set -e
+          for i in 1 2 3; do
+            docker pull postgres:16-alpine && break || { echo "pull attempt $i failed, retrying in 8s…"; sleep 8; }
+          done
+          docker run -d --name plinth-pg \
+            -e POSTGRES_USER=plinth_test \
+            -e POSTGRES_PASSWORD=plinth_test \
+            -e POSTGRES_DB=plinth_test \
+            -p 5432:5432 postgres:16-alpine
+          for i in $(seq 1 30); do
+            docker exec plinth-pg pg_isready -U plinth_test -d plinth_test && break
+            echo "waiting for postgres ($i/30)…"; sleep 1
+          done
 
       - name: Install component
         run: |

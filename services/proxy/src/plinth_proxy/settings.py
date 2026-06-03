@@ -20,6 +20,9 @@ class ProxySettings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        # `model_aliases` is a deliberate field name; disable pydantic's
+        # protected-namespace warning for the `model_` prefix.
+        protected_namespaces=(),
     )
 
     host: str = "0.0.0.0"
