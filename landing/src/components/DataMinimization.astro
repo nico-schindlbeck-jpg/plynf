@@ -1,19 +1,29 @@
 ---
 const capabilities = [
   {
-    title: "Field-level allow-lists",
+    title: "Deterministic — no second model",
     body:
-      "Whitelist what's relevant. The rest never leaves your tool's boundary.",
+      "Shaping is a pure transform, not another AI guessing what matters. Same input, same output, every decision in the audit log. No extra call, latency, tokens, or cost.",
+  },
+  {
+    title: "Field-level allow-lists you control",
+    body:
+      "You whitelist what each tool may return (or start from a shipped default). Matching is casing- and synonym-robust — orderId, order_number, ORDER_ID all resolve.",
+  },
+  {
+    title: "Lossless auto-minimize",
+    body:
+      "Null/empty fields and audit metadata are dropped automatically, zero config. It only removes data that carries no signal — so it can never change the model's answer.",
+  },
+  {
+    title: "Never blanks on a schema mismatch",
+    body:
+      "If a keep-list can't find a field (a renamed schema), the response isn't emptied — it falls back to the safe, minimized body and flags the policy to fix.",
   },
   {
     title: "PII masking and redaction",
     body:
       "Sensitive fields can be hashed, masked, or removed before reaching the model.",
-  },
-  {
-    title: "Metadata stripping",
-    body:
-      "Audit columns, internal IDs, and timestamps are dropped by default.",
   },
   {
     title: "Read-only mode per connector",
@@ -46,6 +56,12 @@ const capabilities = [
         shared those fields with the model provider. Plynf lets you draw
         the line technically — which fields cross, which don't, which get
         masked, which get logged.
+      </p>
+      <p class="mt-4 text-ink-secondary text-lg leading-relaxed">
+        And it doesn't <em>guess</em> what matters. You set the rules — or start
+        from a shipped default — and Plynf enforces them deterministically, plus
+        a lossless pass that drops only null, empty, and metadata fields. Same
+        answer the model would've given on the full payload, minus the wasted tokens.
       </p>
     </div>
 
