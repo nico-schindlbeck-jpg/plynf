@@ -40,19 +40,28 @@
           autocomplete="off"
         ></textarea>
 
-        <label class="mt-4 block">
+        <div class="mt-4 flex items-end justify-between gap-3">
           <span class="font-mono text-xs uppercase tracking-widest text-ink-muted">
             Fields that matter <span class="normal-case tracking-normal">(optional keep-list — comma-separated, dotted paths ok)</span>
           </span>
-          <input
-            id="sp-keeplist"
-            type="text"
-            class="mt-2 w-full rounded-xl border border-border bg-bg-0/70 px-4 py-2.5 font-mono text-[13px] text-ink-secondary outline-none focus:border-border-strong"
-            placeholder="order_id, status, tracking_number, items_summary"
-            spellcheck="false"
-            autocomplete="off"
-          />
-        </label>
+          <button
+            type="button"
+            id="sp-suggest"
+            class="shrink-0 rounded-full border border-border bg-bg-2 px-3 py-1 font-mono text-xs text-ink-secondary hover:border-border-strong hover:text-ink-primary transition-colors"
+            title="Heuristic proposal from your payload — review before use"
+          >
+            ✨ Suggest fields
+          </button>
+        </div>
+        <input
+          id="sp-keeplist"
+          type="text"
+          class="mt-2 w-full rounded-xl border border-border bg-bg-0/70 px-4 py-2.5 font-mono text-[13px] text-ink-secondary outline-none focus:border-border-strong"
+          placeholder="order_id, status, tracking_number, items_summary"
+          spellcheck="false"
+          autocomplete="off"
+        />
+        <p id="sp-suggest-note" class="mt-2 hidden text-xs text-ink-muted"></p>
         <p class="mt-2 text-xs text-ink-muted leading-relaxed">
           No keep-list? You still get the <strong>lossless layer</strong> — null/empty
           fields and audit metadata removed. That can never change the model's answer.
@@ -109,10 +118,43 @@
             <div id="sp-dropped" class="mt-2 flex flex-wrap gap-1.5"></div>
           </details>
 
+          <details class="mt-3 group">
+            <summary class="cursor-pointer font-mono text-xs text-ink-muted hover:text-ink-secondary">
+              Take it home — copy this as a proxy policy
+            </summary>
+            <div class="mt-2">
+              <div class="flex items-center gap-2">
+                <label class="font-mono text-[11px] text-ink-muted" for="sp-toolname">tool name</label>
+                <input
+                  id="sp-toolname"
+                  type="text"
+                  value="my_tool"
+                  class="w-40 rounded-lg border border-border bg-bg-0/70 px-2 py-1 font-mono text-[12px] text-ink-secondary outline-none focus:border-border-strong"
+                  spellcheck="false"
+                />
+                <button
+                  type="button"
+                  id="sp-copy-policy"
+                  class="rounded-full border border-border bg-bg-2 px-3 py-1 font-mono text-xs text-ink-secondary hover:border-border-strong hover:text-ink-primary transition-colors"
+                >
+                  Copy policy
+                </button>
+                <span id="sp-copied" class="hidden font-mono text-[11px] text-ink-muted">copied ✓</span>
+              </div>
+              <pre
+                id="sp-policy-yaml"
+                class="mt-2 max-h-[220px] overflow-auto rounded-xl border border-border bg-bg-0/70 p-3 font-mono text-[11.5px] leading-relaxed text-ink-secondary"
+              ></pre>
+            </div>
+          </details>
+
           <p class="mt-4 text-xs text-ink-muted">
             Counted with the GPT-4o tokenizer (<code class="font-mono">o200k_base</code>) on the
             compact JSON the model would actually receive. In production this happens inline,
             deterministically, on every tool call — <a href="/install" class="underline hover:text-ink-secondary">one base_url swap</a>.
+            Quality is verifiable, not asserted: the open-source
+            <a href="https://github.com/nico-schindlbeck-jpg/plynf/tree/main/services/proxy#quality-verification--prove-shaping-never-changes-the-answer" class="underline hover:text-ink-secondary">verification harness</a>
+            replays raw vs. shaped context through your model and diffs the answers.
           </p>
         </div>
       </div>
@@ -124,11 +166,14 @@
   import { shape, type Json } from "../lib/shaper";
   import { countJsonTokens, warmup } from "../lib/preview-tokens";
   import { SAMPLES } from "../lib/preview-samples";
+  import { suggestKeepList, renderPolicyYaml } from "../lib/suggest";
 
   const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
   const input = $<HTMLTextAreaElement>("sp-input");
   const keeplistEl = $<HTMLInputElement>("sp-keeplist");
+  const toolnameEl = $<HTMLInputElement>("sp-toolname");
+  const suggestNote = $("sp-suggest-note");
   const errorEl = $("sp-error");
   const emptyEl = $("sp-empty");
   const resultEl = $("sp-result");
@@ -144,6 +189,8 @@
     btn.addEventListener("click", () => {
       input.value = JSON.stringify(s.raw, null, 2);
       keeplistEl.value = s.keepList.join(", ");
+      toolnameEl.value = s.tool;
+      suggestNote.classList.add("hidden");
       run();
     });
     chipsHost.appendChild(btn);
@@ -225,13 +272,49 @@
       droppedHost.appendChild(chip);
     }
 
+    // Take-home policy YAML — always reflects the current keep-list (or the
+    // suggested one); copyable below the result.
+    const effectiveKeep = keepList.length > 0 ? keepList : suggestKeepList(raw).keepList;
+    $("sp-policy-yaml").textContent = renderPolicyYaml(toolnameEl.value, effectiveKeep);
+
     emptyEl.classList.add("hidden");
     resultEl.classList.remove("hidden");
     resultEl.classList.add("flex");
   }
 
+  // ── Auto keep-list suggestion (suggest, never silently apply) ──
+  $("sp-suggest").addEventListener("click", () => {
+    let raw: Json;
+    try {
+      raw = JSON.parse(input.value.trim());
+    } catch {
+      errorEl.textContent = "Paste valid JSON first — then I can suggest the fields that matter.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+    const s = suggestKeepList(raw);
+    keeplistEl.value = s.keepList.join(", ");
+    suggestNote.textContent = s.usedFallback
+      ? "Heuristic found few obvious business fields — kept all short values instead. Trim to taste."
+      : `Suggested ${s.keepList.length} fields by deterministic heuristics (business terms, identifiers, readable values). Review and edit — you stay in control.`;
+    suggestNote.classList.remove("hidden");
+    run();
+  });
+
+  // ── Copy policy ─────────────────────────────────────────
+  $("sp-copy-policy").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText($("sp-policy-yaml").textContent ?? "");
+      $("sp-copied").classList.remove("hidden");
+      setTimeout(() => $("sp-copied").classList.add("hidden"), 1600);
+    } catch {
+      /* clipboard unavailable (permissions) — text is selectable */
+    }
+  });
+
   input.addEventListener("input", schedule);
   keeplistEl.addEventListener("input", schedule);
+  toolnameEl.addEventListener("input", schedule);
   // Preload the tokenizer the moment the visitor shows intent.
   input.addEventListener("focus", warmup, { once: true });
   chipsHost.addEventListener("pointerenter", warmup, { once: true });

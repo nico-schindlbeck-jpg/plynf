@@ -9,6 +9,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
+    "test": "tsx --test tests/parity.test.ts tests/suggest.test.ts",
     "test:parity": "tsx --test tests/parity.test.ts"
   },
   "dependencies": {

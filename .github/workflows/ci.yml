@@ -189,11 +189,12 @@ jobs:
         run: cd landing && npm run build
 
       # The public savings preview runs a client-side port of the proxy's
-      # shaping engine. This asserts byte-identical output + token counts
+      # shaping engine. Tests assert byte-identical output + token counts
       # against fixtures generated from the real Python engine
-      # (scripts/gen_shaper_fixtures.py).
-      - name: Shaper parity (TS port ↔ Python engine)
-        run: cd landing && npm run test:parity
+      # (scripts/gen_shaper_fixtures.py), plus the keep-list suggestion
+      # heuristics.
+      - name: Landing tests (shaper parity + suggestion heuristics)
+        run: cd landing && npm test
 
   go-sdk:
     name: Go SDK
