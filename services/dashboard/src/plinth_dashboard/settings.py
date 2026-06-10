@@ -73,6 +73,12 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str = Field(default="")
     stripe_price_pro: str = Field(default="")
     stripe_price_enterprise: str = Field(default="")
+    # Per-IP sliding-window limits on the auth surface (signup/login).
+    # High enough for humans behind a shared office IP; hostile to
+    # credential stuffing. 0 disables the corresponding limiter.
+    auth_rate_limit_signup: int = Field(default=20)
+    auth_rate_limit_login: int = Field(default=30)
+    auth_rate_window_s: float = Field(default=60.0)
     backend_timeout_seconds: float = Field(default=5.0)
     log_level: str = Field(default="INFO")
     log_format: Literal["console", "json"] = Field(default="console")

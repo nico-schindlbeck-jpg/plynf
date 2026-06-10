@@ -32,6 +32,7 @@ from .billing_stripe import (
     parse_event,
     verify_webhook_signature,
 )
+from .ratelimit import SlidingWindowLimiter, client_key
 from .settings import Settings
 
 
@@ -87,8 +88,34 @@ def register_accounts_api(  # noqa: C901 - route table, intentionally flat
 
     # -- signup / login ------------------------------------------------------
 
+    # Per-IP sliding windows: generous enough for humans + the test suite,
+    # hostile to credential stuffing / signup spam. Limits are settings so
+    # ops can tune without a deploy.
+    signup_limiter = SlidingWindowLimiter(
+        limit=settings.auth_rate_limit_signup, window_s=settings.auth_rate_window_s
+    )
+    login_limiter = SlidingWindowLimiter(
+        limit=settings.auth_rate_limit_login, window_s=settings.auth_rate_window_s
+    )
+
+    def _rate_limited(limiter: SlidingWindowLimiter, request: Request) -> JSONResponse | None:
+        key = client_key(request)
+        if limiter.allow(key):
+            return None
+        retry = limiter.retry_after_s(key)
+        resp = _err(
+            "Too many attempts — please wait a moment and try again.",
+            429,
+            "RATE_LIMITED",
+        )
+        resp.headers["Retry-After"] = str(retry)
+        return resp
+
     @app.post("/api/app/signup", tags=["accounts"])
     async def signup(request: Request) -> JSONResponse:
+        limited = _rate_limited(signup_limiter, request)
+        if limited is not None:
+            return limited
         body = await request.json()
         try:
             account = accounts.create(
@@ -110,6 +137,9 @@ def register_accounts_api(  # noqa: C901 - route table, intentionally flat
 
     @app.post("/api/app/login", tags=["accounts"])
     async def login(request: Request) -> JSONResponse:
+        limited = _rate_limited(login_limiter, request)
+        if limited is not None:
+            return limited
         body = await request.json()
         account = accounts.verify_login(
             str(body.get("email") or ""), str(body.get("password") or "")
