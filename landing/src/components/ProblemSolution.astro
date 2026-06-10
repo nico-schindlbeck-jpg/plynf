@@ -1,37 +1,37 @@
 ---
 const problems = [
   {
-    title: "Token explosion",
+    title: "Agents lose focus in the noise",
     body:
-      "Every step drags the entire conversation history. By step ten, you're paying ~10× to re-read your own past notes.",
+      "A Salesforce lead has 50–200 fields. Your agent needs 8. The other 190 dilute attention, invite hallucinated detail, and blow the context window on long tasks.",
   },
   {
-    title: "No recovery",
+    title: "You pay for fields nobody reads",
     body:
-      "Crash mid-task and the work is lost. Hand-offs to other agents become walls of pasted text.",
+      "Audit columns, sync tokens, null custom fields — serialized into every single call. On tool-heavy agents that's 40–80% of the tool-response tokens, every step, forever.",
   },
   {
-    title: "No audit",
+    title: "No control over what crosses the line",
     body:
-      "Five tools, five bespoke integrations, five places where rate limits, costs, and security review go to die.",
+      "Whatever the API returns is what the model provider sees. PII, internal notes, fraud scores — shipped wholesale, with no record of what crossed.",
   },
 ];
 
 const solutions = [
   {
-    title: "State lives in the workspace",
+    title: "The model sees only what matters",
     body:
-      "Facts under keys, files on disk, snapshots and branches. Prompts stay small and focused. Token bill goes linear.",
+      "Keep-lists you control — casing- and schema-robust — cut each tool response to the fields the agent actually needs. Focused context, sharper answers.",
   },
   {
-    title: "Resume from the last checkpoint",
+    title: "Provably the same answers",
     body:
-      "Lease-based workers pick up where the crashed one stopped. No work lost. Verified by a runnable demo.",
+      "A lossless layer (nulls, empties, metadata) can't change the answer by construction. The open-source verification harness replays raw vs. shaped through your model and diffs the answers — measured, not asserted.",
   },
   {
-    title: "One gateway, full audit",
+    title: "Deterministic, auditable, never blanks",
     body:
-      "Every tool call: cached, rate-limited, cost-capped, OAuth-handled, audit-logged. One coherent surface.",
+      "Pure transform — no second model in the path. Schema mismatch? It falls back safely instead of erasing data. PII can be masked or hashed before it ever leaves.",
   },
 ];
 ---
@@ -39,12 +39,12 @@ const solutions = [
 <section class="section" id="why">
   <div class="container-page" data-reveal>
     <div class="max-w-3xl">
-      <p class="section-eyebrow">The shift</p>
+      <p class="section-eyebrow">The problem</p>
       <h2 class="section-title text-balance">
-        Agents today are wrapped around
-        <span class="text-ink-muted">interfaces built for humans.</span>
+        APIs answer with
+        <span class="text-ink-muted">everything they have.</span>
         <br class="hidden sm:block" />
-        Plynf makes the agent the first-class user.
+        Plynf forwards what the agent needs.
       </h2>
     </div>
 
@@ -59,7 +59,7 @@ const solutions = [
           </p>
         </div>
         <h3 class="mt-4 text-xl font-semibold tracking-tight text-ink-primary">
-          Quadratic costs. Lost work. Bespoke integrations.
+          Noisy context. Diluted focus. Zero control.
         </h3>
         <ul class="mt-8 space-y-6">
           {
@@ -92,7 +92,7 @@ const solutions = [
           </p>
         </div>
         <h3 class="mt-4 text-xl font-semibold tracking-tight text-ink-primary">
-          Linear costs. Resumable work. One coherent surface.
+          Focused agents. Same answers. You draw the line.
         </h3>
         <ul class="mt-8 space-y-6">
           {
