@@ -49,7 +49,7 @@ export const PLANS: Plan[] = [
     blurb: "For solo builders and OSS projects.",
     price: "$0",
     cadence: "forever",
-    cta: { label: "Get started", href: "#install" },
+    cta: { label: "Get started", href: "/signup" },
     monthlyTokens: 100_000,
     maxConnectors: 3,
     maxTenants: 1,
@@ -62,7 +62,7 @@ export const PLANS: Plan[] = [
     price: "$49",
     cadence: "per month",
     accent: true,
-    cta: { label: "Start trial", href: "mailto:hello@plynf.com?subject=Plynf%20Pro%20trial" },
+    cta: { label: "Subscribe", href: "/signup?plan=pro" },
     monthlyTokens: 5_000_000,
     maxConnectors: null, // all 8 shipped
     maxTenants: 10,

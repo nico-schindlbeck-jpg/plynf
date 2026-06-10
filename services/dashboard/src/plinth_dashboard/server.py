@@ -38,6 +38,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __service__, __version__
+from .accounts import AccountStore
+from .accounts_api import register_accounts_api
 from .app_api import ControlStore, install_app_auth, register_app_api
 from .logging_config import configure_logging, get_logger
 from .metrics import (
@@ -141,6 +143,10 @@ def create_app(
     store = ControlStore(settings.app_state_path or None)
     app.state.control = store
     register_app_api(app, settings, store)
+    # Self-serve accounts + billing (signup → checkout → API key → done).
+    accounts = AccountStore(settings.accounts_path or None)
+    app.state.accounts = accounts
+    register_accounts_api(app, settings, accounts)
     install_app_auth(app, settings)
 
     _register_routes(app, settings)

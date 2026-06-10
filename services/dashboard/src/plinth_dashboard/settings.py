@@ -58,6 +58,21 @@ class Settings(BaseSettings):
     # Defaults for dashboard-session tokens minted via POST /api/app/session.
     app_session_tenant: str = Field(default="acme")
     app_session_ttl_seconds: int = Field(default=3600)
+    # -- Self-serve accounts + billing (the zero-terminal flow) -------------
+    # accounts_path empty = in-memory (tests/demo); set a file path in prod
+    # (e.g. /data/plynf-accounts.json on a persistent disk).
+    accounts_path: str = Field(default="")
+    # Shared secret protecting GET /internal/keys/* — the proxy presents it
+    # as X-Internal-Secret to resolve customer API keys. Required in prod.
+    internal_secret: str = Field(default="")
+    # Public site origin used to build checkout success/cancel + portal URLs.
+    site_url: str = Field(default="https://plynf.com")
+    # Stripe: leave empty to run simulated billing (demo/preview). Setting
+    # the four values below is the ONLY step needed to charge real money.
+    stripe_secret_key: str = Field(default="")
+    stripe_webhook_secret: str = Field(default="")
+    stripe_price_pro: str = Field(default="")
+    stripe_price_enterprise: str = Field(default="")
     backend_timeout_seconds: float = Field(default=5.0)
     log_level: str = Field(default="INFO")
     log_format: Literal["console", "json"] = Field(default="console")

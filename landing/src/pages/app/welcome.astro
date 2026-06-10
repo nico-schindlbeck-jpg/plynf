@@ -1,0 +1,220 @@
+---
+/**
+ * Onboarding wizard — the "fertig, läuft" page.
+ *
+ * Step 1  Plan active (live from /api/app/me; polls briefly after a Stripe
+ *         checkout while the webhook lands).
+ * Step 2  Add to agent: the Connect surface with the account's REAL key
+ *         injected — one copy, one paste.
+ * Step 3  Test: one click calls the proxy with that key and turns the
+ *         status green. After that there is nothing left to think about.
+ */
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import Connect from "../../components/Connect.astro";
+import "../../styles/dashboard.css";
+
+const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
+const proxyBase = import.meta.env.PUBLIC_PLYNF_ENDPOINT || "https://app.plynf.com/v1";
+---
+
+<BaseLayout
+  title="Welcome — you're three clicks from done"
+  description="Your Plynf account is live. Add the key to your agent and you're done."
+>
+  <main id="main" class="min-h-screen" data-api={apiBase} data-proxy={proxyBase}>
+    <div class="container-page py-10 max-w-4xl">
+      <a href="/" class="flex items-center gap-2.5 mb-8" aria-label="Plynf home">
+        <span class="relative flex h-8 w-8 items-center justify-center rounded-lg bg-bg-2 border border-border">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <defs>
+              <linearGradient id="welcome-rock" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#ff8551" /><stop offset="50%" stop-color="#d946ef" /><stop offset="100%" stop-color="#6366f1" />
+              </linearGradient>
+            </defs>
+            <path d="M5 17 L8 9 L12 6 L17 6 L20 11 L20 17 Z" fill="url(#welcome-rock)" stroke="#1d1f29" stroke-width="0.6" stroke-linejoin="round" />
+          </svg>
+        </span>
+        <span class="font-semibold tracking-tight text-ink-primary text-lg">Plynf</span>
+      </a>
+
+      <h1 class="text-3xl font-bold tracking-tight text-ink-primary">Welcome aboard.</h1>
+      <p class="mt-2 text-ink-secondary">Three steps — the first one is already done.</p>
+
+      <!-- ── Step 1: plan ─────────────────────────────── -->
+      <section class="card mt-8 p-5">
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+          <div class="flex items-center gap-3">
+            <span id="step1-dot" class="dot dot-healthy"></span>
+            <div>
+              <h2 class="font-semibold text-ink-primary">1 · Account &amp; plan</h2>
+              <p id="step1-status" class="text-sm text-ink-secondary">Checking your plan…</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="plan-badge" class="dbadge dbadge-accent">…</span>
+            <button id="manage-billing" class="btn btn-secondary !py-1.5 !px-3 text-xs hidden">Manage billing</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Step 2: add to agent ─────────────────────── -->
+      <section class="card mt-4 p-5">
+        <div class="flex items-center gap-3 mb-4">
+          <span id="step2-dot" class="dot"></span>
+          <div>
+            <h2 class="font-semibold text-ink-primary">2 · Add Plynf to your agent</h2>
+            <p class="text-sm text-ink-secondary">
+              Pick what you already use. Your personal key
+              <code id="key-inline" class="mono text-xs text-ink-primary">…</code>
+              <button id="key-copy" class="ml-1 underline text-xs hover:text-ink-primary">copy</button>
+              is pre-filled in every snippet.
+            </p>
+          </div>
+        </div>
+        <Connect showCloud={false} settingsHref="/app/settings" connectorHref="/app/gateway" />
+      </section>
+
+      <!-- ── Step 3: test ─────────────────────────────── -->
+      <section class="card mt-4 p-5">
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+          <div class="flex items-center gap-3">
+            <span id="step3-dot" class="dot"></span>
+            <div>
+              <h2 class="font-semibold text-ink-primary">3 · Prove it's live</h2>
+              <p id="step3-status" class="text-sm text-ink-secondary">
+                One click — we call the proxy with your key and confirm it answers.
+              </p>
+            </div>
+          </div>
+          <button id="test-btn" class="btn btn-primary !py-2">Test my connection</button>
+        </div>
+        <pre id="test-result" class="hidden mt-4 rounded-xl border border-border bg-bg-0/70 p-3 mono text-xs text-ink-secondary overflow-auto max-h-40"></pre>
+      </section>
+
+      <div class="mt-8 flex items-center justify-between flex-wrap gap-3">
+        <p class="text-sm text-ink-muted">
+          That's everything. No deploy, no terminal — shaping and savings now run on every call.
+        </p>
+        <a href="/app" class="btn btn-secondary">Open your dashboard →</a>
+      </div>
+    </div>
+  </main>
+
+  <script is:inline>
+    (function () {
+      var main = document.getElementById("main");
+      var api = main.getAttribute("data-api");
+      var proxy = main.getAttribute("data-proxy");
+      var email = localStorage.getItem("plynf_account_email") || "";
+      var token = localStorage.getItem("plynf_session") || "";
+      if (!email) { location.href = "/signup"; return; }
+
+      var account = null;
+      var params = new URLSearchParams(location.search);
+      var afterCheckout = params.get("checkout") === "success";
+
+      function $(id) { return document.getElementById(id); }
+      function setDot(id, cls) { $(id).className = "dot " + (cls || ""); }
+
+      function render() {
+        if (!account) return;
+        $("plan-badge").textContent = account.plan.toUpperCase();
+        $("step1-status").textContent =
+          account.plan === "free"
+            ? "Free plan active — upgrade anytime from Billing."
+            : "Your " + account.plan + " subscription is active.";
+        setDot("step1-dot", "dot-healthy");
+        if (account.has_billing) $("manage-billing").classList.remove("hidden");
+
+        // Key into the inline copy + the Connect surface (input + snippets).
+        var key = account.api_key;
+        $("key-inline").textContent = key.slice(0, 18) + "…" + key.slice(-4);
+        $("key-copy").onclick = function () {
+          navigator.clipboard.writeText(key);
+          $("key-copy").textContent = "copied ✓";
+          setTimeout(function () { $("key-copy").textContent = "copy"; }, 1500);
+        };
+        var keyInput = document.querySelector("[data-conn-key]");
+        if (keyInput && keyInput.value !== key) {
+          keyInput.value = key;
+          keyInput.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        setDot("step2-dot", "dot-healthy");
+      }
+
+      function fetchMe() {
+        return fetch(api + "/api/app/me?email=" + encodeURIComponent(email), {
+          headers: token ? { Authorization: "Bearer " + token } : {},
+        })
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (d) {
+            if (d && d.account) { account = d.account; render(); }
+            return account;
+          })
+          .catch(function () { return null; });
+      }
+
+      // After a Stripe checkout the webhook may land a few seconds later —
+      // poll until the plan flips (max ~30 s), then stop.
+      var polls = 0;
+      function pollPlan() {
+        fetchMe().then(function (a) {
+          if (afterCheckout && a && a.plan === "free" && polls++ < 15) {
+            $("step1-status").textContent = "Payment received — activating your plan…";
+            setTimeout(pollPlan, 2000);
+          }
+        });
+      }
+      pollPlan();
+
+      $("manage-billing").addEventListener("click", function () {
+        fetch(api + "/api/app/billing/portal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+          body: JSON.stringify({ email: email }),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (d) { if (d.url) location.href = d.url; });
+      });
+
+      // ── Step 3: live test against the proxy ───────────
+      $("test-btn").addEventListener("click", function () {
+        if (!account) return;
+        var btn = $("test-btn");
+        btn.disabled = true;
+        btn.textContent = "Testing…";
+        var out = $("test-result");
+        fetch(proxy + "/models", {
+          headers: { Authorization: "Bearer " + account.api_key },
+        })
+          .then(function (r) {
+            return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; });
+          })
+          .then(function (res) {
+            out.classList.remove("hidden");
+            if (res.ok) {
+              setDot("step3-dot", "dot-healthy");
+              $("step3-status").textContent = "Läuft. The proxy answered with your key — you're done.";
+              var names = (res.d.data || []).slice(0, 6).map(function (m) { return m.id; });
+              out.textContent = "GET /v1/models → 200 OK\nmodels: " + names.join(", ") + (names.length ? " …" : "");
+              btn.textContent = "Connected ✓";
+            } else {
+              setDot("step3-dot", "dot-degraded");
+              $("step3-status").textContent = "The proxy answered, but rejected the request (" + res.status + ").";
+              out.textContent = JSON.stringify(res.d, null, 2);
+              btn.disabled = false;
+              btn.textContent = "Try again";
+            }
+          })
+          .catch(function () {
+            out.classList.remove("hidden");
+            setDot("step3-dot", "dot-degraded");
+            $("step3-status").textContent = "Could not reach the proxy at " + proxy + " — is the cloud endpoint live?";
+            out.textContent = "Network error. If you are self-hosting, set PUBLIC_PLYNF_ENDPOINT to your proxy origin.";
+            $("test-btn").disabled = false;
+            $("test-btn").textContent = "Try again";
+          });
+      });
+    })();
+  </script>
+</BaseLayout>

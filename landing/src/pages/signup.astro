@@ -1,0 +1,186 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import ThemeToggle from "../components/ThemeToggle.astro";
+import { PLANS } from "../data/plans";
+
+// Control-plane API (signup, checkout). Same origin convention as login.
+const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
+const tiers = PLANS.map((p) => ({
+  id: p.id,
+  name: p.name,
+  price: p.price,
+  blurb: p.blurb,
+}));
+---
+
+<BaseLayout
+  title="Create your account"
+  description="Sign up for Plynf — subscribe, get your key, add it to your agent. Done. No terminal, no deploy."
+>
+  <main id="main" class="min-h-screen grid lg:grid-cols-2" data-api={apiBase}>
+    <!-- ── Brand / value panel ─────────────────────────── -->
+    <section class="relative hidden lg:flex flex-col justify-between overflow-hidden p-12 border-r border-border">
+      <div class="bg-hero-glow opacity-[0.16]"></div>
+      <div class="bg-grid"></div>
+      <a href="/" class="relative flex items-center gap-2.5" aria-label="Plynf home">
+        <span class="relative flex h-8 w-8 items-center justify-center rounded-lg bg-bg-2 border border-border">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <defs>
+              <linearGradient id="signup-rock" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#ff8551" /><stop offset="50%" stop-color="#d946ef" /><stop offset="100%" stop-color="#6366f1" />
+              </linearGradient>
+            </defs>
+            <path d="M5 17 L8 9 L12 6 L17 6 L20 11 L20 17 Z" fill="url(#signup-rock)" stroke="#1d1f29" stroke-width="0.6" stroke-linejoin="round" />
+          </svg>
+        </span>
+        <span class="font-semibold tracking-tight text-ink-primary text-lg">Plynf</span>
+      </a>
+
+      <div class="relative max-w-md">
+        <div class="eyebrow mb-5"><span class="eyebrow-dot"></span>Three steps, zero terminal</div>
+        <h1 class="text-display-sm font-bold tracking-tightest text-ink-primary">
+          Subscribe. Add to agent. <span class="gradient-text-accent">Done.</span>
+        </h1>
+        <ol class="mt-6 space-y-4 text-ink-secondary">
+          <li class="flex gap-3"><span class="mono text-accent">1</span> Create your account — your API key is ready instantly.</li>
+          <li class="flex gap-3"><span class="mono text-accent">2</span> Paste one line into your agent (we show you exactly which).</li>
+          <li class="flex gap-3"><span class="mono text-accent">3</span> That's it. Shaping, savings and the audit trail run on every call.</li>
+        </ol>
+      </div>
+
+      <p class="relative text-2xs text-ink-muted mono">No install · cancel anytime · GDPR, EU-hosted</p>
+    </section>
+
+    <!-- ── Signup panel ────────────────────────────────── -->
+    <section class="relative flex flex-col">
+      <div class="flex items-center justify-between p-5">
+        <a href="/" class="lg:hidden flex items-center gap-2 text-ink-secondary hover:text-ink-primary text-sm">← Back</a>
+        <span class="hidden lg:block"></span>
+        <ThemeToggle />
+      </div>
+
+      <div class="flex-1 flex items-center justify-center px-6 pb-16">
+        <div class="w-full max-w-sm">
+          <h2 class="text-2xl font-bold tracking-tight text-ink-primary">Create your account</h2>
+          <p class="mt-2 text-sm text-ink-secondary">
+            Already have one? <a href="/login" class="underline hover:text-ink-primary">Sign in</a>
+          </p>
+
+          <!-- Plan picker -->
+          <div class="mt-6 grid grid-cols-3 gap-2" id="plan-picker">
+            {tiers.map((t) => (
+              <button
+                type="button"
+                class="plan-chip rounded-xl border border-border bg-bg-1 p-3 text-left transition hover:border-border-strong"
+                data-plan={t.id}
+              >
+                <span class="block text-sm font-semibold text-ink-primary">{t.name}</span>
+                <span class="block mt-0.5 text-2xs mono text-ink-muted">{t.price}</span>
+              </button>
+            ))}
+          </div>
+
+          <form id="signup-form" class="mt-5 space-y-3">
+            <label class="block">
+              <span class="text-2xs mono uppercase tracking-wider text-ink-muted">Work email</span>
+              <input
+                type="email" name="email" required placeholder="you@company.com" autocomplete="email"
+                class="mt-1.5 w-full rounded-xl bg-bg-1 border border-border-strong px-3.5 py-2.5 text-ink-primary placeholder:text-ink-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 transition"
+              />
+            </label>
+            <label class="block">
+              <span class="text-2xs mono uppercase tracking-wider text-ink-muted">Password (min. 8 characters)</span>
+              <input
+                type="password" name="password" required minlength="8" autocomplete="new-password"
+                class="mt-1.5 w-full rounded-xl bg-bg-1 border border-border-strong px-3.5 py-2.5 text-ink-primary placeholder:text-ink-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 transition"
+              />
+            </label>
+            <button type="submit" class="btn btn-primary w-full !py-3" id="signup-cta">
+              Create account
+            </button>
+            <p id="signup-error" class="hidden text-sm text-[#ff8551]"></p>
+          </form>
+
+          <p class="mt-7 text-2xs text-ink-muted leading-relaxed">
+            Paid plans go through Stripe Checkout next — you can cancel anytime in the
+            customer portal. By continuing you agree to the
+            <a href="/terms" class="underline hover:text-ink-secondary">Terms</a> and
+            <a href="/privacy" class="underline hover:text-ink-secondary">Privacy Policy</a>.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script is:inline>
+    (function () {
+      var api = document.getElementById("main").getAttribute("data-api");
+      var params = new URLSearchParams(location.search);
+      var plan = (params.get("plan") || "free").toLowerCase();
+      if (["free", "pro", "enterprise"].indexOf(plan) < 0) plan = "free";
+
+      var chips = Array.prototype.slice.call(document.querySelectorAll(".plan-chip"));
+      var cta = document.getElementById("signup-cta");
+      function select(p) {
+        plan = p;
+        chips.forEach(function (c) {
+          var on = c.getAttribute("data-plan") === p;
+          c.style.borderColor = on ? "var(--accent)" : "";
+          c.style.boxShadow = on ? "0 0 0 1px var(--accent)" : "";
+        });
+        cta.textContent =
+          p === "free" ? "Create free account" : "Create account & subscribe (" + p + ")";
+      }
+      chips.forEach(function (c) {
+        c.addEventListener("click", function () { select(c.getAttribute("data-plan")); });
+      });
+      select(plan);
+
+      var form = document.getElementById("signup-form");
+      var errEl = document.getElementById("signup-error");
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        errEl.classList.add("hidden");
+        cta.disabled = true;
+        var email = form.email.value.trim();
+        var password = form.password.value;
+
+        fetch(api + "/api/app/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email, password: password, plan: plan }),
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (!res.ok) throw new Error((res.d.error && res.d.error.message) || "Signup failed.");
+            localStorage.setItem("plynf_session", res.d.token);
+            localStorage.setItem("plynf_account_email", res.d.account.email);
+            if (plan === "free") {
+              location.href = "/app/welcome";
+              return;
+            }
+            // Paid plan → Stripe Checkout (or simulated upgrade when Stripe
+            // isn't configured — the response carries the redirect either way).
+            return fetch(api + "/api/app/billing/checkout", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + res.d.token,
+              },
+              body: JSON.stringify({ email: email, plan: plan }),
+            })
+              .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+              .then(function (co) {
+                if (!co.ok || !co.d.url) throw new Error((co.d.error && co.d.error.message) || "Checkout failed.");
+                location.href = co.d.url;
+              });
+          })
+          .catch(function (err) {
+            errEl.textContent = err && err.message ? err.message : "Something went wrong.";
+            errEl.classList.remove("hidden");
+            cta.disabled = false;
+          });
+      });
+    })();
+  </script>
+</BaseLayout>

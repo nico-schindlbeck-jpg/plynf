@@ -79,6 +79,15 @@ class ProxySettings(BaseSettings):
     # How long to cache verify responses (seconds). Bounded by token exp.
     identity_cache_ttl_s: int = 60
 
+    # Self-serve customer keys (``plynf_sk_live_…``): when accounts_url is
+    # set, unknown bearer tokens with that prefix are resolved against the
+    # dashboard control plane (GET <accounts_url>/internal/keys/{key},
+    # authenticated with the shared internal_secret). Tier changes through
+    # the billing webhook are live within accounts_cache_ttl_s.
+    accounts_url: str = ""
+    internal_secret: str = ""
+    accounts_cache_ttl_s: int = 60
+
     # Postgres DSN for the savings sink. Empty = no Postgres, falls back to
     # the JSONL sink (or no persistence at all in demo mode).
     postgres_url: str = ""

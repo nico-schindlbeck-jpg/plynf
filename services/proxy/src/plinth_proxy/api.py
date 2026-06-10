@@ -60,6 +60,7 @@ from .context_budget import enforce_budget
 from .error_envelopes import error_body
 from .gateway_client import GatewayClient, make_gateway_registry
 from .gemini_adapter import gemini_request_to_openai, openai_response_to_gemini
+from .accounts_client import AccountsKeyClient
 from .identity_client import IdentityClient, IdentityError
 from .metrics import CONTENT_TYPE as METRICS_CONTENT_TYPE
 from .metrics import render_metrics
@@ -119,6 +120,7 @@ class AppState:
     api_key_tiers: dict[str, str]  # key -> tier (free/pro/enterprise)
     gate: TierGate
     identity: IdentityClient | None
+    accounts: AccountsKeyClient | None
     overrides: PolicyOverrideStore
     upstream_router: UpstreamRouter
 
@@ -226,6 +228,17 @@ def _build_state(settings: ProxySettings, fixtures_dir: str | None = None) -> Ap
             cache_ttl_s=settings.identity_cache_ttl_s,
         )
         if settings.identity_url
+        else None
+    )
+    # Self-serve customer keys (signup-issued plynf_sk_live_…) resolve
+    # against the dashboard control plane when configured.
+    state.accounts = (
+        AccountsKeyClient(
+            settings.accounts_url,
+            settings.internal_secret,
+            cache_ttl_s=settings.accounts_cache_ttl_s,
+        )
+        if settings.accounts_url and settings.internal_secret
         else None
     )
     state.overrides = PolicyOverrideStore(
@@ -1477,8 +1490,20 @@ async def _authenticate(request: Request, st: AppState) -> tuple[str, str]:
         tenant = st.api_keys.get(token)
         if tenant is not None:
             return tenant, st.api_key_tiers.get(token, "free")
-        # Static map present but key didn't match — fall through to identity
-        # if configured, otherwise 401.
+        # Static map present but key didn't match — fall through to the
+        # accounts resolver / identity if configured, otherwise 401.
+        if st.identity is None and st.accounts is None:
+            raise HTTPException(status_code=401, detail="unknown api key")
+
+    # 1.5 Self-serve customer keys (dashboard-issued plynf_sk_live_…).
+    # Presence of the accounts resolver switches the proxy into
+    # authenticated cloud mode: requests without a token are rejected.
+    if st.accounts is not None:
+        if token is None:
+            raise HTTPException(status_code=401, detail="missing api key")
+        resolved = await st.accounts.resolve(token)
+        if resolved is not None:
+            return resolved
         if st.identity is None:
             raise HTTPException(status_code=401, detail="unknown api key")
 

@@ -117,6 +117,19 @@ services:
       # (plynf.com) — the built-in default omits it.
       PLINTH_DASHBOARD_APP_AUTH_REQUIRED: "${PLINTH_DASHBOARD_APP_AUTH_REQUIRED:-false}"
       PLINTH_DASHBOARD_CORS_ORIGINS: "${PLINTH_DASHBOARD_CORS_ORIGINS:-https://plynf.com,https://app.plynf.com}"
+      # ── Self-serve accounts + billing (signup → checkout → key → done) ──
+      # Accounts persist on the named volume below; the internal secret
+      # protects the proxy-facing key resolver. Stripe vars empty = simulated
+      # billing (works, but charges nothing) — see GO_LIVE.md step "Stripe".
+      PLINTH_DASHBOARD_ACCOUNTS_PATH: "/data/plynf-accounts.json"
+      PLINTH_DASHBOARD_INTERNAL_SECRET: "${PLINTH_INTERNAL_SECRET:?set PLINTH_INTERNAL_SECRET in deploy/.env}"
+      PLINTH_DASHBOARD_SITE_URL: "${PLINTH_SITE_URL:-https://plynf.com}"
+      PLINTH_DASHBOARD_STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-}"
+      PLINTH_DASHBOARD_STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
+      PLINTH_DASHBOARD_STRIPE_PRICE_PRO: "${STRIPE_PRICE_PRO:-}"
+      PLINTH_DASHBOARD_STRIPE_PRICE_ENTERPRISE: "${STRIPE_PRICE_ENTERPRISE:-}"
+    volumes:
+      - dashboard-data:/data
     depends_on:
       workspace:
         condition: service_healthy
@@ -164,6 +177,10 @@ services:
       PLINTH_PROXY_UPSTREAM_API_KEY: "${PLINTH_PROXY_UPSTREAM_API_KEY:-}"
       # Tenant keys the proxy accepts (tenant:key:tier, comma-separated).
       PLINTH_PROXY_API_KEYS: "${PLINTH_PROXY_API_KEYS:-}"
+      # Self-serve customer keys resolve against the dashboard control plane
+      # (same shared secret as the dashboard's INTERNAL_SECRET).
+      PLINTH_PROXY_ACCOUNTS_URL: "http://dashboard:7424"
+      PLINTH_PROXY_INTERNAL_SECRET: "${PLINTH_INTERNAL_SECRET:?set PLINTH_INTERNAL_SECRET in deploy/.env}"
       # Verify bearer tokens against identity; route tool calls to the gateway.
       PLINTH_PROXY_IDENTITY_URL: "http://identity:7425"
       PLINTH_PROXY_GATEWAY_URL: "http://gateway:7422"
@@ -363,6 +380,7 @@ services:
       test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7433/healthz\").read()'"]
 
 volumes:
+  dashboard-data:
   workspace_data:
     name: plynf_workspace_data
   gateway_data:

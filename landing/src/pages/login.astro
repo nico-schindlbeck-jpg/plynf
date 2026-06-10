@@ -58,7 +58,33 @@ const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
       <div class="flex-1 flex items-center justify-center px-6 pb-16">
         <div class="w-full max-w-sm">
           <h2 class="text-2xl font-bold tracking-tight text-ink-primary">Sign in to your dashboard</h2>
-          <p class="mt-2 text-sm text-ink-secondary">No passwords. Plynf uses single sign-on and magic links.</p>
+          <p class="mt-2 text-sm text-ink-secondary">
+            New here? <a href="/signup" class="underline hover:text-ink-primary">Create an account</a> — it takes a minute.
+          </p>
+
+          <!-- Email + password (self-serve accounts) -->
+          <form id="pw-form" class="mt-7 space-y-3">
+            <label class="block">
+              <span class="text-2xs mono uppercase tracking-wider text-ink-muted">Work email</span>
+              <input
+                type="email" name="email" required placeholder="you@company.com" autocomplete="email"
+                class="mt-1.5 w-full rounded-xl bg-bg-1 border border-border-strong px-3.5 py-2.5 text-ink-primary placeholder:text-ink-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 transition"
+              />
+            </label>
+            <label class="block">
+              <span class="text-2xs mono uppercase tracking-wider text-ink-muted">Password</span>
+              <input
+                type="password" name="password" required autocomplete="current-password"
+                class="mt-1.5 w-full rounded-xl bg-bg-1 border border-border-strong px-3.5 py-2.5 text-ink-primary placeholder:text-ink-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 transition"
+              />
+            </label>
+            <button type="submit" class="btn btn-primary w-full !py-3">Sign in</button>
+            <p id="pw-error" class="hidden text-sm text-[#ff8551]"></p>
+          </form>
+
+          <div class="my-6 flex items-center gap-3 text-2xs uppercase tracking-wider text-ink-muted mono">
+            <span class="h-px flex-1 bg-border"></span>or<span class="h-px flex-1 bg-border"></span>
+          </div>
 
           <!-- SSO / OAuth -->
           <div class="mt-7 space-y-2.5" id="sso">
@@ -148,6 +174,33 @@ const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
             window.location.href = next;
           });
       }
+
+      // Email + password (self-serve accounts → POST /api/app/login).
+      var pwForm = document.getElementById("pw-form");
+      var pwError = document.getElementById("pw-error");
+      pwForm && pwForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        pwError.classList.add("hidden");
+        var fd = new FormData(pwForm);
+        fetch(API + "/api/app/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: fd.get("email"), password: fd.get("password") }),
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (!res.ok) throw new Error((res.d.error && res.d.error.message) || "Sign-in failed.");
+            try {
+              localStorage.setItem("plynf_session", res.d.token);
+              localStorage.setItem("plynf_account_email", res.d.account.email);
+            } catch (_) {}
+            window.location.href = next;
+          })
+          .catch(function (err) {
+            pwError.textContent = err && err.message ? err.message : "Sign-in failed.";
+            pwError.classList.remove("hidden");
+          });
+      });
 
       document.querySelectorAll("#sso button[data-provider]").forEach(function (b) {
         b.addEventListener("click", function () {

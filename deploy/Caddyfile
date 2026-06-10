@@ -12,6 +12,13 @@
 	tls {$PLYNF_ACME_EMAIL}
 	encode zstd gzip
 
+	# ── Internal-only surface: the proxy↔dashboard key resolver must never
+	# be reachable from the public internet (it's also shared-secret
+	# protected, but defense in depth costs three lines).
+	handle /internal/* {
+		respond 404
+	}
+
 	# ── LLM proxy: OpenAI/Anthropic-compatible API + the Ollama-style door ──
 	handle /v1/* {
 		reverse_proxy proxy:7430

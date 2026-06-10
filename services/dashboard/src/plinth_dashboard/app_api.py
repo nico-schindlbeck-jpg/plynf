@@ -717,10 +717,13 @@ def install_app_auth(app: FastAPI, settings: Settings) -> None:
     @app.middleware("http")
     async def _app_auth(request: Request, call_next):
         path = request.url.path
+        # Public endpoints: session issue + self-serve signup/login (they
+        # CREATE the session). Everything else under /api/app/* needs a JWT.
+        public = {"/api/app/session", "/api/app/signup", "/api/app/login"}
         if (
             request.method != "OPTIONS"
             and path.startswith("/api/app/")
-            and path != "/api/app/session"
+            and path not in public
         ):
             auth = request.headers.get("authorization", "")
             token = auth[7:].strip() if auth[:7].lower() == "bearer " else ""
