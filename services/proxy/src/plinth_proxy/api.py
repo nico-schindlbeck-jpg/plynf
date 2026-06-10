@@ -45,6 +45,7 @@ from starlette.datastructures import Headers
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__
+from .accounts_client import AccountsKeyClient
 from .anthropic_adapter import anthropic_request_to_openai, openai_response_to_anthropic
 from .bedrock_adapter import (
     bedrock_converse_request_to_openai,
@@ -60,7 +61,6 @@ from .context_budget import enforce_budget
 from .error_envelopes import error_body
 from .gateway_client import GatewayClient, make_gateway_registry
 from .gemini_adapter import gemini_request_to_openai, openai_response_to_gemini
-from .accounts_client import AccountsKeyClient
 from .identity_client import IdentityClient, IdentityError
 from .metrics import CONTENT_TYPE as METRICS_CONTENT_TYPE
 from .metrics import render_metrics
@@ -802,6 +802,65 @@ def create_app(settings: ProxySettings | None = None) -> FastAPI:
                 "savings_pct": round(
                     (raw_tokens - shaped_tokens) / raw_tokens, 4
                 ) if raw_tokens else 0.0,
+            }
+        )
+
+    @app.post("/v1/suggest-policy")
+    async def suggest_policy(request: Request) -> JSONResponse:
+        """Auto keep-list suggestion (P1.1) — suggest, never silently apply.
+
+        Body::
+
+            {"tool": "get_order", "raw_response": {...}, "connector": "orders"?}
+
+        Returns the suggested ``keep_list`` with per-field reasons, a
+        ready-to-ship policy YAML, and a preview (the response shaped with
+        the suggestion + token counts) so the operator sees the effect
+        before applying anything. Offline tooling — NOT in the request hot
+        path; the live pipeline stays a pure transform.
+        """
+        st: AppState = app.state.plinth
+        body = await request.json()
+        tenant_id, tier = await _authenticate(request, st)
+        _enforce_tier(st, tenant_id, tier)
+        tool_name = body.get("tool") or "my_tool"
+        raw = body.get("raw_response")
+        if raw is None:
+            raise HTTPException(status_code=400, detail="'raw_response' is required")
+
+        from .policy_engine import ToolPolicy
+        from .policy_engine import apply as apply_policy
+        from .policy_suggest import render_policy_yaml, suggest_keep_list
+
+        suggestion = suggest_keep_list(raw)
+        preview_policy = ToolPolicy(
+            tool=tool_name,
+            allow_fields=tuple(suggestion.keep_list) or None,
+            strip_metadata=True,
+            drop_empty_fields=True,
+        )
+        shaped = apply_policy(raw, preview_policy)
+        raw_tokens = count_json_tokens(raw)
+        shaped_tokens = count_json_tokens(shaped)
+
+        return JSONResponse(
+            {
+                "tool": tool_name,
+                "suggestion": suggestion.to_dict(),
+                "policy_yaml": render_policy_yaml(
+                    tool_name,
+                    suggestion.keep_list,
+                    connector=body.get("connector") or "my-connector",
+                ),
+                "preview": {
+                    "shaped": shaped,
+                    "raw_response_tokens": raw_tokens,
+                    "shaped_response_tokens": shaped_tokens,
+                    "saved_tokens": raw_tokens - shaped_tokens,
+                    "savings_pct": round(
+                        (raw_tokens - shaped_tokens) / raw_tokens, 4
+                    ) if raw_tokens else 0.0,
+                },
             }
         )
 
@@ -1920,9 +1979,11 @@ async def _call_upstream(
     The destination is resolved per request by :class:`UpstreamRouter`: an
     explicit ``X-Plynf-Upstream`` header wins, else a ``provider/model`` prefix
     routes to a configured provider (with the prefix stripped from the model the
-    upstream sees), else the default ``upstream_base_url``. When nothing routes
-    (demo mode, or no upstream configured at all) we return the deterministic
-    mock so an offline / keyless proxy still works.
+    upstream sees), else the default ``upstream_base_url``. In demo mode an
+    unroutable request falls back to the deterministic mock so an offline /
+    keyless proxy still works; in PRODUCTION it must fail loudly and
+    actionably — silently serving mock answers to a paying customer would be
+    a quality lie.
     """
     if st.settings.demo_mode:
         return mock_completion(messages, model=model, tools=tools)
@@ -1931,7 +1992,20 @@ async def _call_upstream(
         model, header_base_url=header_base_url, header_api_key=header_api_key
     )
     if not target.is_real:
-        return mock_completion(messages, model=model, tools=tools)
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "No LLM upstream is configured for this request. Plynf shapes your "
+                "tool responses but needs to know which provider to forward to. "
+                "Pick one: (1) send your provider key per request via the "
+                "'x-plynf-upstream-key' header (plus 'x-plynf-upstream' for a "
+                "custom base URL), (2) prefix the model with a configured "
+                "provider, e.g. 'openai/gpt-4o' or 'anthropic/claude-sonnet-4-5', "
+                "or (3) ask your operator to set a default upstream "
+                "(PLINTH_PROXY_UPSTREAM_BASE_URL / _API_KEY). "
+                f"Requested model: '{model or '<none>'}'."
+            ),
+        )
 
     payload = dict(original_body)
     payload["messages"] = messages
