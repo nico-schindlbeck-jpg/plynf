@@ -1,0 +1,42 @@
+# Fly.io production config — Plynf identity (JWT mint/verify).
+#
+# PRIVATE app: no public IP. Reached only inside the Fly private network
+# via http://plynf-identity.flycast (the deploy workflow allocates the
+# private IPv6 automatically). Keys + SQLite live on the volume.
+#
+# Deployed by .github/workflows/deploy-fly.yml — no terminal needed.
+
+app = "plynf-identity"
+primary_region = "fra"
+kill_signal = "SIGINT"
+kill_timeout = "10s"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "7425"
+  PLINTH_DATA_DIR = "/data"
+
+[mounts]
+  source = "plynf_identity_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 7425
+  force_https = false
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[http_service.checks]]
+  interval = "15s"
+  timeout = "3s"
+  grace_period = "10s"
+  method = "GET"
+  path = "/healthz"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256

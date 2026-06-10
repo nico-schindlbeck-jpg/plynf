@@ -1,0 +1,95 @@
+# Deploy the Plynf cloud stack to Fly.io — zero terminal required.
+#
+# One-time setup (all in the browser):
+#   1. fly.io → sign up → Dashboard → Tokens → create an org token.
+#   2. GitHub repo → Settings → Secrets and variables → Actions →
+#      new secret FLY_API_TOKEN = that token.
+#   3. GitHub → Actions tab → "Deploy to Fly.io" → Run workflow.
+#
+# The workflow is idempotent: it creates the apps and volumes on first
+# run and just deploys on every run after that. App secrets (Stripe,
+# internal secret) are set in the Fly web dashboard per app — see
+# GO_LIVE.md for the click-by-click list.
+
+name: Deploy to Fly.io
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Which services to deploy"
+        type: choice
+        default: "all"
+        options: ["all", "proxy", "dashboard", "identity"]
+
+concurrency:
+  group: deploy-fly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+jobs:
+  deploy:
+    name: Deploy ${{ github.event.inputs.target || 'all' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Ensure apps exist (idempotent)
+        run: |
+          set -e
+          for app in plynf-identity plynf-dashboard plynf-proxy; do
+            flyctl apps list --json | grep -q "\"$app\"" || flyctl apps create "$app" --org personal
+          done
+
+      - name: Ensure volumes exist (idempotent)
+        run: |
+          set -e
+          flyctl volumes list -a plynf-identity  --json | grep -q plynf_identity_data \
+            || flyctl volumes create plynf_identity_data  -a plynf-identity  --region fra --size 1 --yes
+          flyctl volumes list -a plynf-dashboard --json | grep -q plynf_dashboard_data \
+            || flyctl volumes create plynf_dashboard_data -a plynf-dashboard --region fra --size 1 --yes
+
+      - name: Deploy identity (private)
+        if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'identity' }}
+        run: |
+          set -e
+          flyctl deploy services/identity --config services/identity/fly.toml --remote-only --yes
+          # Private-network address (idempotent — errors if already allocated are fine).
+          flyctl ips allocate-v6 --private -a plynf-identity || true
+          # Identity must NOT be publicly reachable: release any public IPs
+          # Fly auto-allocated on first deploy (keeps only private_v6/.flycast).
+          flyctl ips list -a plynf-identity --json \
+            | jq -r '.[] | select(.Type != "private_v6") | .Address' \
+            | while read -r ip; do flyctl ips release "$ip" -a plynf-identity --yes || true; done
+
+      - name: Deploy dashboard (control plane)
+        if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'dashboard' }}
+        run: |
+          set -e
+          flyctl deploy services/dashboard --config services/dashboard/fly.toml --remote-only --yes
+          flyctl ips allocate-v6 --private -a plynf-dashboard || true
+
+      - name: Deploy proxy (the product)
+        if: ${{ github.event.inputs.target == 'all' || github.event.inputs.target == 'proxy' }}
+        run: |
+          set -e
+          flyctl deploy services/proxy --config services/proxy/fly.toml --remote-only --yes
+
+      - name: Smoke check public endpoints
+        if: ${{ github.event.inputs.target == 'all' }}
+        run: |
+          set -e
+          for i in $(seq 1 20); do
+            curl -fsS https://plynf-proxy.fly.dev/healthz && break || sleep 5
+          done
+          for i in $(seq 1 20); do
+            curl -fsS https://plynf-dashboard.fly.dev/healthz && break || sleep 5
+          done
+          echo "stack is up"

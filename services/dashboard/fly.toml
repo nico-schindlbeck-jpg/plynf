@@ -1,0 +1,57 @@
+# Fly.io production config — Plynf control plane (dashboard API).
+#
+# Public host:   https://api.plynf.com   (CNAME → plynf-dashboard.fly.dev)
+# Reached by:    the marketing site (signup/login/billing) and Stripe webhooks.
+# Reaches:       plynf-identity.flycast (sessions), plynf-proxy (live overlay).
+#
+# Deployed by .github/workflows/deploy-fly.yml — no terminal needed.
+# Secrets (set once in the Fly web dashboard → app → Secrets):
+#   PLINTH_DASHBOARD_INTERNAL_SECRET      shared with the proxy (any long random string)
+#   PLINTH_DASHBOARD_STRIPE_SECRET_KEY    sk_live_… (empty = simulated billing)
+#   PLINTH_DASHBOARD_STRIPE_WEBHOOK_SECRET whsec_…
+#   PLINTH_DASHBOARD_STRIPE_PRICE_PRO     price_…
+#   PLINTH_DASHBOARD_STRIPE_PRICE_ENTERPRISE price_…
+
+app = "plynf-dashboard"
+primary_region = "fra"
+kill_signal = "SIGINT"
+kill_timeout = "10s"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "7424"
+  PLINTH_DASHBOARD_SITE_URL = "https://plynf.com"
+  PLINTH_DASHBOARD_CORS_ORIGINS = "https://plynf.com,https://www.plynf.com"
+  # Persist accounts + control-plane state on the mounted volume.
+  PLINTH_DASHBOARD_ACCOUNTS_PATH = "/data/accounts.json"
+  PLINTH_DASHBOARD_APP_STATE_PATH = "/data/app-state.json"
+  # Sessions are real JWTs minted/verified by the identity service.
+  PLINTH_DASHBOARD_IDENTITY_URL = "http://plynf-identity.flycast"
+  PLINTH_DASHBOARD_APP_AUTH_REQUIRED = "true"
+  # Live overlay reads the proxy's public surface.
+  PLINTH_DASHBOARD_PROXY_URL = "https://app.plynf.com"
+
+[mounts]
+  source = "plynf_dashboard_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 7424
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[http_service.checks]]
+  interval = "15s"
+  timeout = "3s"
+  grace_period = "10s"
+  method = "GET"
+  path = "/healthz"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

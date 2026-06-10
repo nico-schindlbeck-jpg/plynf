@@ -5,6 +5,11 @@
 [build.environment]
   NODE_VERSION = "20"
   NPM_VERSION = "10"
+  # Cloud endpoints baked into signup/login/welcome/connect at build time.
+  # api.plynf.com = control plane (signup, billing, webhooks)
+  # app.plynf.com = the proxy customers point their agents at
+  PUBLIC_PLYNF_API = "https://api.plynf.com"
+  PUBLIC_PLYNF_ENDPOINT = "https://app.plynf.com/v1"
 
 # ─── /install.sh shortcut ─────────────────────────────────────────────
 # Lets users do `curl -fsSL https://plynf.com/install.sh | sh` instead of
@@ -16,14 +21,9 @@
   status = 302
   force = true
 
-# ─── Preview-site password gate ───────────────────────────────────────
-# Edge function below requires HTTP Basic Auth on every request except
-# /.well-known/* (kept open so ACME cert challenges and security.txt
-# remain reachable). Remove this block + delete the function file when
-# we go fully public.
-[[edge_functions]]
-  function = "auth"
-  path = "/*"
+# ─── Public launch ────────────────────────────────────────────────────
+# The preview-site Basic-Auth gate (edge function "auth") was removed on
+# go-live (2026-06-10). The site is fully public.
 
 [[headers]]
   for = "/*"

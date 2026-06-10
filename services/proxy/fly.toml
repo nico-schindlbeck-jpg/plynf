@@ -1,6 +1,17 @@
-# Fly.io launch config for the Plynf proxy.
-# After `flyctl launch --copy-config --name <yourname>-plynf-proxy`,
-# the user only needs `flyctl deploy`.
+# Fly.io production config — the Plynf proxy (the product).
+#
+# Public host:   https://app.plynf.com   (CNAME → plynf-proxy.fly.dev)
+# Customers point their agent's base_url here with their plynf_sk_live_…
+# key. Keys/tiers resolve live against the dashboard control plane over
+# the Fly private network; provider keys are BYOK per request
+# (x-plynf-upstream-key) or set as defaults via secrets.
+#
+# Deployed by .github/workflows/deploy-fly.yml — no terminal needed.
+# Secrets (set once in the Fly web dashboard → app → Secrets):
+#   PLINTH_PROXY_INTERNAL_SECRET   same value as the dashboard's
+#                                  PLINTH_DASHBOARD_INTERNAL_SECRET
+#   PLINTH_PROXY_UPSTREAM_API_KEY  optional house default (else BYOK only)
+
 app = "plynf-proxy"
 primary_region = "fra"
 kill_signal = "SIGINT"
@@ -10,10 +21,14 @@ kill_timeout = "10s"
   dockerfile = "Dockerfile"
 
 [env]
-  PLINTH_PROXY_DEMO_MODE = "true"
   PORT = "7430"
-  # Set your API key via: flyctl secrets set PLINTH_PROXY_API_KEYS="tenant:key:tier"
-  # Leave empty for open demo mode.
+  # Production: real forwarding (BYOK via x-plynf-upstream-key header or
+  # provider/model routing), no mock LLM.
+  PLINTH_PROXY_DEMO_MODE = "false"
+  # Customer keys (plynf_sk_live_…) resolve against the control plane.
+  PLINTH_PROXY_ACCOUNTS_URL = "http://plynf-dashboard.flycast"
+  # CORS for the dashboard's "Test connection" + savings preview.
+  PLINTH_PROXY_CORS_ORIGINS = "https://plynf.com,https://www.plynf.com"
 
 [http_service]
   internal_port = 7430
