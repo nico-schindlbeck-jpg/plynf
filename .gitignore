@@ -33,6 +33,10 @@ coverage.xml
 *.cover
 .hypothesis/
 
+# The Python-boilerplate `lib/` pattern above must not swallow real source:
+!landing/src/lib/
+!landing/src/lib/**
+
 # Node / TypeScript
 node_modules/
 dist/

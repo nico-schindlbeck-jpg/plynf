@@ -1,0 +1,238 @@
+---
+/**
+ * SavingsPreview — the public, no-auth proof-of-value form (P0.1).
+ * Paste any tool response → instantly see before/after, % saved, and
+ * exactly which fields were dropped. Runs 100% in the browser (same
+ * shaping logic + same GPT-4o tokenizer as the proxy); nothing is uploaded.
+ */
+---
+
+<section class="section" id="preview">
+  <div class="container-page" data-reveal>
+    <div class="max-w-3xl">
+      <p class="section-eyebrow">Try it now — no signup, no install</p>
+      <h2 class="section-title text-balance">
+        Paste a tool response. Watch it shrink.
+      </h2>
+      <p class="section-subtitle">
+        This is the actual shaping mechanism, running in your browser —
+        same logic, same GPT-4o tokenizer the proxy bills against.
+        <strong class="text-ink-primary">Nothing leaves this page</strong>,
+        so go ahead and paste a real response from your API, CRM, or MCP server.
+      </p>
+    </div>
+
+    <div class="mt-10 grid gap-6 lg:grid-cols-2">
+      <!-- ── Input side ─────────────────────────────────── -->
+      <div class="card card-tint-indigo p-5 flex flex-col">
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+          <span class="font-mono text-xs uppercase tracking-widest text-ink-muted">
+            Raw tool response (JSON)
+          </span>
+          <div class="flex gap-2" id="sp-samples"><!-- sample chips injected --></div>
+        </div>
+
+        <textarea
+          id="sp-input"
+          class="mt-3 flex-1 min-h-[260px] w-full resize-y rounded-xl border border-border bg-bg-0/70 p-4 font-mono text-[13px] leading-relaxed text-ink-secondary outline-none focus:border-border-strong"
+          placeholder='{"orderId":"ORD-78421","status":"in_transit","internalRoutingCode":"WH3-X","warehouseNotes":null,"createdAt":"2026-06-01T10:02:11Z", … }'
+          spellcheck="false"
+          autocomplete="off"
+        ></textarea>
+
+        <label class="mt-4 block">
+          <span class="font-mono text-xs uppercase tracking-widest text-ink-muted">
+            Fields that matter <span class="normal-case tracking-normal">(optional keep-list — comma-separated, dotted paths ok)</span>
+          </span>
+          <input
+            id="sp-keeplist"
+            type="text"
+            class="mt-2 w-full rounded-xl border border-border bg-bg-0/70 px-4 py-2.5 font-mono text-[13px] text-ink-secondary outline-none focus:border-border-strong"
+            placeholder="order_id, status, tracking_number, items_summary"
+            spellcheck="false"
+            autocomplete="off"
+          />
+        </label>
+        <p class="mt-2 text-xs text-ink-muted leading-relaxed">
+          No keep-list? You still get the <strong>lossless layer</strong> — null/empty
+          fields and audit metadata removed. That can never change the model's answer.
+          Field matching is casing-robust: <code class="font-mono">order_id</code> finds
+          <code class="font-mono">orderId</code>, <code class="font-mono">OrderID</code>, …
+        </p>
+        <p id="sp-error" class="mt-2 hidden font-mono text-xs text-[#ff8551]"></p>
+      </div>
+
+      <!-- ── Result side ────────────────────────────────── -->
+      <div class="card card-tint-orange p-5 flex flex-col" aria-live="polite">
+        <div id="sp-empty" class="flex flex-1 flex-col items-center justify-center text-center py-16">
+          <p class="font-mono text-sm text-ink-muted">
+            Paste JSON on the left — or load a sample —<br />and the saving appears here instantly.
+          </p>
+        </div>
+
+        <div id="sp-result" class="hidden flex-col flex-1">
+          <div class="flex items-end justify-between gap-4 flex-wrap">
+            <div>
+              <span class="font-mono text-xs uppercase tracking-widest text-ink-muted">What the model sees instead</span>
+              <div class="mt-2 flex items-baseline gap-3">
+                <span id="sp-pct" class="text-5xl font-bold tracking-tight text-ink-primary">–</span>
+                <span class="text-ink-secondary">fewer tokens</span>
+              </div>
+            </div>
+            <div class="text-right font-mono text-sm">
+              <div><span class="text-ink-muted">raw&nbsp;</span><span id="sp-raw-tokens" class="text-ink-secondary">–</span></div>
+              <div><span class="text-ink-muted">shaped&nbsp;</span><span id="sp-shaped-tokens" class="text-ink-primary">–</span></div>
+            </div>
+          </div>
+
+          <div class="mt-3 flex flex-wrap items-center gap-2 text-xs font-mono">
+            <span id="sp-lossless-badge" class="rounded-full border border-border px-2.5 py-1 text-ink-secondary"></span>
+            <span id="sp-keeplist-badge" class="hidden rounded-full border border-border px-2.5 py-1 text-ink-secondary"></span>
+            <span id="sp-exact-badge" class="rounded-full border border-border px-2.5 py-1 text-ink-muted"></span>
+          </div>
+
+          <p id="sp-fallback" class="mt-3 hidden rounded-xl border border-[#ff8551]/40 bg-[#ff8551]/5 p-3 text-xs leading-relaxed text-ink-secondary">
+            <strong class="text-ink-primary">Safe fallback:</strong> your keep-list didn't match
+            any field in this schema, so Plynf kept the (metadata-stripped, minimized) response
+            instead of blanking it. That's the guarantee: a wrong policy can never erase your data.
+          </p>
+
+          <pre
+            id="sp-output"
+            class="mt-4 flex-1 min-h-[180px] max-h-[320px] overflow-auto rounded-xl border border-border bg-bg-0/70 p-4 font-mono text-[12.5px] leading-relaxed text-ink-secondary"
+          ></pre>
+
+          <details class="mt-3 group">
+            <summary class="cursor-pointer font-mono text-xs text-ink-muted hover:text-ink-secondary">
+              <span id="sp-dropped-count">0</span> fields dropped — show exactly which
+            </summary>
+            <div id="sp-dropped" class="mt-2 flex flex-wrap gap-1.5"></div>
+          </details>
+
+          <p class="mt-4 text-xs text-ink-muted">
+            Counted with the GPT-4o tokenizer (<code class="font-mono">o200k_base</code>) on the
+            compact JSON the model would actually receive. In production this happens inline,
+            deterministically, on every tool call — <a href="/install" class="underline hover:text-ink-secondary">one base_url swap</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { shape, type Json } from "../lib/shaper";
+  import { countJsonTokens, warmup } from "../lib/preview-tokens";
+  import { SAMPLES } from "../lib/preview-samples";
+
+  const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+
+  const input = $<HTMLTextAreaElement>("sp-input");
+  const keeplistEl = $<HTMLInputElement>("sp-keeplist");
+  const errorEl = $("sp-error");
+  const emptyEl = $("sp-empty");
+  const resultEl = $("sp-result");
+
+  // ── Sample chips ────────────────────────────────────────
+  const chipsHost = $("sp-samples");
+  for (const s of SAMPLES) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+      "rounded-full border border-border bg-bg-2 px-3 py-1 font-mono text-xs text-ink-secondary hover:border-border-strong hover:text-ink-primary transition-colors";
+    btn.textContent = s.label;
+    btn.addEventListener("click", () => {
+      input.value = JSON.stringify(s.raw, null, 2);
+      keeplistEl.value = s.keepList.join(", ");
+      run();
+    });
+    chipsHost.appendChild(btn);
+  }
+
+  // ── Live shaping ────────────────────────────────────────
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let runId = 0;
+
+  function schedule() {
+    clearTimeout(timer);
+    timer = setTimeout(run, 250);
+  }
+
+  async function run() {
+    const text = input.value.trim();
+    errorEl.classList.add("hidden");
+    if (!text) {
+      resultEl.classList.add("hidden");
+      resultEl.classList.remove("flex");
+      emptyEl.classList.remove("hidden");
+      return;
+    }
+
+    let raw: Json;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      errorEl.textContent = "That's not valid JSON yet — keep typing or load a sample.";
+      errorEl.classList.remove("hidden");
+      return;
+    }
+
+    const keepList = keeplistEl.value
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const id = ++runId;
+    const lossless = shape(raw, { keepList: [] });
+    const full = keepList.length > 0 ? shape(raw, { keepList }) : lossless;
+
+    const [rawC, losslessC, fullC] = await Promise.all([
+      countJsonTokens(raw),
+      countJsonTokens(lossless.shaped),
+      countJsonTokens(full.shaped),
+    ]);
+    if (id !== runId) return; // stale run
+
+    const pct = rawC.tokens > 0 ? (rawC.tokens - fullC.tokens) / rawC.tokens : 0;
+    const losslessPct = rawC.tokens > 0 ? (rawC.tokens - losslessC.tokens) / rawC.tokens : 0;
+
+    $("sp-pct").textContent = `−${Math.round(pct * 100)}%`;
+    $("sp-raw-tokens").textContent = `${rawC.tokens.toLocaleString()} tok`;
+    $("sp-shaped-tokens").textContent = `${fullC.tokens.toLocaleString()} tok`;
+    $("sp-lossless-badge").textContent = `lossless layer alone: −${Math.round(losslessPct * 100)}% · guaranteed same answer`;
+
+    const klBadge = $("sp-keeplist-badge");
+    if (keepList.length > 0 && !full.fallback) {
+      klBadge.textContent = `keep-list: ${keepList.length} fields · operator-controlled`;
+      klBadge.classList.remove("hidden");
+    } else {
+      klBadge.classList.add("hidden");
+    }
+    $("sp-exact-badge").textContent = rawC.exact ? "measured, not estimated" : "≈ estimated (tokenizer loading…)";
+
+    $("sp-fallback").classList.toggle("hidden", !full.fallback);
+    $("sp-output").textContent = JSON.stringify(full.shaped, null, 2);
+
+    const dropped = full.droppedPaths;
+    $("sp-dropped-count").textContent = String(dropped.length);
+    const droppedHost = $("sp-dropped");
+    droppedHost.innerHTML = "";
+    for (const p of dropped) {
+      const chip = document.createElement("span");
+      chip.className =
+        "rounded-md border border-border bg-bg-0/60 px-2 py-0.5 font-mono text-[11px] text-ink-muted line-through decoration-[#ff8551]/60";
+      chip.textContent = p;
+      droppedHost.appendChild(chip);
+    }
+
+    emptyEl.classList.add("hidden");
+    resultEl.classList.remove("hidden");
+    resultEl.classList.add("flex");
+  }
+
+  input.addEventListener("input", schedule);
+  keeplistEl.addEventListener("input", schedule);
+  // Preload the tokenizer the moment the visitor shows intent.
+  input.addEventListener("focus", warmup, { once: true });
+  chipsHost.addEventListener("pointerenter", warmup, { once: true });
+</script>

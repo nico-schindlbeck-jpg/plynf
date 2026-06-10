@@ -1,0 +1,206 @@
+[
+  {
+    "id": "order",
+    "label": "Order API · get_order",
+    "tool": "get_order",
+    "keepList": [
+      "order_id",
+      "customer_name",
+      "status",
+      "tracking_number",
+      "estimated_delivery",
+      "carrier",
+      "items_summary",
+      "total_amount"
+    ],
+    "raw": {
+      "orderId": "ORD-2024-78421",
+      "customerName": "Acme GmbH",
+      "status": "in_transit",
+      "trackingNumber": "1Z999AA10123456784",
+      "estimatedDelivery": "2026-06-12",
+      "carrier": "UPS",
+      "totalAmount": 1249.99,
+      "itemsSummary": "3× Widget Pro, 1× Mounting Kit",
+      "currency": "EUR",
+      "internalRoutingCode": "WH3-X-441",
+      "paymentProcessorRef": "stripe_pi_3NqK8aLkdIwHu7ix1JZQbR2v",
+      "paymentMethodFingerprint": "fp_2yX9kP",
+      "fraudScore": 0.02,
+      "fraudVendorPayload": { "vendor": "riskified", "decision": "approve", "score": 0.02, "modelVersion": "v8.3.1" },
+      "warehouseNotes": null,
+      "giftMessage": "",
+      "promoCodes": [],
+      "customFields": {},
+      "fulfillmentPriority": 3,
+      "taxBreakdown": { "DE19": 199.58, "shipping_DE19": 1.52 },
+      "createdAt": "2026-06-01T10:02:11Z",
+      "updatedAt": "2026-06-09T08:12:44Z",
+      "createdBy": "shop-frontend-7",
+      "etag": "W/\"order-78421-v7\"",
+      "_version": 7,
+      "auditTrail": [
+        { "event": "created", "at": "2026-06-01T10:02:11Z", "actor": "system" },
+        { "event": "payment_captured", "at": "2026-06-01T10:02:14Z", "actor": "stripe-webhook" },
+        { "event": "picked", "at": "2026-06-05T06:41:02Z", "actor": "wh3-scanner-12" },
+        { "event": "shipped", "at": "2026-06-05T15:09:51Z", "actor": "ups-edi" }
+      ],
+      "lineItems": [
+        {
+          "sku": "WID-PRO-2026",
+          "qty": 3,
+          "unitPrice": 399.99,
+          "taxCode": "DE19",
+          "warehouseBin": "A-12-3",
+          "supplierRef": "SUP-441",
+          "discountCode": null,
+          "serialNumbers": []
+        },
+        {
+          "sku": "MNT-KIT-STD",
+          "qty": 1,
+          "unitPrice": 49.99,
+          "taxCode": "DE19",
+          "warehouseBin": "C-02-7",
+          "supplierRef": "SUP-108",
+          "discountCode": null,
+          "serialNumbers": []
+        }
+      ]
+    }
+  },
+  {
+    "id": "salesforce",
+    "label": "Salesforce · get_lead",
+    "tool": "get_lead",
+    "keepList": [
+      "Id",
+      "FirstName",
+      "LastName",
+      "Company",
+      "Title",
+      "Status",
+      "LeadSource",
+      "Rating"
+    ],
+    "raw": {
+      "attributes": { "type": "Lead", "url": "/services/data/v59.0/sobjects/Lead/00Q8b00001xYzAB" },
+      "Id": "00Q8b00001xYzABEA0",
+      "IsDeleted": false,
+      "MasterRecordId": null,
+      "Salutation": "Ms.",
+      "FirstName": "Lena",
+      "LastName": "Hartmann",
+      "Title": "VP Operations",
+      "Company": "Nordwind Logistik GmbH",
+      "Street": null,
+      "City": "Hamburg",
+      "State": null,
+      "PostalCode": "20457",
+      "Country": "Germany",
+      "Latitude": null,
+      "Longitude": null,
+      "GeocodeAccuracy": null,
+      "Phone": "+49 40 555 0199",
+      "MobilePhone": null,
+      "Fax": null,
+      "Email": "l.hartmann@nordwind-logistik.de",
+      "Website": "nordwind-logistik.de",
+      "PhotoUrl": "/services/images/photo/00Q8b00001xYzAB",
+      "Description": null,
+      "LeadSource": "Webinar",
+      "Status": "Working - Contacted",
+      "Industry": "Logistics",
+      "Rating": "Hot",
+      "AnnualRevenue": 48000000,
+      "NumberOfEmployees": 310,
+      "OwnerId": "0058b00000GxTqPAAV",
+      "IsConverted": false,
+      "ConvertedDate": null,
+      "ConvertedAccountId": null,
+      "ConvertedContactId": null,
+      "ConvertedOpportunityId": null,
+      "IsUnreadByOwner": false,
+      "CreatedDate": "2026-05-18T09:21:05.000+0000",
+      "CreatedById": "0058b00000GxTqPAAV",
+      "LastModifiedDate": "2026-06-08T14:03:39.000+0000",
+      "LastModifiedById": "0058b00000GxTqPAAV",
+      "SystemModstamp": "2026-06-08T14:03:39.000+0000",
+      "LastActivityDate": "2026-06-08",
+      "LastViewedDate": "2026-06-09T07:55:01.000+0000",
+      "LastReferencedDate": "2026-06-09T07:55:01.000+0000",
+      "Jigsaw": null,
+      "JigsawContactId": null,
+      "CleanStatus": "Pending",
+      "CompanyDunsNumber": null,
+      "DandbCompanyId": null,
+      "EmailBouncedReason": null,
+      "EmailBouncedDate": null,
+      "IndividualId": null,
+      "Campaign_Touchpoints__c": "",
+      "Lead_Score_Internal__c": 87,
+      "Marketing_Consent_Raw__c": { "doubleOptIn": true, "source": "webinar-form", "ip": "85.22.14.7" }
+    }
+  },
+  {
+    "id": "slack",
+    "label": "Slack · get_channel_messages",
+    "tool": "get_channel_messages",
+    "keepList": ["messages.user", "messages.text", "messages.ts"],
+    "raw": {
+      "ok": true,
+      "latest": "1765879231.004210",
+      "has_more": false,
+      "pin_count": 2,
+      "channel_actions_ts": null,
+      "channel_actions_count": 0,
+      "response_metadata": { "next_cursor": "" },
+      "messages": [
+        {
+          "type": "message",
+          "subtype": null,
+          "user": "U04AB12CD",
+          "text": "Deploy of plynf v1.8 done — savings dashboard is live on staging.",
+          "ts": "1765879231.004210",
+          "team": "T01XYZ987",
+          "client_msg_id": "9d2f6c1e-3a44-4f02-bb1c-8e21d09a55f1",
+          "blocks": [
+            {
+              "type": "rich_text",
+              "block_id": "x8Tz",
+              "elements": [{ "type": "rich_text_section", "elements": [{ "type": "text", "text": "Deploy done" }] }]
+            }
+          ],
+          "reactions": [{ "name": "rocket", "users": ["U04AB12CD", "U05EF34GH"], "count": 2 }],
+          "thread_ts": null,
+          "reply_count": 0,
+          "edited": null,
+          "attachments": [],
+          "files": []
+        },
+        {
+          "type": "message",
+          "subtype": null,
+          "user": "U05EF34GH",
+          "text": "Nice. Token counts on the three demo topics all reproduce within ±1.",
+          "ts": "1765879302.004460",
+          "team": "T01XYZ987",
+          "client_msg_id": "f31c9a7b-21d8-4f55-9c3e-77ab210cd4e2",
+          "blocks": [
+            {
+              "type": "rich_text",
+              "block_id": "q2Lm",
+              "elements": [{ "type": "rich_text_section", "elements": [{ "type": "text", "text": "Nice." }] }]
+            }
+          ],
+          "reactions": [],
+          "thread_ts": null,
+          "reply_count": 0,
+          "edited": null,
+          "attachments": [],
+          "files": []
+        }
+      ]
+    }
+  }
+]

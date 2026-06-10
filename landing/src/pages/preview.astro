@@ -1,0 +1,19 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Nav from "../components/Nav.astro";
+import SavingsPreview from "../components/SavingsPreview.astro";
+import CTA from "../components/CTA.astro";
+import Footer from "../components/Footer.astro";
+---
+
+<BaseLayout
+  title="Plynf · Savings preview — paste a tool response, see what your agent should have seen"
+  description="Paste any JSON tool response and instantly see how Plynf shapes it: before/after token counts, percent saved, and exactly which fields were dropped. Runs entirely in your browser — nothing is uploaded. Same shaping logic and GPT-4o tokenizer as the proxy."
+>
+  <Nav />
+  <main id="main" class="pt-6">
+    <SavingsPreview />
+    <CTA />
+  </main>
+  <Footer />
+</BaseLayout>

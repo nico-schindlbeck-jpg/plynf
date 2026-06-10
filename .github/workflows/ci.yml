@@ -168,6 +168,33 @@ jobs:
       - name: Test worker
         run: cd worker-ts && npm test
 
+  landing:
+    name: Landing (build + shaper parity)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: landing/package-lock.json
+
+      - name: Install
+        run: cd landing && npm install
+
+      - name: Build
+        run: cd landing && npm run build
+
+      # The public savings preview runs a client-side port of the proxy's
+      # shaping engine. This asserts byte-identical output + token counts
+      # against fixtures generated from the real Python engine
+      # (scripts/gen_shaper_fixtures.py).
+      - name: Shaper parity (TS port ↔ Python engine)
+        run: cd landing && npm run test:parity
+
   go-sdk:
     name: Go SDK
     runs-on: ubuntu-latest
