@@ -1,17 +1,14 @@
-# SPDX-License-Identifier: Apache-2.0
-# Plynf — default Salesforce connector policy.
-#
-# Field allow-lists are intentionally conservative. A typical Salesforce
-# Lead object has 50–200 fields; the agent only needs 7–10 for most
-# customer-support / sales-research workloads.
-
+# Snapshot of the SHIPPED v1.8.0 salesforce policy (before the
+# harness-driven Competitor__c fix). Used to reproduce verification run 1:
+#   python scripts/verify_replay.py report answers.run1.json \
+#       ../salesforce.spec.yaml --policies-dir policies.v1.8.0
 connector: salesforce
 version: 1
 
 defaults:
   strip_metadata: true
-  drop_empty_fields: true      # lossless: drop null/empty fields (keeps 0/false)
-  block_write_actions: false   # set true on read-only pilots
+  drop_empty_fields: true
+  block_write_actions: false
   cache_ttl: 30
 
 tools:
@@ -54,10 +51,6 @@ tools:
       - OwnerId
       - Probability
       - NextStep
-      # Added 2026-06-10: the verification harness flagged "which competitor
-      # are we up against?" as a regression — a question sales agents do ask.
-      # Synonym-robust so it matches Competitor__c / competitor / Competitors.
-      - Competitor__c|competitor|competitors
     cache_ttl: 120
 
   get_account:

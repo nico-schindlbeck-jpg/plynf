@@ -1,0 +1,51 @@
+# Snapshot of the SHIPPED v1.8.0 orders policy (unchanged by the
+# 2026-06-10 fixes — included so --policies-dir is self-contained).
+connector: orders
+version: 1
+
+defaults:
+  strip_metadata: true
+  drop_empty_fields: true
+  block_write_actions: true
+  cache_ttl: 30
+
+tools:
+  get_order:
+    allow_fields:
+      - order_id
+      - customer_name
+      - status
+      - tracking_number
+      - estimated_delivery
+      - carrier
+      - items_summary
+      - last_status_update
+      - total_amount
+    cache_ttl: 30
+
+  list_orders_by_customer:
+    allow_fields:
+      - order_id
+      - status
+      - total_amount
+      - created_date
+    max_response_tokens: 1500
+    cache_ttl: 60
+
+  get_customer:
+    allow_fields:
+      - customer_id
+      - name
+      - tier
+      - account_status
+    redact_pii:
+      fields: [email, phone]
+      mode: mask
+    cache_ttl: 300
+
+  search_orders:
+    allow_fields:
+      - order_id
+      - customer_name
+      - status
+    max_response_tokens: 1000

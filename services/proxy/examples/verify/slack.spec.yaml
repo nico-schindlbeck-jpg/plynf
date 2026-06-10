@@ -1,0 +1,103 @@
+# SPDX-License-Identifier: Apache-2.0
+# Quality-verification spec — Slack connector, realistic conversations
+# payload (envelope + blocks + reactions noise, as the Web API returns it).
+#
+# Includes a count question ("how many messages…") because the lossless
+# layer guarantees list length is preserved — the harness proves it.
+#
+#   python -m plinth_proxy.verify examples/verify/slack.spec.yaml \
+#       --base-url ... --model ...
+
+connector: slack
+
+cases:
+  - tool: get_channel_messages
+    raw_response:
+      ok: true
+      latest: "1781423999.000400"
+      has_more: false
+      pin_count: 0
+      channel_actions_ts: null
+      channel_actions_count: 0
+      response_metadata:
+        next_cursor: ""
+      messages:
+        - type: "message"
+          subtype: null
+          user: "U04AB12CD"
+          text: "Heads up: staging API is returning 502s since ~09:40. Investigating."
+          ts: "1781421612.000100"
+          team: "T01XYZ987"
+          client_msg_id: "0a1b2c3d-4e5f-6071-8293-a4b5c6d7e8f9"
+          blocks:
+            - type: "rich_text"
+              block_id: "a1Bc"
+              elements:
+                - type: "rich_text_section"
+                  elements:
+                    - type: "text"
+                      text: "Heads up: staging API is returning 502s"
+          edited: null
+          thread_ts: "1781421612.000100"
+          reply_count: 3
+          reply_users_count: 2
+          latest_reply: "1781423988.000300"
+          reply_users: ["U05EF34GH", "U06IJ56KL"]
+          is_locked: false
+          subscribed: false
+          reactions:
+            - name: "eyes"
+              users: ["U05EF34GH", "U06IJ56KL"]
+              count: 2
+          attachments: []
+          files: []
+        - type: "message"
+          subtype: null
+          user: "U05EF34GH"
+          text: "Root cause: the connection pool was exhausted after the 09:30 deploy doubled worker concurrency without raising PGBOUNCER_MAX_CLIENT_CONN."
+          ts: "1781422430.000200"
+          team: "T01XYZ987"
+          client_msg_id: "1b2c3d4e-5f60-7182-93a4-b5c6d7e8f90a"
+          blocks:
+            - type: "rich_text"
+              block_id: "b2Cd"
+              elements:
+                - type: "rich_text_section"
+                  elements:
+                    - type: "text"
+                      text: "Root cause: connection pool exhausted"
+          edited: null
+          thread_ts: "1781421612.000100"
+          parent_user_id: "U04AB12CD"
+          reactions: []
+          attachments: []
+          files: []
+        - type: "message"
+          subtype: null
+          user: "U06IJ56KL"
+          text: "Fix deployed: raised pgbouncer max_client_conn to 400 and rolled the API pods. 502s stopped at 11:02."
+          ts: "1781423988.000300"
+          team: "T01XYZ987"
+          client_msg_id: "2c3d4e5f-6071-8293-a4b5-c6d7e8f90a1b"
+          blocks:
+            - type: "rich_text"
+              block_id: "c3De"
+              elements:
+                - type: "rich_text_section"
+                  elements:
+                    - type: "text"
+                      text: "Fix deployed"
+          edited: null
+          thread_ts: "1781421612.000100"
+          parent_user_id: "U04AB12CD"
+          reactions:
+            - name: "white_check_mark"
+              users: ["U04AB12CD"]
+              count: 1
+          attachments: []
+          files: []
+    questions:
+      - "Who first reported the staging incident?"
+      - "What was the root cause of the 502 errors?"
+      - "What fix was deployed, and when did the errors stop?"
+      - "How many messages are in this conversation excerpt?"

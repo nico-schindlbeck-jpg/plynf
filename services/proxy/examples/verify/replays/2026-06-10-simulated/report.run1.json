@@ -1,0 +1,192 @@
+{
+  "token_saved_pct": 0.5926,
+  "equivalence_rate": 0.9474,
+  "total_raw_tokens": 2128,
+  "total_shaped_tokens": 867,
+  "questions_total": 19,
+  "regressions": [
+    {
+      "tool": "get_opportunity",
+      "question": "Which competitor are we up against on this deal?",
+      "raw_answer": "Samsara",
+      "shaped_answer": "UNKNOWN",
+      "equivalent": false,
+      "method": "mismatch"
+    }
+  ],
+  "cases": [
+    {
+      "tool": "get_order",
+      "raw_tokens": 297,
+      "shaped_tokens": 75,
+      "saved_pct": 0.7475,
+      "questions": [
+        {
+          "question": "What is the status of the order?",
+          "raw_answer": "in_transit",
+          "shaped_answer": "in_transit",
+          "equivalent": true,
+          "method": "exact"
+        },
+        {
+          "question": "Which carrier is delivering the order?",
+          "raw_answer": "UPS",
+          "shaped_answer": "UPS",
+          "equivalent": true,
+          "method": "exact"
+        },
+        {
+          "question": "What is the tracking number?",
+          "raw_answer": "1Z999AA10123456784",
+          "shaped_answer": "1Z999AA10123456784",
+          "equivalent": true,
+          "method": "exact"
+        },
+        {
+          "question": "When is the estimated delivery?",
+          "raw_answer": "2026-06-12",
+          "shaped_answer": "2026-06-12",
+          "equivalent": true,
+          "method": "exact"
+        },
+        {
+          "question": "What is the total amount of the order?",
+          "raw_answer": "1249.99",
+          "shaped_answer": "1249.99",
+          "equivalent": true,
+          "method": "exact"
+        }
+      ]
+    },
+    {
+      "tool": "get_customer",
+      "raw_tokens": 84,
+      "shaped_tokens": 26,
+      "saved_pct": 0.6905,
+      "questions": [
+        {
+          "question": "What tier is this customer in?",
+          "raw_answer": "gold",
+          "shaped_answer": "gold",
+          "equivalent": true,
+          "method": "exact"
+        },
+        {
+          "question": "Is the customer's account active?",
+          "raw_answer": "active",
+          "shaped_answer": "active",
+          "equivalent": true,
+          "method": "exact"
+        }
+      ]
+    },
+    {
+      "tool": "get_opportunity",
+      "raw_tokens": 587,
+      "shaped_tokens": 103,
+      "saved_pct": 0.8245,
+      "questions": [
+        {
+          "question": "What stage is this opportunity in?",
+          "raw_answer": "Negotiation/Review",
+          "shaped_answer": "Negotiation/Review",
+          "equivalent": true,
+          "method": "exact"
+        },
+        {
+          "question": "What is the deal amount, and when is it expected to close?",
+          "raw_answer": "184000.50, closing 2026-07-31",
+          "shaped_answer": "184000.50, closing 2026-07-31",
+          "equivalent": true,
+          "method": "exact"
+        },
+        {
+          "question": "What is the next step on this deal?",
+          "raw_answer": "Security review call with their CISO on June 17",
+          "shaped_answer": "Security review call with their CISO on June 17",
+          "equivalent": true,
+          "method": "exact"
+        },
+        {
+          "question": "What is the win probability?",
+          "raw_answer": "75",
+          "shaped_answer": "75",
+          "equivalent": true,
+          "method": "exact"
+        },
+        {
+          "question": "Which competitor are we up against on this deal?",
+          "raw_answer": "Samsara",
+          "shaped_answer": "UNKNOWN",
+          "equivalent": false,
+          "method": "mismatch"
+        }
+      ]
+    },
+    {
+      "tool": "get_account",
+      "raw_tokens": 506,
+      "shaped_tokens": 72,
+      "saved_pct": 0.8577,
+      "questions": [
+        {
+          "question": "What industry is this account in, and how many employees does it have?",
+          "raw_answer": "Logistics, 310 employees",
+          "shaped_answer": "Logistics, 310 employees",
+          "equivalent": true,
+          "method": "exact"
+        },
+        {
+          "question": "Where is the account headquartered?",
+          "raw_answer": "Hamburg, Germany",
+          "shaped_answer": "Hamburg, Germany",
+          "equivalent": true,
+          "method": "exact"
+        },
+        {
+          "question": "What is the account's annual revenue?",
+          "raw_answer": "48000000",
+          "shaped_answer": "48000000",
+          "equivalent": true,
+          "method": "exact"
+        }
+      ]
+    },
+    {
+      "tool": "get_channel_messages",
+      "raw_tokens": 654,
+      "shaped_tokens": 591,
+      "saved_pct": 0.0963,
+      "questions": [
+        {
+          "question": "Who first reported the staging incident?",
+          "raw_answer": "U04AB12CD",
+          "shaped_answer": "U04AB12CD",
+          "equivalent": true,
+          "method": "exact"
+        },
+        {
+          "question": "What was the root cause of the 502 errors?",
+          "raw_answer": "The connection pool was exhausted after the 09:30 deploy doubled worker concurrency without raising PGBOUNCER_MAX_CLIENT_CONN",
+          "shaped_answer": "The connection pool was exhausted after the 09:30 deploy doubled worker concurrency without raising PGBOUNCER_MAX_CLIENT_CONN",
+          "equivalent": true,
+          "method": "exact"
+        },
+        {
+          "question": "What fix was deployed, and when did the errors stop?",
+          "raw_answer": "Raised pgbouncer max_client_conn to 400 and rolled the API pods; the 502s stopped at 11:02",
+          "shaped_answer": "Raised pgbouncer max_client_conn to 400 and rolled the API pods; the 502s stopped at 11:02",
+          "equivalent": true,
+          "method": "exact"
+        },
+        {
+          "question": "How many messages are in this conversation excerpt?",
+          "raw_answer": "3",
+          "shaped_answer": "3",
+          "equivalent": true,
+          "method": "exact"
+        }
+      ]
+    }
+  ]
+}

@@ -10,20 +10,25 @@ defaults:
   cache_ttl: 30
 
 tools:
+  # Slack's Web API wraps results in an envelope ({ok, messages: [...]}).
+  # Keep-list paths must traverse that envelope — bare field names match
+  # nothing on the real schema and only the safe fallback saves the day
+  # (found by the quality-verification harness, 2026-06-10). Bare names are
+  # kept as synonyms for clients that unwrap the envelope before shaping.
   get_channel_messages:
     allow_fields:
-      - user
-      - text
-      - ts
+      - messages.user|user
+      - messages.text|text
+      - messages.ts|ts
     max_response_tokens: 1500
     cache_ttl: 10
 
   search_messages:
     allow_fields:
-      - user
-      - text
-      - ts
-      - channel
+      - messages.matches.user|messages.user|user
+      - messages.matches.text|messages.text|text
+      - messages.matches.ts|messages.ts|ts
+      - messages.matches.channel|messages.channel|channel
     max_response_tokens: 1000
     cache_ttl: 30
 

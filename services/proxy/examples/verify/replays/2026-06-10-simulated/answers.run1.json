@@ -1,0 +1,116 @@
+[
+  {
+    "tool": "get_order",
+    "question": "What is the status of the order?",
+    "raw_answer": "in_transit",
+    "shaped_answer": "in_transit"
+  },
+  {
+    "tool": "get_order",
+    "question": "Which carrier is delivering the order?",
+    "raw_answer": "UPS",
+    "shaped_answer": "UPS"
+  },
+  {
+    "tool": "get_order",
+    "question": "What is the tracking number?",
+    "raw_answer": "1Z999AA10123456784",
+    "shaped_answer": "1Z999AA10123456784"
+  },
+  {
+    "tool": "get_order",
+    "question": "When is the estimated delivery?",
+    "raw_answer": "2026-06-12",
+    "shaped_answer": "2026-06-12"
+  },
+  {
+    "tool": "get_order",
+    "question": "What is the total amount of the order?",
+    "raw_answer": "1249.99",
+    "shaped_answer": "1249.99"
+  },
+  {
+    "tool": "get_customer",
+    "question": "What tier is this customer in?",
+    "raw_answer": "gold",
+    "shaped_answer": "gold"
+  },
+  {
+    "tool": "get_customer",
+    "question": "Is the customer's account active?",
+    "raw_answer": "active",
+    "shaped_answer": "active"
+  },
+  {
+    "tool": "get_opportunity",
+    "question": "What stage is this opportunity in?",
+    "raw_answer": "Negotiation/Review",
+    "shaped_answer": "Negotiation/Review"
+  },
+  {
+    "tool": "get_opportunity",
+    "question": "What is the deal amount, and when is it expected to close?",
+    "raw_answer": "184000.50, closing 2026-07-31",
+    "shaped_answer": "184000.50, closing 2026-07-31"
+  },
+  {
+    "tool": "get_opportunity",
+    "question": "What is the next step on this deal?",
+    "raw_answer": "Security review call with their CISO on June 17",
+    "shaped_answer": "Security review call with their CISO on June 17"
+  },
+  {
+    "tool": "get_opportunity",
+    "question": "What is the win probability?",
+    "raw_answer": "75",
+    "shaped_answer": "75"
+  },
+  {
+    "tool": "get_opportunity",
+    "question": "Which competitor are we up against on this deal?",
+    "raw_answer": "Samsara",
+    "shaped_answer": "UNKNOWN"
+  },
+  {
+    "tool": "get_account",
+    "question": "What industry is this account in, and how many employees does it have?",
+    "raw_answer": "Logistics, 310 employees",
+    "shaped_answer": "Logistics, 310 employees"
+  },
+  {
+    "tool": "get_account",
+    "question": "Where is the account headquartered?",
+    "raw_answer": "Hamburg, Germany",
+    "shaped_answer": "Hamburg, Germany"
+  },
+  {
+    "tool": "get_account",
+    "question": "What is the account's annual revenue?",
+    "raw_answer": "48000000",
+    "shaped_answer": "48000000"
+  },
+  {
+    "tool": "get_channel_messages",
+    "question": "Who first reported the staging incident?",
+    "raw_answer": "U04AB12CD",
+    "shaped_answer": "U04AB12CD"
+  },
+  {
+    "tool": "get_channel_messages",
+    "question": "What was the root cause of the 502 errors?",
+    "raw_answer": "The connection pool was exhausted after the 09:30 deploy doubled worker concurrency without raising PGBOUNCER_MAX_CLIENT_CONN",
+    "shaped_answer": "The connection pool was exhausted after the 09:30 deploy doubled worker concurrency without raising PGBOUNCER_MAX_CLIENT_CONN"
+  },
+  {
+    "tool": "get_channel_messages",
+    "question": "What fix was deployed, and when did the errors stop?",
+    "raw_answer": "Raised pgbouncer max_client_conn to 400 and rolled the API pods; the 502s stopped at 11:02",
+    "shaped_answer": "Raised pgbouncer max_client_conn to 400 and rolled the API pods; the 502s stopped at 11:02"
+  },
+  {
+    "tool": "get_channel_messages",
+    "question": "How many messages are in this conversation excerpt?",
+    "raw_answer": "3",
+    "shaped_answer": "3"
+  }
+]
