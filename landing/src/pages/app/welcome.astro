@@ -74,6 +74,20 @@ const proxyBase = import.meta.env.PUBLIC_PLYNF_ENDPOINT || "https://app.plynf.co
         <Connect showCloud={false} settingsHref="/app/settings" connectorHref="/app/gateway" />
       </section>
 
+      <!-- ── Continuity: the policy built in the public preview ── -->
+      <section id="draft-card" class="card mt-4 p-5 hidden">
+        <div class="flex items-center justify-between gap-4 flex-wrap">
+          <div class="flex items-center gap-3">
+            <span class="dot dot-healthy"></span>
+            <div>
+              <h2 class="font-semibold text-ink-primary">Your policy from the preview</h2>
+              <p id="draft-desc" class="text-sm text-ink-secondary"></p>
+            </div>
+          </div>
+          <button id="draft-save" class="btn btn-secondary !py-2">Save to my workspace</button>
+        </div>
+      </section>
+
       <!-- ── Step 3: test ─────────────────────────────── -->
       <section class="card mt-4 p-5">
         <div class="flex items-center justify-between gap-4 flex-wrap">
@@ -89,6 +103,20 @@ const proxyBase = import.meta.env.PUBLIC_PLYNF_ENDPOINT || "https://app.plynf.co
           <button id="test-btn" class="btn btn-primary !py-2">Test my connection</button>
         </div>
         <pre id="test-result" class="hidden mt-4 rounded-xl border border-border bg-bg-0/70 p-3 mono text-xs text-ink-secondary overflow-auto max-h-40"></pre>
+      </section>
+
+      <!-- ── Step 4: the moment it becomes real ─────────── -->
+      <section class="card mt-4 p-5">
+        <div class="flex items-center gap-3">
+          <span id="live-dot" class="dot"></span>
+          <div>
+            <h2 class="font-semibold text-ink-primary">4 · First live call</h2>
+            <p id="live-status" class="text-sm text-ink-secondary">
+              Waiting for your agent's first real call — run it whenever you're
+              ready, this page notices automatically.
+            </p>
+          </div>
+        </div>
       </section>
 
       <div class="mt-8 flex items-center justify-between flex-wrap gap-3">
@@ -166,6 +194,78 @@ const proxyBase = import.meta.env.PUBLIC_PLYNF_ENDPOINT || "https://app.plynf.co
         });
       }
       pollPlan();
+
+      // ── Continuity: offer the policy built in the public preview ──
+      (function () {
+        var draft = null;
+        try { draft = JSON.parse(localStorage.getItem("plynf_preview_draft") || "null"); } catch (_) {}
+        if (!draft || !draft.keepList || !draft.keepList.length) return;
+        // Drafts older than 30 days are stale — quietly drop them.
+        if (draft.ts && Date.now() - draft.ts > 30 * 24 * 3600 * 1000) {
+          localStorage.removeItem("plynf_preview_draft");
+          return;
+        }
+        $("draft-card").classList.remove("hidden");
+        $("draft-desc").textContent =
+          "Tool “" + draft.tool + "” · " + draft.keepList.length + " fields kept" +
+          (draft.savingsPct ? " · −" + draft.savingsPct + "% measured in your preview" : "") +
+          ". One click and it shapes your real traffic.";
+        $("draft-save").addEventListener("click", function () {
+          var btn = $("draft-save");
+          btn.disabled = true;
+          btn.textContent = "Saving…";
+          fetch(api + "/api/app/policies/" + encodeURIComponent(draft.tool), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+            body: JSON.stringify({ keepFields: draft.keepList }),
+          })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+            .then(function () {
+              btn.textContent = "Saved ✓";
+              $("draft-desc").textContent =
+                "Saved. “" + draft.tool + "” now shapes to your " +
+                draft.keepList.length + " fields on every call — manage it under Policies.";
+              localStorage.removeItem("plynf_preview_draft");
+            })
+            .catch(function () {
+              btn.disabled = false;
+              btn.textContent = "Retry save";
+            });
+        });
+      })();
+
+      // ── Step 4: notice the first REAL call automatically ──
+      // Baseline = tokens_used at page load; the connection test (GET
+      // /v1/models) records nothing, so any increase is genuine agent
+      // traffic flowing through the shaping pipeline.
+      (function () {
+        var baseline = null;
+        var ticks = 0;
+        function tick() {
+          if (!account) { schedule(); return; }
+          fetch(proxy + "/tier", { headers: { Authorization: "Bearer " + account.api_key } })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) {
+              if (!d) { schedule(); return; }
+              var used = d.tokens_used_this_month || 0;
+              if (baseline === null) { baseline = used; }
+              if (used > baseline) {
+                $("live-dot").className = "dot dot-healthy";
+                $("live-status").textContent =
+                  "Live! Your agent just pushed " + (used - baseline).toLocaleString() +
+                  " shaped tokens through Plynf — shaping and savings are running. " +
+                  "Nothing left to think about.";
+                return; // stop polling — the moment happened
+              }
+              schedule();
+            })
+            .catch(schedule);
+        }
+        function schedule() {
+          if (ticks++ < 120) setTimeout(tick, 5000); // up to 10 minutes
+        }
+        tick();
+      })();
 
       $("manage-billing").addEventListener("click", function () {
         fetch(api + "/api/app/billing/portal", {

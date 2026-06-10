@@ -168,6 +168,34 @@ jobs:
       - name: Test worker
         run: cd worker-ts && npm test
 
+  policy-gate:
+    name: Policy quality gate (recorded answers vs current policies)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install proxy
+        run: pip install -e "./services/proxy"
+
+      # Deterministic, no model call: every answer the validated replay
+      # derived from the SHAPED context must still be derivable after any
+      # policy change. A keep-list edit that drops needed information
+      # (the Competitor__c class of bug) turns this red.
+      - name: Gate shipped policies against the validated replay
+        run: |
+          python scripts/verify_replay.py gate \
+            services/proxy/examples/verify/replays/2026-06-10-simulated/answers.run2.json \
+            services/proxy/examples/verify/orders.spec.yaml \
+            services/proxy/examples/verify/salesforce.spec.yaml \
+            services/proxy/examples/verify/slack.spec.yaml
+
   landing:
     name: Landing (build + shaper parity)
     runs-on: ubuntu-latest

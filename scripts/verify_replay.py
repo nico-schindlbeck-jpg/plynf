@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -137,6 +138,82 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0 if report.equivalence_rate >= args.fail_under else 1
 
 
+def _fragment_present(frag: str, haystack: str) -> bool:
+    """Format-tolerant containment: exact, numeric-normalised, or token-wise.
+
+    The recorded answer may format values differently from the JSON
+    serialisation ("184000.50" vs 184000.5, "the 502s stopped…" vs
+    "502s stopped…"). We accept the fragment if (a) it appears verbatim,
+    (b) it is a number whose canonical form appears, or (c) every salient
+    token (len ≥ 3) appears — strict enough that a dropped field
+    ("samsara") still fails.
+    """
+    if frag in haystack:
+        return True
+    try:
+        num = float(frag.replace(",", ""))
+    except ValueError:
+        num = None
+    if num is not None:
+        return f"{num:g}" in haystack
+    tokens = re.findall(r"[a-z0-9:.\-]{3,}", frag)
+    return bool(tokens) and all(t in haystack for t in tokens)
+
+
+def cmd_gate(args: argparse.Namespace) -> int:
+    """Deterministic CI gate: no recorded answer may vanish from the shaped context.
+
+    For every (tool, question) whose recorded run answered from the SHAPED
+    context (shaped_answer != UNKNOWN and equivalent to raw), assert that
+    the answer text still occurs in the response shaped with the CURRENT
+    policies. If a policy edit drops a field the model needed (the
+    Competitor__c class of bug), this fails — without any model call.
+    """
+    answers = json.loads(Path(args.answers).read_text(encoding="utf-8"))
+    by_tool: dict[str, list[dict]] = {}
+    for a in answers:
+        by_tool.setdefault(a["tool"], []).append(a)
+
+    violations: list[str] = []
+    checked = 0
+    for spec_path in args.specs:
+        spec, policy = _load(spec_path, args.policies_dir)
+        for case in spec.get("cases", []):
+            tool = case["tool"]
+            shaped = apply(case["raw_response"], policy.policy_for(tool))
+            haystack = json.dumps(shaped, ensure_ascii=False, default=str).lower()
+            for rec in by_tool.get(tool, []):
+                ans = str(rec.get("shaped_answer", "")).strip()
+                raw_ans = str(rec.get("raw_answer", "")).strip()
+                # Only gate answers the shaped context demonstrably contained.
+                if not ans or ans.upper() == "UNKNOWN" or ans != raw_ans:
+                    continue
+                checked += 1
+                # Multi-part answers ("Logistics, 310 employees"): every
+                # value-ish fragment must survive.
+                fragments = [
+                    f.strip().lower()
+                    for f in re.split(r"[,;]| and | closing ", ans)
+                    if f.strip()
+                ]
+                for frag in fragments:
+                    frag_core = frag.replace(" employees", "").strip()
+                    if frag_core and not _fragment_present(frag_core, haystack):
+                        violations.append(
+                            f"{tool} / {rec['question']!r}: fragment {frag_core!r} "
+                            f"no longer present in the shaped response"
+                        )
+
+    print(f"policy gate: {checked} recorded answers checked against current policies")
+    if violations:
+        print("\nREGRESSIONS — a policy edit dropped information the model needed:")
+        for v in violations:
+            print(f"  ✗ {v}")
+        return 1
+    print("✓ every recorded answer is still derivable from the shaped context")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -153,6 +230,14 @@ def main() -> int:
     p_rep.add_argument("--json", action="store_true")
     p_rep.add_argument("--fail-under", type=float, default=0.0)
     p_rep.set_defaults(fn=cmd_report)
+
+    p_gate = sub.add_parser(
+        "gate", help="CI gate: recorded answers must survive the current policies"
+    )
+    p_gate.add_argument("answers")
+    p_gate.add_argument("specs", nargs="+")
+    p_gate.add_argument("--policies-dir", default=None)
+    p_gate.set_defaults(fn=cmd_gate)
 
     args = parser.parse_args()
     return args.fn(args)

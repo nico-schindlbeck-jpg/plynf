@@ -277,6 +277,22 @@
     const effectiveKeep = keepList.length > 0 ? keepList : suggestKeepList(raw).keepList;
     $("sp-policy-yaml").textContent = renderPolicyYaml(toolnameEl.value, effectiveKeep);
 
+    // Continuity: remember the POLICY the visitor built (never the payload —
+    // "nothing leaves this page" stays true) so signup can offer to save it.
+    try {
+      localStorage.setItem(
+        "plynf_preview_draft",
+        JSON.stringify({
+          tool: toolnameEl.value.trim() || "my_tool",
+          keepList: effectiveKeep,
+          savingsPct: Math.round(pct * 100),
+          ts: Date.now(),
+        }),
+      );
+    } catch {
+      /* private mode — fine */
+    }
+
     emptyEl.classList.add("hidden");
     resultEl.classList.remove("hidden");
     resultEl.classList.add("flex");
