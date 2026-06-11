@@ -37,6 +37,7 @@ from typing import Any
 
 PLANS = ("free", "pro", "enterprise")
 _PBKDF2_ITERATIONS = 200_000
+_DUMMY_SALT = b"\x00" * 16  # for constant-time login on unknown emails
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -51,7 +52,9 @@ def new_api_key() -> str:
 
 
 def new_tenant_id() -> str:
-    return "t_" + secrets.token_hex(8)
+    # 128 bits — tenant ids appear in logs/headers, so make them
+    # unguessable, not merely unique.
+    return "t_" + secrets.token_hex(16)
 
 
 class AccountError(ValueError):
@@ -135,6 +138,9 @@ class AccountStore:
         with self._lock:
             account = self._accounts.get(email)
             if account is None:
+                # Hash anyway against a dummy salt so the response time does
+                # not reveal whether the email exists (user enumeration).
+                _hash_password(password, _DUMMY_SALT)
                 return None
             expected = account["password_hash"]
             actual = _hash_password(password, bytes.fromhex(account["password_salt"]))

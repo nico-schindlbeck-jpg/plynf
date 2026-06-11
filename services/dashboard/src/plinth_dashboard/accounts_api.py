@@ -158,13 +158,41 @@ def register_accounts_api(  # noqa: C901 - route table, intentionally flat
 
     # -- account info / key rotation -----------------------------------------
 
-    def _account_from(body_or_query: dict[str, Any]) -> dict[str, Any] | None:
-        email = str(body_or_query.get("email") or "").strip().lower()
-        return accounts.get(email) if email else None
+    async def _authed_email(request: Request, client_email: str | None) -> str | None:
+        """The email these sensitive routes operate on.
+
+        SECURITY: when auth is enforced (production), the ONLY source of
+        identity is the verified session token — never the client-supplied
+        email. Otherwise any logged-in user could read or rotate another
+        account's ``api_key`` simply by passing ``?email=victim``. In
+        demo/test mode (auth not required, no identity service) we fall back
+        to the supplied email so the open offline flow still works.
+        """
+        if not settings.app_auth_required:
+            e = (client_email or "").strip().lower()
+            return e or None
+        auth = request.headers.get("authorization", "")
+        token = auth[7:].strip() if auth[:7].lower() == "bearer " else ""
+        if not token:
+            return None
+        overview = getattr(request.app.state, "overview", None)
+        http = getattr(overview, "client", None) if overview else None
+        if http is None:
+            return None
+        id_url = settings.identity_url.rstrip("/")
+        try:
+            resp = await http.post(f"{id_url}/v1/tokens/verify", json={"token": token})
+            if resp.status_code == 200:
+                em = str(resp.json().get("agent_id") or "").strip().lower()
+                return em or None
+        except (httpx.HTTPError, ValueError):
+            pass
+        return None
 
     @app.get("/api/app/me", tags=["accounts"])
     async def me(request: Request) -> JSONResponse:
-        account = _account_from(dict(request.query_params))
+        email = await _authed_email(request, dict(request.query_params).get("email"))
+        account = accounts.get(email) if email else None
         if account is None:
             return _err("Unknown account.", 404, "NOT_FOUND")
         return JSONResponse({"ok": True, "account": accounts.public_view(account)})
@@ -172,7 +200,8 @@ def register_accounts_api(  # noqa: C901 - route table, intentionally flat
     @app.post("/api/app/keys/rotate", tags=["accounts"])
     async def rotate(request: Request) -> JSONResponse:
         body = await request.json()
-        account = accounts.rotate_key(str(body.get("email") or ""))
+        email = await _authed_email(request, body.get("email"))
+        account = accounts.rotate_key(email) if email else None
         if account is None:
             return _err("Unknown account.", 404, "NOT_FOUND")
         return JSONResponse({"ok": True, "account": accounts.public_view(account)})
@@ -183,7 +212,8 @@ def register_accounts_api(  # noqa: C901 - route table, intentionally flat
     async def checkout(request: Request) -> JSONResponse:
         body = await request.json()
         plan = str(body.get("plan") or "").strip().lower()
-        account = _account_from(body)
+        email = await _authed_email(request, body.get("email"))
+        account = accounts.get(email) if email else None
         if account is None:
             return _err("Unknown account — sign up first.", 404, "NOT_FOUND")
         if plan not in ("pro", "enterprise"):
@@ -216,7 +246,8 @@ def register_accounts_api(  # noqa: C901 - route table, intentionally flat
     @app.post("/api/app/billing/portal", tags=["accounts"])
     async def portal(request: Request) -> JSONResponse:
         body = await request.json()
-        account = _account_from(body)
+        email = await _authed_email(request, body.get("email"))
+        account = accounts.get(email) if email else None
         if account is None:
             return _err("Unknown account.", 404, "NOT_FOUND")
         if not stripe.configured or not account.get("stripe_customer_id"):
