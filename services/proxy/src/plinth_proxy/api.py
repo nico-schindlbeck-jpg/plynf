@@ -91,7 +91,7 @@ from .policy_overrides import (
 from .postgres_sink import PostgresSavingsSink
 from .responses_adapter import openai_response_to_responses, responses_request_to_openai
 from .rest_connector import build_rest_connector, specs_from_json
-from .savings import SavingsEvent, SavingsSink, aggregate, make_event
+from .savings import EventBuffer, SavingsSink, aggregate, make_event
 from .settings import ProxySettings
 from .tier_gate import TIERS, TierGate, upgrade_hint
 from .tokens import count_json_tokens, count_messages_tokens
@@ -115,7 +115,7 @@ class AppState:
     registry: ConnectorRegistry
     cache: TTLCache
     sink: SavingsSink | PostgresSavingsSink | None
-    events: list[SavingsEvent]  # in-memory mirror for /v1/savings/summary
+    events: EventBuffer  # bounded in-memory mirror for /v1/savings/summary
     api_keys: dict[str, str]    # key -> tenant_id
     api_key_tiers: dict[str, str]  # key -> tier (free/pro/enterprise)
     gate: TierGate
@@ -218,7 +218,7 @@ def _build_state(settings: ProxySettings, fixtures_dir: str | None = None) -> Ap
         state.sink = SavingsSink(path=Path(settings.savings_log))
     else:
         state.sink = None
-    state.events = []
+    state.events = EventBuffer()
     state.api_keys = settings.parsed_api_keys()
     state.api_key_tiers = settings.parsed_api_key_tiers()
     state.gate = TierGate()

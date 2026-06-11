@@ -21,6 +21,10 @@ class _Entry:
 
 
 class TTLCache:
+    # Cap so entries that are never read again can't accumulate forever in a
+    # long-running single-process proxy. (Production swaps in Redis.)
+    _MAX_ENTRIES = 100_000
+
     def __init__(self) -> None:
         self._store: dict[str, _Entry] = {}
 
@@ -38,6 +42,23 @@ class TTLCache:
         if ttl_seconds <= 0:
             return
         self._store[key] = _Entry(value=value, expires_at=time.time() + ttl_seconds)
+        if len(self._store) > self._MAX_ENTRIES:
+            self._sweep()
+
+    def _sweep(self) -> None:
+        """Drop expired entries; if still over the cap, drop oldest-expiring.
+
+        Runs only when the store crosses the cap, so amortised cost is tiny.
+        """
+        now = time.time()
+        for k in [k for k, e in self._store.items() if e.expires_at < now]:
+            self._store.pop(k, None)
+        if len(self._store) > self._MAX_ENTRIES:
+            overflow = len(self._store) - self._MAX_ENTRIES
+            for k, _ in sorted(self._store.items(), key=lambda kv: kv[1].expires_at)[
+                :overflow
+            ]:
+                self._store.pop(k, None)
 
     def clear(self) -> None:
         self._store.clear()

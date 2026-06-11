@@ -74,6 +74,49 @@ async def test_resolver_outage_degrades_gracefully():
     assert await client.resolve(KEY) is None
 
 
+async def test_transient_5xx_serves_stale_not_lockout():
+    """A mid-deploy 503 must not lock out a VALID customer for negative_ttl."""
+    state = {"code": 200}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if state["code"] == 200:
+            return httpx.Response(200, json={"tenant_id": "t_1", "tier": "pro"})
+        return httpx.Response(state["code"], json={"error": {}})
+
+    client = make_client(handler, cache_ttl_s=0.0)  # force re-fetch each call
+    assert await client.resolve(KEY) == ("t_1", "pro")
+    state["code"] = 503
+    # Serves the stale positive instead of a negative — customer keeps working.
+    assert await client.resolve(KEY) == ("t_1", "pro")
+
+
+async def test_404_is_authoritative_negative():
+    """A genuine 'unknown key' (404) is cached negative, unlike a 5xx."""
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(404, json={"error": {}})
+
+    client = make_client(handler)
+    assert await client.resolve(KEY) is None
+    assert await client.resolve(KEY) is None
+    assert calls["n"] == 1  # second served from negative cache
+
+
+async def test_cache_is_bounded():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"error": {}})
+
+    client = make_client(handler, negative_ttl_s=0.0)
+    client._MAX_ENTRIES = 50
+    for i in range(500):
+        await client.resolve(f"plynf_sk_live_{i:050d}")
+    # Eviction (triggered past the cap, with expired negatives swept) keeps it
+    # from growing unbounded.
+    assert len(client._cache) <= client._MAX_ENTRIES + 1
+
+
 # -- end-to-end through the proxy's _authenticate ----------------------------
 
 

@@ -44,6 +44,19 @@ class AccountsKeyClient:
         # key → (expires_at, (tenant_id, tier) | None)
         self._cache: dict[str, tuple[float, tuple[str, str] | None]] = {}
 
+    # Hard cap so a flood of garbage/typo'd keys can't grow the cache
+    # without bound (memory-exhaustion DoS).
+    _MAX_ENTRIES = 50_000
+
+    def _evict(self, now: float) -> None:
+        """Drop expired entries; if still over the cap, drop oldest-expiring."""
+        for k in [k for k, (exp, _) in self._cache.items() if exp <= now]:
+            self._cache.pop(k, None)
+        if len(self._cache) > self._MAX_ENTRIES:
+            overflow = len(self._cache) - self._MAX_ENTRIES
+            for k, _ in sorted(self._cache.items(), key=lambda kv: kv[1][0])[:overflow]:
+                self._cache.pop(k, None)
+
     async def resolve(self, api_key: str) -> tuple[str, str] | None:
         """Return ``(tenant_id, tier)`` for a customer key, or None."""
         now = time.monotonic()
@@ -63,6 +76,13 @@ class AccountsKeyClient:
                 tier = str(data.get("tier") or "free")
                 if tenant:
                     result = (tenant, tier)
+            elif resp.status_code >= 500:
+                # Transient control-plane error (e.g. a mid-deploy 503):
+                # treat like unreachable — serve the stale entry instead of
+                # locking a VALID customer out for negative_ttl_s. Don't
+                # cache the failure. A 4xx (404 unknown key / 403 bad secret)
+                # is authoritative and falls through to the negative cache.
+                return cached[1] if cached is not None else None
         except (httpx.HTTPError, ValueError):
             # Control plane unreachable: don't poison the cache — return the
             # stale entry if we had one (graceful degradation), else None.
@@ -72,6 +92,8 @@ class AccountsKeyClient:
 
         ttl = self.cache_ttl_s if result is not None else self.negative_ttl_s
         self._cache[api_key] = (now + ttl, result)
+        if len(self._cache) > self._MAX_ENTRIES:
+            self._evict(now)
         return result
 
     def clear_cache(self) -> None:

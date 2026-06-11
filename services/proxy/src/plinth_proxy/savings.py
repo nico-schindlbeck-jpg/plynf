@@ -142,9 +142,64 @@ def make_event(
     )
 
 
+class EventBuffer:
+    """Bounded, append-only mirror of savings events for the in-process
+    ``/v1/savings/summary`` view.
+
+    Drop-in for the ``list`` it replaces, preserving the exact access
+    patterns the API relies on:
+
+    * ``len(buf)`` returns the total number of events EVER appended — a
+      monotonically increasing position, so handlers can snapshot
+      ``before = len(buf)`` and later read ``buf[before:]`` to get exactly
+      the events their call produced.
+    * iteration yields the retained recent events (for ``aggregate``).
+    * ``buf[before:]`` returns events at/after absolute position ``before``,
+      clamped to what's still retained; ``buf[-1]`` returns the newest.
+
+    Memory is capped at ``maxlen`` recent events (default 50k). Durable,
+    complete history lives in the Postgres sink — this is only the live
+    summary window, so bounding it cannot lose billing data.
+    """
+
+    __slots__ = ("_dq", "_total")
+
+    def __init__(self, maxlen: int = 50_000) -> None:
+        from collections import deque
+
+        self._dq: deque = deque(maxlen=maxlen)
+        self._total = 0
+
+    def append(self, event: SavingsEvent) -> None:
+        self._dq.append(event)
+        self._total += 1
+
+    def __len__(self) -> int:
+        return self._total
+
+    def __iter__(self):
+        return iter(self._dq)
+
+    def __getitem__(self, item):
+        retained = list(self._dq)
+        first = self._total - len(retained)  # absolute position of retained[0]
+        if isinstance(item, slice):
+            start = item.start or 0
+            lo = max(0, start - first) if start >= 0 else start
+            return retained[lo : item.stop]
+        if item < 0:
+            return retained[item]
+        return retained[item - first]
+
+    def clear(self) -> None:
+        self._dq.clear()
+        self._total = 0
+
+
 # In-process aggregate for the demo dashboard view.
 def aggregate(events: list[SavingsEvent]) -> dict[str, Any]:
     """Return a small dashboard-style summary of events."""
+    events = list(events)
     total_raw = sum(e.raw_response_tokens for e in events)
     total_shaped = sum(e.shaped_response_tokens for e in events)
     total_saved = sum(e.saved_tokens for e in events)
@@ -169,6 +224,7 @@ def aggregate(events: list[SavingsEvent]) -> dict[str, Any]:
 
 __all__ = [
     "DEFAULT_MODEL_PRICES",
+    "EventBuffer",
     "SavingsEvent",
     "SavingsSink",
     "aggregate",
