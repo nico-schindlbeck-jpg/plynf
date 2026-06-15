@@ -1,0 +1,94 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import ThemeToggle from "../../components/ThemeToggle.astro";
+// Control-plane API that consumes the reset token (POST /api/app/password/reset/confirm).
+const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
+---
+<BaseLayout
+  title="Choose a new password"
+  description="Set a new password for your Plynf account."
+>
+  <main id="main" class="min-h-screen flex flex-col" data-api={apiBase}>
+    <div class="flex items-center justify-between p-5">
+      <a href="/" class="flex items-center gap-2 text-ink-secondary hover:text-ink-primary text-sm">← Plynf</a>
+      <ThemeToggle />
+    </div>
+
+    <div class="flex-1 flex items-center justify-center px-6 pb-24">
+      <div class="w-full max-w-sm">
+        <!-- Form -->
+        <div id="form-wrap">
+          <h2 class="text-2xl font-bold tracking-tight text-ink-primary">Choose a new password</h2>
+          <p class="mt-2 text-sm text-ink-secondary">Enter a new password for your account.</p>
+          <form id="reset-form" class="mt-7 space-y-3">
+            <label class="block">
+              <span class="text-2xs mono uppercase tracking-wider text-ink-muted">New password (min. 8 characters)</span>
+              <input
+                type="password" name="password" required minlength="8" autocomplete="new-password"
+                class="mt-1.5 w-full rounded-xl bg-bg-1 border border-border-strong px-3.5 py-2.5 text-ink-primary placeholder:text-ink-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 transition"
+              />
+            </label>
+            <label class="block">
+              <span class="text-2xs mono uppercase tracking-wider text-ink-muted">Confirm new password</span>
+              <input
+                type="password" name="confirm" required minlength="8" autocomplete="new-password"
+                class="mt-1.5 w-full rounded-xl bg-bg-1 border border-border-strong px-3.5 py-2.5 text-ink-primary placeholder:text-ink-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 transition"
+              />
+            </label>
+            <button type="submit" class="btn btn-primary w-full !py-3" id="reset-cta">Update password</button>
+            <p id="reset-error" class="hidden text-sm text-[#ff8551]"></p>
+          </form>
+        </div>
+
+        <!-- Success -->
+        <div id="done" class="hidden text-center">
+          <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-bg-1">
+            <span class="dot dot-healthy !w-3 !h-3"></span>
+          </div>
+          <h2 class="mt-5 text-2xl font-bold tracking-tight text-ink-primary">Password updated</h2>
+          <p class="mt-2 text-sm text-ink-secondary">You can now sign in with your new password.</p>
+          <a href="/login" class="btn btn-primary w-full !py-3 mt-6">Sign in</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script is:inline>
+    (function () {
+      var API = (document.getElementById("main").getAttribute("data-api") || "").replace(/\/$/, "");
+      var token = new URLSearchParams(location.search).get("token") || "";
+      var form = document.getElementById("reset-form");
+      var errEl = document.getElementById("reset-error");
+      var cta = document.getElementById("reset-cta");
+      function showError(msg) {
+        errEl.textContent = msg;
+        errEl.classList.remove("hidden");
+        cta.disabled = false;
+      }
+      if (!token) {
+        showError("Open the reset link from the email we sent you.");
+        cta.disabled = true;
+      }
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        errEl.classList.add("hidden");
+        var pw = form.password.value;
+        var confirm = form.confirm.value;
+        if (pw !== confirm) { showError("The two passwords don't match."); return; }
+        cta.disabled = true;
+        fetch(API + "/api/app/password/reset/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: token, password: pw }),
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (!res.ok) throw new Error((res.d.error && res.d.error.message) || "Could not reset your password.");
+            document.getElementById("form-wrap").classList.add("hidden");
+            document.getElementById("done").classList.remove("hidden");
+          })
+          .catch(function (err) { showError(err && err.message ? err.message : "Something went wrong."); });
+      });
+    })();
+  </script>
+</BaseLayout>

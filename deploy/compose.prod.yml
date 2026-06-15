@@ -131,6 +131,15 @@ services:
       PLINTH_DASHBOARD_STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
       PLINTH_DASHBOARD_STRIPE_PRICE_PRO: "${STRIPE_PRICE_PRO:-}"
       PLINTH_DASHBOARD_STRIPE_PRICE_ENTERPRISE: "${STRIPE_PRICE_ENTERPRISE:-}"
+      # Outbound email (verify + password-reset links). Leave SMTP_HOST empty to
+      # log the link instead of sending (safe for a staging boot). Receipts are
+      # sent by Stripe natively — no SMTP needed for those.
+      PLINTH_DASHBOARD_SMTP_HOST: "${PLINTH_SMTP_HOST:-}"
+      PLINTH_DASHBOARD_SMTP_PORT: "${PLINTH_SMTP_PORT:-587}"
+      PLINTH_DASHBOARD_SMTP_USERNAME: "${PLINTH_SMTP_USERNAME:-}"
+      PLINTH_DASHBOARD_SMTP_PASSWORD: "${PLINTH_SMTP_PASSWORD:-}"
+      PLINTH_DASHBOARD_SMTP_USE_TLS: "${PLINTH_SMTP_USE_TLS:-true}"
+      PLINTH_DASHBOARD_EMAIL_FROM: "${PLINTH_EMAIL_FROM:-Plynf <noreply@plynf.com>}"
     volumes:
       - dashboard-data:/data
     depends_on:

@@ -82,6 +82,17 @@ class Settings(BaseSettings):
     auth_rate_limit_signup: int = Field(default=20)
     auth_rate_limit_login: int = Field(default=30)
     auth_rate_window_s: float = Field(default=60.0)
+    # -- Outbound email (verification + password-reset links) ---------------
+    # Leave smtp_host empty to use the console mailer: each link is written to
+    # the dashboard log instead of sent — fine for dev/demo/tests. Set the host
+    # (+ port/credentials) to deliver real mail via SMTP. Payment receipts are
+    # sent by Stripe natively, never from here.
+    smtp_host: str = Field(default="")
+    smtp_port: int = Field(default=587)
+    smtp_username: str = Field(default="")
+    smtp_password: str = Field(default="")
+    smtp_use_tls: bool = Field(default=True)
+    email_from: str = Field(default="Plynf <noreply@plynf.com>")
     backend_timeout_seconds: float = Field(default=5.0)
     log_level: str = Field(default="INFO")
     log_format: Literal["console", "json"] = Field(default="console")

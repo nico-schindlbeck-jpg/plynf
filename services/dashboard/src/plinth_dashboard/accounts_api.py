@@ -21,7 +21,7 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, Request
+from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from .accounts import AccountError, AccountStore
@@ -31,6 +31,12 @@ from .billing_stripe import (
     apply_webhook_event,
     parse_event,
     verify_webhook_signature,
+)
+from .mailer import (
+    ConsoleMailer,
+    Mailer,
+    send_password_reset_email,
+    send_verification_email,
 )
 from .ratelimit import SlidingWindowLimiter, client_key
 from .settings import Settings
@@ -76,8 +82,15 @@ async def _mint_session(
 
 
 def register_accounts_api(  # noqa: C901 - route table, intentionally flat
-    app: FastAPI, settings: Settings, accounts: AccountStore
+    app: FastAPI,
+    settings: Settings,
+    accounts: AccountStore,
+    mailer: Mailer | None = None,
 ) -> None:
+    # No mailer wired (tests / older callers) → console fallback that logs the
+    # link instead of sending. The whole flow still works end-to-end.
+    if mailer is None:
+        mailer = ConsoleMailer()
     stripe = StripeClient(settings.stripe_secret_key)
     site = settings.site_url.rstrip("/")
     price_for_plan = {
@@ -97,6 +110,11 @@ def register_accounts_api(  # noqa: C901 - route table, intentionally flat
     login_limiter = SlidingWindowLimiter(
         limit=settings.auth_rate_limit_login, window_s=settings.auth_rate_window_s
     )
+    # Verify-/reset-request endpoints send an email; rate-limit per IP so they
+    # can't be abused to flood someone's inbox.
+    email_limiter = SlidingWindowLimiter(
+        limit=settings.auth_rate_limit_signup, window_s=settings.auth_rate_window_s
+    )
 
     def _rate_limited(limiter: SlidingWindowLimiter, request: Request) -> JSONResponse | None:
         key = client_key(request)
@@ -112,7 +130,7 @@ def register_accounts_api(  # noqa: C901 - route table, intentionally flat
         return resp
 
     @app.post("/api/app/signup", tags=["accounts"])
-    async def signup(request: Request) -> JSONResponse:
+    async def signup(request: Request, background_tasks: BackgroundTasks) -> JSONResponse:
         limited = _rate_limited(signup_limiter, request)
         if limited is not None:
             return limited
@@ -131,6 +149,13 @@ def register_accounts_api(  # noqa: C901 - route table, intentionally flat
             )
         except StripeError:
             return _err("Could not issue a session token.", 503, "IDENTITY_UNAVAILABLE")
+        # Fire the verification email off the response path (best-effort; signup
+        # must not fail on it, and SMTP must not block the event loop — F2).
+        verify_token = accounts.issue_verification(account["email"])
+        if verify_token:
+            background_tasks.add_task(
+                send_verification_email, mailer, site, account["email"], verify_token
+            )
         return JSONResponse(
             {"ok": True, "account": accounts.public_view(account), **session}
         )
@@ -205,6 +230,69 @@ def register_accounts_api(  # noqa: C901 - route table, intentionally flat
         if account is None:
             return _err("Unknown account.", 404, "NOT_FOUND")
         return JSONResponse({"ok": True, "account": accounts.public_view(account)})
+
+    # -- email verification + password reset ---------------------------------
+
+    @app.post("/api/app/verify/request", tags=["accounts"])
+    async def verify_request(
+        request: Request, background_tasks: BackgroundTasks
+    ) -> JSONResponse:
+        """Re-send the verification email for the signed-in account."""
+        limited = _rate_limited(email_limiter, request)
+        if limited is not None:
+            return limited
+        body = await request.json()
+        email = await _authed_email(request, body.get("email"))
+        token = accounts.issue_verification(email) if email else None
+        if token:
+            # Background dispatch so delivery time can't leak account existence
+            # (F1) and SMTP can't stall the event loop (F2).
+            background_tasks.add_task(send_verification_email, mailer, site, email, token)
+        # Opaque 200 — never reveal whether the address maps to an account.
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/app/verify/confirm", tags=["accounts"])
+    async def verify_confirm(request: Request) -> JSONResponse:
+        """Consume a verification token (the token itself is the credential)."""
+        body = await request.json()
+        token = str(body.get("token") or "")
+        email = accounts.verify_email(token) if token else None
+        if email is None:
+            return _err("This verification link is invalid or has expired.", 400, "INVALID_TOKEN")
+        return JSONResponse({"ok": True, "verified": True, "email": email})
+
+    @app.post("/api/app/password/reset/request", tags=["accounts"])
+    async def reset_request(
+        request: Request, background_tasks: BackgroundTasks
+    ) -> JSONResponse:
+        """Start a password reset. Unauthenticated by design (the user can't log
+        in) and always 200, so it never discloses whether an account exists."""
+        limited = _rate_limited(email_limiter, request)
+        if limited is not None:
+            return limited
+        body = await request.json()
+        email = str(body.get("email") or "").strip().lower()
+        token = accounts.issue_password_reset(email) if email else None
+        if token:
+            # Background dispatch so a real SMTP send can't make existing-account
+            # responses measurably slower than unknown ones (F1) or block the
+            # event loop (F2). The opaque-200 promise above needs this.
+            background_tasks.add_task(send_password_reset_email, mailer, site, email, token)
+        return JSONResponse({"ok": True})
+
+    @app.post("/api/app/password/reset/confirm", tags=["accounts"])
+    async def reset_confirm(request: Request) -> JSONResponse:
+        """Set a new password from a valid reset token."""
+        body = await request.json()
+        token = str(body.get("token") or "")
+        password = str(body.get("password") or "")
+        try:
+            email = accounts.reset_password(token, password) if token else None
+        except AccountError as e:
+            return _err(str(e), 400)
+        if email is None:
+            return _err("This reset link is invalid or has expired.", 400, "INVALID_TOKEN")
+        return JSONResponse({"ok": True, "email": email})
 
     # -- billing --------------------------------------------------------------
 

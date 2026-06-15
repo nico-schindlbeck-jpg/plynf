@@ -1,0 +1,76 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import ThemeToggle from "../../components/ThemeToggle.astro";
+// Control-plane API that consumes the verification token (POST /api/app/verify/confirm).
+const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
+---
+<BaseLayout
+  title="Confirm your email"
+  description="Confirm your Plynf email address."
+>
+  <main id="main" class="min-h-screen flex flex-col" data-api={apiBase}>
+    <div class="flex items-center justify-between p-5">
+      <a href="/" class="flex items-center gap-2 text-ink-secondary hover:text-ink-primary text-sm">← Plynf</a>
+      <ThemeToggle />
+    </div>
+
+    <div class="flex-1 flex items-center justify-center px-6 pb-24">
+      <div class="w-full max-w-sm text-center">
+        <!-- Pending -->
+        <div id="pending">
+          <h2 class="text-2xl font-bold tracking-tight text-ink-primary">Confirming your email…</h2>
+          <p class="mt-2 text-sm text-ink-secondary">One moment while we verify your link.</p>
+        </div>
+
+        <!-- Success -->
+        <div id="ok" class="hidden">
+          <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-border bg-bg-1">
+            <span class="dot dot-healthy !w-3 !h-3"></span>
+          </div>
+          <h2 class="mt-5 text-2xl font-bold tracking-tight text-ink-primary">Email confirmed</h2>
+          <p class="mt-2 text-sm text-ink-secondary">You're all set — thanks for confirming.</p>
+          <a href="/app" class="btn btn-primary w-full !py-3 mt-6">Go to your dashboard</a>
+        </div>
+
+        <!-- Error -->
+        <div id="err" class="hidden">
+          <h2 class="text-2xl font-bold tracking-tight text-ink-primary">Link invalid or expired</h2>
+          <p id="err-msg" class="mt-2 text-sm text-ink-secondary"></p>
+          <a href="/login" class="btn btn-secondary w-full !py-3 mt-6">Sign in to request a new link</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script is:inline>
+    (function () {
+      var API = (document.getElementById("main").getAttribute("data-api") || "").replace(/\/$/, "");
+      var token = new URLSearchParams(location.search).get("token") || "";
+      var pending = document.getElementById("pending");
+      var ok = document.getElementById("ok");
+      var err = document.getElementById("err");
+      function fail(msg) {
+        pending.classList.add("hidden");
+        ok.classList.add("hidden");
+        document.getElementById("err-msg").textContent = msg;
+        err.classList.remove("hidden");
+      }
+      if (!token) {
+        fail("Open the confirmation link from the email we sent you.");
+        return;
+      }
+      fetch(API + "/api/app/verify/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: token }),
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          if (!res.ok) throw new Error((res.d.error && res.d.error.message) || "This link is invalid or has expired.");
+          pending.classList.add("hidden");
+          ok.classList.remove("hidden");
+        })
+        .catch(function (e) { fail(e && e.message ? e.message : "This link is invalid or has expired."); });
+    })();
+  </script>
+</BaseLayout>

@@ -1,0 +1,79 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import ThemeToggle from "../components/ThemeToggle.astro";
+// Control-plane API that starts a reset (POST /api/app/password/reset/request).
+const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
+---
+<BaseLayout
+  title="Reset your password"
+  description="Request a password-reset link for your Plynf account."
+>
+  <main id="main" class="min-h-screen flex flex-col" data-api={apiBase}>
+    <div class="flex items-center justify-between p-5">
+      <a href="/" class="flex items-center gap-2 text-ink-secondary hover:text-ink-primary text-sm">← Plynf</a>
+      <ThemeToggle />
+    </div>
+
+    <div class="flex-1 flex items-center justify-center px-6 pb-24">
+      <div class="w-full max-w-sm">
+        <!-- Form -->
+        <div id="form-wrap">
+          <h2 class="text-2xl font-bold tracking-tight text-ink-primary">Reset your password</h2>
+          <p class="mt-2 text-sm text-ink-secondary">
+            Enter your email and we'll send a link to choose a new one.
+            Remembered it? <a href="/login" class="underline hover:text-ink-primary">Sign in</a>
+          </p>
+          <form id="forgot-form" class="mt-7 space-y-3">
+            <label class="block">
+              <span class="text-2xs mono uppercase tracking-wider text-ink-muted">Work email</span>
+              <input
+                type="email" name="email" required placeholder="you@company.com" autocomplete="email"
+                class="mt-1.5 w-full rounded-xl bg-bg-1 border border-border-strong px-3.5 py-2.5 text-ink-primary placeholder:text-ink-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 transition"
+              />
+            </label>
+            <button type="submit" class="btn btn-primary w-full !py-3" id="forgot-cta">Send reset link</button>
+          </form>
+        </div>
+
+        <!-- Sent (always shown on success — never discloses whether the account exists) -->
+        <div id="sent" class="hidden rounded-xl border border-border bg-bg-1 p-5 text-sm text-ink-secondary">
+          <div class="flex items-center gap-2 text-ink-primary font-medium mb-1">
+            <span class="dot dot-healthy !w-2 !h-2"></span> Check your inbox
+          </div>
+          If an account exists for <span id="sent-email" class="text-ink-primary mono"></span>, we've sent a
+          password-reset link. It expires in 1 hour.
+          <a href="/login" class="btn btn-secondary w-full !py-2 text-sm mt-4">Back to sign in</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script is:inline>
+    (function () {
+      var API = (document.getElementById("main").getAttribute("data-api") || "").replace(/\/$/, "");
+      var form = document.getElementById("forgot-form");
+      var cta = document.getElementById("forgot-cta");
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        cta.disabled = true;
+        var email = form.email.value.trim();
+        fetch(API + "/api/app/password/reset/request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email }),
+        })
+          .then(function () {
+            // Always succeed-looking: the endpoint returns 200 either way.
+            document.getElementById("sent-email").textContent = email;
+            document.getElementById("form-wrap").classList.add("hidden");
+            document.getElementById("sent").classList.remove("hidden");
+          })
+          .catch(function () {
+            document.getElementById("sent-email").textContent = email;
+            document.getElementById("form-wrap").classList.add("hidden");
+            document.getElementById("sent").classList.remove("hidden");
+          });
+      });
+    })();
+  </script>
+</BaseLayout>

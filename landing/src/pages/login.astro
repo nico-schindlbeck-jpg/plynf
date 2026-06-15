@@ -78,6 +78,9 @@ const apiBase = import.meta.env.PUBLIC_PLYNF_API || "http://localhost:7424";
                 class="mt-1.5 w-full rounded-xl bg-bg-1 border border-border-strong px-3.5 py-2.5 text-ink-primary placeholder:text-ink-muted outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 transition"
               />
             </label>
+            <div class="text-right -mt-1">
+              <a href="/forgot" class="text-2xs text-ink-muted hover:text-ink-secondary underline">Forgot password?</a>
+            </div>
             <button type="submit" class="btn btn-primary w-full !py-3">Sign in</button>
             <p id="pw-error" class="hidden text-sm text-[#ff8551]"></p>
           </form>

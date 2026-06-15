@@ -89,3 +89,30 @@ def test_persists_across_instances(store):
     other = PostgresAccountStore(PG_URL)
     got = other.get("persist@example.com")
     assert got is not None and got["api_key"] == a["api_key"]
+
+
+def test_email_verification_roundtrip(store):
+    a = store.create("v@example.com", "supersecret")
+    assert a["verified"] is False
+    token = store.issue_verification("v@example.com")
+    assert token
+    assert store.verify_email(token) == "v@example.com"
+    assert store.get("v@example.com")["verified"] is True
+    assert store.verify_email(token) is None  # single-use: token cleared
+
+
+def test_password_reset_roundtrip(store):
+    store.create("r@example.com", "oldpassword")
+    token = store.issue_password_reset("r@example.com")
+    assert token
+    assert store.reset_password(token, "brandnewpassword") == "r@example.com"
+    assert store.verify_login("r@example.com", "brandnewpassword") is not None
+    assert store.verify_login("r@example.com", "oldpassword") is None
+    assert store.reset_password(token, "anotherpassword1") is None  # single-use
+
+
+def test_token_issue_unknown_email_returns_none(store):
+    assert store.issue_verification("ghost@example.com") is None
+    assert store.issue_password_reset("ghost@example.com") is None
+    assert store.verify_email("bogus-token") is None
+    assert store.reset_password("bogus-token", "longenoughpassword") is None

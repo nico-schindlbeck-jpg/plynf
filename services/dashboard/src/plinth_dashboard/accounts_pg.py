@@ -20,15 +20,21 @@ installed (JSON-file deploys / tests that don't touch Postgres).
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from .accounts import (
     ACCOUNT_COLUMNS,
     PLANS,
+    RESET_TOKEN_TTL_S,
+    VERIFY_TOKEN_TTL_S,
     AccountError,
+    _hash_token,
     account_public_view,
     build_new_account,
+    build_password_fields,
     new_api_key,
+    new_email_token,
     verify_password,
 )
 
@@ -44,11 +50,27 @@ _SCHEMA_STATEMENTS = (
         requested_plan          TEXT,
         created_at              TEXT NOT NULL,
         stripe_customer_id      TEXT,
-        stripe_subscription_id  TEXT
+        stripe_subscription_id  TEXT,
+        verified                BOOLEAN NOT NULL DEFAULT FALSE,
+        verify_token_hash       TEXT,
+        verify_token_expires    DOUBLE PRECISION,
+        reset_token_hash        TEXT,
+        reset_token_expires     DOUBLE PRECISION
     )
     """,
+    # Forward-compat: upgrade a table first created before email flows existed
+    # (Part A) without a migration tool. ADD COLUMN IF NOT EXISTS is idempotent.
+    "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT FALSE",
+    "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS verify_token_hash TEXT",
+    "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS verify_token_expires DOUBLE PRECISION",
+    "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS reset_token_hash TEXT",
+    "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS reset_token_expires DOUBLE PRECISION",
     "CREATE INDEX IF NOT EXISTS idx_accounts_api_key ON accounts (api_key)",
     "CREATE INDEX IF NOT EXISTS idx_accounts_stripe_customer ON accounts (stripe_customer_id)",
+    # verify_email / reset_password look accounts up by token hash; without
+    # these the consume path is a seq scan on every confirm.
+    "CREATE INDEX IF NOT EXISTS idx_accounts_verify_token ON accounts (verify_token_hash)",
+    "CREATE INDEX IF NOT EXISTS idx_accounts_reset_token ON accounts (reset_token_hash)",
 )
 
 _COLS = ", ".join(ACCOUNT_COLUMNS)
@@ -101,7 +123,14 @@ class PostgresAccountStore:
                 conn.execute(
                     f"INSERT INTO accounts ({_COLS}) VALUES ({_PLACEHOLDERS})", values
                 )
-        except psycopg.errors.UniqueViolation:
+        except psycopg.errors.UniqueViolation as e:
+            # The email PK is the expected collision; the api_key UNIQUE
+            # constraint can also fire (a ~192-bit key clash is astronomically
+            # unlikely but not impossible) — don't mislabel that as a dup email.
+            if "api_key" in (e.diag.constraint_name or ""):
+                raise AccountError(
+                    "could not allocate a unique API key; please retry"
+                ) from None
             raise AccountError("an account with this email already exists") from None
         return dict(account)
 
@@ -161,6 +190,47 @@ class PostgresAccountStore:
     def email_for_customer(self, customer_id: str) -> str | None:
         a = self._one(
             "SELECT email FROM accounts WHERE stripe_customer_id = %s", (customer_id,)
+        )
+        return a["email"] if a else None
+
+    # -- email verification / password reset --------------------------------
+    # Tokens are matched by exact hash + a server-side expiry check, both in
+    # the WHERE clause, so consuming a token is a single atomic UPDATE.
+
+    def issue_verification(self, email: str) -> str | None:
+        token = new_email_token()
+        a = self._one(
+            "UPDATE accounts SET verify_token_hash = %s, verify_token_expires = %s "
+            "WHERE email = %s RETURNING email",
+            (_hash_token(token), time.time() + VERIFY_TOKEN_TTL_S, email.strip().lower()),
+        )
+        return token if a else None
+
+    def verify_email(self, token: str) -> str | None:
+        a = self._one(
+            "UPDATE accounts SET verified = TRUE, verify_token_hash = NULL, "
+            "verify_token_expires = NULL "
+            "WHERE verify_token_hash = %s AND verify_token_expires >= %s RETURNING email",
+            (_hash_token(token), time.time()),
+        )
+        return a["email"] if a else None
+
+    def issue_password_reset(self, email: str) -> str | None:
+        token = new_email_token()
+        a = self._one(
+            "UPDATE accounts SET reset_token_hash = %s, reset_token_expires = %s "
+            "WHERE email = %s RETURNING email",
+            (_hash_token(token), time.time() + RESET_TOKEN_TTL_S, email.strip().lower()),
+        )
+        return token if a else None
+
+    def reset_password(self, token: str, new_password: str) -> str | None:
+        fields = build_password_fields(new_password)  # validates length first
+        a = self._one(
+            "UPDATE accounts SET password_salt = %s, password_hash = %s, "
+            "reset_token_hash = NULL, reset_token_expires = NULL "
+            "WHERE reset_token_hash = %s AND reset_token_expires >= %s RETURNING email",
+            (fields["password_salt"], fields["password_hash"], _hash_token(token), time.time()),
         )
         return a["email"] if a else None
 

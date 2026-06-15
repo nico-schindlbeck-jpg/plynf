@@ -153,7 +153,13 @@ def create_app(
     else:
         accounts = AccountStore(settings.accounts_path or None)
     app.state.accounts = accounts
-    register_accounts_api(app, settings, accounts)
+    # Outbound email (verify + reset links): real SMTP if configured, else a
+    # console mailer that logs the link — zero-config for dev/demo/tests.
+    from .mailer import build_mailer
+
+    mailer = build_mailer(settings)
+    app.state.mailer = mailer
+    register_accounts_api(app, settings, accounts, mailer)
     install_app_auth(app, settings)
 
     _register_routes(app, settings)
