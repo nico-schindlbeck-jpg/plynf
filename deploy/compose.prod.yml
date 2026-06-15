@@ -118,9 +118,12 @@ services:
       PLINTH_DASHBOARD_APP_AUTH_REQUIRED: "${PLINTH_DASHBOARD_APP_AUTH_REQUIRED:-false}"
       PLINTH_DASHBOARD_CORS_ORIGINS: "${PLINTH_DASHBOARD_CORS_ORIGINS:-https://plynf.com,https://app.plynf.com}"
       # ── Self-serve accounts + billing (signup → checkout → key → done) ──
-      # Accounts persist on the named volume below; the internal secret
-      # protects the proxy-facing key resolver. Stripe vars empty = simulated
-      # billing (works, but charges nothing) — see GO_LIVE.md step "Stripe".
+      # Accounts persist in Postgres (durable, pg_dump-able, table `accounts`
+      # in the same DB the proxy uses). Set PLINTH_DASHBOARD_ACCOUNTS_DB_URL=""
+      # in .env to fall back to the JSON file on the named volume. Internal
+      # secret protects the proxy-facing key resolver; Stripe vars empty =
+      # simulated billing — see GO_LIVE.md step "Stripe".
+      PLINTH_DASHBOARD_ACCOUNTS_DB_URL: "${PLINTH_DASHBOARD_ACCOUNTS_DB_URL:-postgresql://plynf:plynf@postgres:5432/plynf}"
       PLINTH_DASHBOARD_ACCOUNTS_PATH: "/data/plynf-accounts.json"
       PLINTH_DASHBOARD_INTERNAL_SECRET: "${PLINTH_INTERNAL_SECRET:?set PLINTH_INTERNAL_SECRET in deploy/.env}"
       PLINTH_DASHBOARD_SITE_URL: "${PLINTH_SITE_URL:-https://plynf.com}"
@@ -134,6 +137,8 @@ services:
       workspace:
         condition: service_healthy
       gateway:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     healthcheck:
       <<: *healthcheck-defaults

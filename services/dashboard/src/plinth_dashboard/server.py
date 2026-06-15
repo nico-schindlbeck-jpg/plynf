@@ -144,7 +144,14 @@ def create_app(
     app.state.control = store
     register_app_api(app, settings, store)
     # Self-serve accounts + billing (signup → checkout → API key → done).
-    accounts = AccountStore(settings.accounts_path or None)
+    # Durable Postgres in prod; JSON file (or in-memory) otherwise. Both expose
+    # the identical store interface, so the API layer below is unchanged.
+    if settings.accounts_db_url:
+        from .accounts_pg import PostgresAccountStore
+
+        accounts: Any = PostgresAccountStore(settings.accounts_db_url)
+    else:
+        accounts = AccountStore(settings.accounts_path or None)
     app.state.accounts = accounts
     register_accounts_api(app, settings, accounts)
     install_app_auth(app, settings)

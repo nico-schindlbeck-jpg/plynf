@@ -61,6 +61,71 @@ class AccountError(ValueError):
     """Raised for invalid signup/login/plan operations."""
 
 
+def build_new_account(email: str, password: str, plan: str = "free") -> dict[str, Any]:
+    """Validate signup inputs and build a fresh (not-yet-stored) account dict.
+
+    Shared by every storage backend (JSON file, Postgres) so the account shape
+    + validation rules live in exactly one place. Always starts on the free
+    plan; the desired tier is recorded as ``requested_plan`` and only activated
+    through billing (an abandoned checkout never grants paid limits).
+    """
+    email = email.strip().lower()
+    if not _EMAIL_RE.match(email):
+        raise AccountError("a valid email address is required")
+    if len(password) < 8:
+        raise AccountError("password must be at least 8 characters")
+    if plan not in PLANS:
+        raise AccountError(f"unknown plan {plan!r}")
+    salt = secrets.token_bytes(16)
+    return {
+        "email": email,
+        "password_salt": salt.hex(),
+        "password_hash": _hash_password(password, salt),
+        "tenant_id": new_tenant_id(),
+        "api_key": new_api_key(),
+        "plan": "free",
+        "requested_plan": plan,
+        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "stripe_customer_id": None,
+        "stripe_subscription_id": None,
+    }
+
+
+def account_public_view(account: dict[str, Any]) -> dict[str, Any]:
+    """The shape returned to the browser — never hashes/salts."""
+    return {
+        "email": account["email"],
+        "plan": account["plan"],
+        "requested_plan": account.get("requested_plan"),
+        "tenant_id": account["tenant_id"],
+        "api_key": account["api_key"],
+        "created_at": account["created_at"],
+        "has_billing": bool(account.get("stripe_customer_id")),
+    }
+
+
+def verify_password(account: dict[str, Any], password: str) -> bool:
+    """Constant-time password check against a stored account dict."""
+    expected = account["password_hash"]
+    actual = _hash_password(password, bytes.fromhex(account["password_salt"]))
+    return hmac.compare_digest(expected, actual)
+
+
+# Column order for the Postgres backend / row<->dict mapping.
+ACCOUNT_COLUMNS = (
+    "email",
+    "password_salt",
+    "password_hash",
+    "tenant_id",
+    "api_key",
+    "plan",
+    "requested_plan",
+    "created_at",
+    "stripe_customer_id",
+    "stripe_subscription_id",
+)
+
+
 class AccountStore:
     """Threadsafe account registry with optional JSON-file persistence."""
 
@@ -102,32 +167,11 @@ class AccountStore:
     # -- public surface ------------------------------------------------------
 
     def create(self, email: str, password: str, plan: str = "free") -> dict[str, Any]:
-        email = email.strip().lower()
-        if not _EMAIL_RE.match(email):
-            raise AccountError("a valid email address is required")
-        if len(password) < 8:
-            raise AccountError("password must be at least 8 characters")
-        if plan not in PLANS:
-            raise AccountError(f"unknown plan {plan!r}")
+        account = build_new_account(email, password, plan)
+        email = account["email"]
         with self._lock:
             if email in self._accounts:
                 raise AccountError("an account with this email already exists")
-            salt = secrets.token_bytes(16)
-            account = {
-                "email": email,
-                "password_salt": salt.hex(),
-                "password_hash": _hash_password(password, salt),
-                "tenant_id": new_tenant_id(),
-                "api_key": new_api_key(),
-                # Paid plans only activate through the billing flow; signup
-                # always starts on free so an abandoned checkout never grants
-                # paid limits.
-                "plan": "free",
-                "requested_plan": plan,
-                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "stripe_customer_id": None,
-                "stripe_subscription_id": None,
-            }
             self._accounts[email] = account
             self._reindex()
             self._save()
@@ -142,11 +186,7 @@ class AccountStore:
                 # not reveal whether the email exists (user enumeration).
                 _hash_password(password, _DUMMY_SALT)
                 return None
-            expected = account["password_hash"]
-            actual = _hash_password(password, bytes.fromhex(account["password_salt"]))
-            if hmac.compare_digest(expected, actual):
-                return dict(account)
-            return None
+            return dict(account) if verify_password(account, password) else None
 
     def get(self, email: str) -> dict[str, Any] | None:
         with self._lock:
@@ -207,15 +247,17 @@ class AccountStore:
 
     def public_view(self, account: dict[str, Any]) -> dict[str, Any]:
         """The shape returned to the browser — never hashes/salts."""
-        return {
-            "email": account["email"],
-            "plan": account["plan"],
-            "requested_plan": account.get("requested_plan"),
-            "tenant_id": account["tenant_id"],
-            "api_key": account["api_key"],
-            "created_at": account["created_at"],
-            "has_billing": bool(account.get("stripe_customer_id")),
-        }
+        return account_public_view(account)
 
 
-__all__ = ["AccountError", "AccountStore", "PLANS", "new_api_key", "new_tenant_id"]
+__all__ = [
+    "ACCOUNT_COLUMNS",
+    "AccountError",
+    "AccountStore",
+    "PLANS",
+    "account_public_view",
+    "build_new_account",
+    "new_api_key",
+    "new_tenant_id",
+    "verify_password",
+]

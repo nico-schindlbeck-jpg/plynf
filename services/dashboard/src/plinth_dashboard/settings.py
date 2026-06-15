@@ -59,8 +59,11 @@ class Settings(BaseSettings):
     app_session_tenant: str = Field(default="acme")
     app_session_ttl_seconds: int = Field(default=3600)
     # -- Self-serve accounts + billing (the zero-terminal flow) -------------
-    # accounts_path empty = in-memory (tests/demo); set a file path in prod
-    # (e.g. /data/plynf-accounts.json on a persistent disk).
+    # Account storage. Prefer Postgres in prod (durable, backup-able):
+    # set accounts_db_url to a postgresql:// DSN. If empty, falls back to a
+    # single JSON file at accounts_path; if that is also empty, in-memory
+    # (tests/offline demo only — lost on restart).
+    accounts_db_url: str = Field(default="")
     accounts_path: str = Field(default="")
     # Shared secret protecting GET /internal/keys/* — the proxy presents it
     # as X-Internal-Secret to resolve customer API keys. Required in prod.
